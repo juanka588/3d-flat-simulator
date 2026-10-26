@@ -3,19 +3,23 @@ import type { DragEvent } from 'react';
 import { MAX_SCENE_BYTES } from '@flat/scene';
 import { beginLoad, isLatestLoad, useSceneStore } from './state/sceneStore';
 import { FIXTURES } from './state/fixtures';
+import { contextFor } from './state/siteContext';
 import { useViewStore } from './state/viewStore';
 import { noteFrame, registerCanvas, testHookEnabled } from './testHook';
 import { ErrorPanel } from './ui/ErrorPanel';
+import { LightingPanel } from './ui/LightingPanel';
 import { ModeToolbar } from './ui/ModeToolbar';
 import { PropertiesPanel } from './ui/PropertiesPanel';
 import { SceneLoader } from './ui/SceneLoader';
+import { SitePanel } from './ui/SitePanel';
 import { WarningsList } from './ui/WarningsList';
 import { FlatCanvas } from './viewer/FlatCanvas';
+import { sceneKey } from './viewer/scene-identity';
 import { selectionForId } from './viewer/selection';
 
 export function App() {
   const { scene, source, warnings, errors, loadText } = useSceneStore();
-  const { mode, selection, setMode, select } = useViewStore();
+  const { mode, selection, lighting, setMode, select } = useViewStore();
   const [dragging, setDragging] = useState(false);
 
   const loadFile = useCallback(
@@ -61,6 +65,7 @@ export function App() {
     if (file) void loadFile(file);
   };
 
+  const context = contextFor(source);
   const fixtureId = FIXTURES.find((f) => f.id === source)?.id ?? '';
 
   return (
@@ -83,6 +88,8 @@ export function App() {
         )}
         <SceneLoader fixtureId={fixtureId} onPickFixture={pickFixture} onFile={(f) => void loadFile(f)} />
         <ErrorPanel errors={errors} onDismiss={() => useSceneStore.setState({ errors: [] })} />
+        {scene && <LightingPanel scene={scene} hasContext={context !== null} />}
+        {scene && <SitePanel key={sceneKey(scene)} scene={scene} />}
         {scene && (
           <WarningsList
             warnings={warnings}
@@ -95,7 +102,8 @@ export function App() {
           <>
             <FlatCanvas
               scene={scene}
-              view={{ mode, selection }}
+              view={{ mode, selection, lighting }}
+              context={context}
               onSelect={select}
               onExitWalk={exitWalk}
               onCreated={registerCanvas}

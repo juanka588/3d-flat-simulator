@@ -1,7 +1,8 @@
-import type { Scene } from '@flat/scene';
+import type { Scene, Site } from '@flat/scene';
 import { create } from 'zustand';
 import { loadSceneText } from '@flat/scene';
 import type { LoadResult, ValidationWarning } from '@flat/scene';
+import { adoptSceneIdentity } from '../viewer/scene-identity';
 import { useViewStore } from './viewStore';
 
 let latestLoad = 0;
@@ -24,6 +25,11 @@ interface SceneStore {
   loadText: (text: string, source: string) => LoadResult;
   /** Records load errors (e.g. a file rejected before parsing) without touching the scene. */
   fail: (errors: string[]) => void;
+  /**
+   * Replaces the site of the in-memory scene (M2.9). Not undoable until M3; the camera and meshes
+   * are kept because the geometry is unchanged.
+   */
+  setSite: (site: Site) => void;
 }
 
 export const useSceneStore = create<SceneStore>((set) => ({
@@ -32,6 +38,13 @@ export const useSceneStore = create<SceneStore>((set) => ({
   warnings: [],
   errors: [],
   fail: (errors) => set({ errors }),
+  setSite: (site) =>
+    set((s) => {
+      if (!s.scene) return s;
+      const next = { ...s.scene, site };
+      adoptSceneIdentity(s.scene, next);
+      return { scene: next };
+    }),
   loadText: (text, source) => {
     latestLoad++; // a synchronous load supersedes any file still being read
     const result = loadSceneText(text);

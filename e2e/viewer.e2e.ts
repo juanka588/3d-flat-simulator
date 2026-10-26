@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { charmeFlat, flat, loadScene, openApp, polygonArea, rendered, sampleFlat } from './helpers';
 
-const MAX_DRAW_CALLS = 40;
+const MAX_DRAW_CALLS = 70;
 const MAX_TRIANGLES = 60_000;
 
 test.beforeEach(async ({ page }) => {

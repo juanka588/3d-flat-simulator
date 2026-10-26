@@ -3,9 +3,9 @@
   "name": "Blanc Nature – Charme n°3205 (3 pièces + alcôve, 2e étage)",
   "units": "m",
   "site": {
-    "latitude": 48.7893,
-    "longitude": 2.3038,
-    "northAngle": 0,
+    "latitude": 48.785911,
+    "longitude": 2.303968,
+    "northAngle": 358.5,
     "timezone": "Europe/Paris",
     "floorElevation": 5.8,
     "address": "Rue de la Fontaine, 92220 Bagneux"

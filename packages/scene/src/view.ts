@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { Light, Site } from './schema';
 
 /**
  * Lighting part of the view state: everything about *when* and *how* the flat is lit that is
@@ -42,3 +43,27 @@ export const DEFAULT_LIGHTING: LightingView = {
   exposureEV: 0,
   showContext: true,
 };
+
+/**
+ * Applies a lighting preset as a pure transform of the lighting view (the scene is untouched):
+ * - day: local 12:00, sun on, every lamp off;
+ * - evening: 20:00 on the winter solstice of the view's year (21 Dec, or 21 Jun in the
+ *   southern hemisphere), sun on (it is below the horizon), every lamp on;
+ * - night: 23:00, sun disabled, every lamp on.
+ * Lamp overrides other than `on` (lumens, kelvin) and overrides of unknown ids are preserved.
+ */
+export function applyPreset(view: LightingView, preset: PresetName, site: Site, lights: Light[]): LightingView {
+  const lampsOn = preset !== 'day';
+  const lamps: LightingView['lamps'] = { ...view.lamps };
+  for (const l of lights) lamps[l.id] = { ...lamps[l.id], on: lampsOn };
+  switch (preset) {
+    case 'day':
+      return { ...view, time: '12:00', sunEnabled: true, lamps };
+    case 'evening': {
+      const year = view.date.slice(0, 4);
+      return { ...view, date: `${year}-${site.latitude < 0 ? '06' : '12'}-21`, time: '20:00', sunEnabled: true, lamps };
+    }
+    case 'night':
+      return { ...view, time: '23:00', sunEnabled: false, lamps };
+  }
+}

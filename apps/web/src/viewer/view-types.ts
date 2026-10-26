@@ -1,4 +1,4 @@
-import type { OwnerKind, WallFace } from '@flat/scene';
+import type { LightingView, OwnerKind, WallFace } from '@flat/scene';
 
 export type ViewMode = 'orbit' | 'top' | 'walk';
 
@@ -13,4 +13,6 @@ export interface Selection {
 export interface ViewState {
   mode: ViewMode;
   selection: Selection | null;
+  /** Sun date/time, lamp overrides, exposure and context visibility. */
+  lighting: LightingView;
 }

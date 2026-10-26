@@ -14,7 +14,11 @@ export const ContextBuilding = z.strictObject({
   base: z.number(),
   /** Building height above its ground level, metres. */
   height: z.number().positive(),
-  /** The building that contains the flat (rendered without the flat's own volume). */
+  /**
+   * Part of the building that contains the flat. The generator splits it into bands (below the
+   * flat, the flat's storey minus the flat's bounding rectangle, above the flat) so no solid
+   * box surrounds the flat; every band has `host: true`.
+   */
   host: z.boolean().default(false),
 });
 export type ContextBuilding = z.infer<typeof ContextBuilding>;

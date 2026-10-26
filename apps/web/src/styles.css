@@ -171,3 +171,96 @@ button.link {
 .dragging .drop-overlay {
   display: flex;
 }
+fieldset {
+  border: 1px solid #d8d8dc;
+  border-radius: 6px;
+  margin: 0 0 0.6rem;
+  padding: 0.4rem 0.6rem 0.6rem;
+}
+legend {
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0 0.3rem;
+}
+.field {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 0.15rem 0.4rem;
+  margin: 0.3rem 0;
+}
+.field label {
+  grid-column: 1 / -1;
+  font-size: 0.8rem;
+  color: #46464c;
+}
+.field input[type='range'] {
+  width: 100%;
+}
+.field input[type='number'],
+.field input[type='text'],
+.field input[type='date'] {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  padding: 0.2rem 0.3rem;
+}
+.field input[aria-invalid='true'] {
+  border-color: #c62828;
+  outline-color: #c62828;
+}
+.field output,
+.field .unit {
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+.field-error {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: #8a0019;
+  font-size: 0.78rem;
+}
+.check {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+}
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin: 0.4rem 0;
+}
+.readout {
+  margin: 0.4rem 0 0;
+  font-size: 0.8rem;
+}
+.readout > div {
+  display: flex;
+  justify-content: space-between;
+}
+.readout dt {
+  color: #6b6b72;
+}
+.readout dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+.lamps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.lamps li {
+  padding: 0.3rem 0;
+  border-top: 1px solid #ececef;
+}
+.lamps li:first-child {
+  border-top: 0;
+}
+.lamp-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4rem;
+}

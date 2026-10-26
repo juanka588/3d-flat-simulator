@@ -12,3 +12,9 @@ export function shellFor(scene: Scene): ShellMeshes {
   }
   return shell;
 }
+
+/** Reuses the shell built for `from` for `to` (same walls/rooms/openings, different site). */
+export function adoptShell(from: Scene, to: Scene): void {
+  const shell = cache.get(from);
+  if (shell) cache.set(to, shell);
+}

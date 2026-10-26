@@ -21,7 +21,16 @@ const TOP_MARGIN = 1.1;
  * Orbit and top-down cameras. Remount (via `key`) when the scene or mode changes to re-frame.
  * Walk mode has its own rig, see WalkControls.
  */
-export function CameraRig({ scene, mode }: { scene: Scene; mode: Exclude<ViewMode, 'walk'> }) {
+export function CameraRig({
+  scene,
+  mode,
+  extraReach = 0,
+}: {
+  scene: Scene;
+  mode: Exclude<ViewMode, 'walk'>;
+  /** How far site context extends from the flat; only widens the far plane, the framing stays on the flat. */
+  extraReach?: number;
+}) {
   const size = useThree((s) => s.size);
   const { fit, far, maxDistance, topZoom } = useMemo(
     () => {
@@ -45,7 +54,7 @@ export function CameraRig({ scene, mode }: { scene: Scene; mode: Exclude<ViewMod
       return {
         fit,
         // The camera can sit `maxDistance` from the target and the box is within `diagonal` of it.
-        far: maxDistance + diagonal + 10,
+        far: maxDistance + diagonal + extraReach + 10,
         maxDistance,
         topZoom,
       };

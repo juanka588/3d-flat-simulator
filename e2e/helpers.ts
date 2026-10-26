@@ -48,3 +48,45 @@ export function polygonArea(polygon: [number, number][]): number {
   });
   return Math.abs(sum) / 2;
 }
+
+/** Skips the current test when the sun/exposure maths in `@flat/scene` is unavailable (stubs). */
+export async function lightingAvailable(page: Page): Promise<{ ok: true } | { ok: false; reason: string }> {
+  const info = await page.evaluate(() => window.__flat!.sunInfo());
+  return info.available ? { ok: true } : { ok: false, reason: `lighting maths unavailable (${info.error}); skipping until integration` };
+}
+
+/**
+ * Mean luminance (0-1, Rec. 709 on sRGB values) of the current canvas, or of a square window
+ * (`half` px each side of the centre) around the projection of a world point.
+ */
+export function meanLuma(page: Page, probe?: { point: [number, number, number]; half?: number }): Promise<number> {
+  return page.evaluate(async (p) => {
+    const hook = window.__flat!;
+    const img = new Image();
+    img.src = hook.capture();
+    await img.decode();
+    const c = document.createElement('canvas');
+    c.width = img.width;
+    c.height = img.height;
+    const ctx = c.getContext('2d')!;
+    ctx.drawImage(img, 0, 0);
+    let x0 = 0;
+    let y0 = 0;
+    let w = img.width;
+    let h = img.height;
+    if (p) {
+      const rect = document.querySelector('canvas')!.getBoundingClientRect();
+      const scale = img.width / rect.width;
+      const at = hook.project(p.point);
+      const half = Math.round((p.half ?? 6) * scale);
+      x0 = Math.max(0, Math.round((at.x - rect.left) * scale) - half);
+      y0 = Math.max(0, Math.round((at.y - rect.top) * scale) - half);
+      w = Math.min(img.width - x0, 2 * half + 1);
+      h = Math.min(img.height - y0, 2 * half + 1);
+    }
+    const px = ctx.getImageData(x0, y0, w, h).data;
+    let sum = 0;
+    for (let i = 0; i < px.length; i += 4) sum += (0.2126 * px[i]! + 0.7152 * px[i + 1]! + 0.0722 * px[i + 2]!) / 255;
+    return sum / (px.length / 4);
+  }, probe);
+}

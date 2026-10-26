@@ -1,10 +1,12 @@
 import { addAfterEffect } from '@react-three/fiber';
 import type { RootState } from '@react-three/fiber';
-import { Vector3 } from 'three';
-import type { Mesh, Object3D } from 'three';
+import { NeutralToneMapping, Vector3 } from 'three';
+import type { Light, Mesh, Object3D } from 'three';
 import { useSceneStore } from './state/sceneStore';
+import { setClockSource, tickClock, useClockStore } from './state/dayClock';
+import { sunInfoFor } from './state/sunInfo';
 import { useViewStore } from './state/viewStore';
-import type { FlatTestHook } from './test-hook-types';
+import type { FlatStats, FlatTestHook } from './test-hook-types';
 import { selectionForId } from './viewer/selection';
 import type { ViewState } from './viewer/view-types';
 import type { Scene } from '@flat/scene';
@@ -56,12 +58,13 @@ function nextRenderedFrame(): Promise<void> {
 
 function reflectsStores(): boolean {
   const { scene } = useSceneStore.getState();
-  const { mode, selection } = useViewStore.getState();
+  const { mode, selection, lighting } = useViewStore.getState();
   return (
     renderedFrame !== null &&
     (scene === null || renderedFrame.scene === scene) &&
     renderedFrame.view.mode === mode &&
-    renderedFrame.view.selection === selection
+    renderedFrame.view.selection === selection &&
+    renderedFrame.view.lighting === lighting
   );
 }
 
@@ -82,6 +85,48 @@ function meshNames(root: Object3D): string[] {
   const names: string[] = [];
   root.traverseVisible((o) => {
     if ((o as Mesh).isMesh && o.name) names.push(o.name);
+  });
+  return names;
+}
+
+function lightStats(root: Object3D): FlatStats['lights'] {
+  const out: FlatStats['lights'] = {
+    directional: 0,
+    hemisphere: 0,
+    point: 0,
+    spot: 0,
+    area: 0,
+    lampsLit: [],
+    shadowCasters: 0,
+    shadowCasterNames: [],
+    sunIntensity: 0,
+    hemisphereIntensity: 0,
+  };
+  root.traverseVisible((o) => {
+    const l = o as Light & { isDirectionalLight?: boolean; isHemisphereLight?: boolean; isPointLight?: boolean; isSpotLight?: boolean; isRectAreaLight?: boolean };
+    if (!l.isLight) return;
+    if (l.isDirectionalLight) {
+      out.directional++;
+      out.sunIntensity += l.intensity;
+    } else if (l.isHemisphereLight) {
+      out.hemisphere++;
+      out.hemisphereIntensity += l.intensity;
+    } else if (l.isPointLight) out.point++;
+    else if (l.isSpotLight) out.spot++;
+    else if (l.isRectAreaLight) out.area++;
+    if (o.name.startsWith('lamp:') && l.intensity > 0) out.lampsLit.push(o.name.slice(5));
+    if (l.castShadow && l.intensity > 0) {
+      out.shadowCasters++;
+      out.shadowCasterNames.push(o.name || l.type);
+    }
+  });
+  return out;
+}
+
+function shadowCasterMeshes(root: Object3D): string[] {
+  const names: string[] = [];
+  root.traverseVisible((o) => {
+    if ((o as Mesh).isMesh && o.castShadow) names.push(o.name);
   });
   return names;
 }
@@ -117,6 +162,10 @@ export function installTestHook(): void {
         mode: useViewStore.getState().mode,
         sceneName: useSceneStore.getState().scene?.name ?? '',
         camera: [camera.position.x, camera.position.y, camera.position.z],
+        lights: lightStats(scene),
+        shadowCasterMeshes: shadowCasterMeshes(scene),
+        exposure: gl.toneMappingExposure,
+        toneMapping: gl.toneMapping === NeutralToneMapping ? 'neutral' : 'other',
       };
     },
     async setView(partial) {
@@ -152,6 +201,30 @@ export function installTestHook(): void {
     capture() {
       // Render synchronously right before reading: no need for preserveDrawingBuffer.
       return renderNow().gl.domElement.toDataURL('image/png');
+    },
+    async setLighting(partial) {
+      await canvasReady;
+      useViewStore.getState().setLighting(partial);
+      await whenRendered();
+    },
+    sunInfo() {
+      const scene = useSceneStore.getState().scene;
+      if (!scene) return { available: false, error: 'no scene loaded' };
+      return sunInfoFor(scene, useViewStore.getState().lighting);
+    },
+    setClock(source) {
+      setClockSource(source);
+    },
+    setPlaying(playing, minutesPerSecond) {
+      const clock = useClockStore.getState();
+      if (minutesPerSecond !== undefined) clock.setSpeed(minutesPerSecond);
+      clock.setPlaying(playing);
+    },
+    async tick(ms) {
+      if (useClockStore.getState().source !== 'manual') throw new Error("tick() needs setClock('manual')");
+      await canvasReady;
+      tickClock(ms);
+      await whenRendered();
     },
     select(id) {
       const scene = useSceneStore.getState().scene;

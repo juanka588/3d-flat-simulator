@@ -1,4 +1,5 @@
-import type { LoadResult } from '@flat/scene';
+import type { LightingView, LoadResult } from '@flat/scene';
+import type { SunInfo } from './state/sunInfo';
 import type { ViewState } from './viewer/view-types';
 
 export interface FlatStats {
@@ -14,6 +15,26 @@ export interface FlatStats {
   sceneName: string;
   /** World position of the active camera. */
   camera: [number, number, number];
+  /** Lights in the three.js scene right now. */
+  lights: {
+    directional: number;
+    hemisphere: number;
+    point: number;
+    spot: number;
+    area: number;
+    /** Ids of the lamps currently emitting (intensity > 0). */
+    lampsLit: string[];
+    /** Lights that cast shadows and emit (the sun counts when it is up). */
+    shadowCasters: number;
+    /** Ids/names of those lights. */
+    shadowCasterNames: string[];
+    sunIntensity: number;
+    hemisphereIntensity: number;
+  };
+  /** Meshes that cast shadows (the merged shell casters, context buildings). */
+  shadowCasterMeshes: string[];
+  exposure: number;
+  toneMapping: 'neutral' | 'other';
 }
 
 export interface FlatTestHook {
@@ -33,6 +54,16 @@ export interface FlatTestHook {
   /** PNG data URL of the current canvas. */
   capture: () => string;
   select: (id: string | null) => boolean;
+  /** Merges into the lighting view; resolves after a frame reflecting it has been rendered. */
+  setLighting: (partial: Partial<LightingView>) => Promise<void>;
+  /** Sun position and daylight times for the current lighting view (or why they are unavailable). */
+  sunInfo: () => SunInfo;
+  /** Chooses the day-animation time source: `manual` advances only through `tick`. */
+  setClock: (source: 'real' | 'manual') => void;
+  /** Starts/stops the day animation, optionally at `minutesPerSecond` simulated minutes per second. */
+  setPlaying: (playing: boolean, minutesPerSecond?: number) => void;
+  /** Manual clock: advances `ms` of real time (moves the sun if playing); resolves after the render. */
+  tick: (ms: number) => Promise<void>;
 }
 
 declare global {

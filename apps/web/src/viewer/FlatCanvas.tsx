@@ -2,7 +2,7 @@ import { Canvas, useFrame } from '@react-three/fiber';
 import type { RootState } from '@react-three/fiber';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
-import type { Scene } from '@flat/scene';
+import type { Scene, SiteContext } from '@flat/scene';
 import { CameraRig } from './CameraRig';
 import { CompassDriver, CompassOverlay } from './Compass';
 import { SelectionHighlight } from './SelectionHighlight';
@@ -10,11 +10,17 @@ import { ShellMesh, CLICK_DRAG_TOLERANCE_PX } from './ShellMesh';
 import { VIEWER_ELEMENT_ID, WalkControls } from './WalkControls';
 import { createMaterialLibrary } from './materials';
 import { shellFor } from './shell-cache';
+import { shadowCasterGeometry } from './derived-geometry';
+import { LightingRig } from './LightingRig';
+import { sceneKey } from './scene-identity';
+import { contextReach } from './sun-bounds';
 import type { Selection, ViewState } from './view-types';
 
 export interface FlatCanvasProps {
   scene: Scene;
   view: ViewState;
+  /** Neighbouring buildings and ground (optional); shown when `view.lighting.showContext`. */
+  context?: SiteContext | null;
   onSelect: (selection: Selection | null) => void;
   /** Called when the user leaves walk mode (Esc / pointer-lock release). */
   onExitWalk?: () => void;
@@ -25,7 +31,7 @@ export interface FlatCanvasProps {
 }
 
 /** The 3D viewer: a pure function of `Scene` + `ViewState`. All UI chrome lives outside it. */
-export function FlatCanvas({ scene, view, onSelect, onExitWalk, onCreated, onFrame }: FlatCanvasProps) {
+export function FlatCanvas({ scene, view, context = null, onSelect, onExitWalk, onCreated, onFrame }: FlatCanvasProps) {
   const needle = useRef<HTMLDivElement>(null);
   const downAt = useRef<[number, number]>([0, 0]);
 
@@ -44,6 +50,7 @@ export function FlatCanvas({ scene, view, onSelect, onExitWalk, onCreated, onFra
     <div id={VIEWER_ELEMENT_ID} className="viewer" onPointerDownCapture={rememberPointerDown}>
       <Canvas
         frameloop="demand"
+        shadows="percentage"
         gl={{ antialias: true }}
         dpr={[1, 2]}
         onCreated={onCreated}
@@ -53,14 +60,17 @@ export function FlatCanvas({ scene, view, onSelect, onExitWalk, onCreated, onFra
         }}
       >
         <color attach="background" args={['#e8ebf0']} />
-        {/* Neutral lighting for now; M2 replaces it with the sun. */}
-        <hemisphereLight args={['#ffffff', '#8c8578', 1.4]} />
-        <directionalLight position={[8, 18, 6]} intensity={1.6} />
+        <LightingRig
+          scene={scene}
+          lighting={view.lighting}
+          context={context}
+          selectedRoomId={view.selection && view.selection.kind === 'floor' ? view.selection.entityId : undefined}
+        />
         <Shell scene={scene} view={view} onSelect={onSelect} />
         {view.mode === 'walk' ? (
           <WalkControls key={`walk:${sceneKey(scene)}`} scene={scene} onExit={onExitWalk ?? noop} />
         ) : (
-          <CameraRig key={`${view.mode}:${sceneKey(scene)}`} scene={scene} mode={view.mode} />
+          <CameraRig key={`${view.mode}:${sceneKey(scene)}`} scene={scene} mode={view.mode} extraReach={contextReach(scene, view.lighting.showContext ? context : null)} />
         )}
         {onFrame && <FrameReporter scene={scene} view={view} onFrame={onFrame} />}
         <CompassDriver onAngle={setNeedle} northAngle={scene.site.northAngle} />
@@ -77,18 +87,6 @@ function FrameReporter({ scene, view, onFrame }: { scene: Scene; view: ViewState
   return null;
 }
 
-// Stable identity key per Scene object, so camera rigs remount when a new scene loads.
-const keys = new WeakMap<Scene, number>();
-let nextKey = 0;
-function sceneKey(scene: Scene): number {
-  let k = keys.get(scene);
-  if (k === undefined) {
-    k = nextKey++;
-    keys.set(scene, k);
-  }
-  return k;
-}
-
 function Shell({ scene, view, onSelect }: { scene: Scene; view: ViewState; onSelect: (s: Selection) => void }) {
   const shell = useMemo(() => shellFor(scene), [scene]);
   const materials = useMemo(() => createMaterialLibrary(scene), [scene]);
@@ -97,16 +95,22 @@ function Shell({ scene, view, onSelect }: { scene: Scene; view: ViewState; onSel
   const walk = view.mode === 'walk';
   const pick = walk ? undefined : onSelect;
   const selectedId = view.selection?.entityId;
+  const casters = useMemo(() => shadowCasterGeometry(shell), [shell]);
+  useEffect(() => () => casters.dispose(), [casters]);
   const meshes = [shell.walls, shell.floors, shell.fittings, shell.glass, ...(walk ? [shell.ceilings] : [])];
 
   return (
     <group name="shell">
-      <ShellMesh name="walls" data={shell.walls} materials={materials} castShadow receiveShadow onSelect={pick} />
+      {/* Shadows come from one invisible merged mesh (see shadowCasterGeometry); the visible meshes only receive. */}
+      <mesh name="shadow-casters" geometry={casters} castShadow raycast={noop}>
+        <meshBasicMaterial colorWrite={false} depthWrite={false} />
+      </mesh>
+      <ShellMesh name="walls" data={shell.walls} materials={materials} receiveShadow onSelect={pick} />
       <ShellMesh name="floors" data={shell.floors} materials={materials} receiveShadow onSelect={pick} />
       {/* Ceilings are hidden in orbit/top so the interior stays visible from above. */}
-      {walk && <ShellMesh name="ceilings" data={shell.ceilings} materials={materials} castShadow onSelect={pick} />}
-      <ShellMesh name="fittings" data={shell.fittings} materials={materials} castShadow receiveShadow onSelect={pick} />
-      <ShellMesh name="glass" data={shell.glass} materials={materials} castShadow={false} onSelect={pick} />
+      {walk && <ShellMesh name="ceilings" data={shell.ceilings} materials={materials} onSelect={pick} />}
+      <ShellMesh name="fittings" data={shell.fittings} materials={materials} receiveShadow onSelect={pick} />
+      <ShellMesh name="glass" data={shell.glass} materials={materials} onSelect={pick} />
       {selectedId && meshes.map((m, i) => <SelectionHighlight key={i} mesh={m} entityId={selectedId} />)}
     </group>
   );
