@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "name": "Sample 2-bedroom flat (65 m²)",
+  "units": "m",
+  "site": { "latitude": 48.8566, "longitude": 2.3522, "northAngle": 0, "timezone": "Europe/Paris" },
+  "materials": [
+    { "id": "paint-white", "name": "Warm white paint", "kind": "paint", "color": "#f2f0eb" },
+    { "id": "paint-sage", "name": "Sage green paint", "kind": "paint", "color": "#a9b8a0" },
+    { "id": "ceiling-white", "name": "Ceiling white", "kind": "paint", "color": "#fafafa" },
+    { "id": "floor-oak", "name": "Oak parquet", "kind": "paint", "color": "#b48a5a", "roughness": 0.6 },
+    { "id": "floor-tile", "name": "Light stone tile", "kind": "paint", "color": "#d9d6d0", "roughness": 0.4 }
+  ],
+  "walls": [
+    { "id": "w-north", "start": [0, 0], "end": [10, 0], "thickness": 0.2 },
+    { "id": "w-east", "start": [10, 0], "end": [10, 6.5], "thickness": 0.2 },
+    { "id": "w-south", "start": [10, 6.5], "end": [0, 6.5], "thickness": 0.2 },
+    { "id": "w-west", "start": [0, 6.5], "end": [0, 0], "thickness": 0.2 },
+    { "id": "w-bed1-east", "start": [3.6, 0], "end": [3.6, 3.4] },
+    { "id": "w-bed1-south", "start": [0, 3.4], "end": [3.6, 3.4] },
+    { "id": "w-bath-south", "start": [3.6, 2.4], "end": [5.6, 2.4] },
+    { "id": "w-bed2-west", "start": [5.6, 0], "end": [5.6, 3.4] },
+    { "id": "w-bed2-south", "start": [5.6, 3.4], "end": [10, 3.4], "finish": { "left": "paint-sage" } }
+  ],
+  "openings": [
+    { "id": "win-bed1", "wallId": "w-north", "type": "window", "offset": 1.8, "width": 1.4, "height": 1.3, "sill": 0.9 },
+    { "id": "win-bath", "wallId": "w-north", "type": "window", "offset": 4.6, "width": 0.6, "height": 0.6, "sill": 1.5 },
+    { "id": "win-bed2", "wallId": "w-north", "type": "window", "offset": 7.8, "width": 1.6, "height": 1.3, "sill": 0.9 },
+    { "id": "door-entry", "wallId": "w-east", "type": "door", "offset": 5.0, "width": 0.9, "height": 2.1 },
+    { "id": "win-balcony", "wallId": "w-south", "type": "window", "offset": 2.5, "width": 2.4, "height": 2.2, "sill": 0 },
+    { "id": "win-living", "wallId": "w-south", "type": "window", "offset": 7.0, "width": 1.8, "height": 1.4, "sill": 0.8 },
+    { "id": "win-living-west", "wallId": "w-west", "type": "window", "offset": 1.6, "width": 1.2, "height": 1.3, "sill": 0.9 },
+    { "id": "door-bed1", "wallId": "w-bed1-east", "type": "door", "offset": 2.9, "width": 0.8, "height": 2.1 },
+    { "id": "door-bed2", "wallId": "w-bed2-west", "type": "door", "offset": 2.9, "width": 0.8, "height": 2.1 },
+    { "id": "door-bath", "wallId": "w-bath-south", "type": "door", "offset": 1.0, "width": 0.7, "height": 2.1 }
+  ],
+  "rooms": [
+    { "id": "bed1", "name": "Bedroom 1", "type": "bedroom", "polygon": [[0, 0], [3.6, 0], [3.6, 3.4], [0, 3.4]], "floorMaterial": "floor-oak" },
+    { "id": "bath", "name": "Bathroom", "type": "bathroom", "polygon": [[3.6, 0], [5.6, 0], [5.6, 2.4], [3.6, 2.4]], "floorMaterial": "floor-tile" },
+    { "id": "bed2", "name": "Bedroom 2", "type": "bedroom", "polygon": [[5.6, 0], [10, 0], [10, 3.4], [5.6, 3.4]], "floorMaterial": "floor-oak" },
+    { "id": "hall", "name": "Hallway", "type": "hallway", "polygon": [[3.6, 2.4], [5.6, 2.4], [5.6, 3.4], [3.6, 3.4]], "floorMaterial": "floor-oak" },
+    { "id": "living", "name": "Living room & kitchen", "type": "living", "polygon": [[0, 3.4], [10, 3.4], [10, 6.5], [0, 6.5]], "floorMaterial": "floor-oak" }
+  ],
+  "items": [],
+  "lights": [
+    { "id": "l-living", "name": "Living pendant", "type": "point", "roomId": "living", "position": [2.5, 5.0], "elevation": 2.3, "lumens": 1600, "kelvin": 2700 },
+    { "id": "l-kitchen", "name": "Kitchen panel", "type": "area", "roomId": "living", "position": [8.5, 5.0], "elevation": 2.58, "width": 1.2, "depth": 0.3, "lumens": 2500, "kelvin": 3500 },
+    { "id": "l-bed1", "name": "Bedroom 1 ceiling", "type": "point", "roomId": "bed1", "position": [1.8, 1.7], "elevation": 2.4, "lumens": 800, "kelvin": 2700 },
+    { "id": "l-bed2", "name": "Bedroom 2 ceiling", "type": "point", "roomId": "bed2", "position": [7.8, 1.7], "elevation": 2.4, "lumens": 800, "kelvin": 2700 },
+    { "id": "l-bath", "name": "Bathroom spot", "type": "spot", "roomId": "bath", "position": [4.6, 1.2], "elevation": 2.55, "angle": 100, "lumens": 600, "kelvin": 4000 },
+    { "id": "l-hall", "name": "Hallway spot", "type": "spot", "roomId": "hall", "position": [4.6, 2.9], "elevation": 2.55, "angle": 90, "lumens": 400, "kelvin": 3000 }
+  ]
+}
