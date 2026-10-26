@@ -13,6 +13,10 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "earcut": "^3.2.4",
     "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/earcut": "^3.2.4"
   }
 }
