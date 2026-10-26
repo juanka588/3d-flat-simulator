@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import charme from '../../fixtures/charme-3205.flat.json';
+import charmeContext from '../../fixtures/charme-3205.context.json';
+import { SiteContext } from '../context/schema';
 import { Scene } from '../schema';
 import { sunAtInstant, sunDirection } from './sun';
 import { sunPatches, sunlightHours } from './sunpatch';
@@ -162,7 +164,7 @@ describe('sunlightHours', () => {
   });
 });
 
-describe('Charme 3205 sunlight hours', () => {
+describe('Charme 3205 sunlight hours (northAngle 358.5)', () => {
   const scene = Scene.parse(charme);
   const hours = (d: string) => sunlightHours(scene, d);
   const dec = hours('2026-12-21');
@@ -201,6 +203,94 @@ describe('Charme 3205 sunlight hours', () => {
     expect(sunPatches(scene, sun).some((p) => p.roomId === 'sejour')).toBe(false);
     const evening = dir(new Date('2026-06-21T16:00:00Z')); // 18:00 CEST, sun in the west
     expect(sunPatches(scene, evening).some((p) => p.roomId === 'sejour')).toBe(true);
+  });
+});
+
+describe('balconies never receive sun patches', () => {
+  it('a glazed opening into a balcony room reports nothing', () => {
+    const b = box('s');
+    const balcony = Scene.parse({ ...b, rooms: [{ ...b.rooms[0]!, type: 'balcony' }] });
+    expect(sunPatches(box('s'), south(40))).toHaveLength(1);
+    expect(sunPatches(balcony, south(40))).toEqual([]);
+    expect(Object.values(sunlightHours(balcony, '2026-06-21')).every((h) => h === 0)).toBe(true);
+  });
+});
+
+describe('sunPatches with site context', () => {
+  const scene = box('s');
+  const wallOf = (id: string, y0: number, y1: number, height: number, host = false, base = 0, holes?: [number, number][][]) => ({
+    id,
+    footprint: [[-500, y0], [500, y0], [500, y1], [-500, y1]] as [number, number][],
+    ...(holes ? { holes } : {}),
+    base,
+    height,
+    host,
+  });
+  const ctx = (buildings: ReturnType<typeof wallOf>[]) =>
+    SiteContext.parse({ version: 1, source: 't', origin: { latitude: 48.8, longitude: 2.3 }, northAngle: 0, buildings });
+  const alt = 64.6;
+
+  it('is identical without context, with an empty context, or with a building that is not in the way', () => {
+    const base = sunPatches(scene, south(alt));
+    expect(sunPatches(scene, south(alt), ctx([]))).toEqual(base);
+    expect(sunPatches(scene, south(alt), ctx([wallOf('north', -12, -8, 30)]))).toEqual(base);
+  });
+  it('a tall building to the south blocks the window completely', () => {
+    expect(sunPatches(scene, south(alt), ctx([wallOf('s', 8, 12, 30)]))).toEqual([]);
+    // Only grazing sun (azimuth ~90 deg, ray travelling > 500 m before it reaches the building) gets through.
+    const open = sunlightHours(scene, '2026-06-21')['r']!;
+    const blocked = sunlightHours(scene, '2026-06-21', 10, ctx([wallOf('s', 8, 12, 30)]))['r']!;
+    expect(open).toBeGreaterThan(3);
+    expect(blocked).toBeLessThan(0.5);
+  });
+  it('a lower building blocks only the lower rows of the glass: the patch keeps the free cells', () => {
+    const full = sunPatches(scene, south(alt))[0]!;
+    const partial = sunPatches(scene, south(alt), ctx([wallOf('s', 8, 12, 7.6)]));
+    expect(partial.length).toBeGreaterThan(0);
+    expect(partial.every((p) => p.openingId === 'win' && p.roomId === 'r')).toBe(true);
+    const area = partial.reduce((a, p) => a + p.area, 0);
+    expect(area).toBeCloseTo((full.area * 2) / 3, 6); // the 2 upper rows of 3 are free
+    // The lit cells are the upper ones, i.e. the far part of the full patch.
+    expect(Math.max(...partial.flatMap((p) => p.polygon.map((v) => 5 - v[1])))).toBeCloseTo(5 - Math.min(...full.polygon.map((v) => v[1])), 6);
+  });
+  it('a hole (courtyard) lets light through where the ray stays inside it', () => {
+    // A slab (base 3, 1 m thick) south of the window: the ray crosses its height range at 5.5-6.4 m.
+    const slab = (holes?: [number, number][][]) =>
+      ctx([{ id: 'slab', footprint: [[-20, 5.2], [30, 5.2], [30, 12], [-20, 12]], ...(holes ? { holes } : {}), base: 3, height: 1, host: false }]);
+    expect(sunPatches(scene, south(alt), slab())).toEqual([]);
+    const withHole = slab([[[-10, 5.3], [20, 5.3], [20, 11], [-10, 11]]]);
+    expect(sunPatches(scene, south(alt), withHole)).toEqual(sunPatches(scene, south(alt)));
+  });
+  it('host bands: the flat storey cut-away does not block, the band above the flat does', () => {
+    const storey = wallOf('h:flat-storey-0', 5.05, 12, 3.15, true, -0.05);
+    expect(sunPatches(scene, south(alt), ctx([storey]))).toEqual(sunPatches(scene, south(alt)));
+    const above = wallOf('h:above', 5.05, 12, 12, true, 2.8);
+    expect(sunPatches(scene, south(alt), ctx([storey, above]))).toEqual([]);
+  });
+});
+
+describe('Charme 3205 sunlight hours with the neighbouring buildings', () => {
+  const scene = Scene.parse(charme);
+  const context = SiteContext.parse(charmeContext);
+  const withCtx = (d: string) => sunlightHours(scene, d, 10, context);
+  const without = (d: string) => sunlightHours(scene, d);
+  const round = (h: Record<string, number>) => Object.fromEntries(Object.entries(h).map(([k, v]) => [k, Math.round(v * 100) / 100]));
+
+  it('matches the reference table in docs/photometry.md', () => {
+    expect(round(without('2026-03-21'))).toMatchObject({ sejour: 5.67, alcove: 0, ch1: 0, ch2: 0 });
+    expect(round(without('2026-06-21'))).toMatchObject({ sejour: 7.5, alcove: 3.33, ch2: 1.83, ch1: 2.17 });
+    expect(round(without('2026-12-21'))).toMatchObject({ sejour: 3.67, alcove: 0, ch1: 0, ch2: 0 });
+    expect(round(withCtx('2026-03-21'))).toMatchObject({ sejour: 4.83, alcove: 0, ch1: 0, ch2: 0 });
+    expect(round(withCtx('2026-06-21'))).toMatchObject({ sejour: 7.5, alcove: 3.33, ch2: 1.83, ch1: 2.17 });
+    expect(round(withCtx('2026-12-21'))).toMatchObject({ sejour: 1.33, alcove: 0, ch1: 0, ch2: 0 });
+  });
+  it('context never adds sun, and the host cut-away does not block the flat itself', () => {
+    for (const d of ['2026-03-21', '2026-06-21', '2026-12-21']) {
+      const a = without(d);
+      const b = withCtx(d);
+      for (const id of Object.keys(a)) expect(b[id]!).toBeLessThanOrEqual(a[id]! + 1e-9);
+    }
+    expect(withCtx('2026-06-21')['sejour']).toBeGreaterThan(5);
   });
 });
 

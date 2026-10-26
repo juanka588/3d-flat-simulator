@@ -118,6 +118,25 @@ describe('buildContextMeshes', () => {
     expect(next).toBe(mesh.indices.length / 3);
   });
 
+  it('cuts holes out of the roof and adds inward-facing walls', () => {
+    const outer: Vec2[] = [[0, 0], [10, 0], [10, 10], [0, 10]];
+    const hole: Vec2[] = [[3, 3], [3, 6], [6, 6], [6, 3]];
+    const mesh = build([{ id: 'c', footprint: outer, holes: [hole], base: -5.8, height: 9, host: false }]);
+    const all = triangles(mesh, (o) => o.entityId === 'c');
+    const up = all.filter((t) => t.n[1]! > 0.99);
+    expect(up.reduce((s, t) => s + t.area, 0)).toBeCloseTo(100 - 9, 4);
+    const side = all.filter((t) => Math.abs(t.n[1]!) < 1e-6);
+    expect(side.reduce((s, t) => s + t.area, 0)).toBeCloseTo((40 + 12) * 9, 3);
+    // Every side normal points away from the solid (into the hole for the inner walls).
+    const solid = (p: [number, number]) => inside(outer, p) && !inside(hole, p);
+    for (const t of side) {
+      const cx = (t.p[0][0]! + t.p[1][0]! + t.p[2][0]!) / 3;
+      const cz = (t.p[0][2]! + t.p[1][2]! + t.p[2][2]!) / 3;
+      expect(solid([cx + t.n[0]! * 0.01, cz + t.n[2]! * 0.01])).toBe(false);
+      expect(solid([cx - t.n[0]! * 0.01, cz - t.n[2]! * 0.01])).toBe(true);
+    }
+  });
+
   it('ignores degenerate footprints', () => {
     const mesh = build([
       { id: 'line', footprint: [[0, 0], [1, 1], [2, 2]], base: 0, height: 3, host: false },

@@ -67,7 +67,7 @@ deep blue at the zenith by day, a warm orange horizon around 0 degrees, near-bla
 | --- | --- | --- |
 | point | `cd = lm / 4pi` | `PointLight.intensity` (decay 2, distance 0) |
 | spot (full cone theta) | `cd = lm / (2pi (1 - cos(theta/2)))` | `SpotLight.intensity`; `angle = theta/2` in radians |
-| area panel | `nits = lm / (pi w d)` | `RectAreaLight.intensity` (Lambertian) |
+| area panel | `nits = lm / (pi w d)` (`areaNits`, for readouts) | the viewer renders it as a shadow-casting down-spot at `cd = lm / pi`, see "Shadows, lamps and ambient" |
 
 Examples: 1600 lm point = 127.3 cd; 600 lm at 100 degrees = 267.3 cd; 2500 lm on a
 1.2 x 0.3 m panel = 2210 nits. Zero lumens give zero. Spot angles are clamped to
@@ -142,6 +142,74 @@ compresses the daylight dynamic range for the screen (geometry, shadows and patc
 - **Lamps** are untouched and physical. They default to off in the app's initial view (the
   `day` preset is applied when the first scene loads); toggling and presets still work.
 
+## Shadows, lamps and ambient (web layer)
+
+How `apps/web/src/viewer` turns the lights above into shadows. All numbers were measured on
+Charme 3205 with the software renderer used by the e2e suite.
+
+**Sun shadow frustum** (`sun-bounds.ts`, `sun-fit.ts`). The orthographic frustum covers the
+flat plus its balcony sideways. Its depth range covers only the context buildings that can
+shade them: those whose projection perpendicular to the sun overlaps the flat's extent, that
+reach the sun side of the flat, and whose roof is above the lowest ray from the flat towards the
+sun (their depth is capped where that ray clears the roof). Fitting every one of the 160 buildings
+gave a 235-436 m depth range at low sun; now it is 20-60 m (about 170 m only at a grazing 1 degree
+sunrise), asserted in `sun-bounds.test.ts`.
+
+**Bias in world units.** The shadow depth is linear over `far - near`, and three.js's `bias` is in
+those normalised units, so a fixed `-0.0005` was 0.2 m of light leaking under walls for a 400 m
+range. The sun now uses `bias = -K / (far - near)` with `K = 0.015 m` and
+`normalBias = 2 texels` (`sun-shadow.ts`); lamps use `K = 0.015 m` over their 0.1-16 m shadow range
+and `normalBias = 0.03`. e2e probes put floor points 5 cm behind a wall at low sun and require them
+to stay dark (it fails with `K = 0.25 m`).
+
+**Area panels.** `RectAreaLight` cannot cast shadows, so it lit rooms through walls. An area lamp is
+now a downward `SpotLight` at the panel centre with a 87 degree half-angle, `penumbra = 1` (a smooth
+fall-off towards the edge of the cone, close to a diffuse panel's cosine law) and intensity
+`cd = lm / pi`, the Lambertian peak intensity. The emissive panel mesh stays for the look; there is
+no `RectAreaLight` at all (no specular from the panel).
+
+**Static shadow maps.** The scene is static, so no shadow map is re-rendered per frame. Every
+point and spot lamp (and the area proxies) casts shadows permanently, on or off (an off lamp has
+intensity 0), with small maps (point 256, spot 512; sun 2048), so the number of shadow-casting
+lights is constant and toggling lamps or walking never recompiles shaders (the fixture material is
+also one type in both states). All `shadow.autoUpdate` are `false`; `shadow.needsUpdate` is set only
+when the scene or the visible context changes, a lamp's intensity changes (that lamp only), or the
+sun direction, intensity or activity changes (the frustum is refitted at the same time).
+
+Draw calls (`renderer.info.render.calls`, Charme with context):
+
+| Frame | Calls |
+| --- | --- |
+| steady, day / evening / night / noon with every lamp on | 21-23 |
+| steady, walk mode | 16 |
+| right after moving the sun (one sun shadow pass) | 26 (+3) |
+| right after toggling one lamp | 27 (+6) |
+| right after the Night preset or a scene load (every lamp's maps) | 55 (+34) |
+
+The budget (70) applies to steady frames; change frames may use up to twice that
+(`e2e/lighting.e2e.ts`, which also keeps the four fixed scenes within it). While the day animation
+plays, the sun changes every frame, so it costs the sun pass (+3) per frame.
+
+**Per-room sky ambient.** A hemisphere light cannot be shadowed by walls, so a windowless WC would
+get the same sky light as the living room. The room daylight factor (`roomDaylightFactors`) is
+applied to the hemisphere light only: three.js multiplies just the indirect diffuse light by a
+material's `aoMap`, so the shell materials get a one-row texture with one texel per room (plus a
+full-sky texel) as `aoMap` with `aoMapIntensity = 1`, read through a second UV set
+(`uv1`, `texture.channel = 1`). Floors and ceilings use their own room, the left/right face of a
+wall the room on that face (`wallSideRooms`, per stretch of wall), a fitting's vertical faces the
+room they look at; tops, ends, jambs, glass and faces looking outside use 1. Lamps and the sun are
+untouched. Vertices shared between triangles of different rooms are duplicated, so picking is
+unchanged (`room-ambient.ts`). At noon the WC and SDB floors render clearly darker than the
+living room floor.
+
+**Site context after Site edits.** `siteContext.alignContext` follows later edits of `scene.site`
+without re-running `tools/site-context`: the context is rotated about the flat origin by
+`site.northAngle - context.northAngle` (clockwise on the plan, `(x, y) -> (x cos t - y sin t,
+x sin t + y cos t)`), its bases shift by the floor-elevation difference (ground at
+`-site.floorElevation`), and when the site is more than 50 m from the context's origin the context is
+hidden and the viewer asks for `tools/site-context` to be re-run. The IGN BD TOPO attribution is
+shown whenever the context is visible.
+
 ## Sun patches and sunlight hours
 
 `sunPatches(scene, direction)` projects every glazed opening (windows by default, doors with
@@ -156,29 +224,71 @@ compresses the daylight dynamic range for the screen (geometry, shadows and patc
   beyond the wall face on the sun side must not lie in an indoor room (rooms of type
   `balcony` count as outdoors), and the opposite side must lie in a room. That room is the
   only one clipped to, so light does not pass through partitions into neighbouring rooms.
+- The opening's receiving room is looked up with the same indoor test, so a window or door
+  into a `balcony` room is never reported (balconies are never sunlit).
 - Clipping is Sutherland-Hodgman against the room polygon when it is convex, and against each
   `earcut` triangle when it is concave (one patch fragment per triangle, same
   `openingId`/`roomId`, non-overlapping; areas add up).
 
-`sunlightHours(scene, date, stepMinutes = 10)` samples the local civil day (23/24/25 h on DST
-days) at the middle of each step and adds `step` to every room whose total patch area
+`sunlightHours(scene, date, stepMinutes = 10, context?)` samples the local civil day (23/24/25 h
+on DST days) at the middle of each step and adds `step` to every room whose total patch area
 exceeds 0.05 m2.
 
-Reference results for the Charme 3205 flat (Bagneux, `northAngle` 0, no obstruction by
-neighbouring buildings or the balcony slab):
+### Obstruction by neighbouring buildings (optional `context`)
 
-| Room | 21 Mar | 21 Jun | 21 Dec |
-| --- | --- | --- | --- |
-| Sejour / cuisine (west French doors) | 5.7 h | 7.5 h | 3.7 h |
-| Alcove (north window) | 0 | 3.3 h | 0 |
-| Chambre 2 (north window) | 0 | 1.7 h | 0 |
-| Chambre 1 (north window) | 0 | 2.0 h | 0 |
-| Entree, WC, SDB, balcon | 0 | 0 | 0 |
+Both functions take an optional `SiteContext` (the `*.context.json` produced by
+`tools/site-context`). Without it nothing is obstructed (the previous behaviour). With it, each
+glazed opening is cut into a 3 x 3 grid of cells (along the wall and up the glass). For each cell
+a ray from its centre, on the wall's centreline plane, towards the sun is tested against the
+context buildings, each a vertical prism (footprint minus `holes`, from `base` to
+`base + height`); the ray is blocked when the part of it inside a prism's height range starts or
+ends in solid material or crosses a footprint or hole edge. A cell whose ray is blocked
+contributes no patch; the free cells project to disjoint parallelograms that are clipped to the
+room as usual. So partial obstruction clips the patch to the unobstructed ninths of the glass
+(lit area quantised to 1/9), all free gives exactly the unobstructed patch, all blocked gives
+none.
+
+Which buildings count: every neighbour (`host: false`), and the host bands that start at or above
+the flat's wall height (the roof band above the flat, which overhangs balconies and windows
+under it). The host's below band cannot lie above a ray, and the flat-storey bands surround the
+flat's own cut-away, so they never block its windows.
+
+Reference results for the Charme 3205 flat (Bagneux, `northAngle` 358.5; hours of direct sun,
+10 minute steps). "Free" ignores neighbouring buildings; "context" uses
+`packages/scene/fixtures/charme-3205.context.json` (IGN BD TOPO). Neither includes the balcony
+slab or railing.
+
+| Room | 21 Mar free | 21 Mar context | 21 Jun free | 21 Jun context | 21 Dec free | 21 Dec context |
+| --- | --- | --- | --- | --- | --- | --- |
+| Sejour / cuisine (west French doors) | 5.7 h | 4.8 h | 7.5 h | 7.5 h | 3.7 h | 1.3 h |
+| Alcove (north window) | 0 | 0 | 3.3 h | 3.3 h | 0 | 0 |
+| Chambre 2 (north window) | 0 | 0 | 1.8 h | 1.8 h | 0 | 0 |
+| Chambre 1 (north window) | 0 | 0 | 2.2 h | 2.2 h | 0 | 0 |
+| Entree, WC, SDB, balcon | 0 | 0 | 0 | 0 | 0 | 0 |
+
+The values are asserted in `sunpatch.test.ts`. The neighbours mostly cost the living room its
+low winter and equinox afternoon sun; the summer sun is high enough to clear them.
+
+## Room daylight factors
+
+`roomDaylightFactors(scene)` returns, per room id, how much sky light reaches the room (0..1), for
+the viewer to scale its sky ambient with so windowless rooms are not lit as if open to the sky:
+
+```
+own    = clamp(5 x glazedArea / floorArea)           glazed windows/doors whose other side is outdoors
+factor = clamp(max(own, 0.08) + 0.15 x max(own of the rooms joined by a door or passage))
+balcony = 1
+```
+
+Charme: sejour 1.0, alcove 1.0, chambre 2 0.69, chambre 1 0.55, entree 0.23, WC and SDB 0.08,
+balcon 1. `wallSideRooms(scene)` gives each wall's left/right room (see `wallLeftNormal`), taken 5 cm
+beyond the face at mid-span, plus per-stretch `segments` (25 cm samples merged by room pair)
+so a long facade over several rooms can be shaded per room.
 
 ## Limitations
 
-- No obstruction by neighbouring buildings, balcony slab/railing, interior walls or door
-  leaves; window reveals and frames are ignored (the glass sits on the wall centreline).
+- Neighbouring buildings only obstruct when a `context` is passed; balcony slab/railing, interior
+  walls and door leaves never do; window reveals and frames are ignored (the glass sits on the wall centreline).
 - Floor only: sun on walls, furniture or ceilings is not computed. Balconies are outdoor
   and never reported as sunlit.
 - Clear-sky model only: no clouds, no atmospheric variation (turbidity, altitude).

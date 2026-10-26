@@ -10,6 +10,12 @@ export const ContextBuilding = z.strictObject({
   id: z.string(),
   /** Footprint polygon in flat plan coordinates. */
   footprint: z.array(Vec2).min(3),
+  /**
+   * Inner rings (courtyards, light wells) of the footprint, in the same coordinates. They are
+   * empty of building: the mesh builder cuts them out of the roof and adds inward-facing
+   * walls, and sun obstruction lets light through them. Optional; absent means no holes.
+   */
+  holes: z.array(z.array(Vec2).min(3)).optional(),
   /** Ground level relative to the flat's floor (usually −site.floorElevation). */
   base: z.number(),
   /** Building height above its ground level, metres. */

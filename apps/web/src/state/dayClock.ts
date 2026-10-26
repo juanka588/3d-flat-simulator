@@ -99,7 +99,7 @@ export function tickClock(dtMs: number): void {
 let cursorMs: number | null = null;
 let appliedKey = '';
 
-/** Advances the lighting time by `dtMs` of real time at the current speed, looping over the daylight range. */
+/** Advances the lighting time by `dtMs` of real time at the current speed, looping over the daylight range (a time outside the range restarts at its start). */
 export function advanceDay(dtMs: number, minutesPerSecond = useClockStore.getState().speed): void {
   const { scene } = useSceneStore.getState();
   if (!scene) return;
@@ -112,10 +112,14 @@ export function advanceDay(dtMs: number, minutesPerSecond = useClockStore.getSta
     const start = range.start.getTime();
     const length = range.end.getTime() - start;
     if (length <= 0) return;
-    let t = cursorMs + dtMs * minutesPerSecond * 60;
-    // Before the range (e.g. the evening preset): jump in at the start; past the end: loop.
-    if (t < start) t = start;
-    else if (t >= start + length) t = start + ((t - start) % length);
+    // Outside the daylight range (e.g. the Evening preset, or a time before sunrise): start the
+    // day over at the start of the range. Inside it: advance, and loop at the end.
+    let t: number;
+    if (cursorMs < start || cursorMs >= start + length) t = start;
+    else {
+      t = cursorMs + dtMs * minutesPerSecond * 60;
+      if (t >= start + length) t = start + ((t - start) % length);
+    }
     cursorMs = t;
     const local = instantToLocal(new Date(t), timezone);
     appliedKey = `${timezone}|${lighting.date}T${local.time}`;

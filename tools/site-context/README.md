@@ -2,7 +2,7 @@
 
 Generates the neighbouring-buildings context of a flat (`*.context.json`, the `SiteContext` schema in
 `packages/scene/src/context/schema.ts`) from open data, so the sun simulation includes their shadows.
-Node >= 22, no dependencies, needs network access only when you regenerate; the committed JSON lets
+Node >= 22, no dependencies (`fetch.mjs` is the CLI, `lib.mjs` the pure helpers), needs network access only when you regenerate; the committed JSON lets
 tests run offline.
 
 ## Usage
@@ -54,8 +54,16 @@ match the flat's `site`; a test checks it).
 * Host: the building holding the flat is not a single solid box. It is written as bands with
   `host: true`: below the flat (up to 5 cm under its floor), the flat's storey minus the flat's wall
   bounds (plus margin), and above the flat's walls plus a slab. The roof band has an underside (the
-  mesh builder closes any building whose base is above the lowest ground).
-  Holes (courtyards) in BD TOPO footprints are ignored.
+  mesh builder closes any building whose base is above the lowest ground). The `:below` band is only
+  written when there is something below the flat's storey (a ground-floor flat, `floorElevation` 0, has
+  none). Inner rings (courtyards) of BD TOPO footprints are kept as `holes` on neighbours and on the host
+  bands they lie inside; a host courtyard that touches the flat's cut-away or straddles two storey pieces
+  is dropped from the storey band (conservatively solid).
+* Robustness: features with null geometry are skipped with a warning; a host missing after re-centring is
+  an error; 4xx responses (except 408/429) are not retried; the generated object is checked against a copy
+  of the `SiteContext` rules (`validateContext` in `lib.mjs`) and nothing is written, with exit code 1, if it
+  is invalid. `lib.mjs` holds the pure helpers; `packages/scene/src/site-context-tool.test.ts` tests them
+  against the zod schema.
 
 ## Data
 

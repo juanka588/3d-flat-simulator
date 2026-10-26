@@ -9,6 +9,7 @@ import { SelectionHighlight } from './SelectionHighlight';
 import { ShellMesh, CLICK_DRAG_TOLERANCE_PX } from './ShellMesh';
 import { VIEWER_ELEMENT_ID, WalkControls } from './WalkControls';
 import { createMaterialLibrary } from './materials';
+import { createRoomAmbient, withRoomAmbient } from './room-ambient';
 import { shellFor } from './shell-cache';
 import { shadowCasterGeometry } from './derived-geometry';
 import { LightingRig } from './LightingRig';
@@ -64,7 +65,6 @@ export function FlatCanvas({ scene, view, context = null, onSelect, onExitWalk, 
           scene={scene}
           lighting={view.lighting}
           context={context}
-          selectedRoomId={view.selection && view.selection.kind === 'floor' ? view.selection.entityId : undefined}
         />
         <Shell scene={scene} view={view} onSelect={onSelect} />
         {view.mode === 'walk' ? (
@@ -89,8 +89,20 @@ function FrameReporter({ scene, view, onFrame }: { scene: Scene; view: ViewState
 
 function Shell({ scene, view, onSelect }: { scene: Scene; view: ViewState; onSelect: (s: Selection) => void }) {
   const shell = useMemo(() => shellFor(scene), [scene]);
-  const materials = useMemo(() => createMaterialLibrary(scene), [scene]);
+  // Per-room sky ambient (windowless rooms get less): an aoMap on the shell materials, see room-ambient.ts.
+  const ambient = useMemo(() => createRoomAmbient(scene), [scene]);
+  useEffect(() => () => ambient.dispose(), [ambient]);
+  const materials = useMemo(() => createMaterialLibrary(scene, ambient.texture), [scene, ambient]);
   useEffect(() => () => materials.dispose(), [materials]);
+  const roomMeshes = useMemo(
+    () => ({
+      walls: withRoomAmbient(shell.walls, scene, ambient),
+      floors: withRoomAmbient(shell.floors, scene, ambient),
+      ceilings: withRoomAmbient(shell.ceilings, scene, ambient),
+      fittings: withRoomAmbient(shell.fittings, scene, ambient),
+    }),
+    [shell, scene, ambient],
+  );
 
   const walk = view.mode === 'walk';
   const pick = walk ? undefined : onSelect;
@@ -105,11 +117,11 @@ function Shell({ scene, view, onSelect }: { scene: Scene; view: ViewState; onSel
       <mesh name="shadow-casters" geometry={casters} castShadow raycast={noop}>
         <meshBasicMaterial colorWrite={false} depthWrite={false} />
       </mesh>
-      <ShellMesh name="walls" data={shell.walls} materials={materials} receiveShadow onSelect={pick} />
-      <ShellMesh name="floors" data={shell.floors} materials={materials} receiveShadow onSelect={pick} />
+      <ShellMesh name="walls" data={roomMeshes.walls} materials={materials} receiveShadow onSelect={pick} />
+      <ShellMesh name="floors" data={roomMeshes.floors} materials={materials} receiveShadow onSelect={pick} />
       {/* Ceilings are hidden in orbit/top so the interior stays visible from above. */}
-      {walk && <ShellMesh name="ceilings" data={shell.ceilings} materials={materials} onSelect={pick} />}
-      <ShellMesh name="fittings" data={shell.fittings} materials={materials} receiveShadow onSelect={pick} />
+      {walk && <ShellMesh name="ceilings" data={roomMeshes.ceilings} materials={materials} onSelect={pick} />}
+      <ShellMesh name="fittings" data={roomMeshes.fittings} materials={materials} receiveShadow onSelect={pick} />
       <ShellMesh name="glass" data={shell.glass} materials={materials} onSelect={pick} />
       {selectedId && meshes.map((m, i) => <SelectionHighlight key={i} mesh={m} entityId={selectedId} />)}
     </group>

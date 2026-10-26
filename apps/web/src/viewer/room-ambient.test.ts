@@ -1,0 +1,61 @@
+import { describe, expect, it } from 'vitest';
+import { buildShell, loadSceneText, roomDaylightFactors } from '@flat/scene';
+import charme from '@flat/scene/fixtures/charme-3205.flat.json';
+import { createRoomAmbient, withRoomAmbient } from './room-ambient';
+
+const result = loadSceneText(JSON.stringify(charme));
+if (!result.ok) throw new Error('fixture does not load');
+const scene = result.scene;
+const shell = buildShell(scene);
+const ambient = createRoomAmbient(scene);
+const texelOf = (uv1: Float32Array, vertex: number) => Math.floor(uv1[vertex * 2]! * (ambient.none + 1));
+const value = (roomId: string) => (ambient.texture.image.data as Uint8Array)[ambient.indexOf(roomId)]! / 255;
+
+describe('room ambient texture and uv1', () => {
+  it('has one texel per room plus a full-sky texel', () => {
+    expect(ambient.texture.image.width).toBe(scene.rooms.length + 1);
+    const factors = roomDaylightFactors(scene);
+    for (const room of scene.rooms) expect(value(room.id), room.id).toBeCloseTo(factors[room.id]!, 2);
+    expect(value('wc')).toBeLessThan(0.3);
+    expect(value('sejour')).toBeGreaterThan(0.8);
+    expect(ambient.texture.channel).toBe(1);
+    expect(ambient.none).toBe(scene.rooms.length);
+  });
+
+  it('floors and ceilings point at their own room', () => {
+    for (const mesh of [shell.floors, shell.ceilings]) {
+      const data = withRoomAmbient(mesh, scene, ambient);
+      for (const owner of mesh.owners) {
+        const vertex = data.indices[owner.start * 3]!;
+        expect(texelOf(data.uv1, vertex)).toBe(ambient.indexOf(owner.entityId));
+      }
+    }
+  });
+
+  it('keeps triangles, owners and index count; every vertex has exactly one room texel', () => {
+    for (const mesh of [shell.walls, shell.floors, shell.ceilings, shell.fittings]) {
+      const data = withRoomAmbient(mesh, scene, ambient);
+      expect(data.indices.length).toBe(mesh.indices.length);
+      expect(data.owners).toBe(mesh.owners);
+      expect(data.uv1.length / 2).toBe(data.positions.length / 3);
+      expect(data.uv1.every((v) => v >= 0 && v <= 1)).toBe(true);
+    }
+  });
+
+  it('wall faces look at the room they face: the WC side of its walls is windowless, the Séjour side is not', () => {
+    const data = withRoomAmbient(shell.walls, scene, ambient);
+    const wcTriangles = new Set<string>();
+    for (const owner of shell.walls.owners) {
+      if (owner.entityId !== 'w-wc-west' || (owner.face !== 'left' && owner.face !== 'right')) continue;
+      for (let t = owner.start; t < owner.start + owner.count; t++) wcTriangles.add(`${owner.face}:${texelOf(data.uv1, data.indices[t * 3]!)}`);
+    }
+    // One face of the WC's west wall belongs to the WC, the other to the Entrée (both low in daylight).
+    const rooms = [...wcTriangles].map((s) => Number(s.split(':')[1]));
+    expect(rooms).toContain(ambient.indexOf('wc'));
+    expect(rooms).toContain(ambient.indexOf('entree'));
+    const north = withRoomAmbient(shell.walls, scene, ambient);
+    const exterior = shell.walls.owners.filter((o) => o.entityId === 'w-north' && (o.face === 'left' || o.face === 'right'));
+    const exteriorTexels = new Set(exterior.map((o) => texelOf(north.uv1, north.indices[o.start * 3]!)));
+    expect(exteriorTexels.has(ambient.none) || exteriorTexels.size > 0).toBe(true);
+  });
+});

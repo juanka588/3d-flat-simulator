@@ -3,12 +3,14 @@ import type { RootState } from '@react-three/fiber';
 import { NeutralToneMapping, Vector3 } from 'three';
 import type { Light, Mesh, Object3D } from 'three';
 import { useSceneStore } from './state/sceneStore';
+import { alignContext, contextFor } from './state/siteContext';
 import { setClockSource, tickClock, useClockStore } from './state/dayClock';
 import { sunInfoFor } from './state/sunInfo';
 import { useViewStore } from './state/viewStore';
 import type { FlatStats, FlatTestHook } from './test-hook-types';
 import { selectionForId } from './viewer/selection';
 import type { ViewState } from './viewer/view-types';
+import { sunPatches } from '@flat/scene';
 import type { Scene } from '@flat/scene';
 
 interface FrameInfo {
@@ -25,6 +27,8 @@ let pendingFrame: FrameInfo | null = null;
 /** What the last frame that actually reached the GPU was drawn from. */
 let renderedFrame: FrameInfo | null = null;
 let frameWaiters: (() => void)[] = [];
+/** Draw calls of every frame the r3f loop rendered since the last `clearFrameCalls`. */
+let frameCalls: number[] = [];
 
 export function testHookEnabled(): boolean {
   return import.meta.env.DEV || new URLSearchParams(window.location.search).has('test');
@@ -140,6 +144,7 @@ export function installTestHook(): void {
   });
   addAfterEffect(() => {
     renderedFrame = pendingFrame;
+    if (canvas) frameCalls.push(canvas().gl.info.render.calls);
     const waiters = frameWaiters;
     frameWaiters = [];
     waiters.forEach((w) => w());
@@ -167,6 +172,28 @@ export function installTestHook(): void {
         exposure: gl.toneMappingExposure,
         toneMapping: gl.toneMapping === NeutralToneMapping ? 'neutral' : 'other',
       };
+    },
+    frameCalls: () => [...frameCalls],
+    clearFrameCalls() {
+      frameCalls = [];
+    },
+    sunPatches() {
+      const { scene, source } = useSceneStore.getState();
+      const { lighting } = useViewStore.getState();
+      const info = scene ? sunInfoFor(scene, lighting) : null;
+      if (!scene || !info?.available) return [];
+      // Obstructed by the neighbouring buildings exactly when the viewer draws them.
+      const raw = lighting.showContext ? contextFor(source) : null;
+      const context = raw ? (alignContext(raw, scene.site).context ?? undefined) : undefined;
+      return sunPatches(scene, info.direction, context).map((p) => {
+        let cx = 0;
+        let cz = 0;
+        for (const [x, y] of p.polygon) {
+          cx += x;
+          cz += y;
+        }
+        return { roomId: p.roomId, openingId: p.openingId, area: p.area, polygon: p.polygon, centroid: [cx / p.polygon.length, 0, cz / p.polygon.length] as [number, number, number] };
+      });
     },
     async setView(partial) {
       await canvasReady;

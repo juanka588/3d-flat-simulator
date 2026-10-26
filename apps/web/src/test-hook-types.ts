@@ -43,6 +43,11 @@ export interface FlatTestHook {
   /** Resolves after a frame reflecting the current scene, mode and selection has been rendered. */
   whenRendered: () => Promise<void>;
   stats: () => FlatStats;
+  /** Draw calls of every frame rendered by the render loop since the last `clearFrameCalls()` (frames right after a change include the shadow passes). */
+  frameCalls: () => number[];
+  clearFrameCalls: () => void;
+  /** Sun patches (lit floor areas, obstructed by the visible context) for the current lighting view, with plan-polygon vertex centroids as world points (y = 0). */
+  sunPatches: () => { roomId: string; openingId: string; area: number; polygon: [number, number][]; centroid: [number, number, number] }[];
   /** Applies the view change and resolves after a frame reflecting it has been rendered. */
   setView: (partial: Partial<ViewState>) => Promise<void>;
   /** Loads a scene; on success resolves only after a frame with the new scene has been rendered. */

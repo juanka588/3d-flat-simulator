@@ -81,6 +81,39 @@ describe('sunAtInstant', () => {
   });
 });
 
+describe('sun position at non-noon local times (Paris, 21 Jun)', () => {
+  it('08:00 local: east-north-east, +X dominant, rising', () => {
+    const s = sunAt(paris, '2026-06-21', '08:00');
+    expect(s.azimuthDeg).toBeGreaterThan(75);
+    expect(s.azimuthDeg).toBeLessThan(95);
+    expect(s.altitudeDeg).toBeGreaterThan(12);
+    expect(s.altitudeDeg).toBeLessThan(30);
+    const [x, y, z] = s.direction;
+    expect(x).toBeGreaterThan(0.5);
+    expect(Math.abs(x)).toBeGreaterThan(Math.abs(z));
+    expect(y).toBeGreaterThan(0.2);
+  });
+  it('18:00 local: west-north-west, -X dominant', () => {
+    const s = sunAt(paris, '2026-06-21', '18:00');
+    expect(s.azimuthDeg).toBeGreaterThan(265);
+    expect(s.azimuthDeg).toBeLessThan(290);
+    const [x, , z] = s.direction;
+    expect(x).toBeLessThan(-0.5);
+    expect(Math.abs(x)).toBeGreaterThan(Math.abs(z));
+  });
+  it('northAngle 358.5 rotates the plan direction by -1.5 degrees', () => {
+    const base = sunAt(paris, '2026-06-21', '08:00');
+    const rot = sunAt({ ...paris, northAngle: 358.5 }, '2026-06-21', '08:00');
+    expect(rot.azimuthDeg).toBeCloseTo(base.azimuthDeg, 9);
+    const bearing = (d: readonly number[]) => (Math.atan2(d[0]!, -d[2]!) * 180) / Math.PI;
+    expect(bearing(rot.direction) - bearing(base.direction)).toBeCloseTo(-1.5, 6);
+    expect(rot.direction[1]).toBeCloseTo(base.direction[1], 9);
+    const north = sunDirection(0, 0, 358.5);
+    expect(north[0]).toBeCloseTo(-Math.sin((1.5 * Math.PI) / 180), 9);
+    expect(north[2]).toBeCloseTo(-Math.cos((1.5 * Math.PI) / 180), 9);
+  });
+});
+
 describe('sunDirection / northAngle convention', () => {
   const near = (v: number[], w: number[]) => v.forEach((x, i) => expect(x).toBeCloseTo(w[i]!, 9));
   it('northAngle 0: sun due south -> +Z (plan down), Y > 0', () => {

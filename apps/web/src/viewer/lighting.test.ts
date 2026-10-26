@@ -28,6 +28,9 @@ describe('computeLighting', () => {
     expect(m.exposure).toBeLessThan(1e-3);
     const sejour = m.lamps.find((l) => l.id === 'l-sejour')!;
     expect(sejour.intensity).toBeCloseTo(1600 / (4 * Math.PI), 3); // candela
+    // An area panel is a shadow-casting wide spot at its Lambertian peak intensity lm / pi.
+    const panel = m.lamps.find((l) => l.type === 'area')!;
+    expect(panel.intensity).toBeCloseTo(panel.lumens / Math.PI, 6);
   });
 
   it('turns the sun off when disabled or below the horizon, and raises exposure', () => {

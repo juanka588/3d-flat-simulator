@@ -34,11 +34,21 @@ describe('fitSunShadow', () => {
     expect(fit.near).toBeGreaterThan(0);
     // Every caster lies between the near and far planes along the light direction.
     const unit = dir.map((c) => c / len) as V3;
+    const along = (p: V3) => p[0] * unit[0] + p[1] * unit[1] + p[2] * unit[2];
+    const nearestToSunOfFlat = Math.min(...flat.map(along));
     for (const p of [...flat, ...tower]) {
+      if (along(p) < nearestToSunOfFlat) continue; // behind the receivers: cannot shade them, may be clipped
       const depth = -((p[0] - fit.position[0]) * unit[0] + (p[1] - fit.position[1]) * unit[1] + (p[2] - fit.position[2]) * unit[2]);
       expect(depth).toBeGreaterThanOrEqual(fit.near - 1e-6);
       expect(depth).toBeLessThanOrEqual(fit.far + 1e-6);
     }
+  });
+
+  it('ignores casters that lie behind the receivers', () => {
+    const behind: V3[] = [[-50, -50, -50]];
+    const a = fitSunShadow([0.3, 0.8, 0.5], flat, flat)!;
+    const b = fitSunShadow([0.3, 0.8, 0.5], flat, [...flat, ...behind])!;
+    expect(b.far).toBeCloseTo(a.far, 9);
   });
 
   it('does not widen the frustum for casters, only for receivers', () => {

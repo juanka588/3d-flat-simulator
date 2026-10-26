@@ -3,7 +3,17 @@ import { create } from 'zustand';
 import { applyPreset, loadSceneText } from '@flat/scene';
 import type { LoadResult, ValidationWarning } from '@flat/scene';
 import { adoptSceneIdentity } from '../viewer/scene-identity';
+import { instantToLocal } from './localTime';
 import { useViewStore } from './viewStore';
+
+/** Today's date (YYYY-MM-DD) in a time zone, or null if the zone is unknown. */
+function localDate(timezone: string): string | null {
+  try {
+    return instantToLocal(new Date(), timezone).date;
+  } catch {
+    return null;
+  }
+}
 
 let latestLoad = 0;
 /** Starts an asynchronous load; only the latest token may apply its result. */
@@ -54,7 +64,11 @@ export const useSceneStore = create<SceneStore>((set) => ({
       const view = useViewStore.getState();
       view.select(null);
       // The app opens in daytime (12:00): start from the 'day' preset so lamps are off, not glowing at noon.
-      if (first) useViewStore.setState({ lighting: applyPreset(view.lighting, 'day', result.scene.site, result.scene.lights) });
+      if (first) {
+        // "Today" is the date at the flat, not on the user's machine (they can be a day apart).
+        const date = localDate(result.scene.site.timezone) ?? view.lighting.date;
+        useViewStore.setState({ lighting: applyPreset({ ...view.lighting, date }, 'day', result.scene.site, result.scene.lights) });
+      }
     } else {
       set({ errors: result.errors });
     }

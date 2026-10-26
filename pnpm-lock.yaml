@@ -94,9 +94,6 @@ importers:
       '@types/earcut':
         specifier: ^3.2.4
         version: 3.2.4
-      '@types/suncalc':
-        specifier: ^1.9.2
-        version: 1.9.2
 
 packages:
 
@@ -464,9 +461,6 @@ packages:
 
   '@types/stats.js@0.17.4':
     resolution: {integrity: sha512-jIBvWWShCvlBqBNIZt0KAshWpvSjhkwkEu4ZUcASoAvhmrgAUI2t1dXrjSL4xXVLB4FznPrIsX3nKXFl/Dt4vA==}
-
-  '@types/suncalc@1.9.2':
-    resolution: {integrity: sha512-ATAGBHHfA1TlE2tjfidLyTcysjoT2JHHEAmWRULh73SU9UTn++j5fqHEW16X6Y/2Li87jEQXzgu4R/OOdlDqzw==}
 
   '@types/three@0.186.0':
     resolution: {integrity: sha512-mxYSBpDC+D0pLfSP6sW4WZTcT+nrtmZcimMqnVmy36Hte3XpeYSrvgg4TRdaM1GemGog1AWzI5qL2VoIfMXbJQ==}
@@ -1716,8 +1710,6 @@ snapshots:
       csstype: 3.2.3
 
   '@types/stats.js@0.17.4': {}
-
-  '@types/suncalc@1.9.2': {}
 
   '@types/three@0.186.0':
     dependencies:

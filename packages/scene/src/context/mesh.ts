@@ -1,5 +1,5 @@
+import earcut from 'earcut';
 import { MeshBuilder, emptyMesh } from '../geometry/builder';
-import { triangulatePolygon } from '../geometry/floors';
 import type { MeshData } from '../geometry/types';
 import type { Vec2 } from '../schema';
 import type { ContextBuilding, SiteContext } from './schema';
@@ -42,17 +42,35 @@ function planArea(ring: readonly Vec2[]): number {
   return a / 2;
 }
 
-function addCap(builder: MeshBuilder, ring: readonly Vec2[], y: number, up: boolean, materialId: string, entityId: string): void {
-  const tris = triangulatePolygon(ring);
+/** Caps the outer ring (with optional hole rings) at height `y`, triangulated with earcut. */
+function addCap(
+  builder: MeshBuilder,
+  ring: readonly Vec2[],
+  holes: readonly (readonly Vec2[])[],
+  y: number,
+  up: boolean,
+  materialId: string,
+  entityId: string,
+): void {
+  const pts: Vec2[] = [...ring];
+  const holeStarts: number[] = [];
+  for (const h of holes) {
+    holeStarts.push(pts.length);
+    pts.push(...h);
+  }
+  const tris = earcut(
+    pts.flatMap((p) => [p[0], p[1]]),
+    holeStarts,
+  );
   const normal: [number, number, number] = [0, up ? 1 : -1, 0];
-  const base = ring.map((p) => builder.vertex([p[0], y, p[1]], normal, [p[0], p[1]]));
+  const base = pts.map((p) => builder.vertex([p[0], y, p[1]], normal, [p[0], p[1]]));
   for (let i = 0; i < tris.length; i += 3) {
     const a = tris[i]!;
     let b = tris[i + 1]!;
     let c = tris[i + 2]!;
-    const pa = ring[a]!;
-    const pb = ring[b]!;
-    const pc = ring[c]!;
+    const pa = pts[a]!;
+    const pb = pts[b]!;
+    const pc = pts[c]!;
     // y component of (b - a) x (c - a) in world space (plan y is world z).
     const ny = (pb[1] - pa[1]) * (pc[0] - pa[0]) - (pb[0] - pa[0]) * (pc[1] - pa[1]);
     if (ny === 0) continue;
@@ -66,6 +84,7 @@ function addCap(builder: MeshBuilder, ring: readonly Vec2[], y: number, up: bool
  *
  * Each building is extruded from `base` to `base + height`: outward-facing walls (one quad
  * per footprint edge) and a flat roof triangulated with earcut, so concave footprints work.
+ * Optional `holes` (inner rings) are cut out of the roof/underside and get inward-facing walls.
  * A building whose base is above the lowest base in the context (for example the part of
  * the host building above the flat's storey) also gets a downward-facing underside, so it
  * is closed when seen from below. Footprints sit in plan coordinates (x, y down) and are
@@ -82,13 +101,21 @@ function addCap(builder: MeshBuilder, ring: readonly Vec2[], y: number, up: bool
 export function buildContextMeshes(context: SiteContext, options: ContextMeshOptions = {}): MeshData {
   const margin = options.groundMargin ?? 50;
   const builder = new MeshBuilder();
-  const rings: { building: ContextBuilding; ring: Vec2[] }[] = [];
+  const rings: { building: ContextBuilding; ring: Vec2[]; holes: Vec2[][] }[] = [];
   for (const building of context.buildings) {
     const ring = dedupe(building.footprint);
     if (ring.length < 3 || Math.abs(planArea(ring)) < 1e-9) continue;
     // Normalise to clockwise-on-screen (positive planArea) so the outward normal is (dy, -dx).
     if (planArea(ring) < 0) ring.reverse();
-    rings.push({ building, ring });
+    // Holes run the opposite way (negative planArea), so the same (dz, -dx) normal points into the hole.
+    const holes: Vec2[][] = [];
+    for (const h of building.holes ?? []) {
+      const hr = dedupe(h);
+      if (hr.length < 3 || Math.abs(planArea(hr)) < 1e-9) continue;
+      if (planArea(hr) > 0) hr.reverse();
+      holes.push(hr);
+    }
+    rings.push({ building, ring, holes });
   }
   if (rings.length === 0) return emptyMesh();
 
@@ -98,43 +125,47 @@ export function buildContextMeshes(context: SiteContext, options: ContextMeshOpt
   let maxX = -Infinity;
   let maxZ = -Infinity;
 
-  for (const { building, ring } of rings) {
+  for (const { building, ring, holes } of rings) {
     const material = building.host ? CONTEXT_MATERIALS.host : CONTEXT_MATERIALS.building;
     const owner = { kind: 'context' as const, entityId: building.id };
     const y0 = building.base;
     const y1 = building.base + building.height;
-    for (let i = 0; i < ring.length; i++) {
-      const a = ring[i]!;
-      const b = ring[(i + 1) % ring.length]!;
-      minX = Math.min(minX, a[0]);
-      maxX = Math.max(maxX, a[0]);
-      minZ = Math.min(minZ, a[1]);
-      maxZ = Math.max(maxZ, a[1]);
-      const dx = b[0] - a[0];
-      const dz = b[1] - a[1];
-      const len = Math.hypot(dx, dz);
-      if (len < 1e-9) continue;
-      const normal: [number, number, number] = [dz / len, 0, -dx / len];
-      builder.quad(
-        [
-          [a[0], y0, a[1]],
-          [a[0], y1, a[1]],
-          [b[0], y1, b[1]],
-          [b[0], y0, b[1]],
-        ],
-        normal,
-        [
-          [0, 0],
-          [0, building.height],
-          [len, building.height],
-          [len, 0],
-        ],
-        material,
-        owner,
-      );
+    for (const loop of [ring, ...holes]) {
+      for (let i = 0; i < loop.length; i++) {
+        const a = loop[i]!;
+        const b = loop[(i + 1) % loop.length]!;
+        if (loop === ring) {
+          minX = Math.min(minX, a[0]);
+          maxX = Math.max(maxX, a[0]);
+          minZ = Math.min(minZ, a[1]);
+          maxZ = Math.max(maxZ, a[1]);
+        }
+        const dx = b[0] - a[0];
+        const dz = b[1] - a[1];
+        const len = Math.hypot(dx, dz);
+        if (len < 1e-9) continue;
+        const normal: [number, number, number] = [dz / len, 0, -dx / len];
+        builder.quad(
+          [
+            [a[0], y0, a[1]],
+            [a[0], y1, a[1]],
+            [b[0], y1, b[1]],
+            [b[0], y0, b[1]],
+          ],
+          normal,
+          [
+            [0, 0],
+            [0, building.height],
+            [len, building.height],
+            [len, 0],
+          ],
+          material,
+          owner,
+        );
+      }
     }
-    addCap(builder, ring, y1, true, material, building.id);
-    if (y0 > groundY + GROUND_EPS) addCap(builder, ring, y0, false, material, building.id);
+    addCap(builder, ring, holes, y1, true, material, building.id);
+    if (y0 > groundY + GROUND_EPS) addCap(builder, ring, holes, y0, false, material, building.id);
   }
 
   const x0 = minX - margin;

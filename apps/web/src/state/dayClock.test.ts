@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { DEFAULT_LIGHTING, dayRange } from '@flat/scene';
+import { DEFAULT_LIGHTING, dayRange, localToInstant } from '@flat/scene';
 import { DEFAULT_FIXTURE } from './fixtures';
 import { advanceDay, createManualSource, installDayClock, setClockSource, tickClock, useClockStore } from './dayClock';
 import { instantToLocal, toMinutes } from './localTime';
@@ -27,18 +27,36 @@ describe('advanceDay', () => {
     expect(time()).toBe('08:01');
   });
 
-  it('follows manual time changes and loops over the daylight range', () => {
+  it('loops over the daylight range: past the end it wraps to the exact modulo target', () => {
     const { scene } = useSceneStore.getState();
+    const { timezone } = scene!.site;
     const range = dayRange(scene!.site, '2026-06-21');
-    const end = instantToLocal(range.end, scene!.site.timezone).time;
+    const start = range.start.getTime();
+    const length = range.end.getTime() - start;
+    const end = instantToLocal(range.end, timezone).time;
     useViewStore.getState().setLighting({ time: end });
-    advanceDay(2000, 60); // two hours past the end: wraps to the start
-    const start = instantToLocal(range.start, scene!.site.timezone).time;
-    expect(toMinutes(time())).toBeGreaterThanOrEqual(toMinutes(start));
-    expect(toMinutes(time())).toBeLessThan(toMinutes(end));
+    // The slider has minute precision: the cursor starts at the end time rounded to the minute.
+    const cursor = localToInstant('2026-06-21', end, timezone).getTime();
+    expect(cursor).toBeLessThan(start + length);
+    advanceDay(2000, 60); // two hours later
+    const wrapped = start + ((cursor + 2 * 3_600_000 - start) % length);
+    expect(time()).toBe(instantToLocal(new Date(wrapped), timezone).time);
+    expect(toMinutes(time())).toBeLessThan(8 * 60); // early morning, not mid-day
     useViewStore.getState().setLighting({ time: '10:00' });
     advanceDay(0, 60);
     expect(time()).toBe('10:00');
+  });
+
+  it('after the Evening preset (20:00, past the end of a winter day) the animation starts at the range start', () => {
+    const { scene } = useSceneStore.getState();
+    const range = dayRange(scene!.site, '2026-12-21');
+    const startTime = instantToLocal(range.start, scene!.site.timezone).time;
+    expect(toMinutes(instantToLocal(range.end, scene!.site.timezone).time)).toBeLessThan(20 * 60);
+    useViewStore.getState().setLighting({ date: '2026-12-21', time: '20:00' });
+    advanceDay(16.7, 1);
+    expect(time()).toBe(startTime);
+    advanceDay(1000, 60); // and then it advances normally from there
+    expect(toMinutes(time())).toBe(toMinutes(startTime) + 60);
   });
 
   it('jumps in at sunrise when the time is before the range', () => {

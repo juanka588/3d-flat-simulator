@@ -264,3 +264,28 @@ legend {
   grid-template-columns: 1fr 1fr;
   gap: 0.4rem;
 }
+
+.attribution {
+  position: absolute;
+  right: 0.5rem;
+  bottom: 0.4rem;
+  margin: 0;
+  padding: 0.1rem 0.4rem;
+  font-size: 0.7rem;
+  color: #3a3d44;
+  background: rgba(255, 255, 255, 0.75);
+  border-radius: 4px;
+  pointer-events: none;
+}
+.context-hint {
+  position: absolute;
+  left: 0.75rem;
+  bottom: 0.75rem;
+  margin: 0;
+  padding: 0.4rem 0.7rem;
+  font-size: 0.8rem;
+  color: #7a3b00;
+  background: rgba(255, 244, 224, 0.95);
+  border-radius: 6px;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.15);
+}

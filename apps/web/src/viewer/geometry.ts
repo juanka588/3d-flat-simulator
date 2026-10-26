@@ -30,6 +30,9 @@ export function toBufferGeometry(mesh: MeshData): BufferGeometry {
   geometry.setAttribute('position', attrs.position);
   geometry.setAttribute('normal', attrs.normal);
   geometry.setAttribute('uv', attrs.uv);
+  // Per-room ambient texel (see room-ambient.ts), when the mesh has it.
+  const uv1 = (mesh as MeshData & { uv1?: Float32Array }).uv1;
+  if (uv1) geometry.setAttribute('uv1', new BufferAttribute(uv1, 2));
   geometry.setIndex(new BufferAttribute(mesh.indices, 1));
   mesh.groups.forEach((group, i) => geometry.addGroup(group.start, group.count, i));
   return geometry;

@@ -17,11 +17,29 @@ import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import console from 'node:console';
 import process from 'node:process';
-import { setTimeout } from 'node:timers';
 import { URLSearchParams } from 'node:url';
 
-const R_EARTH = 6371008.8;
-const DEG = Math.PI / 180;
+import {
+  DEG,
+  R_EARTH,
+  anchorOrigin,
+  cleanRing,
+  compass,
+  dominantBearing,
+  extractRings,
+  fromEnu,
+  getJson as getJsonWith,
+  hostBands,
+  planBasis,
+  pointInRing,
+  round,
+  signedArea,
+  toEnu,
+  validateContext,
+  wrap180,
+  wrap360,
+} from './lib.mjs';
+
 const GEOCODE_URL = 'https://data.geopf.fr/geocodage/search';
 const WFS_URL = 'https://data.geopf.fr/wfs/ows';
 
@@ -74,128 +92,9 @@ function num(opts, key, fallback) {
   return v;
 }
 
-// ---------------------------------------------------------------- projection
-
-/** WGS84 -> local ENU metres around (lat0, lon0). */
-export function toEnu(lat, lon, lat0, lon0) {
-  return [(lon - lon0) * Math.cos(lat0 * DEG) * R_EARTH * DEG, (lat - lat0) * R_EARTH * DEG];
-}
-/** Local ENU metres -> WGS84. */
-export function fromEnu(e, n, lat0, lon0) {
-  return [lat0 + n / (R_EARTH * DEG), lon0 + e / (Math.cos(lat0 * DEG) * R_EARTH * DEG)];
-}
-
-/** Plan frame basis (in E,N) for a plan x axis with compass bearing `bx` degrees. */
-export function planBasis(bx) {
-  const r = bx * DEG;
-  return { ex: [Math.sin(r), Math.cos(r)], ey: [Math.cos(r), -Math.sin(r)] };
-}
-
-// ---------------------------------------------------------------- polygon helpers
-
-function signedArea(p) {
-  let a = 0;
-  for (let i = 0; i < p.length; i++) {
-    const [x1, y1] = p[i];
-    const [x2, y2] = p[(i + 1) % p.length];
-    a += x1 * y2 - x2 * y1;
-  }
-  return a / 2;
-}
-
-function cleanRing(ring, eps = 0.01) {
-  let pts = ring.map((p) => [p[0], p[1]]);
-  const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
-  if (pts.length > 1 && dist(pts[0], pts.at(-1)) < eps) pts.pop();
-  pts = pts.filter((p, i) => i === 0 || dist(p, pts[i - 1]) >= eps);
-  // Drop collinear vertices.
-  let changed = true;
-  while (changed && pts.length > 3) {
-    changed = false;
-    for (let i = 0; i < pts.length; i++) {
-      const a = pts[(i + pts.length - 1) % pts.length];
-      const b = pts[i];
-      const c = pts[(i + 1) % pts.length];
-      const cross = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
-      if (Math.abs(cross) < 1e-4 * Math.max(1, dist(a, c))) {
-        pts.splice(i, 1);
-        changed = true;
-        break;
-      }
-    }
-  }
-  return pts;
-}
-
-/** Keeps the part of `poly` where `inside(p)` (signed distance >= 0). Sutherland-Hodgman. */
-function clipHalfPlane(poly, f) {
-  const out = [];
-  for (let i = 0; i < poly.length; i++) {
-    const a = poly[i];
-    const b = poly[(i + 1) % poly.length];
-    const fa = f(a);
-    const fb = f(b);
-    if (fa >= 0) out.push(a);
-    if ((fa >= 0) !== (fb >= 0)) {
-      const t = fa / (fa - fb);
-      out.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]);
-    }
-  }
-  return out;
-}
-
-function polygonIntersectsRect(poly, r) {
-  let p = poly;
-  for (const f of [
-    (q) => q[0] - r.minX,
-    (q) => r.maxX - q[0],
-    (q) => q[1] - r.minY,
-    (q) => r.maxY - q[1],
-  ]) {
-    p = clipHalfPlane(p, f);
-    if (p.length < 3) return 0;
-  }
-  return Math.abs(signedArea(p));
-}
-
-/** `poly` minus an axis-aligned rectangle, as up to four disjoint pieces. */
-export function subtractRect(poly, r) {
-  if (polygonIntersectsRect(poly, r) < 1e-6) return [poly];
-  const mid = [(q) => q[0] - r.minX, (q) => r.maxX - q[0]];
-  const defs = [
-    [(q) => r.minX - q[0]],
-    [(q) => q[0] - r.maxX],
-    [...mid, (q) => r.minY - q[1]],
-    [...mid, (q) => q[1] - r.maxY],
-  ];
-  const pieces = [];
-  for (const fs of defs) {
-    let p = poly;
-    for (const f of fs) p = clipHalfPlane(p, f);
-    p = cleanRing(p, 0.02);
-    if (p.length >= 3 && Math.abs(signedArea(p)) > 0.05) pieces.push(p);
-  }
-  return pieces;
-}
-
 // ---------------------------------------------------------------- network
 
-async function getJson(url, label) {
-  let lastError;
-  for (let attempt = 1; attempt <= 4; attempt++) {
-    try {
-      const res = await globalThis.fetch(url, { signal: globalThis.AbortSignal.timeout(60_000) });
-      const text = await res.text();
-      if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.slice(0, 200)}`);
-      return JSON.parse(text);
-    } catch (e) {
-      lastError = e;
-      console.error(`  ${label}: attempt ${attempt} failed (${e.message})`);
-      await new Promise((r) => setTimeout(r, 1000 * attempt));
-    }
-  }
-  throw new Error(`${label} failed: ${lastError?.message}`);
-}
+const getJson = (url, label) => getJsonWith(url, label, { log: (m) => console.error(m) });
 
 async function geocode(query) {
   const url = `${GEOCODE_URL}?${new URLSearchParams({ q: query, limit: '1' })}`;
@@ -253,39 +152,6 @@ function readFlat(file) {
   return { flat, bounds, envelope, maxT, wallHeight };
 }
 
-// ---------------------------------------------------------------- orientation
-
-/** Dominant orientation (compass bearing of an edge, mod 90) of a ring in ENU, edge-length weighted. */
-export function dominantBearing(ring) {
-  const edges = ring.map((a, i) => {
-    const b = ring[(i + 1) % ring.length];
-    return { len: Math.hypot(b[0] - a[0], b[1] - a[1]), bearing: Math.atan2(b[0] - a[0], b[1] - a[1]) / DEG };
-  });
-  // Length-weighted circular mean of bearing mod 90 (4x angle trick), then re-estimated without
-  // edges more than 8 degrees away (chamfers, bay windows) so they do not skew the axis.
-  const mean = (list) => {
-    let c = 0;
-    let s = 0;
-    for (const e of list) {
-      c += e.len * Math.cos(4 * e.bearing * DEG);
-      s += e.len * Math.sin(4 * e.bearing * DEG);
-    }
-    return Math.atan2(s, c) / 4 / DEG;
-  };
-  let axis = mean(edges);
-  const near = edges.filter((e) => Math.abs(wrap180(4 * (e.bearing - axis)) / 4) <= 8);
-  if (near.length >= 2) axis = mean(near);
-  return ((axis % 90) + 90) % 90;
-}
-
-const wrap360 = (a) => ((a % 360) + 360) % 360;
-const wrap180 = (a) => ((a + 180) % 360 + 360) % 360 - 180;
-const round = (v, d) => Math.round(v * 10 ** d) / 10 ** d;
-const compass = (bearing) =>
-  ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'][
-    Math.round(wrap360(bearing) / 22.5) % 16
-  ];
-
 // ---------------------------------------------------------------- main
 
 async function main() {
@@ -327,33 +193,13 @@ async function main() {
     geojson = await fetchBuildings(centre.lat, centre.lon, radius);
   }
 
-  const rings = []; // {id, props, ring: [[lon,lat]...]}
-  for (const f of geojson.features ?? []) {
-    const polys = f.geometry?.type === 'MultiPolygon' ? f.geometry.coordinates : f.geometry?.type === 'Polygon' ? [f.geometry.coordinates] : [];
-    polys.forEach((poly, k) => {
-      rings.push({
-        key: f.properties?.cleabs ?? f.id,
-        featureId: f.id,
-        part: polys.length > 1 ? k : null,
-        props: f.properties ?? {},
-        lonlat: poly[0].map((c) => [c[0], c[1]]),
-      });
-    });
-  }
+  let { rings, skipped } = extractRings(geojson);
+  if (skipped.length) console.error(`warning: ${skipped.length} feature(s) without usable geometry skipped`);
   if (rings.length === 0) throw new Error('No buildings returned');
 
   // 3. Host.
   const frameA = { lat0: centre.lat, lon0: centre.lon };
   const enuA = (r) => r.lonlat.map(([lo, la]) => toEnu(la, lo, frameA.lat0, frameA.lon0));
-  const pointInRing = (pt, ring) => {
-    let inside = false;
-    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-      const [xi, yi] = ring[i];
-      const [xj, yj] = ring[j];
-      if (yi > pt[1] !== yj > pt[1] && pt[0] < ((xj - xi) * (pt[1] - yi)) / (yj - yi) + xi) inside = !inside;
-    }
-    return inside;
-  };
   let host;
   if (opts['host-id']) {
     host = rings.filter((r) => r.key === opts['host-id'] || r.featureId === opts['host-id']);
@@ -379,14 +225,11 @@ async function main() {
     const [hLat, hLon] = fromEnu(hostCentroid[0], hostCentroid[1], frameA.lat0, frameA.lon0);
     console.error(`Re-centring the fetch on the host (${hLat.toFixed(6)}, ${hLon.toFixed(6)})`);
     geojson = await fetchBuildings(hLat, hLon, radius);
-    rings.length = 0;
-    for (const f of geojson.features ?? []) {
-      const polys = f.geometry?.type === 'MultiPolygon' ? f.geometry.coordinates : [f.geometry.coordinates];
-      polys.forEach((poly, k) =>
-        rings.push({ key: f.properties?.cleabs ?? f.id, featureId: f.id, part: polys.length > 1 ? k : null, props: f.properties ?? {}, lonlat: poly[0].map((c) => [c[0], c[1]]) }),
-      );
-    }
-    host = rings.filter((r) => r.key === host[0].key);
+    ({ rings, skipped } = extractRings(geojson));
+    if (skipped.length) console.error(`warning: ${skipped.length} feature(s) without usable geometry skipped`);
+    const hostKey = host[0].key;
+    host = rings.filter((r) => r.key === hostKey);
+    if (host.length === 0) throw new Error(`Host building ${hostKey} is missing from the re-centred fetch (try a larger --radius or pass --from-geojson)`);
     centre = { ...centre, lat: hLat, lon: hLon };
   }
   if (opts['save-geojson']) writeFileSync(resolve(opts['save-geojson']), JSON.stringify(geojson));
@@ -414,8 +257,7 @@ async function main() {
     const hy = hostEnu.map((p) => p[0] * ey[0] + p[1] * ey[1]);
     const box = { minX: Math.min(...hx), maxX: Math.max(...hx), minY: Math.min(...hy), maxY: Math.max(...hy) };
     // Plan position of the flat's origin so that its outer envelope corner sits on the box corner.
-    const ox = anchor.endsWith('w') ? box.minX + inset : box.maxX - inset - (envelope.maxX - envelope.minX) - (envelope.minX - 0);
-    const oy = anchor.startsWith('n') ? box.minY + inset : box.maxY - inset - (envelope.maxY - envelope.minY) - (envelope.minY - 0);
+    const [ox, oy] = anchorOrigin(box, anchor, inset, envelope);
     const oe = ox * ex[0] + oy * ey[0];
     const on = ox * ex[1] + oy * ey[1];
     [originLat, originLon] = fromEnu(oe, on, pivot.lat0, pivot.lon0);
@@ -457,23 +299,20 @@ async function main() {
     const h = heightOf(r.props);
     if (!isHost && d > radius + 60) continue;
     stats[h.source]++;
+    const holes = (r.holes ?? []).map((hr) => cleanRing(hr.map(([lo, la]) => toPlan(lo, la)))).filter((hr) => hr.length >= 3 && Math.abs(signedArea(hr)) >= 0.5);
     if (!isHost) {
-      buildings.push({ id, footprint, base, height: h.value, host: false });
+      buildings.push({ id, footprint, ...(holes.length ? { holes } : {}), base, height: h.value, host: false });
       continue;
     }
     // Host: split into bands so the flat's own volume is not inside a solid box.
-    const roofTop = base + h.value;
     hostInfo.push({ id, height: h.value, source: h.source, footprint });
-    buildings.push({ id: `${id}:below`, footprint, base, height: storeyBase - base, host: true });
-    const pieces = subtractRect(footprint, flatCut);
-    pieces.forEach((piece, k) => buildings.push({ id: `${id}:flat-storey-${k}`, footprint: piece, base: storeyBase, height: storeyTop - storeyBase, host: true }));
-    if (roofTop > storeyTop + 0.1) buildings.push({ id: `${id}:above`, footprint, base: storeyTop, height: roofTop - storeyTop, host: true });
+    buildings.push(...hostBands({ id, footprint, holes, base, height: h.value, storeyBase, storeyTop, flatCut }));
   }
 
   const sourceNote =
     `IGN BD TOPO V3 batiment via data.geopf.fr WFS (Licence Ouverte Etalab 2.0); fetched ${new Date().toISOString().slice(0, 10)}; ` +
     `radius ${radius} m around the host building; plan frame = local ENU rotated by northAngle ${northAngle} deg; ` +
-    `host split into below/flat-storey (cut-away)/above bands`;
+    `host split into below (if any)/flat-storey (cut-away)/above bands`;
   const context = {
     version: 1,
     source: sourceNote,
@@ -484,9 +323,14 @@ async function main() {
       footprint: b.footprint.map((p) => [round(p[0], 2), round(p[1], 2)]),
       base: round(b.base, 3),
       height: round(b.height, 3),
+      ...(b.holes ? { holes: b.holes.map((hr) => hr.map((p) => [round(p[0], 2), round(p[1], 2)])) } : {}),
       host: b.host,
     })),
   };
+  const problems = validateContext(context);
+  if (problems.length > 0) {
+    throw new Error(`Generated context is invalid, nothing written:\n  ${problems.slice(0, 10).join('\n  ')}`);
+  }
   writeFileSync(out, `${JSON.stringify(context, null, 2)}\n`);
 
   // 6. Report.

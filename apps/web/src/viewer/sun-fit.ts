@@ -1,5 +1,13 @@
 export type V3 = [number, number, number];
 
+/** Orthonormal light basis for a sun direction (towards the sun): sideways axes of the shadow camera. */
+export function sunBasis(direction: V3): { dir: V3; up: V3; right: V3; cameraUp: V3 } {
+  const dir = norm(direction);
+  const up: V3 = Math.abs(dir[1]) > 0.999 ? [0, 0, -1] : [0, 1, 0];
+  const right = norm(cross(up, dir));
+  return { dir, up, right, cameraUp: cross(dir, right) };
+}
+
 export interface SunShadowFit {
   /** Light position (shadow camera origin). */
   position: V3;
@@ -15,9 +23,9 @@ export interface SunShadowFit {
   far: number;
 }
 
-const dot = (a: V3, b: V3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-const cross = (a: V3, b: V3): V3 => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
-const norm = (a: V3): V3 => {
+export const dot = (a: V3, b: V3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+export const cross = (a: V3, b: V3): V3 => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+export const norm = (a: V3): V3 => {
   const l = Math.hypot(...a) || 1;
   return [a[0] / l, a[1] / l, a[2] / l];
 };
@@ -25,15 +33,14 @@ const norm = (a: V3): V3 => {
 /**
  * Fits an orthographic shadow frustum for a directional light. The sideways extent covers the
  * `receivers` only (a caster can only shadow what lies on the same light ray, so it projects inside
- * that area), the depth range covers `receivers` and all `casters`, so nothing between the sun and
- * the receivers is clipped. `direction` points from the scene towards the sun.
+ * that area). The depth range runs from the receivers' farthest-from-sun point to the farthest
+ * `casters` point towards the sun (casters behind the receivers cannot shade them and never extend
+ * the range), so nothing between the sun and the receivers is clipped. `direction` points from the
+ * scene towards the sun. Only the depth `dot(point, direction)` of a caster matters.
  */
 export function fitSunShadow(direction: V3, receivers: readonly V3[], casters: readonly V3[], margin = 0.5): SunShadowFit | null {
   if (receivers.length === 0) return null;
-  const dir = norm(direction);
-  const up: V3 = Math.abs(dir[1]) > 0.999 ? [0, 0, -1] : [0, 1, 0];
-  const right = norm(cross(up, dir));
-  const cameraUp = cross(dir, right);
+  const { dir, up, right, cameraUp } = sunBasis(direction);
 
   // Origin: centre of the receivers' bounding box.
   const lo: V3 = [Infinity, Infinity, Infinity];
@@ -64,9 +71,12 @@ export function fitSunShadow(direction: V3, receivers: readonly V3[], casters: r
     maxD = Math.max(maxD, d);
   };
   for (const p of receivers) extend(p, true);
+  const receiverMinD = minD;
   for (const p of casters) extend(p, false);
+  minD = receiverMinD; // casters behind the receivers cannot shade them
 
   const distance = maxD + margin;
+  const depthRange = distance - minD + margin;
   return {
     position: [origin[0] + dir[0] * distance, origin[1] + dir[1] * distance, origin[2] + dir[2] * distance],
     target: origin,
@@ -76,6 +86,6 @@ export function fitSunShadow(direction: V3, receivers: readonly V3[], casters: r
     bottom: minY - margin,
     top: maxY + margin,
     near: 0.1,
-    far: distance - minD + margin,
+    far: depthRange,
   };
 }

@@ -1,7 +1,7 @@
 import { BUILTIN_MATERIALS } from '@flat/scene';
 import type { Scene } from '@flat/scene';
 import { DoubleSide, MeshStandardMaterial } from 'three';
-import type { Material } from 'three';
+import type { Material, Texture } from 'three';
 
 export interface MaterialLibrary {
   get: (id: string) => Material;
@@ -34,17 +34,30 @@ function builtin(id: string): MeshStandardMaterial {
   }
 }
 
-/** Builds three materials for a scene (scene materials plus builtins); dispose when the scene changes. */
-export function createMaterialLibrary(scene: Pick<Scene, 'materials'>): MaterialLibrary {
+/**
+ * Builds three materials for a scene (scene materials plus builtins); dispose when the scene changes.
+ * With `roomAmbient`, every opaque material gets it as `aoMap` (channel 1), which scales only the
+ * indirect (hemisphere) light per room; glass is left alone. Meshes drawn with such materials
+ * must carry a `uv1` attribute (see room-ambient.ts).
+ */
+export function createMaterialLibrary(scene: Pick<Scene, 'materials'>, roomAmbient?: Texture): MaterialLibrary {
   const cache = new Map<string, Material>();
+  const ambient = (m: MeshStandardMaterial): MeshStandardMaterial => {
+    if (roomAmbient) {
+      m.aoMap = roomAmbient;
+      m.aoMapIntensity = 1;
+    }
+    return m;
+  };
   for (const m of scene.materials) {
-    cache.set(m.id, new MeshStandardMaterial({ color: m.color, roughness: m.roughness }));
+    cache.set(m.id, ambient(new MeshStandardMaterial({ color: m.color, roughness: m.roughness })));
   }
   return {
     get(id) {
       let material = cache.get(id);
       if (!material) {
-        material = builtin(id);
+        const made = builtin(id);
+        material = id === BUILTIN_MATERIALS.glass ? made : ambient(made);
         cache.set(id, material);
       }
       return material;

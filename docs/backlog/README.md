@@ -6,7 +6,7 @@ Milestones, user stories and acceptance criteria. The overall roadmap (M0–M9) 
 |---|---|---|
 | M0 | Foundations: monorepo, Scene schema, CI | ✅ done |
 | M1 | 3D shell from JSON: walls/openings/floors, cameras, walk, selection | ✅ done (approved 2026-10-26) |
-| M2 | Sun (suncalc + site context from IGN), sky, lamps, presets | 🚧 [m1-m2.md](m1-m2.md) |
+| M2 | Sun (suncalc + site context from IGN), sky, lamps, presets | ✅ done (pending user check-in) |
 | M3 | Command layer + scene service, undo/redo, live sync, finishes | ⏳ |
 | M4 | MCP server v1: read scene, finishes, lighting, `render_view` | ⏳ |
 | M5 | Asset catalog + furniture/decor placement via relations + solver | ⏳ |

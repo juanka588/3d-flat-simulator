@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { DragEvent } from 'react';
 import { MAX_SCENE_BYTES } from '@flat/scene';
 import { beginLoad, isLatestLoad, useSceneStore } from './state/sceneStore';
 import { FIXTURES } from './state/fixtures';
-import { contextFor } from './state/siteContext';
+import { alignContext, contextFor } from './state/siteContext';
 import { useViewStore } from './state/viewStore';
 import { noteFrame, registerCanvas, testHookEnabled } from './testHook';
 import { ErrorPanel } from './ui/ErrorPanel';
@@ -16,6 +16,9 @@ import { WarningsList } from './ui/WarningsList';
 import { FlatCanvas } from './viewer/FlatCanvas';
 import { sceneKey } from './viewer/scene-identity';
 import { selectionForId } from './viewer/selection';
+
+/** Credit required by the Licence Ouverte 2.0 for the IGN BD TOPO buildings. */
+export const CONTEXT_ATTRIBUTION = '© IGN – BD TOPO, Licence Ouverte 2.0';
 
 export function App() {
   const { scene, source, warnings, errors, loadText } = useSceneStore();
@@ -65,7 +68,15 @@ export function App() {
     if (file) void loadFile(file);
   };
 
-  const context = contextFor(source);
+  const rawContext = contextFor(source);
+  const site = scene?.site;
+  // The generated context follows later Site edits: rotated/lifted to the new north and floor
+  // elevation, hidden (with a hint) when the flat moved away from where it was generated.
+  const { context, stale: contextStale } = useMemo(
+    () => (rawContext && site ? alignContext(rawContext, site) : { context: rawContext, stale: false }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [rawContext, site?.latitude, site?.longitude, site?.northAngle, site?.floorElevation],
+  );
   const fixtureId = FIXTURES.find((f) => f.id === source)?.id ?? '';
 
   return (
@@ -88,7 +99,7 @@ export function App() {
         )}
         <SceneLoader fixtureId={fixtureId} onPickFixture={pickFixture} onFile={(f) => void loadFile(f)} />
         <ErrorPanel errors={errors} onDismiss={() => useSceneStore.setState({ errors: [] })} />
-        {scene && <LightingPanel scene={scene} hasContext={context !== null} />}
+        {scene && <LightingPanel scene={scene} hasContext={rawContext !== null} />}
         {scene && <SitePanel key={sceneKey(scene)} scene={scene} />}
         {scene && (
           <WarningsList
@@ -110,6 +121,16 @@ export function App() {
               onFrame={testHookEnabled() ? noteFrame : undefined}
             />
             <PropertiesPanel scene={scene} selection={selection} />
+            {contextStale && lighting.showContext && (
+              <p className="context-hint" role="status" data-testid="context-stale">
+                Site context out of date: re-run tools/site-context
+              </p>
+            )}
+            {context && lighting.showContext && (
+              <p className="attribution" data-testid="context-attribution">
+                {CONTEXT_ATTRIBUTION}
+              </p>
+            )}
           </>
         )}
       </main>

@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import type { FlatTestHook } from '../apps/web/src/test-hook-types';
@@ -49,10 +49,30 @@ export function polygonArea(polygon: [number, number][]): number {
   return Math.abs(sum) / 2;
 }
 
-/** Skips the current test when the sun/exposure maths in `@flat/scene` is unavailable (stubs). */
-export async function lightingAvailable(page: Page): Promise<{ ok: true } | { ok: false; reason: string }> {
+/** Asserts that the sun/exposure maths in `@flat/scene` works (lighting tests must never skip silently). */
+export async function expectLighting(page: Page): Promise<void> {
   const info = await page.evaluate(() => window.__flat!.sunInfo());
-  return info.available ? { ok: true } : { ok: false, reason: `lighting maths unavailable (${info.error}); skipping until integration` };
+  expect(info.available, info.available ? '' : `lighting maths unavailable: ${info.error}`).toBe(true);
+}
+
+/** Writes the current canvas to a PNG file. */
+export async function savePng(page: Page, file: string): Promise<void> {
+  const url = await page.evaluate(() => window.__flat!.capture());
+  writeFileSync(file, Buffer.from(url.split(',')[1]!, 'base64'));
+}
+
+/** Plan point (x, z) as a floor-level world point. */
+export const floorPoint = (x: number, z: number): [number, number, number] => [x, 0, z];
+
+/** True when a plan point lies inside a polygon (even-odd rule). */
+export function inPolygon(p: [number, number], polygon: [number, number][]): boolean {
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const [xi, yi] = polygon[i]!;
+    const [xj, yj] = polygon[j]!;
+    if (yi > p[1] !== yj > p[1] && p[0] < ((xj - xi) * (p[1] - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
 }
 
 /**
