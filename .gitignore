@@ -11,3 +11,4 @@ playwright-report/
 # private blueprints (signatures, address)
 blueprints/
 *.pdf
+.idea/
