@@ -6,9 +6,8 @@ import { ContextMesh } from './ContextMesh';
 import { Lamps } from './Lamps';
 import { SkyDome } from './SkyDome';
 import { SunLight } from './SunLight';
-import { AMBIENT_DESATURATION, AMBIENT_FRACTION, LAMP_SHADOW_SUN_LUX_MAX, computeLighting } from './lighting';
+import { LAMP_SHADOW_SUN_LUX_MAX, computeLighting, groundDisplay, hemisphereColors } from './lighting';
 
-const WHITE = new Color(1, 1, 1);
 const FALLBACK_BACKGROUND = '#e8ebf0';
 const NIGHT_BACKGROUND = '#07090e';
 
@@ -45,7 +44,12 @@ export function LightingRig({
     invalidate();
   }, [get, showSky, model.ok]);
 
-  const sky = useMemo(() => (model.ok ? { zenith: new Color().setRGB(...model.zenith).lerp(WHITE, AMBIENT_DESATURATION), ground: new Color().setRGB(...model.horizon).multiplyScalar(0.35) } : null), [model]);
+  const sky = useMemo(() => {
+    if (!model.ok) return null;
+    const c = hemisphereColors(model.zenith, model.horizon);
+    const floor = groundDisplay(model.sunIntensity, model.ambientIntensity, model.sun.altitudeDeg, model.exposure, [1, 1, 1]);
+    return { zenith: new Color().setRGB(...c.sky), ground: new Color().setRGB(...c.ground), floor };
+  }, [model]);
   useEffect(() => {
     if (!model.ok) console.warn(`Lighting maths unavailable, using neutral lighting: ${model.error}`);
   }, [model]);
@@ -67,8 +71,8 @@ export function LightingRig({
   return (
     <>
       {contextMesh}
-      {showSky && <SkyDome direction={model.sun.direction} />}
-      <hemisphereLight name="ambient" color={sky!.zenith} groundColor={sky!.ground} intensity={model.ambientLux * AMBIENT_FRACTION} />
+      {showSky && <SkyDome direction={model.sun.direction} zenith={model.zenith} horizon={model.horizon} ground={sky!.floor} sunVisibility={model.sunActive ? 1 : 0} />}
+      <hemisphereLight name="ambient" color={sky!.zenith} groundColor={sky!.ground} intensity={model.ambientIntensity} />
       <SunLight model={model} scene={scene} context={shownContext} />
       <Lamps lamps={model.lamps} shadows={model.sunLux < LAMP_SHADOW_SUN_LUX_MAX} selectedRoomId={selectedRoomId} />
     </>

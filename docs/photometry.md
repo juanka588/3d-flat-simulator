@@ -106,7 +106,41 @@ For a surface of albedo 0.5, `radiance = 0.5 E_surface / pi * exposure`: a wall 
 150 lx lamp gives about 0.24 (readable mid-tone); at noon a sky-lit (shaded) surface of about
 17 klx gives about 0.3 and a sun-lit one about 1.5-1.9 (bright, handled by the tone mapper).
 The curve is tuned, not calibrated; the viewer adds `exposureEV` (stops, `exposure * 2^EV`)
-on top.
+on top. The viewer evaluates it on the screen-tuned (compressed) daylight below, so the noon
+numbers in this table are for the physical inputs; the rendered noon exposure is about 2.8e-4.
+
+## Screen tuning of daylight (web layer)
+
+`autoExposure` and the physical sun above are unchanged in `@flat/scene` and still feed the
+readouts (`sunLux`, `ambientLux`). But feeding them straight to three.js gave a bad daytime
+image: exposure keyed on ~87 klx of sun left the shade (hemisphere only 0.3 x 17 klx, tinted
+deep blue and with a colour of luminance ~0.25) crushed to navy while every sun patch clipped.
+Per the "exact geometry, tuned brightness" decision, `apps/web/src/viewer/lighting.ts`
+compresses the daylight dynamic range for the screen (geometry, shadows and patches stay exact):
+
+| Constant | Value | Meaning |
+| --- | --- | --- |
+| `AMBIENT_FRACTION` | 0.5 | `HemisphereLight.intensity = 0.5 x ambientLux` (about 8 klx at noon) |
+| `AMBIENT_DESATURATION` | 0.92 | sky colour pulled this far to white, then normalised to luminance 1 so intensity is true lux and shade is neutral |
+| `AMBIENT_GROUND_LUMINANCE` | 0.55 | ground (bounce) colour luminance relative to the sky |
+| `SUN_TO_AMBIENT_RATIO` | 2 | rendered sun saturates at about 2 x the rendered hemisphere |
+
+- **Rendered sun**: `sunIntensity = c (1 - exp(-sunLux / c))`, `c = 2 x ambientIntensity`. It is
+  the identity for a weak sun (low sun, dusk), monotonic, and zero with the sun. At noon, 21 Jun:
+  80 klx becomes about 20 klx, i.e. a horizontal sun patch is about 3x as bright as shade
+  instead of 6x.
+- **Exposure key**: `autoExposure(sunIntensity, ambientIntensity, lampLux)`, i.e. the formula
+  above applied to the *rendered* illuminance, not the physical one: about 2.8e-4 at noon
+  (was 1.2e-4), 1.1e-3 at 16:20 in December. With no sun (night, evening, lamps-only) the sun
+  and hemisphere terms are zero, so those scenes are bit-for-bit unchanged.
+- **Sky dome**: our own gradient shader (zenith to horizon colours from `skyState`, a warm halo
+  and disc around the sun), not the drei/three `Sky`, whose HDR output is unscaled relative to
+  the flat's exposure and rendered flat grey. It ignores tone mapping and depth and follows the
+  camera. Below the horizon it continues the lit context ground (`groundDisplay`: ground albedo
+  0.16 x rendered irradiance x exposure), because the orbit and top cameras only see the sky
+  dome below the horizon; blue sky is visible in walk mode and through windows.
+- **Lamps** are untouched and physical. They default to off in the app's initial view (the
+  `day` preset is applied when the first scene loads); toggling and presets still work.
 
 ## Sun patches and sunlight hours
 

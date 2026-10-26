@@ -16,9 +16,16 @@ import type { Light, LightingView, Scene, SunState } from '@flat/scene';
  *   sun   -> DirectionalLight.intensity = lux on a surface facing the sun
  *   lamps -> Point/SpotLight.intensity  = candela (decay 2, distance 0); RectAreaLight = nits
  *   sky   -> HemisphereLight.intensity  = AMBIENT_FRACTION * sky illuminance on a horizontal plane
- * No light is fudged to look right. A clear noon (~1e5 lux) and a 150 lx lamp-lit room differ by
- * ~3 orders of magnitude, so the dynamic range is absorbed by `toneMappingExposure`, set to
- * `autoExposure(sun, ambient, lamps) * 2^EV` (NeutralToneMapping).
+ * Lamps are never fudged. Sun and sky are "exact geometry, tuned brightness for screen" (see
+ * docs/photometry.md, "Screen tuning of daylight"): a clear noon (~1e5 lux) and a 150 lx lamp-lit
+ * room differ by ~3 orders of magnitude, and a physical sun at 5x the (unoccluded) hemisphere
+ * clips every sun patch to white while the shade falls to black. So the light *fed to three.js* is
+ * compressed: `sunIntensity` is a soft-clipped sun (never more than about SUN_TO_AMBIENT_RATIO
+ * times the hemisphere), and the exposure is keyed on the *rendered* illuminance
+ * `ambientIntensity + sunIntensity + lamps`, so shade stays mid-tone while the sun patch stays
+ * bright. The physical lux stay in the
+ * model (`sunLux`, `ambientLux`) for readouts. Night, evening and lamps-only scenes have no sun,
+ * so none of this applies to them. The result is `toneMappingExposure` (NeutralToneMapping).
  */
 
 /**
@@ -28,10 +35,23 @@ import type { Light, LightingView, Scene, SunState } from '@flat/scene';
  * lit lamp (at noon about 17 klx * 0.3 = 5 klx against ~100 klx of direct sun), and the
  * interior is never as bright as outdoors. Raise it for brighter shade, lower it for moodier rooms.
  */
-export const AMBIENT_FRACTION = 0.3;
+export const AMBIENT_FRACTION = 0.5;
 
-/** How far the hemisphere light's sky colour is pulled towards white, so shade is not tinted deep blue. */
-export const AMBIENT_DESATURATION = 0.6;
+/** How far the hemisphere light's sky colour is pulled towards white, so shade is not tinted blue. */
+export const AMBIENT_DESATURATION = 0.92;
+
+/** Luminance of the hemisphere's ground colour (light bounced up from the ground), relative to the sky colour (1). */
+export const AMBIENT_GROUND_LUMINANCE = 0.55;
+
+/**
+ * Screen tuning of the direct sun: the rendered sun saturates towards `ratio x hemisphere` (a
+ * soft clip, identity for a weak sun), so a sun patch is clearly brighter than shade (about
+ * SUN_TO_AMBIENT_RATIO times on a horizontal surface at most) without burning to flat white.
+ */
+export const SUN_TO_AMBIENT_RATIO = 2;
+
+/** Linear albedo of the context ground (`#6f6f6c`), used to match the sky dome's below-horizon fill to it. */
+export const GROUND_ALBEDO = 0.16;
 
 /** Above this direct-sun illuminance (lux) lamps are lost in daylight, so they skip shadow maps. */
 export const LAMP_SHADOW_SUN_LUX_MAX = 10_000;
@@ -69,6 +89,10 @@ export type LightingModel =
       /** Direct-sun illuminance fed to the light (0 when inactive). */
       sunLux: number;
       ambientLux: number;
+      /** What the DirectionalLight is given (lux): the screen-tuned sun, <= `sunLux`. */
+      sunIntensity: number;
+      /** What the HemisphereLight is given (lux): `ambientLux * AMBIENT_FRACTION`. */
+      ambientIntensity: number;
       zenith: RGB;
       horizon: RGB;
       exposure: number;
@@ -116,6 +140,44 @@ function withPhotometry(lamp: LampSpec, light: Light): LampSpec {
   return { ...lamp, color, intensity: lamp.on ? candela : 0 };
 }
 
+/** Rec. 709 relative luminance of a linear RGB triple. */
+export const luminance = ([r, g, b]: RGB): number => 0.2126 * r + 0.7152 * g + 0.0722 * b;
+
+/**
+ * Soft-clipped sun for rendering: `c (1 - exp(-sun / c))` with `c = SUN_TO_AMBIENT_RATIO x
+ * hemisphere`. Monotonic, zero at zero, and ~identity while the sun is weak (low sun, twilight).
+ */
+export function renderSun(sunLux: number, ambientIntensity: number): number {
+  if (sunLux <= 0) return 0;
+  const c = SUN_TO_AMBIENT_RATIO * Math.max(ambientIntensity, 1);
+  return c * (1 - Math.exp(-sunLux / c));
+}
+
+/**
+ * Hemisphere light colours. The sky colour is pulled towards white (AMBIENT_DESATURATION) and then
+ * normalised to unit luminance, so the light's intensity (lux) is its real contribution and shade
+ * is neutral instead of blue; the ground colour is a warm-neutral bounce at AMBIENT_GROUND_LUMINANCE.
+ */
+export function hemisphereColors(zenith: RGB, horizon: RGB): { sky: RGB; ground: RGB } {
+  const mixed = zenith.map((v) => v + (1 - v) * AMBIENT_DESATURATION) as RGB;
+  const lum = Math.max(luminance(mixed), 1e-6);
+  const sky = mixed.map((v) => v / lum) as RGB;
+  const warm = horizon.map((v) => v * 0.15 + 0.85) as RGB; // nearly neutral, a hint of the horizon hue
+  const gl = Math.max(luminance(warm), 1e-6);
+  const ground = warm.map((v) => (v / gl) * AMBIENT_GROUND_LUMINANCE) as RGB;
+  return { sky, ground };
+}
+
+/**
+ * Display colour (linear, after exposure) of a sunlit-and-skylit horizontal ground patch, used to
+ * fill the sky dome below the horizon so it continues the context ground instead of a flat grey.
+ */
+export function groundDisplay(sunIntensity: number, ambientIntensity: number, sunAltitudeDeg: number, exposure: number, tint: RGB): RGB {
+  const irradiance = ambientIntensity + sunIntensity * Math.max(Math.sin((sunAltitudeDeg * Math.PI) / 180), 0);
+  const radiance = Math.min(((GROUND_ALBEDO * irradiance) / Math.PI) * exposure, 0.8);
+  return tint.map((v) => v * radiance) as RGB;
+}
+
 /** Total floor area of the habitable rooms (balconies excluded), for the lamp share of the exposure. */
 function interiorArea(scene: Scene): number {
   return scene.rooms.filter((r) => r.type !== 'balcony').reduce((sum, r) => sum + polygonArea(r.polygon), 0);
@@ -137,7 +199,10 @@ export function computeLighting(scene: Scene, lighting: LightingView): LightingM
     // Mean illuminance the lamps add over the habitable area (lumens per square metre).
     const area = Math.max(interiorArea(scene), 1);
     const lampLux = lit.reduce((sum, l) => sum + (l.on ? l.lumens : 0), 0) / area;
-    const exposure = autoExposure(sunLux, ambientLux, lampLux) * Math.pow(2, lighting.exposureEV);
+    const ambientIntensity = ambientLux * AMBIENT_FRACTION;
+    const sunIntensity = renderSun(sunLux, ambientIntensity);
+    // Exposure key: the rendered (compressed) sun and hemisphere plus the lamps, not the 87 klux of physical sun.
+    const exposure = autoExposure(sunIntensity, ambientIntensity, lampLux) * Math.pow(2, lighting.exposureEV);
     if (!Number.isFinite(exposure) || exposure <= 0) throw new Error('exposure is not a positive number');
     return {
       ok: true,
@@ -145,6 +210,8 @@ export function computeLighting(scene: Scene, lighting: LightingView): LightingM
       sunActive,
       sunLux,
       ambientLux,
+      sunIntensity,
+      ambientIntensity,
       zenith: sky.zenithColor,
       horizon: sky.horizonColor,
       exposure,

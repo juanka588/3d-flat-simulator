@@ -1,6 +1,6 @@
 import type { Scene, Site } from '@flat/scene';
 import { create } from 'zustand';
-import { loadSceneText } from '@flat/scene';
+import { applyPreset, loadSceneText } from '@flat/scene';
 import type { LoadResult, ValidationWarning } from '@flat/scene';
 import { adoptSceneIdentity } from '../viewer/scene-identity';
 import { useViewStore } from './viewStore';
@@ -49,8 +49,12 @@ export const useSceneStore = create<SceneStore>((set) => ({
     latestLoad++; // a synchronous load supersedes any file still being read
     const result = loadSceneText(text);
     if (result.ok) {
+      const first = useSceneStore.getState().scene === null;
       set({ scene: result.scene, source, warnings: result.warnings, errors: [] });
-      useViewStore.getState().select(null);
+      const view = useViewStore.getState();
+      view.select(null);
+      // The app opens in daytime (12:00): start from the 'day' preset so lamps are off, not glowing at noon.
+      if (first) useViewStore.setState({ lighting: applyPreset(view.lighting, 'day', result.scene.site, result.scene.lights) });
     } else {
       set({ errors: result.errors });
     }

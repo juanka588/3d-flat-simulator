@@ -57,7 +57,7 @@ export function SunLight({ model, scene, context }: { model: OkModel; scene: Sce
         ref={light}
         name="sun"
         target={target}
-        intensity={model.sunLux}
+        intensity={model.sunIntensity}
         castShadow
         shadow-mapSize={[SUN_SHADOW_MAP_SIZE, SUN_SHADOW_MAP_SIZE]}
         shadow-bias={-0.0005}
