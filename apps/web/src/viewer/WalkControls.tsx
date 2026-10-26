@@ -1,13 +1,15 @@
 import { PerspectiveCamera, PointerLockControls } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
 import { useEffect, useMemo, useRef } from 'react';
-import { findSpawn, resolveMove, sceneBounds3, wallObstacles } from '@flat/scene';
+import { findSpawn, insideFlat, resolveWalk, sceneBounds3, walkObstacles } from '@flat/scene';
 import type { Scene } from '@flat/scene';
+import { clearVirtualKeys, onVirtualWake, virtualKeysHeld } from './walk-input';
 
 export const EYE_HEIGHT = 1.6;
 const BODY_RADIUS = 0.25;
 const WALK_SPEED = 1.4; // m/s
 const RUN_SPEED = 2.8;
+const TURN_SPEED = 1.6; // rad/s for the on-screen turn buttons
 const LOOK_SPEED = 0.003; // rad per px for drag-to-look
 export const VIEWER_ELEMENT_ID = 'flat-viewer';
 
@@ -49,7 +51,8 @@ interface WalkControlsProps {
 /** First-person walk: pointer lock look (drag fallback), WASD/arrows, wall collision, Esc to leave. */
 export function WalkControls({ scene, onExit }: WalkControlsProps) {
   const spawn = useMemo(() => spawnPose(scene), [scene]);
-  const obstacles = useMemo(() => wallObstacles(scene), [scene]);
+  const obstacles = useMemo(() => walkObstacles(scene), [scene]);
+  const inside = useMemo(() => insideFlat(scene), [scene]);
   const position = useMemo<[number, number, number]>(
     () => [spawn.position[0], EYE_HEIGHT, spawn.position[1]],
     [spawn],
@@ -60,6 +63,13 @@ export function WalkControls({ scene, onExit }: WalkControlsProps) {
   const invalidate = useThree((s) => s.invalidate);
   const pressed = useRef(new Set<string>());
   const exit = useRef(onExit);
+  useEffect(() => {
+    onVirtualWake(invalidate);
+    return () => {
+      onVirtualWake(null);
+      clearVirtualKeys();
+    };
+  }, [invalidate]);
   useEffect(() => {
     exit.current = onExit;
   }, [onExit]);
@@ -140,6 +150,17 @@ export function WalkControls({ scene, onExit }: WalkControlsProps) {
         ahead += dir[1];
       }
     });
+    const virtual = virtualKeysHeld();
+    if (virtual.size > 0) {
+      ahead += (virtual.has('forward') ? 1 : 0) - (virtual.has('back') ? 1 : 0);
+      strafe += (virtual.has('right') ? 1 : 0) - (virtual.has('left') ? 1 : 0);
+      const turn = (virtual.has('turnLeft') ? 1 : 0) - (virtual.has('turnRight') ? 1 : 0);
+      if (turn !== 0) {
+        state.camera.rotation.order = 'YXZ';
+        state.camera.rotation.y += turn * TURN_SPEED * Math.min(delta, 0.1);
+        invalidate();
+      }
+    }
     if (strafe === 0 && ahead === 0) return;
     const speed = keys.has('ShiftLeft') || keys.has('ShiftRight') ? RUN_SPEED : WALK_SPEED;
     const yaw = state.camera.rotation.y;
@@ -151,7 +172,7 @@ export function WalkControls({ scene, onExit }: WalkControlsProps) {
     const from: [number, number] = [state.camera.position.x, state.camera.position.z];
     const {
       position: [x, z],
-    } = resolveMove(from, [dx * step, dz * step], obstacles, BODY_RADIUS);
+    } = resolveWalk(inside, from, [dx * step, dz * step], obstacles, BODY_RADIUS);
     state.camera.position.set(x, EYE_HEIGHT, z);
     invalidate();
   });

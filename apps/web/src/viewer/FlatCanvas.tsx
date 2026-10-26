@@ -8,6 +8,7 @@ import { CompassDriver, CompassOverlay } from './Compass';
 import { SelectionHighlight } from './SelectionHighlight';
 import { ShellMesh, CLICK_DRAG_TOLERANCE_PX } from './ShellMesh';
 import { VIEWER_ELEMENT_ID, WalkControls } from './WalkControls';
+import { WalkOverlay } from './WalkOverlay';
 import { createMaterialLibrary } from './materials';
 import { createRoomAmbient, withRoomAmbient } from './room-ambient';
 import { shellFor } from './shell-cache';
@@ -48,6 +49,7 @@ export function FlatCanvas({ scene, view, context = null, onSelect, onExitWalk, 
   };
 
   return (
+    <>
     <div id={VIEWER_ELEMENT_ID} className="viewer" onPointerDownCapture={rememberPointerDown}>
       <Canvas
         frameloop="demand"
@@ -77,6 +79,9 @@ export function FlatCanvas({ scene, view, context = null, onSelect, onExitWalk, 
       </Canvas>
       <CompassOverlay needle={needle} />
     </div>
+      {/* A sibling of the viewer: clicks on it must not engage pointer lock. */}
+      {view.mode === 'walk' && <WalkOverlay />}
+    </>
   );
 }
 

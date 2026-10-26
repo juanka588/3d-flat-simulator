@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { findWallShadowProbes } from './shadow-rays';
 import type { RayFlat } from './shadow-rays';
-import { charmeFlat, expectLighting, flat, floorPoint, inPolygon, meanLuma, openApp, rendered, savePng } from './helpers';
+import { charmeFlat, columnLuma, expectLighting, flat, floorPoint, inPolygon, maxSecondDifference, meanLuma, openApp, rendered, savePng } from './helpers';
 
 /** Budget for a steady frame (nothing changed since the previous one: no shadow-map passes). */
 const MAX_DRAW_CALLS = 70;
@@ -108,12 +108,78 @@ test('the area panel (Séjour kitchen) does not light through walls either', asy
   await top(page);
   await setLighting(page, { sunEnabled: false, lamps: onlyLamps(['l-cuisine']) });
   const panel = lights.find((l) => l.id === 'l-cuisine')!;
-  const under = await luma(page, floorPoint(panel.position[0] + 0.3, panel.position[1] + 0.9));
+  const under = await luma(page, floorPoint(panel.position[0] + 0.3, panel.position[1] - 0.6)); // inside the Séjour (it ends at z 8.28)
   const sdb = await luma(page, floorPoint(5.8, 7.9)); // behind the Séjour/SDB wall
   const entree = await luma(page, floorPoint(6.0, 5.2));
   expect(under).toBeGreaterThan(0.1);
   expect(under).toBeGreaterThan(sdb * 3);
   expect(under).toBeGreaterThan(entree * 3);
+});
+
+test.describe('the kitchen panel (point-light proxy) stays inside the Séjour', () => {
+  /** Floor points that only the kitchen light could reach through walls: dark, whereas the kitchen floor is bright. */
+  const NEAR_BLACK = 0.02;
+  const behindWalls: [string, [number, number]][] = [
+    // Balcony floor in front of a stretch of the west facade without a door (the doors are at z 2.85-4.25 and 6.25-7.15).
+    ['balcony floor, north of the cuisine door', [-0.9, 5.0]],
+    ['balcony floor, south of the cuisine door', [-0.9, 7.9]],
+    // Alcove floor behind its partition (z 2.235), far from the alcove door (x 0.07-0.87).
+    ['alcove floor behind the partition', [3.0, 1.0]],
+    // Entrée floor behind the Séjour/entrée wall, away from its door (z 4.6-5.5) and the sdb niche.
+    ['entrée floor behind the wall', [5.5, 5.8]],
+    // The ground outside the flat (south, north and beyond the balcony rail): no window or door faces these points.
+    ['ground south of the south wall', [0.4, 9.2]],
+    ['ground north of the alcove', [4.4, -0.7]],
+    ['ground beyond the balcony rail', [-1.75, 2.8]],
+  ];
+
+  test('with only l-cuisine on at night, the balcony, alcove and entrée floors are near-black and the kitchen floor is bright', async ({ page }) => {
+    await top(page);
+    await setLighting(page, { sunEnabled: false, lamps: onlyLamps(['l-cuisine']) });
+    const kitchen = await luma(page, floorPoint(2.5, 6.9));
+    expect(kitchen).toBeGreaterThan(0.3);
+    for (const [label, [x, z]] of behindWalls) {
+      const value = await luma(page, floorPoint(x, z));
+      expect(value, `${label} at (${x}, ${z}): ${value} (kitchen floor ${kitchen})`).toBeLessThan(NEAR_BLACK);
+    }
+  });
+
+  test('light still enters the balcony through the glazed doors', async ({ page }) => {
+    await top(page);
+    await setLighting(page, { sunEnabled: false, lamps: onlyLamps(['l-cuisine']) });
+    // In line with the cuisine door (z 6.25-7.15) from the lamp at (2.0, 7.6): lit.
+    expect(await luma(page, floorPoint(-0.9, 6.7))).toBeGreaterThan(0.05);
+  });
+});
+
+test.describe('lamp shadows have no acne (no stripes on walls in walk view)', () => {
+  // A vertical scanline across the left side wall: a smooth light gradient has second differences of
+  // about 1 grey level (plus the PCF dither); acne stripes were an order of magnitude above.
+  const MAX_STEP = 4;
+  const walk = async (page: Page, x: number, z: number, yawDeg: number) => {
+    await page.evaluate(() => window.__flat!.setView({ mode: 'walk' }));
+    await page.evaluate((p) => window.__flat!.setWalkPose(p), { x, z, yawDeg });
+    await rendered(page);
+  };
+
+  test('kitchen panel: the lit side wall is smooth along a vertical scanline', async ({ page }) => {
+    await setLighting(page, { sunEnabled: false, lamps: onlyLamps(['l-cuisine']) });
+    await walk(page, 2.0, 4.6, 180);
+    for (const xFrac of [0.04, 0.09, 0.14]) {
+      const scan = await columnLuma(page, xFrac, 0.35, 0.7);
+      expect(Math.min(...scan), 'the wall is lit').toBeGreaterThan(40);
+      const step = maxSecondDifference(scan);
+      expect(step, `column at ${xFrac} of the width: max second difference ${step}`).toBeLessThan(MAX_STEP);
+    }
+  });
+
+  test('bathroom spot (100 degrees): the wall under the cone is smooth', async ({ page }) => {
+    await setLighting(page, { sunEnabled: false, lamps: onlyLamps(['l-sdb']) });
+    await walk(page, 5.4, 6.8, 180);
+    const scan = await columnLuma(page, 0.5, 0.72, 0.97);
+    expect(Math.min(...scan), 'the wall is lit').toBeGreaterThan(100);
+    expect(maxSecondDifference(scan)).toBeLessThan(MAX_STEP);
+  });
 });
 
 test('toggling one lamp does not change the lighting of another room or recompile shaders', async ({ page }) => {

@@ -67,7 +67,7 @@ deep blue at the zenith by day, a warm orange horizon around 0 degrees, near-bla
 | --- | --- | --- |
 | point | `cd = lm / 4pi` | `PointLight.intensity` (decay 2, distance 0) |
 | spot (full cone theta) | `cd = lm / (2pi (1 - cos(theta/2)))` | `SpotLight.intensity`; `angle = theta/2` in radians |
-| area panel | `nits = lm / (pi w d)` (`areaNits`, for readouts) | the viewer renders it as a shadow-casting down-spot at `cd = lm / pi`, see "Shadows, lamps and ambient" |
+| area panel | `nits = lm / (pi w d)` (`areaNits`, for readouts) | the viewer renders it as a shadow-casting `PointLight` just below the panel at `cd = lm / (2pi)`, see "Shadows, lamps and ambient" |
 
 Examples: 1600 lm point = 127.3 cd; 600 lm at 100 degrees = 267.3 cd; 2500 lm on a
 1.2 x 0.3 m panel = 2210 nits. Zero lumens give zero. Spot angles are clamped to
@@ -155,22 +155,45 @@ sun (their depth is capped where that ray clears the roof). Fitting every one of
 gave a 235-436 m depth range at low sun; now it is 20-60 m (about 170 m only at a grazing 1 degree
 sunrise), asserted in `sun-bounds.test.ts`.
 
-**Bias in world units.** The shadow depth is linear over `far - near`, and three.js's `bias` is in
+**Bias in world units.** The sun's shadow depth is linear over `far - near`, and three.js's `bias` is in
 those normalised units, so a fixed `-0.0005` was 0.2 m of light leaking under walls for a 400 m
 range. The sun now uses `bias = -K / (far - near)` with `K = 0.015 m` and
-`normalBias = 2 texels` (`sun-shadow.ts`); lamps use `K = 0.015 m` over their 0.1-16 m shadow range
-and `normalBias = 0.03`. e2e probes put floor points 5 cm behind a wall at low sun and require them
-to stay dark (it fails with `K = 0.25 m`).
+`normalBias = 2 texels` (`sun-shadow.ts`). e2e probes put floor points 5 cm behind a wall at low sun
+and require them to stay dark (it fails with `K = 0.25 m`).
 
-**Area panels.** `RectAreaLight` cannot cast shadows, so it lit rooms through walls. An area lamp is
-now a downward `SpotLight` at the panel centre with a 87 degree half-angle, `penumbra = 1` (a smooth
-fall-off towards the edge of the cone, close to a diffuse panel's cosine law) and intensity
-`cd = lm / pi`, the Lambertian peak intensity. The emissive panel mesh stays for the look; there is
-no `RectAreaLight` at all (no specular from the panel).
+**Lamp bias** (`lamp-shadow.ts`). Point and spot shadows are perspective: three.js compares
+`z = f (d - n) / (d (f - n))` (depth-buffer units, `d` = distance along the shadow camera axis), so
+the same `bias` is a different number of metres at each distance (`dz/dd = n f / (d^2 (f - n))`:
+the metres grow with `d^2`). A linear "K / range" conversion, as used for the sun, was wrong by
+orders of magnitude here. The bias is now `-K n f / (d0^2 (f - n))` with `K = 0.02 m` at a
+reference distance `d0 = 3 m` (near 0.1, far 16), and `normalBias = 0.05 m` (this one IS in
+metres) covers walls seen at a grazing angle from the lamp. Shadow maps are 512 per cube face for
+points, 1024 for the kitchen panel and the spots.
+
+**Area panels.** `RectAreaLight` cannot cast shadows, so it lit rooms through walls. The first
+replacement, a 87 degree half-angle `SpotLight`, was wrong: its 174 degree perspective shadow frustum
+loses nearly all resolution and depth precision towards its edge, giving heavy stripes (acne) on side
+walls and light leaking through walls onto the balcony and outside the flat. An area lamp is now a
+`PointLight` (a cube shadow map: six 90 degree faces) 6 cm below the panel centre, so the cube
+sees the room and not the panel body, with `cd = lm / (2pi)`. A Lambertian panel sends its whole
+flux `lm` into the lower hemisphere; a point light of `cd` radiates `4pi cd` into the whole
+sphere, so `cd = lm / (2pi)` puts the same flux `lm` below the ceiling plane. (The upper half
+lights the ceiling around the panel, a soft halo, and nothing above it, see below.) The peak
+intensity straight down is therefore `lm / (2pi)`, half of the Lambertian peak `lm / pi`: a panel
+looks a bit dimmer directly below and wider-spread than a true cosine emitter. The emissive panel
+mesh stays for the look; there is no `RectAreaLight`, so no specular from the panel.
+
+**Slabs shut lamp light in.** Shadow passes draw the back faces of casters, so a floor (facing up)
+was invisible to a lamp above it, and a ceiling (facing down) to a lamp below it: lamps lit the
+ground and the roof band through the slabs (a faint ring around the flat, visible at night
+because the exposure is high). `shadowCasterGeometry` now also contains, for every room, a copy of
+the floor reversed (facing down) 2 cm below it and a copy of the ceiling reversed 2 cm above it.
+The fixtures receive shadows too, so an off lamp body is not lit through walls by another lamp.
+Light still enters and leaves through window and door openings: glass does not cast.
 
 **Static shadow maps.** The scene is static, so no shadow map is re-rendered per frame. Every
 point and spot lamp (and the area proxies) casts shadows permanently, on or off (an off lamp has
-intensity 0), with small maps (point 256, spot 512; sun 2048), so the number of shadow-casting
+intensity 0), with modest maps (point 512 per face, kitchen panel and spot 1024, sun 2048), so the number of shadow-casting
 lights is constant and toggling lamps or walking never recompiles shaders (the fixture material is
 also one type in both states). All `shadow.autoUpdate` are `false`; `shadow.needsUpdate` is set only
 when the scene or the visible context changes, a lamp's intensity changes (that lamp only), or the
@@ -184,7 +207,7 @@ Draw calls (`renderer.info.render.calls`, Charme with context):
 | steady, walk mode | 16 |
 | right after moving the sun (one sun shadow pass) | 26 (+3) |
 | right after toggling one lamp | 27 (+6) |
-| right after the Night preset or a scene load (every lamp's maps) | 55 (+34) |
+| right after the Night preset or a scene load (every lamp's maps) | 60 (+39) |
 
 The budget (70) applies to steady frames; change frames may use up to twice that
 (`e2e/lighting.e2e.ts`, which also keeps the four fixed scenes within it). While the day animation

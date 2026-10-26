@@ -9,16 +9,46 @@ interface Merged {
 
 const mergedCache = new WeakMap<ShellMeshes, Merged>();
 
+/** How far (metres) the lamp-light blockers of floors and ceilings sit beyond the surface they close. */
+export const SLAB_BLOCKER_OFFSET_M = 0.02;
+
 /**
- * Walls, fittings and ceilings merged into one single-group, position-only geometry. It is drawn
- * with an invisible material and only exists to cast shadows: shadow passes draw once per material
- * group, so the visible meshes (many groups) would make every sun and lamp shadow pass expensive,
- * and the ceilings (hidden in orbit/top) must still shut the sun out of the rooms.
+ * A copy of a surface mesh with reversed winding, shifted by `dy` along Y. Shadow passes draw the
+ * BACK faces of casters (the default `shadowSide` of a front-side material), so a floor (facing
+ * up) is invisible to a lamp above it, and a ceiling (facing down) to a lamp below it. The
+ * reversed copy faces away from the lamp, is drawn, and shuts the light in: without it a lamp
+ * lights the ground and the roof band through the slab.
+ */
+function reversedSurface(m: Pick<MeshData, 'positions' | 'indices'>, dy: number): Pick<MeshData, 'positions' | 'indices'> {
+  const positions = Float32Array.from(m.positions);
+  for (let i = 1; i < positions.length; i += 3) positions[i] = positions[i]! + dy;
+  const indices = Uint32Array.from(m.indices);
+  for (let i = 0; i + 2 < indices.length; i += 3) {
+    const t = indices[i + 1]!;
+    indices[i + 1] = indices[i + 2]!;
+    indices[i + 2] = t;
+  }
+  return { positions, indices };
+}
+
+/**
+ * Walls, fittings and ceilings merged into one single-group, position-only geometry, plus a
+ * reversed, slightly offset copy of every floor (below it) and ceiling (above it) so that lamps
+ * cannot light through the slabs (see `reversedSurface`). It is drawn with an invisible material
+ * and only exists to cast shadows: shadow passes draw once per material group, so the visible
+ * meshes (many groups) would make every sun and lamp shadow pass expensive, and the ceilings
+ * (hidden in orbit/top) must still shut the sun out of the rooms.
  */
 export function shadowCasterGeometry(shell: ShellMeshes): BufferGeometry {
   let merged = mergedCache.get(shell);
   if (!merged) {
-    const parts = [shell.walls, shell.fittings, shell.ceilings].filter((m) => m.indices.length > 0);
+    const parts = [
+      shell.walls,
+      shell.fittings,
+      shell.ceilings,
+      reversedSurface(shell.floors, -SLAB_BLOCKER_OFFSET_M),
+      reversedSurface(shell.ceilings, SLAB_BLOCKER_OFFSET_M),
+    ].filter((m) => m.indices.length > 0);
     const vertexCount = parts.reduce((n, m) => n + m.positions.length, 0);
     const indexCount = parts.reduce((n, m) => n + m.indices.length, 0);
     const positions = new Float32Array(vertexCount);

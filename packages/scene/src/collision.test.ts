@@ -1,6 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import charme from '../fixtures/charme-3205.flat.json';
-import { DEFAULT_RADIUS, distanceToObstacle, findSpawn, isPassable, resolveMove, wallObstacles, type Obstacle } from './collision';
+import {
+  DEFAULT_RADIUS,
+  distanceToObstacle,
+  findSpawn,
+  insideFlat,
+  isPassable,
+  resolveMove,
+  resolveWalk,
+  walkObstacles,
+  wallObstacles,
+  type Obstacle,
+} from './collision';
 import { polygonCentroid } from './measure';
 import { parseScene } from './parse';
 import type { Scene } from './schema';
@@ -271,6 +282,99 @@ describe('findSpawn', () => {
     for (const room of scene.rooms) {
       const s = findSpawn({ ...scene, rooms: [room] });
       expect(s, room.id).not.toBeNull();
+    }
+  });
+});
+
+describe('staying inside the flat', () => {
+  const inside = insideFlat(scene);
+  const obstacles = walkObstacles(scene);
+  const walk = (from: [number, number], delta: [number, number], obs = obstacles) => resolveWalk(inside, from, delta, obs);
+  const doorX = 8.735 - 0.955; // door-entry centre on w-landing (y = 6.115)
+
+  it('is true in every room and false in the stairwell, on the street side and past the balcony', () => {
+    for (const room of scene.rooms) expect(inside(polygonCentroid(room.polygon)), room.id).toBe(true);
+    expect(inside([doorX, 6.6])).toBe(false);
+    expect(inside([20, 20])).toBe(false);
+    expect(inside([-1.7, 4])).toBe(false);
+  });
+
+  it('only treats interior doors as walkable: the entry door leads outside', () => {
+    // w-landing has no gap in walking obstacles, but has one in the plain wall footprints.
+    expect(walkObstacles(scene).filter((o) => o.wallId === 'w-landing')).toHaveLength(1);
+    expect(wallObstacles(scene).filter((o) => o.wallId === 'w-landing')).toHaveLength(2);
+  });
+
+  it('stops at the entry door when walking into it from the entree', () => {
+    const r = walk([doorX, 5], [0, 3]);
+    expect(r.collided).toBe(true);
+    expect(r.position[1]).toBeLessThanOrEqual(6.03);
+    expect(r.position[1]).toBeGreaterThan(5.7);
+    expect(inside(r.position)).toBe(true);
+  });
+
+  it('stops at the entry door even if the door gap were not an obstacle (region test alone)', () => {
+    const r = walk([doorX, 5], [0, 3], wallObstacles(scene));
+    expect(r.position[1]).toBeLessThanOrEqual(6.03 + 1e-6);
+    expect(inside(r.position)).toBe(true);
+  });
+
+  it('slides along the boundary instead of sticking', () => {
+    const r = walk([doorX, 5.7], [1, 1]); // against the landing wall, heading east
+    expect(r.position[0]).toBeGreaterThan(doorX + 0.5);
+    expect(inside(r.position)).toBe(true);
+  });
+
+  it('walks through every interior door in both directions', () => {
+    const interior = scene.openings.filter((o) => isPassable(o) && o.id !== 'door-entry');
+    expect(interior.map((o) => o.id).sort()).toEqual(
+      ['door-alcove', 'door-balcony-cuisine', 'door-balcony-sejour', 'door-ch1', 'door-ch2', 'door-sdb', 'door-sejour-entree', 'door-wc'],
+    );
+    for (const o of interior) {
+      const wall = scene.walls.find((w) => w.id === o.wallId)!;
+      const len = Math.hypot(wall.end[0] - wall.start[0], wall.end[1] - wall.start[1]);
+      const dx = (wall.end[0] - wall.start[0]) / len;
+      const dy = (wall.end[1] - wall.start[1]) / len;
+      const c: [number, number] = [wall.start[0] + dx * o.offset, wall.start[1] + dy * o.offset];
+      for (const sign of [1, -1]) {
+        const from: [number, number] = [c[0] - sign * -dy * 0.7, c[1] - sign * dx * 0.7];
+        const r = walk(from, [sign * -dy * 1.4, sign * dx * 1.4]);
+        expect(Math.hypot(r.position[0] - (c[0] + sign * -dy * 0.7), r.position[1] - (c[1] + sign * dx * 0.7)), `${o.id} ${sign}`).toBeLessThan(0.02);
+        expect(inside(r.position), o.id).toBe(true);
+      }
+    }
+  });
+
+  it('reaches the balcony through the French doors but not beyond its railing', () => {
+    const y = 8.38 - 4.83; // door-balcony-sejour
+    const through = walk([1, y], [-2, 0]);
+    expect(through.position[0]).toBeCloseTo(-1, 6);
+    expect(inside(through.position)).toBe(true);
+    const far = walk([-1, y], [-5, 0]);
+    expect(far.position[0]).toBeGreaterThanOrEqual(-1.55); // railing outer face
+    expect(far.position[0]).toBeLessThan(-1.2);
+    // Without the railing obstacle the region test still holds the line at the balcony's outer edge.
+    const edge = walk([-1, y], [-5, 0], []);
+    expect(edge.position[0]).toBeGreaterThanOrEqual(-1.55 - 1e-6);
+    expect(edge.position[0]).toBeLessThan(-1.5);
+    // North and south ends of the balcony.
+    for (const dy of [-20, 20]) {
+      const r = walk([-1, y], [0, dy], []);
+      expect(r.position[1]).toBeGreaterThanOrEqual(-1e-6);
+      expect(r.position[1]).toBeLessThanOrEqual(8.28 + 1e-6);
+    }
+  });
+
+  it('cannot tunnel out at high speed, in one jump or in per-frame steps', () => {
+    const starts: [number, number][] = [[doorX, 5], [2, 7.3], [-1, 3.55], [9, 5], [8, 2]];
+    for (const from of starts) {
+      for (const dir of [[1, 0], [-1, 0], [0, 1], [0, -1], [0.7, 0.7], [-0.7, 0.7]] as const) {
+        const jump = walk(from, [dir[0] * 60, dir[1] * 60]);
+        expect(inside(jump.position), `jump ${from} ${dir}`).toBe(true);
+        let p = from;
+        for (let i = 0; i < 40; i++) p = walk(p, [dir[0] * 5 * 0.1 * 4, dir[1] * 5 * 0.1 * 4]).position;
+        expect(inside(p), `steps ${from} ${dir}`).toBe(true);
+      }
     }
   });
 });

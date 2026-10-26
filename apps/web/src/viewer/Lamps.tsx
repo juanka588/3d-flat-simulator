@@ -2,25 +2,25 @@ import { useThree } from '@react-three/fiber';
 import { useLayoutEffect, useMemo, useRef } from 'react';
 import { Color, Object3D } from 'three';
 import type { PointLight, SpotLight } from 'three';
+import { LAMP_NORMAL_BIAS_M, LAMP_SHADOW_BIAS, LAMP_SHADOW_FAR, LAMP_SHADOW_NEAR } from './lamp-shadow';
 import type { LampSpec } from './lighting';
 
-/** Shadow map sizes: small, because lamp shadows are soft room-scale occlusion, not detail. */
-export const POINT_SHADOW_MAP = 256;
-export const SPOT_SHADOW_MAP = 512;
-const SHADOW_NEAR = 0.1;
-const SHADOW_FAR = 16;
-/** World-space depth bias (metres) of lamp shadows; the light's `bias` is -K / (far - near). */
-export const LAMP_SHADOW_BIAS_M = 0.015;
-const LAMP_SHADOW_BIAS = -LAMP_SHADOW_BIAS_M / (SHADOW_FAR - SHADOW_NEAR);
-const LAMP_NORMAL_BIAS = 0.03;
+/**
+ * Shadow map sizes (per cube face for points). Lamp shadows are room-scale occlusion, but a wall
+ * seen at a grazing angle from the lamp needs a fine map or the lookup stripes (acne).
+ */
+export const POINT_SHADOW_MAP = 512;
+/** The kitchen panel lights the biggest room and sits close to a long side wall. */
+export const AREA_SHADOW_MAP = 1024;
+export const SPOT_SHADOW_MAP = 1024;
 const PENUMBRA = 0.3;
 const LAMP_PREFIX = 'lamp:';
 
 /**
- * Half-angle (radians) of the spot that stands in for an area panel: 87 degrees, so it lights
- * nearly the whole lower half-space like a diffuse panel does.
+ * An area panel is lit as a point light this far below the panel (metres), clear of the panel's
+ * own mesh and of the ceiling slab, so the cube shadow map sees the room and not the panel.
  */
-export const AREA_PROXY_ANGLE = (87 * Math.PI) / 180;
+export const AREA_LIGHT_DROP_M = 0.06;
 
 interface LampsProps {
   lamps: readonly LampSpec[];
@@ -42,12 +42,14 @@ interface LampsProps {
  * the shader programs (three recompiles every material when the light/shadow counts change).
  * The scene is static, so shadow maps are not re-rendered every frame (`autoUpdate = false`):
  * each light's map is refreshed (`needsUpdate`) only when `geometryKey` or that lamp's intensity
- * changes. Maps are small (point 256, spot 512).
+ * changes. Maps: point 512 per face, kitchen panel 1024, spot 1024.
  *
  * Area lamps: a RectAreaLight cannot cast shadows and would light through walls, so an area panel
- * is a downward SpotLight with a very wide cone (87 degrees half-angle), `penumbra = 1` (a smooth
- * fall-off towards the cone edge, roughly the cosine fall-off of a diffuse panel) and the
- * Lambertian peak intensity `cd = lm / pi`. The emissive panel mesh (`Fixture`) provides the look.
+ * is a PointLight (six 90 degree cube faces: robust shadows everywhere, unlike one very wide
+ * perspective frustum) a few centimetres below the panel's centre. A Lambertian panel sends all
+ * its flux into the lower hemisphere, a point light into the whole sphere, so `cd = lm / (2 pi)`
+ * gives the same flux below the ceiling plane (the half above it is absorbed by the ceiling slab).
+ * The emissive panel mesh (`Fixture`) provides the look.
  */
 export function Lamps({ lamps, geometryKey, exposure }: LampsProps) {
   return (
@@ -77,27 +79,28 @@ function Lamp({ lamp, geometryKey, exposure }: { lamp: LampSpec; geometryKey: ob
   const shadowProps = {
     castShadow: true,
     'shadow-bias': LAMP_SHADOW_BIAS,
-    'shadow-normalBias': LAMP_NORMAL_BIAS,
-    'shadow-camera-near': SHADOW_NEAR,
-    'shadow-camera-far': SHADOW_FAR,
+    'shadow-normalBias': LAMP_NORMAL_BIAS_M,
+    'shadow-camera-near': LAMP_SHADOW_NEAR,
+    'shadow-camera-far': LAMP_SHADOW_FAR,
   };
+  const pointY = lamp.type === 'area' ? y - AREA_LIGHT_DROP_M : y;
+  const pointMap = lamp.type === 'area' ? AREA_SHADOW_MAP : POINT_SHADOW_MAP;
   return (
     <>
-      {lamp.type === 'point' && (
-        <pointLight ref={light as React.Ref<PointLight>} name={name} position={[x, y, z]} color={color} intensity={lamp.intensity} decay={2} distance={0} shadow-mapSize={[POINT_SHADOW_MAP, POINT_SHADOW_MAP]} {...shadowProps} />
+      {lamp.type !== 'spot' && (
+        <pointLight ref={light as React.Ref<PointLight>} name={name} position={[x, pointY, z]} color={color} intensity={lamp.intensity} decay={2} distance={0} shadow-mapSize={[pointMap, pointMap]} {...shadowProps} />
       )}
-      {lamp.type !== 'point' && <DownSpot lamp={lamp} lightRef={light as React.Ref<SpotLight>} name={name} color={color} shadowProps={shadowProps} />}
+      {lamp.type === 'spot' && <DownSpot lamp={lamp} lightRef={light as React.Ref<SpotLight>} name={name} color={color} shadowProps={shadowProps} />}
       <Fixture lamp={lamp} exposure={exposure} />
     </>
   );
 }
 
-/** A spot pointing straight down: a real spot lamp, or the proxy of an area panel (see `Lamps`). */
+/** A spot lamp pointing straight down. */
 function DownSpot({ lamp, lightRef, name, color, shadowProps }: { lamp: LampSpec; lightRef: React.Ref<SpotLight>; name: string; color: Color; shadowProps: Record<string, number | boolean> }) {
   const [x, y, z] = lamp.position;
   // The target must be part of the scene for the direction to update.
   const target = useMemo(() => new Object3D(), []);
-  const area = lamp.type === 'area';
   return (
     <>
       <primitive object={target} position={[x, 0, z]} />
@@ -108,8 +111,8 @@ function DownSpot({ lamp, lightRef, name, color, shadowProps }: { lamp: LampSpec
         target={target}
         color={color}
         intensity={lamp.intensity}
-        angle={area ? AREA_PROXY_ANGLE : lamp.angle}
-        penumbra={area ? 1 : PENUMBRA}
+        angle={lamp.angle}
+        penumbra={PENUMBRA}
         decay={2}
         distance={0}
         shadow-mapSize={[SPOT_SHADOW_MAP, SPOT_SHADOW_MAP]}
@@ -135,7 +138,7 @@ function Fixture({ lamp, exposure }: { lamp: LampSpec; exposure: number }) {
   }, [lamp.color, exposure]);
   const [x, y, z] = lamp.position;
   return (
-    <mesh name={`fixture:${lamp.id}`} position={[x, lamp.type === 'point' ? y : y + 0.02, z]} rotation={[0, (lamp.rotation * Math.PI) / 180, 0]} scale={lamp.type === 'area' ? [lamp.width, 1, lamp.depth] : 1} raycast={noRaycast}>
+    <mesh name={`fixture:${lamp.id}`} position={[x, lamp.type === 'point' ? y : y + 0.02, z]} rotation={[0, (lamp.rotation * Math.PI) / 180, 0]} receiveShadow scale={lamp.type === 'area' ? [lamp.width, 1, lamp.depth] : 1} raycast={noRaycast}>
       {lamp.type === 'point' && <sphereGeometry args={[0.07, 12, 8]} />}
       {lamp.type === 'spot' && <cylinderGeometry args={[0.07, 0.07, 0.04, 16]} />}
       {lamp.type === 'area' && <boxGeometry args={[1, 0.03, 1]} />}

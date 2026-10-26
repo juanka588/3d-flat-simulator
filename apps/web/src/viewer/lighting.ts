@@ -13,8 +13,8 @@ import type { Light, LightingView, Scene, SunState } from '@flat/scene';
  * Light unit scaling (see docs/photometry.md): every light is given in real photometric units,
  * which three.js (r155+, physically based) consumes directly:
  *   sun   -> DirectionalLight.intensity = lux on a surface facing the sun
- *   lamps -> Point/SpotLight.intensity  = candela (decay 2, distance 0); an area panel is a wide
- *            down-spot at its Lambertian peak intensity lm / pi (RectAreaLight cannot cast shadows)
+ *   lamps -> Point/SpotLight.intensity  = candela (decay 2, distance 0); an area panel is a shadow-casting
+ *            point light just below the panel at lm / (2pi) (RectAreaLight cannot cast shadows)
  *   sky   -> HemisphereLight.intensity  = AMBIENT_FRACTION * sky illuminance on a horizontal plane
  * Lamps are never fudged. Sun and sky are "exact geometry, tuned brightness for screen" (see
  * docs/photometry.md, "Screen tuning of daylight"): a clear noon (~1e5 lux) and a 150 lx lamp-lit
@@ -67,7 +67,7 @@ export interface LampSpec {
   kelvin: number;
   /** Linear RGB of the lamp colour, luminance-normalised. */
   color: RGB;
-  /** Candela (point/spot, and the spot proxy of an area panel: lm / pi); 0 when the lamp is off. */
+  /** Candela (point/spot, and the point proxy of an area panel: lm / 2pi); 0 when the lamp is off. */
   intensity: number;
   /** Spot half-angle in radians (three's `angle`). */
   angle: number;
@@ -131,8 +131,8 @@ function withPhotometry(lamp: LampSpec, light: Light): LampSpec {
       candela = spotCandela(lamp.lumens, light.angle);
       break;
     case 'area':
-      // A diffuse panel's peak intensity (normal to the panel) is lm / pi; it is rendered as a wide down-spot (see Lamps).
-      candela = lamp.lumens / Math.PI;
+      // A panel radiates its whole flux into the lower hemisphere: rendered as a point light with lm / (2pi) (see Lamps).
+      candela = lamp.lumens / (2 * Math.PI);
       break;
   }
   return { ...lamp, color, intensity: lamp.on ? candela : 0 };

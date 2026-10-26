@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { charmeFlat, flat, loadScene, openApp, polygonArea, rendered, sampleFlat } from './helpers';
+import { charmeFlat, flat, inPolygon, loadScene, openApp, polygonArea, rendered, sampleFlat } from './helpers';
 
 const MAX_DRAW_CALLS = 70;
 const MAX_TRIANGLES = 60_000;
@@ -170,4 +170,71 @@ test('reloading scenes repeatedly does not leak geometries or shader programs', 
   expect(samples[4]!.programs).toBeLessThanOrEqual(samples[2]!.programs);
   expect(samples[5]!.programs).toBeLessThanOrEqual(samples[3]!.programs);
   expect(Math.max(...samples.map((s) => s.geometries))).toBeLessThan(30);
+});
+
+test.describe('walk controls overlay', () => {
+  test('is visible in walk mode with the expected text, hidden in orbit and top', async ({ page }) => {
+    const overlay = page.getByTestId('walk-overlay');
+    await expect(overlay).toHaveCount(0);
+    await page.evaluate(() => window.__flat!.setView({ mode: 'walk' }));
+    await expect(overlay).toBeVisible();
+    await expect(overlay).toContainText('arrow keys or WASD (ZQSD on AZERTY)');
+    await expect(overlay).toContainText('drag or click');
+    await expect(overlay).toContainText('Shift');
+    await expect(overlay).toContainText('Esc');
+    for (const name of ['Move forward', 'Move backward', 'Move left', 'Move right', 'Turn left', 'Turn right']) {
+      await expect(overlay.getByRole('button', { name })).toBeVisible();
+    }
+    // The sidebar hint stays.
+    await expect(page.locator('.hint', { hasText: 'WASD' })).toContainText('WASD or arrows to move');
+    await page.evaluate(() => window.__flat!.setView({ mode: 'top' }));
+    await expect(overlay).toHaveCount(0);
+    await page.evaluate(() => window.__flat!.setView({ mode: 'orbit' }));
+    await expect(overlay).toHaveCount(0);
+  });
+
+  test('can be collapsed and the choice is remembered', async ({ page }) => {
+    await page.evaluate(() => window.__flat!.setView({ mode: 'walk' }));
+    const overlay = page.getByTestId('walk-overlay');
+    await overlay.getByRole('button', { name: 'Hide' }).click();
+    await expect(overlay).not.toContainText('ZQSD');
+    await page.reload();
+    await page.evaluate(() => window.__flat!.ready);
+    await page.evaluate(() => window.__flat!.setView({ mode: 'walk' }));
+    await expect(overlay).not.toContainText('ZQSD');
+    await overlay.getByRole('button', { name: 'Show controls' }).click();
+    await expect(overlay).toContainText('ZQSD');
+  });
+
+  test('holding the on-screen up button moves the camera and releasing stops it', async ({ page }) => {
+    await page.evaluate(() => window.__flat!.setView({ mode: 'walk' }));
+    await page.evaluate(() => window.__flat!.setWalkPose({ x: 2, z: 5, yawDeg: 180 })); // looks along +z in the sejour
+    const before = (await flat(page, (f) => f.stats())).camera;
+    const button = page.getByRole('button', { name: 'Move forward' });
+    const box = (await button.boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.waitForTimeout(1500);
+    await page.mouse.up();
+    await rendered(page);
+    const after = (await flat(page, (f) => f.stats())).camera;
+    expect(Math.hypot(after[0] - before[0], after[2] - before[2])).toBeGreaterThan(1);
+    await page.waitForTimeout(300);
+    await rendered(page);
+    expect((await flat(page, (f) => f.stats())).camera).toEqual(after);
+  });
+
+  test('holding ArrowUp into the entry door keeps the camera inside the flat', async ({ page }) => {
+    await page.evaluate(() => window.__flat!.setView({ mode: 'walk' }));
+    // Entree, facing the entry door on w-landing (x = 7.78, y = 6.115): yaw 180 looks along +z.
+    await page.evaluate(() => window.__flat!.setWalkPose({ x: 7.78, z: 5.0, yawDeg: 180 }));
+    await page.keyboard.down('ArrowUp');
+    await page.waitForTimeout(3000);
+    await page.keyboard.up('ArrowUp');
+    await rendered(page);
+    const [x, , z] = (await flat(page, (f) => f.stats())).camera;
+    expect(charmeFlat.rooms.some((r) => inPolygon([x, z], r.polygon))).toBe(true);
+    expect(z).toBeGreaterThan(5.5); // it did walk towards the door ...
+    expect(z).toBeLessThan(6.03); // ... and stopped before it
+  });
 });

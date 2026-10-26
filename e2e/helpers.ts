@@ -110,3 +110,37 @@ export function meanLuma(page: Page, probe?: { point: [number, number, number]; 
     return sum / (px.length / 4);
   }, probe);
 }
+
+/**
+ * Luma (0-255, Rec. 709 on sRGB values) of the canvas pixels along a vertical scanline: the column
+ * at `xFrac` of the canvas width, rows `y0Frac` to `y1Frac` of its height, top to bottom.
+ */
+export function columnLuma(page: Page, xFrac: number, y0Frac: number, y1Frac: number): Promise<number[]> {
+  return page.evaluate(
+    async (a) => {
+      const img = new Image();
+      img.src = window.__flat!.capture();
+      await img.decode();
+      const c = document.createElement('canvas');
+      c.width = img.width;
+      c.height = img.height;
+      const ctx = c.getContext('2d')!;
+      ctx.drawImage(img, 0, 0);
+      const x = Math.round(a.xFrac * (img.width - 1));
+      const y0 = Math.round(a.y0Frac * img.height);
+      const y1 = Math.round(a.y1Frac * img.height);
+      const px = ctx.getImageData(x, y0, 1, y1 - y0).data;
+      const out: number[] = [];
+      for (let i = 0; i < px.length; i += 4) out.push(0.2126 * px[i]! + 0.7152 * px[i + 1]! + 0.0722 * px[i + 2]!);
+      return out;
+    },
+    { xFrac, y0Frac, y1Frac },
+  );
+}
+
+/** Largest |second difference| of a scanline: ~0 for a smooth gradient, large for stripes (shadow acne). */
+export function maxSecondDifference(values: number[]): number {
+  let max = 0;
+  for (let i = 1; i < values.length - 1; i++) max = Math.max(max, Math.abs(values[i - 1]! - 2 * values[i]! + values[i + 1]!));
+  return max;
+}
