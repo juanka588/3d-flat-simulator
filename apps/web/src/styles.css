@@ -3,28 +3,171 @@
   color: #1d1d1f;
   background: #f5f5f7;
 }
-body {
+html,
+body,
+#root {
+  height: 100%;
   margin: 0;
 }
-main {
-  max-width: 720px;
-  margin: 2rem auto;
-  padding: 0 1rem;
+.app {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  height: 100%;
+  position: relative;
 }
-table {
-  border-collapse: collapse;
+.sidebar {
+  padding: 0.75rem;
+  overflow-y: auto;
+  border-right: 1px solid #d8d8dc;
+  background: #fff;
+}
+.sidebar h1 {
+  font-size: 1rem;
+  margin: 0 0 0.75rem;
+}
+.stage {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+}
+.viewer {
+  position: absolute;
+  inset: 0;
+}
+.panel {
+  margin: 0 0 0.75rem;
+  font-size: 0.85rem;
+}
+.panel h2 {
+  font-size: 0.9rem;
+  margin: 0 0 0.35rem;
+}
+.panel ul {
+  margin: 0;
+  padding-left: 1.1rem;
+}
+.panel select {
+  display: block;
   width: 100%;
+  margin: 0.25rem 0 0.5rem;
 }
-th,
-td {
+.hint {
+  color: #6b6b72;
+  font-size: 0.8rem;
+  margin: 0.4rem 0;
+}
+button {
+  font: inherit;
+  padding: 0.3rem 0.7rem;
+  border: 1px solid #b5b5bb;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+}
+button[aria-pressed='true'] {
+  background: #1d1d1f;
+  color: #fff;
+}
+button:focus-visible,
+select:focus-visible {
+  outline: 2px solid #0a64d6;
+  outline-offset: 2px;
+}
+button.link {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: #0a64d6;
   text-align: left;
-  padding: 0.35rem 0.5rem;
-  border-bottom: 1px solid #ddd;
+  text-decoration: underline;
 }
-td.num {
-  text-align: right;
+.mode-toolbar {
+  display: flex;
+  gap: 0.3rem;
+  margin-bottom: 0.75rem;
+}
+.error-panel {
+  color: #8a0019;
+  background: #fdeef0;
+  border: 1px solid #e8a3ad;
+  border-radius: 6px;
+  padding: 0.5rem 0.7rem;
+}
+.properties {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  width: 240px;
+  margin: 0;
+  padding: 0.6rem 0.8rem;
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 8px;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.15);
+}
+.properties dl {
+  margin: 0;
+}
+.properties dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.15rem 0;
+}
+.properties dt {
+  color: #6b6b72;
+}
+.properties dd {
+  margin: 0;
   font-variant-numeric: tabular-nums;
+  text-align: right;
 }
-.errors {
-  color: #b00020;
+.compass {
+  position: absolute;
+  left: 0.75rem;
+  bottom: 0.75rem;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.2);
+  pointer-events: none;
+}
+.compass-needle {
+  position: absolute;
+  inset: 0;
+}
+.compass-needle::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 14px;
+  width: 0;
+  height: 0;
+  margin-left: -6px;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 18px solid #c62828;
+}
+.compass-n {
+  position: absolute;
+  top: 1px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+.drop-overlay {
+  display: none;
+  position: absolute;
+  inset: 0;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 100, 214, 0.15);
+  border: 3px dashed #0a64d6;
+  font-weight: 600;
+  pointer-events: none;
+}
+.dragging .drop-overlay {
+  display: flex;
 }

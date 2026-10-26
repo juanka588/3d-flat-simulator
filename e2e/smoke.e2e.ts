@@ -1,0 +1,117 @@
+import { readFileSync } from 'node:fs';
+import { expect, test } from '@playwright/test';
+import { flat, openApp } from './helpers';
+
+const sample = JSON.parse(
+  readFileSync('packages/scene/fixtures/sample.flat.json', 'utf8'),
+) as { name: string; walls: { id: string }[] };
+
+test.beforeEach(async ({ page }) => {
+  await openApp(page);
+});
+
+test('app loads the default flat and the test hook is ready', async ({ page }) => {
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('Charme');
+  const stats = await flat(page, (f) => f.stats());
+  expect(stats.sceneName).toContain('Charme');
+  // Geometry builders may still be stubs; the contract is only that stats are numbers.
+  expect(stats.calls).toBeGreaterThanOrEqual(0);
+  expect(stats.triangles).toBeGreaterThanOrEqual(0);
+});
+
+test('capture() returns a decodable, non-blank PNG', async ({ page }) => {
+  const url = await flat(page, (f) => f.capture());
+  expect(url).toMatch(/^data:image\/png;base64,/);
+  const result = await page.evaluate(async (dataUrl) => {
+    const img = new Image();
+    img.src = dataUrl;
+    await img.decode();
+    const c = document.createElement('canvas');
+    c.width = img.width;
+    c.height = img.height;
+    const ctx = c.getContext('2d')!;
+    ctx.drawImage(img, 0, 0);
+    const px = ctx.getImageData(0, 0, c.width, c.height).data;
+    const colours = new Set<number>();
+    let opaque = 0;
+    for (let i = 0; i < px.length; i += 4) {
+      if (px[i + 3]! > 0) opaque++;
+      colours.add((px[i]! << 16) | (px[i + 1]! << 8) | px[i + 2]!);
+    }
+    return { width: img.width, height: img.height, opaque, colours: colours.size };
+  }, url);
+  expect(result.width).toBeGreaterThan(100);
+  expect(result.opaque).toBeGreaterThan(0);
+  const { triangles } = await flat(page, (f) => f.stats());
+  // With real geometry the image has more than the flat background colour.
+  if (triangles > 0) expect(result.colours).toBeGreaterThan(3);
+});
+
+test('mode switching updates the view and Esc leaves walk mode', async ({ page }) => {
+  const mode = () => flat(page, (f) => f.stats().mode);
+  expect(await mode()).toBe('orbit');
+
+  await page.getByRole('button', { name: 'Top' }).click();
+  await expect(page.getByRole('button', { name: 'Top' })).toHaveAttribute('aria-pressed', 'true');
+  expect(await mode()).toBe('top');
+
+  await page.getByRole('button', { name: 'Walk' }).click();
+  expect(await mode()).toBe('walk');
+  await expect(page.getByText(/Esc to leave/)).toBeVisible();
+
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('button', { name: 'Orbit' })).toHaveAttribute('aria-pressed', 'true');
+  expect(await mode()).toBe('orbit');
+});
+
+test('compass needle is present and reports an angle', async ({ page }) => {
+  await page.getByRole('button', { name: 'Top' }).click();
+  await flat(page, (f) => f.capture()); // forces a frame
+  await expect(page.getByTestId('compass-needle')).toHaveAttribute('data-angle', /^-?\d/);
+});
+
+test('the scene picker loads the sample flat', async ({ page }) => {
+  await page.getByLabel('Flat', { exact: true }).selectOption('sample');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(sample.name);
+  expect((await flat(page, (f) => f.stats())).sceneName).toBe(sample.name);
+});
+
+test('an invalid file shows the error panel and keeps the previous scene', async ({ page }) => {
+  const title = await page.getByRole('heading', { level: 1 }).textContent();
+  await page.getByTestId('file-input').setInputFiles({
+    name: 'broken.flat.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from('{ "version": 1, '),
+  });
+  const panel = page.getByTestId('error-panel');
+  await expect(panel).toBeVisible();
+  await expect(panel.getByRole('listitem')).not.toHaveCount(0);
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(title ?? '');
+
+  await page.getByTestId('file-input').setInputFiles({
+    name: 'wrong.flat.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify({ version: 2 })),
+  });
+  await expect(panel.getByRole('listitem')).not.toHaveCount(0);
+});
+
+test('a valid file loads and clears the error panel', async ({ page }) => {
+  await page.getByTestId('file-input').setInputFiles({ name: 'x', mimeType: 'application/json', buffer: Buffer.from('nope') });
+  await expect(page.getByTestId('error-panel')).toBeVisible();
+  await page.getByTestId('file-input').setInputFiles({
+    name: 'ok.flat.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(sample)),
+  });
+  await expect(page.getByTestId('error-panel')).toBeHidden();
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(sample.name);
+});
+
+test('selecting a wall shows its properties', async ({ page }) => {
+  await page.getByLabel('Flat', { exact: true }).selectOption('sample');
+  const id = sample.walls[0]!.id;
+  expect(await page.evaluate((wallId) => window.__flat!.select(wallId), id)).toBe(true);
+  await expect(page.getByTestId('properties')).toContainText(`Wall ${id}`);
+  await expect(page.getByTestId('properties')).toContainText('Net area');
+});

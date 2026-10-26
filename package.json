@@ -6,10 +6,11 @@
   "scripts": {
     "dev": "pnpm --filter @flat/web dev",
     "build": "pnpm -r build",
-    "typecheck": "pnpm -r typecheck",
+    "typecheck": "pnpm -r typecheck && tsc -p e2e/tsconfig.json",
     "lint": "eslint .",
     "test": "vitest run",
-    "check": "pnpm lint && pnpm typecheck && pnpm test"
+    "check": "pnpm lint && pnpm typecheck && pnpm test",
+    "e2e": "playwright test"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

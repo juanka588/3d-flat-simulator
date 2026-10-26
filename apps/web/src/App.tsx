@@ -1,52 +1,98 @@
-import { parseScene, summarizeScene } from '@flat/scene';
-import sample from '@flat/scene/fixtures/sample.flat.json';
-
-const result = parseScene(sample);
+import { useCallback, useEffect, useState } from 'react';
+import type { DragEvent } from 'react';
+import { useSceneStore } from './state/sceneStore';
+import { FIXTURES } from './state/fixtures';
+import { useViewStore } from './state/viewStore';
+import { registerCanvas } from './testHook';
+import { ErrorPanel } from './ui/ErrorPanel';
+import { ModeToolbar } from './ui/ModeToolbar';
+import { PropertiesPanel } from './ui/PropertiesPanel';
+import { SceneLoader } from './ui/SceneLoader';
+import { WarningsList } from './ui/WarningsList';
+import { FlatCanvas } from './viewer/FlatCanvas';
+import { selectionForId } from './viewer/selection';
 
 export function App() {
-  if (!result.ok) {
-    return (
-      <main>
-        <h1>Invalid flat</h1>
-        <ul className="errors">
-          {result.errors.map((e) => (
-            <li key={e}>{e}</li>
-          ))}
-        </ul>
-      </main>
-    );
-  }
+  const { scene, source, warnings, errors, loadText } = useSceneStore();
+  const { mode, selection, setMode, select } = useViewStore();
+  const [dragging, setDragging] = useState(false);
 
-  const summary = summarizeScene(result.scene);
+  const loadFile = useCallback(
+    async (file: File) => {
+      loadText(await file.text(), file.name);
+    },
+    [loadText],
+  );
+
+  const pickFixture = (id: string) => {
+    const fixture = FIXTURES.find((f) => f.id === id);
+    if (fixture) loadText(fixture.text, fixture.id);
+  };
+
+  const exitWalk = useCallback(() => {
+    if (useViewStore.getState().mode === 'walk') setMode('orbit');
+  }, [setMode]);
+
+  // Leaving the page area while dragging must clear the drop affordance.
+  useEffect(() => {
+    const end = () => setDragging(false);
+    window.addEventListener('dragend', end);
+    return () => window.removeEventListener('dragend', end);
+  }, []);
+
+  const onDrop = (e: DragEvent) => {
+    e.preventDefault();
+    setDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (file) void loadFile(file);
+  };
+
+  const fixtureId = FIXTURES.find((f) => f.id === source)?.id ?? '';
+
   return (
-    <main>
-      <h1>{summary.name}</h1>
-      <p>
-        {summary.wallCount} walls · {summary.doorCount} doors · {summary.windowCount} windows ·{' '}
-        {summary.lightCount} lights
-      </p>
-      <table>
-        <thead>
-          <tr>
-            <th>Room</th>
-            <th>Type</th>
-            <th>Area (m²)</th>
-          </tr>
-        </thead>
-        <tbody>
-          {summary.rooms.map((r) => (
-            <tr key={r.id}>
-              <td>{r.name}</td>
-              <td>{r.type}</td>
-              <td className="num">{r.area.toFixed(2)}</td>
-            </tr>
-          ))}
-          <tr>
-            <th colSpan={2}>Total</th>
-            <th className="num">{summary.totalArea.toFixed(2)}</th>
-          </tr>
-        </tbody>
-      </table>
-    </main>
+    <div
+      className={dragging ? 'app dragging' : 'app'}
+      onDragOver={(e) => {
+        e.preventDefault();
+        setDragging(true);
+      }}
+      onDragLeave={(e) => {
+        if (e.currentTarget === e.target) setDragging(false);
+      }}
+      onDrop={onDrop}
+    >
+      <header className="sidebar">
+        <h1>{scene?.name ?? '3D Flat Simulator'}</h1>
+        <ModeToolbar mode={mode} onChange={setMode} />
+        {mode === 'walk' && (
+          <p className="hint">Click the view to look around, WASD or arrows to move, Esc to leave.</p>
+        )}
+        <SceneLoader fixtureId={fixtureId} onPickFixture={pickFixture} onFile={(f) => void loadFile(f)} />
+        <ErrorPanel errors={errors} onDismiss={() => useSceneStore.setState({ errors: [] })} />
+        {scene && (
+          <WarningsList
+            warnings={warnings}
+            onSelect={(id) => select(selectionForId(scene, id))}
+          />
+        )}
+      </header>
+      <main className="stage">
+        {scene && (
+          <>
+            <FlatCanvas
+              scene={scene}
+              view={{ mode, selection }}
+              onSelect={select}
+              onExitWalk={exitWalk}
+              onCreated={registerCanvas}
+            />
+            <PropertiesPanel scene={scene} selection={selection} />
+          </>
+        )}
+      </main>
+      <div className="drop-overlay" aria-hidden="true">
+        Drop a .flat.json to load it
+      </div>
+    </div>
   );
 }
