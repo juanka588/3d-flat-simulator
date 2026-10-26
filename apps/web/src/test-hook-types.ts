@@ -15,6 +15,12 @@ export interface FlatStats {
   sceneName: string;
   /** World position of the active camera. */
   camera: [number, number, number];
+  /** Heading of the active camera on the plan, degrees (three.js `rotation.y` for a walker: 0 looks along -z, positive turns left). */
+  yawDeg: number;
+  /** Vertical field of view of the active camera in degrees (0 for an orthographic camera). */
+  fov: number;
+  /** Device pixel ratio the canvas renders at. */
+  dpr: number;
   /** Lights in the three.js scene right now. */
   lights: {
     directional: number;

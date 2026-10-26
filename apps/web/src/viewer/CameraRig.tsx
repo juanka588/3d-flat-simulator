@@ -1,6 +1,7 @@
 import { OrbitControls, OrthographicCamera, PerspectiveCamera } from '@react-three/drei';
 import { useThree } from '@react-three/fiber';
 import { useMemo } from 'react';
+import { TOUCH } from 'three';
 import { fitCamera, sceneBounds3 } from '@flat/scene';
 import type { Scene } from '@flat/scene';
 import type { ViewMode } from './view-types';
@@ -16,6 +17,13 @@ const MAX_DISTANCE_FACTOR = 3;
 const MIN_ZOOM_FACTOR = 0.4;
 const MAX_ZOOM_FACTOR = 30;
 const TOP_MARGIN = 1.1;
+
+/**
+ * Touch gestures. Orbit: one finger rotates, two fingers pinch-zoom and pan. Top view cannot rotate, so
+ * there one finger pans (three's default would leave it doing nothing) and two fingers pinch and pan.
+ */
+const ORBIT_TOUCHES = { ONE: TOUCH.ROTATE, TWO: TOUCH.DOLLY_PAN };
+const TOP_TOUCHES = { ONE: TOUCH.PAN, TWO: TOUCH.DOLLY_PAN };
 
 /**
  * Orbit and top-down cameras. Remount (via `key`) when the scene or mode changes to re-frame.
@@ -72,6 +80,7 @@ export function CameraRig({
           makeDefault
           target={fit.target}
           enableRotate={false}
+          touches={TOP_TOUCHES}
           screenSpacePanning
           minZoom={topZoom * MIN_ZOOM_FACTOR}
           maxZoom={topZoom * MAX_ZOOM_FACTOR}
@@ -85,6 +94,7 @@ export function CameraRig({
       <OrbitControls
         makeDefault
         target={fit.target}
+        touches={ORBIT_TOUCHES}
         minDistance={MIN_DISTANCE}
         maxDistance={maxDistance}
         maxPolarAngle={Math.PI / 2 - 0.01}

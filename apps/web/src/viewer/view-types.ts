@@ -15,4 +15,6 @@ export interface ViewState {
   selection: Selection | null;
   /** Sun date/time, lamp overrides, exposure and context visibility. */
   lighting: LightingView;
+  /** Height of the walking person in cm (sets the walk-mode eye height). A user preference, persisted. */
+  personHeightCm: number;
 }

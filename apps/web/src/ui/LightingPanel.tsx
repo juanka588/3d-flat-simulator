@@ -25,7 +25,7 @@ export function LightingPanel({ scene, hasContext }: LightingPanelProps) {
   const lighting = useViewStore((s) => s.lighting);
   const setLighting = useViewStore((s) => s.setLighting);
   const { playing, speed, setPlaying, setSpeed } = useClockStore();
-  const ids = { date: useId(), time: useId(), ev: useId() };
+  const ids = { date: useId(), time: useId(), clock: useId(), ev: useId() };
   const info = sunInfoFor(scene, lighting);
 
   const current = toMinutes(lighting.time);
@@ -79,6 +79,17 @@ export function LightingPanel({ scene, hasContext }: LightingPanelProps) {
           <output htmlFor={ids.time} data-testid="time-output">
             {lighting.time}
           </output>
+        </div>
+        <div className="field">
+          <label htmlFor={ids.clock}>Exact time</label>
+          <input
+            id={ids.clock}
+            type="time"
+            data-testid="time-input"
+            step={STEP_MINUTES * 60}
+            value={lighting.time}
+            onChange={(e) => e.target.value && setLighting({ time: e.target.value })}
+          />
         </div>
         <div className="row">
           <button type="button" onClick={now}>

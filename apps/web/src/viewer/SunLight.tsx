@@ -4,9 +4,9 @@ import type { Scene, SiteContext } from '@flat/scene';
 import { DirectionalLight, Object3D } from 'three';
 import type { LightingModel } from './lighting';
 import { fitSunForScene } from './sun-bounds';
+import { getPerfProfile } from './perf';
 import { sunShadowBias } from './sun-shadow';
 
-export const SUN_SHADOW_MAP_SIZE = 2048;
 
 type OkModel = Extract<LightingModel, { ok: true }>;
 
@@ -21,6 +21,7 @@ type OkModel = Extract<LightingModel, { ok: true }>;
  */
 export function SunLight({ model, scene, context }: { model: OkModel; scene: Scene; context: SiteContext | null }) {
   const light = useRef<DirectionalLight>(null);
+  const mapSize = getPerfProfile().sunMap;
   const target = useMemo(() => new Object3D(), []);
   const invalidate = useThree((s) => s.invalidate);
   const [dx, dy, dz] = model.sun.direction;
@@ -45,14 +46,14 @@ export function SunLight({ model, scene, context }: { model: OkModel; scene: Sce
     cam.near = fit.near;
     cam.far = fit.far;
     cam.updateProjectionMatrix();
-    const bias = sunShadowBias(fit, SUN_SHADOW_MAP_SIZE);
+    const bias = sunShadowBias(fit, mapSize);
     l.shadow.bias = bias.bias;
     l.shadow.normalBias = bias.normalBias;
     l.updateMatrixWorld();
     target.updateMatrixWorld();
     l.shadow.needsUpdate = true;
     invalidate();
-  }, [scene, context, dx, dy, dz, active, intensity, target, invalidate]);
+  }, [scene, context, dx, dy, dz, active, intensity, target, invalidate, mapSize]);
 
   return (
     <>
@@ -63,7 +64,7 @@ export function SunLight({ model, scene, context }: { model: OkModel; scene: Sce
         target={target}
         intensity={intensity}
         castShadow
-        shadow-mapSize={[SUN_SHADOW_MAP_SIZE, SUN_SHADOW_MAP_SIZE]}
+        shadow-mapSize={[mapSize, mapSize]}
       />
     </>
   );

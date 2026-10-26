@@ -10,6 +10,7 @@ import { ShellMesh, CLICK_DRAG_TOLERANCE_PX } from './ShellMesh';
 import { VIEWER_ELEMENT_ID, WalkControls } from './WalkControls';
 import { WalkOverlay } from './WalkOverlay';
 import { createMaterialLibrary } from './materials';
+import { getPerfProfile } from './perf';
 import { createRoomAmbient, withRoomAmbient } from './room-ambient';
 import { shellFor } from './shell-cache';
 import { shadowCasterGeometry } from './derived-geometry';
@@ -55,7 +56,7 @@ export function FlatCanvas({ scene, view, context = null, onSelect, onExitWalk, 
         frameloop="demand"
         shadows="percentage"
         gl={{ antialias: true }}
-        dpr={[1, 2]}
+        dpr={[1, getPerfProfile().maxDpr]}
         onCreated={onCreated}
         onPointerMissed={(e) => {
           const moved = Math.hypot(e.clientX - downAt.current[0], e.clientY - downAt.current[1]);
@@ -70,7 +71,7 @@ export function FlatCanvas({ scene, view, context = null, onSelect, onExitWalk, 
         />
         <Shell scene={scene} view={view} onSelect={onSelect} />
         {view.mode === 'walk' ? (
-          <WalkControls key={`walk:${sceneKey(scene)}`} scene={scene} onExit={onExitWalk ?? noop} />
+          <WalkControls key={`walk:${sceneKey(scene)}`} scene={scene} personHeightCm={view.personHeightCm} onExit={onExitWalk ?? noop} />
         ) : (
           <CameraRig key={`${view.mode}:${sceneKey(scene)}`} scene={scene} mode={view.mode} extraReach={contextReach(scene, view.lighting.showContext ? context : null)} />
         )}
@@ -80,7 +81,7 @@ export function FlatCanvas({ scene, view, context = null, onSelect, onExitWalk, 
       <CompassOverlay needle={needle} />
     </div>
       {/* A sibling of the viewer: clicks on it must not engage pointer lock. */}
-      {view.mode === 'walk' && <WalkOverlay />}
+      {view.mode === 'walk' && <WalkOverlay onExit={onExitWalk} />}
     </>
   );
 }

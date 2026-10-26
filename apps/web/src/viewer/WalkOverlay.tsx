@@ -61,8 +61,12 @@ function PadButton({ action, label, glyph, className }: PadButtonProps) {
   );
 }
 
-/** Walk-mode help and on-screen pad. Rendered over the canvas, bottom centre. */
-export function WalkOverlay() {
+/**
+ * Walk-mode help and on-screen pad, rendered over the canvas. Desktop: one bar at the bottom centre.
+ * Phones (see styles.css): the move buttons bottom-left and the turn buttons bottom-right, each a
+ * 56 px target, with nothing in between so the rest of the view stays free for drag-to-look.
+ */
+export function WalkOverlay({ onExit }: { onExit?: () => void }) {
   const [hidden, setHidden] = useState(readHidden);
 
   useEffect(() => clearVirtualKeys, []);
@@ -99,14 +103,23 @@ export function WalkOverlay() {
             <button type="button" className="walk-toggle" onClick={() => toggle(true)} aria-expanded="true">
               Hide
             </button>
+            {onExit && (
+              <button type="button" className="walk-toggle walk-exit" onClick={onExit}>
+                Exit walk
+              </button>
+            )}
           </div>
           <div className="walk-pad" role="group" aria-label="On-screen controls">
-            <PadButton action="turnLeft" label="Turn left" glyph="↶" className="pad-turn-left" />
-            <PadButton action="forward" label="Move forward" glyph="↑" className="pad-up" />
-            <PadButton action="turnRight" label="Turn right" glyph="↷" className="pad-turn-right" />
-            <PadButton action="left" label="Move left" glyph="←" className="pad-left" />
-            <PadButton action="back" label="Move backward" glyph="↓" className="pad-down" />
-            <PadButton action="right" label="Move right" glyph="→" className="pad-right" />
+            <div className="walk-move" role="group" aria-label="Move">
+              <PadButton action="forward" label="Move forward" glyph="↑" className="pad-up" />
+              <PadButton action="left" label="Move left" glyph="←" className="pad-left" />
+              <PadButton action="back" label="Move backward" glyph="↓" className="pad-down" />
+              <PadButton action="right" label="Move right" glyph="→" className="pad-right" />
+            </div>
+            <div className="walk-turn" role="group" aria-label="Turn">
+              <PadButton action="turnLeft" label="Turn left" glyph="↶" className="pad-turn-left" />
+              <PadButton action="turnRight" label="Turn right" glyph="↷" className="pad-turn-right" />
+            </div>
           </div>
         </>
       )}

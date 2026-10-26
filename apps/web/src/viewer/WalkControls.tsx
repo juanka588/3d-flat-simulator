@@ -1,18 +1,20 @@
 import { PerspectiveCamera, PointerLockControls } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
 import type { RootState } from '@react-three/fiber';
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { PerspectiveCamera as ThreePerspectiveCamera } from 'three';
 import { findSpawn, insideFlat, resolveWalk, sceneBounds3, walkObstacles } from '@flat/scene';
 import type { Scene } from '@flat/scene';
 import { useClockStore } from '../state/dayClock';
 import { clearVirtualKeys, onVirtualWake, onWalkStep, virtualKeysHeld } from './walk-input';
+import { eyeHeightM, walkFovDeg } from './walk-camera';
 
-export const EYE_HEIGHT = 1.6;
 const BODY_RADIUS = 0.25;
 const WALK_SPEED = 1.4; // m/s
 const RUN_SPEED = 2.8;
 const TURN_SPEED = 1.6; // rad/s for the on-screen turn buttons
-const LOOK_SPEED = 0.003; // rad per px for drag-to-look
+const LOOK_SPEED = 0.003; // rad per px for mouse drag-to-look
+const TOUCH_LOOK_SPEED = 0.005; // rad per px for finger drag-to-look (a thumb covers less screen)
 export const VIEWER_ELEMENT_ID = 'flat-viewer';
 
 const KEY_DIRECTIONS: Record<string, [number, number]> = {
@@ -47,18 +49,35 @@ function spawnPose(scene: Scene): { position: [number, number]; yaw: number } {
 
 interface WalkControlsProps {
   scene: Scene;
+  /** Person height in cm; the camera sits `eyeHeightM(personHeightCm)` above the floor. */
+  personHeightCm: number;
   onExit: () => void;
 }
 
-/** First-person walk: pointer lock look (drag fallback), WASD/arrows, wall collision, Esc to leave. */
-export function WalkControls({ scene, onExit }: WalkControlsProps) {
+/** Desktop browsers lock the pointer to look around; phones have no (usable) pointer lock. */
+function pointerLockUsable(): boolean {
+  return typeof document.documentElement.requestPointerLock === 'function' && !window.matchMedia('(pointer: coarse)').matches;
+}
+
+/**
+ * First-person walk: pointer lock look on desktop, drag-to-look (mouse, touch, pen) otherwise, WASD/arrows
+ * and on-screen buttons, wall collision, Esc to leave.
+ */
+export function WalkControls({ scene, personHeightCm, onExit }: WalkControlsProps) {
   const spawn = useMemo(() => spawnPose(scene), [scene]);
   const obstacles = useMemo(() => walkObstacles(scene), [scene]);
   const inside = useMemo(() => insideFlat(scene), [scene]);
+  const eyeHeight = eyeHeightM(personHeightCm);
+  const eye = useRef(eyeHeight);
+  const [initialEye] = useState(eyeHeight);
   const position = useMemo<[number, number, number]>(
-    () => [spawn.position[0], EYE_HEIGHT, spawn.position[1]],
-    [spawn],
+    () => [spawn.position[0], initialEye, spawn.position[1]],
+    [spawn, initialEye],
   );
+  const rig = useRef<ThreePerspectiveCamera>(null);
+  const size = useThree((s) => s.size);
+  const fov = walkFovDeg(size.width / Math.max(size.height, 1));
+  const [lockable] = useState(pointerLockUsable);
   const rotation = useMemo<[number, number, number, 'YXZ']>(() => [0, (spawn.yaw * Math.PI) / 180, 0, 'YXZ'], [spawn]);
   const camera = useThree((s) => s.camera);
   const gl = useThree((s) => s.gl);
@@ -75,6 +94,12 @@ export function WalkControls({ scene, onExit }: WalkControlsProps) {
   useEffect(() => {
     exit.current = onExit;
   }, [onExit]);
+  // Changing the person height while walking moves the eyes in place.
+  useEffect(() => {
+    eye.current = eyeHeight;
+    if (rig.current) rig.current.position.y = eyeHeight;
+    invalidate();
+  }, [eyeHeight, invalidate]);
 
   useEffect(() => {
     // Walking takes over the keyboard: a focused toolbar button would otherwise swallow WASD.
@@ -108,20 +133,41 @@ export function WalkControls({ scene, onExit }: WalkControlsProps) {
     };
   }, [invalidate]);
 
-  // Drag-to-look fallback for when pointer lock is unavailable or not engaged.
+  // Drag-to-look: mouse when pointer lock is not engaged, and always for touch and pen. One pointer
+  // looks at a time; the on-screen buttons are separate elements, so holding "forward" with one thumb
+  // while dragging with the other works. Deltas come from clientX/Y: movementX is not reliable for touch.
   useEffect(() => {
     const el = gl.domElement;
+    let lookId: number | null = null;
+    let last: [number, number] = [0, 0];
+    let speed = LOOK_SPEED;
     let dragged = false;
-    const move = (e: PointerEvent) => {
-      if (document.pointerLockElement || !(e.buttons & 1)) return;
-      dragged = dragged || Math.hypot(e.movementX, e.movementY) > 0;
-      camera.rotation.order = 'YXZ';
-      camera.rotation.y -= e.movementX * LOOK_SPEED;
-      camera.rotation.x = Math.max(-1.4, Math.min(1.4, camera.rotation.x - e.movementY * LOOK_SPEED));
-      invalidate();
+    const end = (e: PointerEvent) => {
+      if (e.pointerId === lookId) lookId = null;
     };
-    const down = () => {
+    const down = (e: PointerEvent) => {
       dragged = false;
+      if (lookId !== null || (e.pointerType === 'mouse' && e.button !== 0)) return;
+      lookId = e.pointerId;
+      last = [e.clientX, e.clientY];
+      speed = e.pointerType === 'mouse' ? LOOK_SPEED : TOUCH_LOOK_SPEED;
+      try {
+        el.setPointerCapture(e.pointerId);
+      } catch {
+        // pointer already gone
+      }
+    };
+    const move = (e: PointerEvent) => {
+      if (e.pointerId !== lookId) return;
+      const dx = e.clientX - last[0];
+      const dy = e.clientY - last[1];
+      last = [e.clientX, e.clientY];
+      if (document.pointerLockElement || (dx === 0 && dy === 0)) return;
+      dragged = true;
+      camera.rotation.order = 'YXZ';
+      camera.rotation.y -= dx * speed;
+      camera.rotation.x = Math.max(-1.4, Math.min(1.4, camera.rotation.x - dy * speed));
+      invalidate();
     };
     // A drag must not end in a click that engages pointer lock.
     const click = (e: MouseEvent) => {
@@ -132,11 +178,17 @@ export function WalkControls({ scene, onExit }: WalkControlsProps) {
     };
     el.addEventListener('pointerdown', down);
     el.addEventListener('pointermove', move);
+    el.addEventListener('pointerup', end);
+    el.addEventListener('pointercancel', end);
+    el.addEventListener('lostpointercapture', end);
     const host = el.closest<HTMLElement>(`#${VIEWER_ELEMENT_ID}`) ?? el;
     host.addEventListener('click', click, true);
     return () => {
       el.removeEventListener('pointerdown', down);
       el.removeEventListener('pointermove', move);
+      el.removeEventListener('pointerup', end);
+      el.removeEventListener('pointercancel', end);
+      el.removeEventListener('lostpointercapture', end);
       host.removeEventListener('click', click, true);
     };
   }, [camera, gl, invalidate]);
@@ -176,7 +228,7 @@ export function WalkControls({ scene, onExit }: WalkControlsProps) {
       const {
         position: [x, z],
       } = resolveWalk(inside, from, [dx * step, dz * step], obstacles, BODY_RADIUS);
-      state.camera.position.set(x, EYE_HEIGHT, z);
+      state.camera.position.set(x, eye.current, z);
       invalidate();
     },
     [inside, obstacles, invalidate],
@@ -197,8 +249,8 @@ export function WalkControls({ scene, onExit }: WalkControlsProps) {
 
   return (
     <>
-      <PerspectiveCamera makeDefault fov={70} near={0.05} far={200} position={position} rotation={rotation} />
-      <PointerLockControls makeDefault selector={`#${VIEWER_ELEMENT_ID}`} onUnlock={onExit} />
+      <PerspectiveCamera ref={rig} makeDefault fov={fov} near={0.05} far={200} position={position} rotation={rotation} />
+      {lockable && <PointerLockControls makeDefault selector={`#${VIEWER_ELEMENT_ID}`} onUnlock={onExit} />}
     </>
   );
 }

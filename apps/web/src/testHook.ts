@@ -1,7 +1,7 @@
 import { addAfterEffect } from '@react-three/fiber';
 import type { RootState } from '@react-three/fiber';
 import { NeutralToneMapping, Vector3 } from 'three';
-import type { Light, Mesh, Object3D } from 'three';
+import type { Camera, Light, Mesh, Object3D, PerspectiveCamera } from 'three';
 import { useSceneStore } from './state/sceneStore';
 import { alignContext, contextFor } from './state/siteContext';
 import { setClockSource, tickClock, useClockStore } from './state/dayClock';
@@ -138,6 +138,12 @@ function shadowCasterMeshes(root: Object3D): string[] {
 }
 
 const projected = new Vector3();
+const heading = new Vector3();
+
+function cameraYawDeg(camera: Camera): number {
+  camera.getWorldDirection(heading);
+  return (Math.atan2(-heading.x, -heading.z) * 180) / Math.PI;
+}
 
 export function installTestHook(): void {
   if (!testHookEnabled()) return;
@@ -169,6 +175,9 @@ export function installTestHook(): void {
         mode: useViewStore.getState().mode,
         sceneName: useSceneStore.getState().scene?.name ?? '',
         camera: [camera.position.x, camera.position.y, camera.position.z],
+        yawDeg: cameraYawDeg(camera),
+        fov: (camera as PerspectiveCamera).isPerspectiveCamera ? (camera as PerspectiveCamera).fov : 0,
+        dpr: gl.getPixelRatio(),
         lights: lightStats(scene),
         shadowCasterMeshes: shadowCasterMeshes(scene),
         exposure: gl.toneMappingExposure,

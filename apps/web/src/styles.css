@@ -9,6 +9,42 @@ body,
   height: 100%;
   margin: 0;
 }
+/* Phones: 100vh includes the collapsing browser bar, 100dvh follows it. */
+@supports (height: 100dvh) {
+  #root {
+    height: 100dvh;
+  }
+}
+body {
+  overflow: hidden;
+  overscroll-behavior: none;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+/* The 3D view owns every touch gesture (orbit, pan, pinch, look): the page must not scroll or zoom,
+   and a long press must not open the iOS callout or select text. */
+.viewer,
+.viewer canvas {
+  /* !important: react-three-fiber writes touch-action: auto on the canvas element itself. */
+  touch-action: none !important;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.viewer canvas {
+  display: block;
+  outline: none;
+}
 .app {
   display: grid;
   grid-template-columns: 300px 1fr;
@@ -57,6 +93,8 @@ body,
   margin: 0.4rem 0;
 }
 button {
+  touch-action: manipulation; /* no double-tap zoom */
+  -webkit-tap-highlight-color: transparent;
   font: inherit;
   padding: 0.3rem 0.7rem;
   border: 1px solid #b5b5bb;
@@ -69,7 +107,8 @@ button[aria-pressed='true'] {
   color: #fff;
 }
 button:focus-visible,
-select:focus-visible {
+select:focus-visible,
+input:focus-visible {
   outline: 2px solid #0a64d6;
   outline-offset: 2px;
 }
@@ -346,6 +385,9 @@ legend {
   border-radius: 8px;
   cursor: pointer;
   touch-action: none;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 .walk-pad-btn:active {
   background: rgb(255 255 255 / 0.4);
@@ -355,9 +397,276 @@ legend {
   outline: 2px solid #ffd54a;
   outline-offset: 2px;
 }
+.walk-move,
+.walk-turn {
+  display: contents;
+}
 .pad-turn-left { grid-column: 1; grid-row: 1; }
 .pad-up { grid-column: 2; grid-row: 1; }
 .pad-turn-right { grid-column: 3; grid-row: 1; }
 .pad-left { grid-column: 1; grid-row: 2; }
 .pad-down { grid-column: 2; grid-row: 2; }
 .pad-right { grid-column: 3; grid-row: 2; }
+
+/* Sidebar toggle. Desktop: sits right of the sidebar (or at the corner when it is collapsed). */
+.menu-toggle {
+  position: absolute;
+  z-index: 30;
+  top: 0.75rem;
+  left: calc(300px + 0.75rem);
+  width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+  font-size: 1.2rem;
+  line-height: 1;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.2);
+}
+.app.desktop.menu-closed {
+  grid-template-columns: 1fr;
+}
+.app.desktop.menu-closed .menu-toggle {
+  left: 0.75rem;
+}
+.app.desktop.menu-closed .sidebar {
+  display: none;
+}
+.sidebar:focus {
+  outline: none;
+}
+.walk-help .walk-exit {
+  display: none;
+}
+
+/* ---- Mobile layout (narrow viewport or touch screen): see MOBILE_QUERY ---- */
+.app.mobile {
+  grid-template-columns: 1fr;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --edge: 0.75rem;
+}
+.app.mobile .menu-toggle {
+  position: fixed;
+  top: max(var(--edge), var(--safe-top));
+  left: max(var(--edge), var(--safe-left));
+  width: 2.75rem; /* 44 px */
+  height: 2.75rem;
+  font-size: 1.3rem;
+}
+.app.mobile .sidebar {
+  position: fixed;
+  z-index: 20;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: min(86vw, 22rem);
+  box-sizing: border-box;
+  padding: calc(max(var(--edge), var(--safe-top)) + 3.5rem) 0.75rem calc(0.75rem + var(--safe-bottom)) max(0.75rem, var(--safe-left));
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.3);
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  transform: translateX(-105%);
+  visibility: hidden;
+  transition: transform 0.2s ease, visibility 0s linear 0.2s;
+}
+.app.mobile.menu-open .sidebar {
+  transform: none;
+  visibility: visible;
+  transition: transform 0.2s ease, visibility 0s;
+}
+.app.mobile .sidebar h1 {
+  font-size: 1.1rem;
+}
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 15;
+  background: rgba(0, 0, 0, 0.4);
+  touch-action: manipulation;
+}
+@media (prefers-reduced-motion: reduce) {
+  .app.mobile .sidebar,
+  .app.mobile.menu-open .sidebar {
+    transition: none;
+  }
+}
+/* Controls: 44 px touch targets, and 16 px text so iOS does not zoom the page when an input is focused. */
+.app.mobile button,
+.app.mobile select,
+.app.mobile input[type='number'],
+.app.mobile input[type='text'],
+.app.mobile input[type='date'],
+.app.mobile input[type='time'] {
+  min-height: 2.75rem;
+  font-size: 16px;
+}
+.app.mobile button.link {
+  min-height: 2.75rem;
+}
+.app.mobile .field input[type='number'],
+.app.mobile .field input[type='text'],
+.app.mobile .field input[type='date'],
+.app.mobile .field input[type='time'] {
+  padding: 0.3rem 0.5rem;
+}
+.app.mobile .field input[type='time'] {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: inherit;
+}
+.app.mobile .field input[type='range'] {
+  min-height: 2.75rem;
+}
+.app.mobile .check {
+  min-height: 2.75rem;
+  font-size: 1rem;
+}
+.app.mobile .check input {
+  width: 1.4rem;
+  height: 1.4rem;
+}
+.app.mobile .panel,
+.app.mobile .field label,
+.app.mobile .hint {
+  font-size: 0.95rem;
+}
+.app.mobile .mode-toolbar button {
+  flex: 1;
+}
+.app.mobile .compass {
+  left: auto;
+  right: max(var(--edge), var(--safe-right));
+  top: max(var(--edge), var(--safe-top));
+  bottom: auto;
+  width: 52px;
+  height: 52px;
+}
+.app.mobile .compass-needle::before {
+  top: 10px;
+  border-bottom-width: 14px;
+}
+.app.mobile .attribution {
+  right: auto;
+  left: 50%;
+  transform: translateX(-50%);
+  top: max(0.3rem, var(--safe-top));
+  bottom: auto;
+  max-width: calc(100% - 9rem);
+  font-size: 0.65rem;
+  text-align: center;
+}
+.app.mobile .context-hint {
+  left: max(var(--edge), var(--safe-left));
+  right: max(var(--edge), var(--safe-right));
+  bottom: auto;
+  top: calc(max(var(--edge), var(--safe-top)) + 3.5rem);
+  font-size: 0.85rem;
+}
+/* Properties: bottom sheet. */
+.app.mobile .properties {
+  top: auto;
+  right: 0;
+  left: 0;
+  bottom: 0;
+  width: auto;
+  box-sizing: border-box;
+  max-height: 45%;
+  overflow-y: auto;
+  padding: 0 max(0.9rem, var(--safe-right)) var(--safe-bottom) max(0.9rem, var(--safe-left));
+  border-radius: 14px 14px 0 0;
+  background: rgba(255, 255, 255, 0.97);
+  box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.2);
+  z-index: 10;
+  font-size: 0.95rem;
+}
+.sheet-handle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  border: 0;
+  background: none;
+  padding: 0.4rem 0;
+  font-weight: 600;
+  text-align: left;
+}
+.sheet-title {
+  font-size: 1rem;
+}
+.properties-sheet dl > div {
+  padding: 0.3rem 0;
+}
+.properties-sheet #properties-body {
+  padding-bottom: 0.6rem;
+}
+
+/* Walk mode on phones: move pad bottom-left, turn buttons bottom-right, nothing in between. */
+.app.mobile .walk-overlay {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  transform: none;
+  max-width: none;
+  box-sizing: border-box;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0 max(var(--edge), var(--safe-right)) max(var(--edge), var(--safe-bottom)) max(var(--edge), var(--safe-left));
+  background: none;
+  pointer-events: none; /* only the buttons take touches: the rest of the view stays draggable */
+  touch-action: none;
+  z-index: 5;
+}
+.app.mobile .walk-overlay > * {
+  pointer-events: auto;
+}
+.app.mobile .walk-pad {
+  display: contents;
+}
+.app.mobile .walk-overlay-collapsed {
+  justify-content: center;
+}
+.app.mobile .walk-help {
+  order: 1;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+}
+.app.mobile .walk-help ul {
+  display: none;
+}
+.app.mobile .walk-help .walk-exit {
+  display: inline-block;
+}
+.app.mobile .walk-toggle {
+  min-height: 2.75rem;
+  padding: 0 0.9rem;
+  font-size: 0.9rem;
+  background: rgb(20 22 28 / 0.72);
+}
+.app.mobile .walk-move {
+  order: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 3.5rem);
+  grid-template-rows: repeat(2, 3.5rem);
+  gap: 0.35rem;
+}
+.app.mobile .walk-turn {
+  order: 2;
+  display: flex;
+  gap: 0.35rem;
+}
+.app.mobile .walk-pad-btn {
+  min-width: 3.5rem;
+  min-height: 3.5rem;
+  font-size: 1.6rem;
+  background: rgb(20 22 28 / 0.6);
+}
+.app.mobile .walk-move .pad-up { grid-column: 2; grid-row: 1; }
+.app.mobile .walk-move .pad-left { grid-column: 1; grid-row: 2; }
+.app.mobile .walk-move .pad-down { grid-column: 2; grid-row: 2; }
+.app.mobile .walk-move .pad-right { grid-column: 3; grid-row: 2; }

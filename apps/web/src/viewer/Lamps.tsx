@@ -4,15 +4,13 @@ import { Color, Object3D } from 'three';
 import type { PointLight, SpotLight } from 'three';
 import { LAMP_NORMAL_BIAS_M, LAMP_SHADOW_BIAS, LAMP_SHADOW_FAR, LAMP_SHADOW_NEAR } from './lamp-shadow';
 import type { LampSpec } from './lighting';
+import { getPerfProfile } from './perf';
 
-/**
- * Shadow map sizes (per cube face for points). Lamp shadows are room-scale occlusion, but a wall
- * seen at a grazing angle from the lamp needs a fine map or the lookup stripes (acne).
+/*
+ * Shadow map sizes (per cube face for points) come from the perf profile (see perf.ts). Lamp shadows
+ * are room-scale occlusion, but a wall seen at a grazing angle from the lamp needs a fine map or the
+ * lookup stripes (acne): full quality is 512 (point), 1024 (the big kitchen area panel, spots).
  */
-export const POINT_SHADOW_MAP = 512;
-/** The kitchen panel lights the biggest room and sits close to a long side wall. */
-export const AREA_SHADOW_MAP = 1024;
-export const SPOT_SHADOW_MAP = 1024;
 const PENUMBRA = 0.3;
 const LAMP_PREFIX = 'lamp:';
 
@@ -84,7 +82,8 @@ function Lamp({ lamp, geometryKey, exposure }: { lamp: LampSpec; geometryKey: ob
     'shadow-camera-far': LAMP_SHADOW_FAR,
   };
   const pointY = lamp.type === 'area' ? y - AREA_LIGHT_DROP_M : y;
-  const pointMap = lamp.type === 'area' ? AREA_SHADOW_MAP : POINT_SHADOW_MAP;
+  const profile = getPerfProfile();
+  const pointMap = lamp.type === 'area' ? profile.areaMap : profile.pointMap;
   return (
     <>
       {lamp.type !== 'spot' && (
@@ -115,7 +114,7 @@ function DownSpot({ lamp, lightRef, name, color, shadowProps }: { lamp: LampSpec
         penumbra={PENUMBRA}
         decay={2}
         distance={0}
-        shadow-mapSize={[SPOT_SHADOW_MAP, SPOT_SHADOW_MAP]}
+        shadow-mapSize={[getPerfProfile().spotMap, getPerfProfile().spotMap]}
         {...shadowProps}
       />
     </>

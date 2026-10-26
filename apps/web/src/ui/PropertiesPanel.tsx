@@ -1,5 +1,6 @@
 import { BUILTIN_ASSETS, itemLabel, roomStats, wallEdgeMaterial, wallSideMaterial, wallStats } from '@flat/scene';
 import type { Scene } from '@flat/scene';
+import { useState } from 'react';
 import type { Selection } from '../viewer/view-types';
 
 const m = (v: number) => `${v.toFixed(2)} m`;
@@ -85,18 +86,53 @@ function describe(scene: Scene, selection: Selection): { title: string; rows: [s
   };
 }
 
-export function PropertiesPanel({ scene, selection }: { scene: Scene; selection: Selection | null }) {
+interface PropertiesPanelProps {
+  scene: Scene;
+  selection: Selection | null;
+  /** Mobile layout: a collapsible bottom sheet, shown only while something is selected. */
+  sheet?: boolean;
+  /** Render nothing (the sheet stays out of the way of the walk controls). */
+  hidden?: boolean;
+}
+
+export function PropertiesPanel({ scene, selection, sheet = false, hidden = false }: PropertiesPanelProps) {
+  const [collapsedFor, setCollapsedFor] = useState<string | null>(null);
   const info = selection ? describe(scene, selection) : null;
+  if (hidden) return null;
+  if (!sheet) {
+    return (
+      <aside aria-label="Properties" className="panel properties" data-testid="properties">
+        {info ? (
+          <>
+            <h2>{info.title}</h2>
+            <Rows rows={info.rows} />
+          </>
+        ) : (
+          <p className="hint">Click a wall, floor, door, window or item to inspect it.</p>
+        )}
+      </aside>
+    );
+  }
+  if (!info || !selection) return null;
+  // A new selection always opens the sheet; the user's collapse applies to that selection only.
+  const key = `${selection.kind}:${selection.entityId}:${selection.face ?? ''}`;
+  const collapsed = collapsedFor === key;
   return (
-    <aside aria-label="Properties" className="panel properties" data-testid="properties">
-      {info ? (
-        <>
-          <h2>{info.title}</h2>
-          <Rows rows={info.rows} />
-        </>
-      ) : (
-        <p className="hint">Click a wall, floor, door, window or item to inspect it.</p>
-      )}
+    <aside aria-label="Properties" className={`panel properties properties-sheet${collapsed ? ' collapsed' : ''}`} data-testid="properties">
+      <button
+        type="button"
+        className="sheet-handle"
+        aria-expanded={!collapsed}
+        aria-controls="properties-body"
+        onClick={() => setCollapsedFor(collapsed ? null : key)}
+      >
+        <span className="sheet-title">{info.title}</span>
+        <span aria-hidden="true">{collapsed ? '▲' : '▼'}</span>
+        <span className="visually-hidden">{collapsed ? 'Show details' : 'Hide details'}</span>
+      </button>
+      <div id="properties-body" hidden={collapsed}>
+        <Rows rows={info.rows} />
+      </div>
     </aside>
   );
 }

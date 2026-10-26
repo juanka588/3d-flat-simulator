@@ -59,7 +59,7 @@ test('mode switching updates the view and Esc leaves walk mode', async ({ page }
   expect(x).toBeLessThan(10.15);
   expect(z).toBeGreaterThan(-0.1);
   expect(z).toBeLessThan(8.38);
-  expect(y).toBeCloseTo(1.6, 1);
+  expect(y).toBeCloseTo(1.55, 2); // eyes of a 166 cm person
 
   await page.keyboard.press('Escape');
   await expect(page.getByRole('button', { name: 'Orbit' })).toHaveAttribute('aria-pressed', 'true');

@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { DragEvent } from 'react';
 import { MAX_SCENE_BYTES } from '@flat/scene';
 import { beginLoad, isLatestLoad, useSceneStore } from './state/sceneStore';
 import { FIXTURES } from './state/fixtures';
 import { alignContext, contextFor } from './state/siteContext';
+import { readPref, writePref } from './state/prefs';
 import { useViewStore } from './state/viewStore';
 import { noteFrame, registerCanvas, testHookEnabled } from './testHook';
 import { ErrorPanel } from './ui/ErrorPanel';
@@ -12,6 +13,8 @@ import { ModeToolbar } from './ui/ModeToolbar';
 import { PropertiesPanel } from './ui/PropertiesPanel';
 import { SceneLoader } from './ui/SceneLoader';
 import { SitePanel } from './ui/SitePanel';
+import { useMobileLayout } from './ui/useMobileLayout';
+import { ViewSettings } from './ui/ViewSettings';
 import { WarningsList } from './ui/WarningsList';
 import { FlatCanvas } from './viewer/FlatCanvas';
 import { sceneKey } from './viewer/scene-identity';
@@ -20,10 +23,54 @@ import { selectionForId } from './viewer/selection';
 /** Credit required by the Licence Ouverte 2.0 for the IGN BD TOPO buildings. */
 export const CONTEXT_ATTRIBUTION = '© IGN – BD TOPO, Licence Ouverte 2.0';
 
+/** Desktop: whether the sidebar is collapsed ('1') or shown ('0'). Remembered across visits. */
+export const SIDEBAR_COLLAPSED_KEY = 'flat.sidebarCollapsed';
+
 export function App() {
   const { scene, source, warnings, errors, loadText } = useSceneStore();
-  const { mode, selection, lighting, setMode, select } = useViewStore();
+  const { mode, selection, lighting, personHeightCm, setMode, select } = useViewStore();
   const [dragging, setDragging] = useState(false);
+  const mobile = useMobileLayout();
+  // Desktop: a collapsible column (remembered). Mobile: an overlay drawer that always starts closed.
+  const [collapsed, setCollapsed] = useState(() => readPref(SIDEBAR_COLLAPSED_KEY) === '1');
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const menuOpen = mobile ? drawerOpen : !collapsed;
+  const sidebar = useRef<HTMLElement>(null);
+  const toggle = useRef<HTMLButtonElement>(null);
+
+  const setMenuOpen = useCallback(
+    (open: boolean, restoreFocus = false) => {
+      if (mobile) setDrawerOpen(open);
+      else {
+        setCollapsed(!open);
+        writePref(SIDEBAR_COLLAPSED_KEY, open ? '0' : '1');
+      }
+      if (restoreFocus && !open) toggle.current?.focus();
+    },
+    [mobile],
+  );
+
+  // Drawer focus management: focus moves into the drawer when it opens; Esc closes it (before the
+  // walker sees the key) and returns focus to the menu button.
+  useEffect(() => {
+    if (mobile && drawerOpen) sidebar.current?.focus();
+  }, [mobile, drawerOpen]);
+  useEffect(() => {
+    if (!mobile || !drawerOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.stopPropagation();
+      setMenuOpen(false, true);
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [mobile, drawerOpen, setMenuOpen]);
+
+  const changeMode = (next: typeof mode) => {
+    setMode(next);
+    // The drawer covers the view: after choosing a camera mode the user wants to see it.
+    if (mobile) setDrawerOpen(false);
+  };
 
   const loadFile = useCallback(
     async (file: File) => {
@@ -81,7 +128,7 @@ export function App() {
 
   return (
     <div
-      className={dragging ? 'app dragging' : 'app'}
+      className={['app', dragging && 'dragging', mobile ? 'mobile' : 'desktop', menuOpen ? 'menu-open' : 'menu-closed'].filter(Boolean).join(' ')}
       onDragOver={(e) => {
         e.preventDefault();
         setDragging(true);
@@ -91,12 +138,35 @@ export function App() {
       }}
       onDrop={onDrop}
     >
-      <header className="sidebar">
+      <button
+        ref={toggle}
+        type="button"
+        className="menu-toggle"
+        aria-label="Menu"
+        aria-expanded={menuOpen}
+        aria-controls="sidebar"
+        title="Menu"
+        onClick={() => setMenuOpen(!menuOpen)}
+      >
+        <span aria-hidden="true">{mobile && menuOpen ? '✕' : '☰'}</span>
+      </button>
+      {mobile && menuOpen && <div className="backdrop" data-testid="backdrop" aria-hidden="true" onClick={() => setMenuOpen(false)} />}
+      <header
+        id="sidebar"
+        ref={sidebar}
+        className="sidebar"
+        tabIndex={-1}
+        inert={!menuOpen}
+        role={mobile ? 'dialog' : undefined}
+        aria-modal={mobile && menuOpen ? true : undefined}
+        aria-label={mobile ? 'Menu' : undefined}
+      >
         <h1>{scene?.name ?? '3D Flat Simulator'}</h1>
-        <ModeToolbar mode={mode} onChange={setMode} />
+        <ModeToolbar mode={mode} onChange={changeMode} />
         {mode === 'walk' && (
           <p className="hint">Click the view to look around, WASD or arrows to move, Esc to leave.</p>
         )}
+        <ViewSettings />
         <SceneLoader fixtureId={fixtureId} onPickFixture={pickFixture} onFile={(f) => void loadFile(f)} />
         <ErrorPanel errors={errors} onDismiss={() => useSceneStore.setState({ errors: [] })} />
         {scene && <LightingPanel scene={scene} hasContext={rawContext !== null} />}
@@ -113,14 +183,14 @@ export function App() {
           <>
             <FlatCanvas
               scene={scene}
-              view={{ mode, selection, lighting }}
+              view={{ mode, selection, lighting, personHeightCm }}
               context={context}
               onSelect={select}
               onExitWalk={exitWalk}
               onCreated={registerCanvas}
               onFrame={testHookEnabled() ? noteFrame : undefined}
             />
-            <PropertiesPanel scene={scene} selection={selection} />
+            <PropertiesPanel scene={scene} selection={selection} sheet={mobile} hidden={mobile && mode === 'walk'} />
             {contextStale && lighting.showContext && (
               <p className="context-hint" role="status" data-testid="context-stale">
                 Site context out of date: re-run tools/site-context
