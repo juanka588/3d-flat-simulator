@@ -51,7 +51,7 @@
     { "id": "door-ch2", "wallId": "w-ch2-south", "type": "door", "offset": 2.21, "width": 0.8, "height": 2.04, "hinge": "end", "swing": "left" },
     { "id": "door-ch1", "wallId": "w-ch1-south", "type": "door", "offset": 0.475, "width": 0.8, "height": 2.04, "hinge": "start", "swing": "left" },
     { "id": "door-sejour-entree", "wallId": "w-sejour-entree", "type": "door", "offset": 0.95, "width": 0.9, "height": 2.04, "hinge": "start", "swing": "right" },
-    { "id": "door-sdb", "wallId": "w-sdb-north", "type": "door", "offset": 0.995, "width": 0.8, "height": 2.04 },
+    { "id": "door-sdb", "wallId": "w-sdb-north", "type": "door", "offset": 0.995, "width": 0.8, "height": 2.04, "hinge": "start", "swing": "right" },
     { "id": "door-wc", "wallId": "w-wc-west", "type": "door", "offset": 0.815, "width": 0.7, "height": 2.04, "hinge": "start", "swing": "right" },
     { "id": "door-entry", "wallId": "w-landing", "type": "door", "offset": 0.955, "width": 0.9, "height": 2.04, "hinge": "start", "swing": "right" }
   ],
