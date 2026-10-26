@@ -48,12 +48,12 @@
     { "id": "door-balcony-sejour", "wallId": "w-west", "type": "door", "offset": 4.83, "width": 1.4, "height": 2.05, "sill": 0.15, "glazed": true },
     { "id": "door-balcony-cuisine", "wallId": "w-west", "type": "door", "offset": 1.66, "width": 0.9, "height": 2.05, "sill": 0.15, "glazed": true },
     { "id": "door-alcove", "wallId": "w-alcove", "type": "door", "offset": 0.47, "width": 0.8, "height": 2.04, "hinge": "start", "swing": "left" },
-    { "id": "door-ch2", "wallId": "w-ch2-south", "type": "door", "offset": 2.21, "width": 0.8, "height": 2.04, "hinge": "end", "swing": "right" },
-    { "id": "door-ch1", "wallId": "w-ch1-south", "type": "door", "offset": 0.475, "width": 0.8, "height": 2.04, "hinge": "start", "swing": "right" },
-    { "id": "door-sejour-entree", "wallId": "w-sejour-entree", "type": "door", "offset": 0.95, "width": 0.9, "height": 2.04 },
+    { "id": "door-ch2", "wallId": "w-ch2-south", "type": "door", "offset": 2.21, "width": 0.8, "height": 2.04, "hinge": "end", "swing": "left" },
+    { "id": "door-ch1", "wallId": "w-ch1-south", "type": "door", "offset": 0.475, "width": 0.8, "height": 2.04, "hinge": "start", "swing": "left" },
+    { "id": "door-sejour-entree", "wallId": "w-sejour-entree", "type": "door", "offset": 0.95, "width": 0.9, "height": 2.04, "hinge": "start", "swing": "right" },
     { "id": "door-sdb", "wallId": "w-sdb-north", "type": "door", "offset": 0.995, "width": 0.8, "height": 2.04 },
-    { "id": "door-wc", "wallId": "w-wc-west", "type": "door", "offset": 0.815, "width": 0.7, "height": 2.04 },
-    { "id": "door-entry", "wallId": "w-landing", "type": "door", "offset": 0.955, "width": 0.9, "height": 2.04 }
+    { "id": "door-wc", "wallId": "w-wc-west", "type": "door", "offset": 0.815, "width": 0.7, "height": 2.04, "hinge": "start", "swing": "right" },
+    { "id": "door-entry", "wallId": "w-landing", "type": "door", "offset": 0.955, "width": 0.9, "height": 2.04, "hinge": "start", "swing": "right" }
   ],
   "rooms": [
     { "id": "alcove", "name": "Alcôve", "type": "bedroom", "polygon": [[0, 0], [4.07, 0], [4.07, 2.2], [0, 2.2]], "floorMaterial": "floor-oak", "ceilingHeight": 2.5 },
