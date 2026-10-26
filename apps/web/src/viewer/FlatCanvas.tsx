@@ -105,6 +105,7 @@ function Shell({ scene, view, onSelect }: { scene: Scene; view: ViewState; onSel
       floors: withRoomAmbient(shell.floors, scene, ambient),
       ceilings: withRoomAmbient(shell.ceilings, scene, ambient),
       fittings: withRoomAmbient(shell.fittings, scene, ambient),
+      items: withRoomAmbient(shell.items, scene, ambient),
     }),
     [shell, scene, ambient],
   );
@@ -114,7 +115,7 @@ function Shell({ scene, view, onSelect }: { scene: Scene; view: ViewState; onSel
   const selectedId = view.selection?.entityId;
   const casters = useMemo(() => shadowCasterGeometry(shell), [shell]);
   useEffect(() => () => casters.dispose(), [casters]);
-  const meshes = [shell.walls, shell.floors, shell.fittings, shell.glass, ...(walk ? [shell.ceilings] : [])];
+  const meshes = [shell.walls, shell.floors, shell.fittings, shell.items, shell.glass, ...(walk ? [shell.ceilings] : [])];
 
   return (
     <group name="shell">
@@ -127,6 +128,7 @@ function Shell({ scene, view, onSelect }: { scene: Scene; view: ViewState; onSel
       {/* Ceilings are hidden in orbit/top so the interior stays visible from above. */}
       {walk && <ShellMesh name="ceilings" data={roomMeshes.ceilings} materials={materials} onSelect={pick} />}
       <ShellMesh name="fittings" data={roomMeshes.fittings} materials={materials} receiveShadow onSelect={pick} />
+      <ShellMesh name="items" data={roomMeshes.items} materials={materials} receiveShadow onSelect={pick} />
       <ShellMesh name="glass" data={shell.glass} materials={materials} onSelect={pick} />
       {selectedId && meshes.map((m, i) => <SelectionHighlight key={i} mesh={m} entityId={selectedId} />)}
     </group>

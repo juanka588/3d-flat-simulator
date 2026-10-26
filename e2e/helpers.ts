@@ -3,7 +3,14 @@ import { expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import type { FlatTestHook } from '../apps/web/src/test-hook-types';
 
+/** `E2E_CPU_THROTTLE=6 pnpm e2e` slows the page's main thread 6x to emulate a slow CI runner. */
+const CPU_THROTTLE = Number(process.env.E2E_CPU_THROTTLE ?? 1);
+
 export async function openApp(page: Page): Promise<void> {
+  if (CPU_THROTTLE > 1) {
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send('Emulation.setCPUThrottlingRate', { rate: CPU_THROTTLE });
+  }
   await page.goto('/');
   await page.evaluate(() => window.__flat!.ready);
   await expect(page.locator('canvas')).toBeVisible();
@@ -75,12 +82,18 @@ export function inPolygon(p: [number, number], polygon: [number, number][]): boo
   return inside;
 }
 
+export interface LumaProbe {
+  point: [number, number, number];
+  half?: number;
+}
+
 /**
- * Mean luminance (0-1, Rec. 709 on sRGB values) of the current canvas, or of a square window
- * (`half` px each side of the centre) around the projection of a world point.
+ * Mean luminance (0-1, Rec. 709 on sRGB values) of the canvas, or of one square window (`half` px
+ * each side of the centre) around the projection of each world point. All probes share ONE capture
+ * (one synchronous render + PNG encode), which is by far the most expensive step on software GL.
  */
-export function meanLuma(page: Page, probe?: { point: [number, number, number]; half?: number }): Promise<number> {
-  return page.evaluate(async (p) => {
+export function meanLumas(page: Page, probes: LumaProbe[]): Promise<number[]> {
+  return page.evaluate(async (list) => {
     const hook = window.__flat!;
     const img = new Image();
     img.src = hook.capture();
@@ -88,27 +101,34 @@ export function meanLuma(page: Page, probe?: { point: [number, number, number]; 
     const c = document.createElement('canvas');
     c.width = img.width;
     c.height = img.height;
-    const ctx = c.getContext('2d')!;
+    const ctx = c.getContext('2d', { willReadFrequently: true })!;
     ctx.drawImage(img, 0, 0);
-    let x0 = 0;
-    let y0 = 0;
-    let w = img.width;
-    let h = img.height;
-    if (p) {
-      const rect = document.querySelector('canvas')!.getBoundingClientRect();
-      const scale = img.width / rect.width;
-      const at = hook.project(p.point);
-      const half = Math.round((p.half ?? 6) * scale);
-      x0 = Math.max(0, Math.round((at.x - rect.left) * scale) - half);
-      y0 = Math.max(0, Math.round((at.y - rect.top) * scale) - half);
-      w = Math.min(img.width - x0, 2 * half + 1);
-      h = Math.min(img.height - y0, 2 * half + 1);
-    }
-    const px = ctx.getImageData(x0, y0, w, h).data;
-    let sum = 0;
-    for (let i = 0; i < px.length; i += 4) sum += (0.2126 * px[i]! + 0.7152 * px[i + 1]! + 0.0722 * px[i + 2]!) / 255;
-    return sum / (px.length / 4);
-  }, probe);
+    const rect = document.querySelector('canvas')!.getBoundingClientRect();
+    const scale = img.width / rect.width;
+    return list.map((p) => {
+      let x0 = 0;
+      let y0 = 0;
+      let w = img.width;
+      let h = img.height;
+      if (p) {
+        const at = hook.project(p.point);
+        const half = Math.round((p.half ?? 6) * scale);
+        x0 = Math.max(0, Math.round((at.x - rect.left) * scale) - half);
+        y0 = Math.max(0, Math.round((at.y - rect.top) * scale) - half);
+        w = Math.min(img.width - x0, 2 * half + 1);
+        h = Math.min(img.height - y0, 2 * half + 1);
+      }
+      const px = ctx.getImageData(x0, y0, w, h).data;
+      let sum = 0;
+      for (let i = 0; i < px.length; i += 4) sum += (0.2126 * px[i]! + 0.7152 * px[i + 1]! + 0.0722 * px[i + 2]!) / 255;
+      return sum / (px.length / 4);
+    });
+  }, probes as (LumaProbe | undefined)[]);
+}
+
+/** Mean luminance of the whole canvas, or of a window around a world point (see `meanLumas`). */
+export async function meanLuma(page: Page, probe?: LumaProbe): Promise<number> {
+  return (await meanLumas(page, [probe as LumaProbe]))[0]!;
 }
 
 /**

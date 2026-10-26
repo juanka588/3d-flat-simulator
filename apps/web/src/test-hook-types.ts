@@ -69,6 +69,12 @@ export interface FlatTestHook {
   setPlaying: (playing: boolean, minutesPerSecond?: number) => void;
   /** Manual clock: advances `ms` of real time (moves the sun if playing); resolves after the render. */
   tick: (ms: number) => Promise<void>;
+  /**
+   * Manual clock, walk mode: advances the walker (held keys and on-screen buttons) by `ms` in fixed
+   * 16 ms frames, independent of the real frame rate; resolves after the render. In the manual clock
+   * the walker ignores real frames, so movement is exactly what was stepped.
+   */
+  stepWalk: (ms: number) => Promise<void>;
 }
 
 declare global {

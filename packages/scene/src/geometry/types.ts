@@ -5,7 +5,7 @@
  */
 
 /** What a range of triangles belongs to, so picks can be mapped back to scene entities. */
-export type OwnerKind = 'wall' | 'opening' | 'floor' | 'ceiling' | 'context';
+export type OwnerKind = 'wall' | 'opening' | 'floor' | 'ceiling' | 'context' | 'item';
 
 /** Which face of a wall a triangle range belongs to. `left`/`right` follow `wallLeftNormal`. */
 export type WallFace = 'left' | 'right' | 'top' | 'end' | 'jamb';
@@ -16,7 +16,7 @@ export interface Owner {
   /** Number of triangles. */
   count: number;
   kind: OwnerKind;
-  /** Scene entity id: wall id, opening id, or room id for floors/ceilings. */
+  /** Scene entity id: wall id, opening id, or room id for floors/ceilings, item id for items. */
   entityId: string;
   face?: WallFace;
 }
@@ -56,6 +56,8 @@ export interface ShellMeshes {
   fittings: MeshData;
   /** Window/door glass panes (transparent, must not cast shadows). */
   glass: MeshData;
+  /** Furniture and equipment (built-in assets, placeholders for unknown ones). */
+  items: MeshData;
 }
 
 export const BUILTIN_MATERIALS = {

@@ -8,6 +8,7 @@ import { setClockSource, tickClock, useClockStore } from './state/dayClock';
 import { sunInfoFor } from './state/sunInfo';
 import { useViewStore } from './state/viewStore';
 import type { FlatStats, FlatTestHook } from './test-hook-types';
+import { stepWalker } from './viewer/walk-input';
 import { selectionForId } from './viewer/selection';
 import type { ViewState } from './viewer/view-types';
 import { sunPatches } from '@flat/scene';
@@ -19,6 +20,7 @@ interface FrameInfo {
 }
 
 const FRAME_TIMEOUT_MS = 15_000;
+const WALK_STEP_MS = 16;
 
 let canvas: (() => RootState) | null = null;
 let resolveCanvas: () => void = () => undefined;
@@ -251,6 +253,14 @@ export function installTestHook(): void {
       if (useClockStore.getState().source !== 'manual') throw new Error("tick() needs setClock('manual')");
       await canvasReady;
       tickClock(ms);
+      await whenRendered();
+    },
+    async stepWalk(ms) {
+      if (useClockStore.getState().source !== 'manual') throw new Error("stepWalk() needs setClock('manual')");
+      await canvasReady;
+      for (let left = ms; left > 1e-9; left -= WALK_STEP_MS) {
+        if (!stepWalker(Math.min(left, WALK_STEP_MS) / 1000)) throw new Error('stepWalk() needs walk mode');
+      }
       await whenRendered();
     },
     select(id) {

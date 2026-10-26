@@ -1,4 +1,4 @@
-import { BUILTIN_MATERIALS } from '@flat/scene';
+import { BUILTIN_MATERIALS, ITEM_MATERIALS } from '@flat/scene';
 import type { Scene } from '@flat/scene';
 import { DoubleSide, MeshStandardMaterial } from 'three';
 import type { Material, Texture } from 'three';
@@ -24,6 +24,12 @@ function builtin(id: string): MeshStandardMaterial {
       return new MeshStandardMaterial({ color: '#3b3b3f', roughness: 0.6 });
     case BUILTIN_MATERIALS.door:
       return new MeshStandardMaterial({ color: '#8a6a4b', roughness: 0.7 });
+    case ITEM_MATERIALS.tvBody:
+      return new MeshStandardMaterial({ color: '#2b2c2f', roughness: 0.45, metalness: 0.3 });
+    case ITEM_MATERIALS.tvScreen:
+      return new MeshStandardMaterial({ color: '#08090b', roughness: 0.08, metalness: 0.2 });
+    case ITEM_MATERIALS.placeholder:
+      return new MeshStandardMaterial({ color: '#d048d0', roughness: 0.8, wireframe: true });
     case BUILTIN_MATERIALS.fallbackFloor:
       return new MeshStandardMaterial({ color: '#c8b89e', roughness: 0.8 });
     case BUILTIN_MATERIALS.fallbackCeiling:

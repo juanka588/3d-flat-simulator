@@ -1,4 +1,4 @@
-import { roomStats, wallEdgeMaterial, wallSideMaterial, wallStats } from '@flat/scene';
+import { BUILTIN_ASSETS, itemLabel, roomStats, wallEdgeMaterial, wallSideMaterial, wallStats } from '@flat/scene';
 import type { Scene } from '@flat/scene';
 import type { Selection } from '../viewer/view-types';
 
@@ -57,6 +57,21 @@ function describe(scene: Scene, selection: Selection): { title: string; rows: [s
       ],
     };
   }
+  if (selection.kind === 'item') {
+    const item = scene.items.find((i) => i.id === selection.entityId);
+    if (!item) return null;
+    const asset = BUILTIN_ASSETS[item.assetId];
+    return {
+      title: itemLabel(item),
+      rows: [
+        ['Id', item.id],
+        ['Room', item.roomId ?? '-'],
+        ['Elevation', m(item.elevation)],
+        ['Rotation', `${item.rotation}°`],
+        ...(asset ? ([['Mount', asset.mount]] as [string, string][]) : []),
+      ],
+    };
+  }
   const opening = scene.openings.find((o) => o.id === selection.entityId);
   if (!opening) return null;
   return {
@@ -80,7 +95,7 @@ export function PropertiesPanel({ scene, selection }: { scene: Scene; selection:
           <Rows rows={info.rows} />
         </>
       ) : (
-        <p className="hint">Click a wall, floor, door or window to inspect it.</p>
+        <p className="hint">Click a wall, floor, door, window or item to inspect it.</p>
       )}
     </aside>
   );

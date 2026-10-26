@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { findWallShadowProbes } from './shadow-rays';
 import type { RayFlat } from './shadow-rays';
-import { charmeFlat, columnLuma, expectLighting, flat, floorPoint, inPolygon, maxSecondDifference, meanLuma, openApp, rendered, savePng } from './helpers';
+import { charmeFlat, columnLuma, expectLighting, flat, floorPoint, inPolygon, maxSecondDifference, meanLuma, meanLumas, openApp, rendered, savePng } from './helpers';
 
 /** Budget for a steady frame (nothing changed since the previous one: no shadow-map passes). */
 const MAX_DRAW_CALLS = 70;
@@ -34,6 +34,8 @@ const LUMA_HALF = 3;
 /** Distance (metres) of the shadow probes from the wall's lee face: well inside the light leak the old, range-scaled bias allowed (about 0.2 m). */
 const PROBE_GAP_M = 0.05;
 const luma = (page: Page, point: [number, number, number], half = LUMA_HALF) => meanLuma(page, { point, half });
+/** Lumas of several floor points from ONE capture (a capture is a full synchronous render: costly on software GL). */
+const lumas = (page: Page, points: [number, number, number][], half = LUMA_HALF) => meanLumas(page, points.map((point) => ({ point, half })));
 
 test.beforeEach(async ({ page }) => {
   await openApp(page);
@@ -98,8 +100,7 @@ test('toggling a lamp off darkens the floor under it', async ({ page }) => {
 test('light does not leak through walls: only the Chambre 1 lamp on lights Chambre 1, not Chambre 2', async ({ page }) => {
   await top(page);
   await setLighting(page, { sunEnabled: false, lamps: onlyLamps(['l-ch1']) });
-  const ch1 = await luma(page, lampFloor('l-ch1'));
-  const ch2 = await luma(page, lampFloor('l-ch2'));
+  const [ch1, ch2] = (await lumas(page, [lampFloor('l-ch1'), lampFloor('l-ch2')])) as [number, number];
   expect(ch1).toBeGreaterThan(0.1);
   expect(ch1).toBeGreaterThan(ch2 * 3);
 });
@@ -108,9 +109,11 @@ test('the area panel (Séjour kitchen) does not light through walls either', asy
   await top(page);
   await setLighting(page, { sunEnabled: false, lamps: onlyLamps(['l-cuisine']) });
   const panel = lights.find((l) => l.id === 'l-cuisine')!;
-  const under = await luma(page, floorPoint(panel.position[0] + 0.3, panel.position[1] - 0.6)); // inside the Séjour (it ends at z 8.28)
-  const sdb = await luma(page, floorPoint(5.8, 7.9)); // behind the Séjour/SDB wall
-  const entree = await luma(page, floorPoint(6.0, 5.2));
+  const [under, sdb, entree] = (await lumas(page, [
+    floorPoint(panel.position[0] + 0.3, panel.position[1] - 0.6), // inside the Séjour (it ends at z 8.28)
+    floorPoint(5.8, 7.9), // behind the Séjour/SDB wall
+    floorPoint(6.0, 5.2),
+  ])) as [number, number, number];
   expect(under).toBeGreaterThan(0.1);
   expect(under).toBeGreaterThan(sdb * 3);
   expect(under).toBeGreaterThan(entree * 3);
@@ -136,10 +139,10 @@ test.describe('the kitchen panel (point-light proxy) stays inside the Séjour', 
   test('with only l-cuisine on at night, the balcony, alcove and entrée floors are near-black and the kitchen floor is bright', async ({ page }) => {
     await top(page);
     await setLighting(page, { sunEnabled: false, lamps: onlyLamps(['l-cuisine']) });
-    const kitchen = await luma(page, floorPoint(2.5, 6.9));
+    const [kitchen, ...values] = await lumas(page, [floorPoint(2.5, 6.9), ...behindWalls.map(([, [x, z]]) => floorPoint(x, z))]);
     expect(kitchen).toBeGreaterThan(0.3);
-    for (const [label, [x, z]] of behindWalls) {
-      const value = await luma(page, floorPoint(x, z));
+    for (const [i, [label, [x, z]]] of behindWalls.entries()) {
+      const value = values[i]!;
       expect(value, `${label} at (${x}, ${z}): ${value} (kitchen floor ${kitchen})`).toBeLessThan(NEAR_BLACK);
     }
   });
@@ -187,10 +190,14 @@ test('toggling one lamp does not change the lighting of another room or recompil
   await preset(page, 'Night');
   const ch2Floor = lampFloor('l-ch2');
   const ch1Floor = lampFloor('l-ch1');
-  const before = { ch2: await luma(page, ch2Floor, 30), ch1: await luma(page, ch1Floor, 30), programs: (await flat(page, (f) => f.stats())).programs };
+  const lumaPair = async () => {
+    const [ch2, ch1] = (await lumas(page, [ch2Floor, ch1Floor], 30)) as [number, number];
+    return { ch2, ch1, programs: (await flat(page, (f) => f.stats())).programs };
+  };
+  const before = await lumaPair();
   await page.getByLabel('Chambre 1 ceiling on', { exact: true }).uncheck();
   await rendered(page);
-  const after = { ch2: await luma(page, ch2Floor, 30), ch1: await luma(page, ch1Floor, 30), programs: (await flat(page, (f) => f.stats())).programs };
+  const after = await lumaPair();
   // The exposure follows the total lamp flux (one lamp fewer = a few % brighter), nothing else may move.
   expect(Math.abs(after.ch2 - before.ch2)).toBeLessThan(0.02);
   expect(before.ch1).toBeGreaterThan(0.1);
@@ -281,6 +288,8 @@ test('the IGN attribution shows with the site context and the context is hidden 
 });
 
 test.describe('shadows are tight (no light under walls)', () => {
+  // Each test re-renders the sun and lamp shadow maps after a lighting change: heavy on software GL.
+  test.slow();
   const flatJson = charmeFlat as unknown as RayFlat;
   const sunDirection = async (page: Page): Promise<[number, number, number]> => {
     const info = await page.evaluate(() => window.__flat!.sunInfo());
@@ -297,9 +306,10 @@ test.describe('shadows are tight (no light under walls)', () => {
       // A few probes on distinct walls.
       const chosen = [...new Map(probes.map((p) => [p.wallId, p])).values()].slice(0, 3);
       let compared = 0;
-      for (const probe of chosen) {
-        const lit = await luma(page, floorPoint(...probe.lit!));
-        const behind = await luma(page, floorPoint(...probe.behind));
+      const measured = await lumas(page, chosen.flatMap((probe) => [floorPoint(...probe.lit!), floorPoint(...probe.behind)]));
+      for (const [i, probe] of chosen.entries()) {
+        const lit = measured[2 * i]!;
+        const behind = measured[2 * i + 1]!;
         // The probe must be sunlit in the render (the neighbouring buildings can shade it): then the wall's shadow must hold.
         if (lit < 0.5) continue;
         compared++;
@@ -316,11 +326,12 @@ test.describe('shadows are tight (no light under walls)', () => {
     expect(probes.length).toBeGreaterThan(0);
     const patches = await flat(page, (f) => f.sunPatches());
     expect(patches.length).toBeGreaterThan(0);
-    const lit = await luma(page, [...patches].sort((a, b) => b.area - a.area)[0]!.centroid);
+    const behindProbes = [...new Map(probes.map((p) => [p.wallId, p])).values()].slice(0, 3);
+    const [lit, ...behinds] = await lumas(page, [[...patches].sort((a, b) => b.area - a.area)[0]!.centroid, ...behindProbes.map((p) => floorPoint(...p.behind))]);
     expect(lit).toBeGreaterThan(0.5);
-    for (const probe of [...new Map(probes.map((p) => [p.wallId, p])).values()].slice(0, 3)) {
-      const behind = await luma(page, floorPoint(...probe.behind));
-      expect(behind, `behind ${probe.wallId} at ${probe.behind}: ${behind} vs patch ${lit}`).toBeLessThan(lit * 0.6);
+    for (const [i, probe] of behindProbes.entries()) {
+      const behind = behinds[i]!;
+      expect(behind, `behind ${probe.wallId} at ${probe.behind}: ${behind} vs patch ${lit}`).toBeLessThan(lit! * 0.6);
     }
   });
 
@@ -335,8 +346,7 @@ test.describe('shadows are tight (no light under walls)', () => {
     ];
     for (const [room, beside, middle] of pairs) {
       expect(inPolygon(beside, roomPolygon(room)) && inPolygon(middle, roomPolygon(room)), room).toBe(true);
-      const edge = await luma(page, floorPoint(...beside));
-      const centre = await luma(page, floorPoint(...middle));
+      const [edge, centre] = (await lumas(page, [floorPoint(...beside), floorPoint(...middle)])) as [number, number];
       expect(centre, room).toBeGreaterThan(0.05);
       expect(edge, `${room}: floor beside the wall ${edge} vs middle ${centre}`).toBeLessThan(centre * 1.12);
     }
@@ -352,8 +362,7 @@ test('a sun patch on the Séjour floor is brighter than the floor beside it (21 
   const outside: [number, number] = [3.5, 5.3];
   expect(inPolygon(outside, roomPolygon('sejour'))).toBe(true);
   expect(patches.some((p) => inPolygon(outside, p.polygon))).toBe(false);
-  const inside = await luma(page, sejour[0]!.centroid);
-  const beside = await luma(page, floorPoint(...outside));
+  const [inside, beside] = (await lumas(page, [sejour[0]!.centroid, floorPoint(...outside)])) as [number, number];
   expect(inside).toBeGreaterThan(beside * 1.2);
 });
 
@@ -368,17 +377,14 @@ test('windowless rooms get less sky ambient: at noon the WC and SDB floors are d
   expect(inPolygon(sdbPoint, roomPolygon('sdb'))).toBe(true);
   const patches = await flat(page, (f) => f.sunPatches());
   expect(patches.some((p) => inPolygon(sejourPoint, p.polygon))).toBe(false); // sky only
-  const sejour = await luma(page, floorPoint(...sejourPoint));
-  const wc = await luma(page, floorPoint(...wcPoint));
-  const sdb = await luma(page, floorPoint(...sdbPoint));
+  const [sejour, wc, sdb] = (await lumas(page, [floorPoint(...sejourPoint), floorPoint(...wcPoint), floorPoint(...sdbPoint)])) as [number, number, number];
   expect(sejour).toBeGreaterThan(0.3);
   expect(wc).toBeLessThan(sejour * 0.6);
   expect(sdb).toBeLessThan(sejour * 0.6);
 
   // Only the sky is dimmed: at night the lamp lights the windowless WC just as it lights a bedroom.
   await preset(page, 'Night');
-  const wcNight = await luma(page, floorPoint(...wcPoint));
-  const ch1Night = await luma(page, lampFloor('l-ch1'));
+  const [wcNight, ch1Night] = (await lumas(page, [floorPoint(...wcPoint), lampFloor('l-ch1')])) as [number, number];
   expect(wcNight).toBeGreaterThan(0.1);
   expect(ch1Night).toBeGreaterThan(0.1);
 });

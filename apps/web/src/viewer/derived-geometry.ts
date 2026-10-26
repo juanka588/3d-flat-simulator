@@ -45,6 +45,7 @@ export function shadowCasterGeometry(shell: ShellMeshes): BufferGeometry {
     const parts = [
       shell.walls,
       shell.fittings,
+      shell.items,
       shell.ceilings,
       reversedSurface(shell.floors, -SLAB_BLOCKER_OFFSET_M),
       reversedSurface(shell.ceilings, SLAB_BLOCKER_OFFSET_M),

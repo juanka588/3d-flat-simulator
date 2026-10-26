@@ -83,7 +83,9 @@
     },
     { "id": "balcon", "name": "Balcon", "type": "balcony", "polygon": [[-1.55, 0], [-0.2, 0], [-0.2, 8.28], [-1.55, 8.28]], "floorMaterial": "floor-deck" }
   ],
-  "items": [],
+  "items": [
+    { "id": "tv-sejour", "assetId": "builtin:tv-55", "position": [2.45, 2.295], "elevation": 0.745, "rotation": 0, "roomId": "sejour" }
+  ],
   "lights": [
     { "id": "l-sejour", "name": "Séjour ceiling", "type": "point", "roomId": "sejour", "position": [2.0, 3.8], "elevation": 2.3, "lumens": 1600, "kelvin": 2700 },
     { "id": "l-cuisine", "name": "Kitchen panel", "type": "area", "roomId": "sejour", "position": [2.0, 7.6], "elevation": 2.48, "width": 1.2, "depth": 0.3, "lumens": 2500, "kelvin": 3500 },

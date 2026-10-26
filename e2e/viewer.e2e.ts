@@ -91,6 +91,22 @@ test('ceilings are hidden in orbit and top and drawn in walk', async ({ page }) 
   expect(await meshes()).not.toContain('ceilings');
 });
 
+/**
+ * Enters walk mode with the manual clock: the walker then moves only through `stepWalk(ms)` (fixed 16 ms
+ * frames), never with the real frame time, so distances do not depend on how fast the machine renders.
+ */
+async function startWalk(page: import('@playwright/test').Page, pose: { x: number; z: number; yawDeg: number }): Promise<void> {
+  await page.evaluate(() => window.__flat!.setClock('manual'));
+  await page.evaluate(() => window.__flat!.setView({ mode: 'walk' }));
+  await page.evaluate((p) => window.__flat!.setWalkPose(p), pose);
+}
+
+const stepWalk = (page: import('@playwright/test').Page, ms: number) => page.evaluate((n) => window.__flat!.stepWalk(n), ms);
+const cameraXZ = async (page: import('@playwright/test').Page): Promise<[number, number]> => {
+  const [x, , z] = (await flat(page, (f) => f.stats())).camera;
+  return [x, z];
+};
+
 function inside(polygon: [number, number][], [x, y]: [number, number]): boolean {
   let result = false;
   polygon.forEach(([x1, y1], i) => {
@@ -101,18 +117,17 @@ function inside(polygon: [number, number][], [x, y]: [number, number]): boolean 
 }
 
 test('walking into a wall stops at the wall and stays inside the room', async ({ page }) => {
-  await page.evaluate(() => window.__flat!.setView({ mode: 'walk' }));
   // Séjour, facing the south wall (no openings): forward = (-sin yaw, -cos yaw), so yaw 180 looks along +z.
   const south = charmeFlat.walls.find((w) => w.id === 'w-south')!;
   const sejour = charmeFlat.rooms.find((r) => r.id === 'sejour')!;
-  await page.evaluate(() => window.__flat!.setWalkPose({ x: 2, z: 7.3, yawDeg: 180 }));
+  await startWalk(page, { x: 2, z: 7.3, yawDeg: 180 });
 
   await page.keyboard.down('KeyW');
-  await page.waitForTimeout(3000);
+  await stepWalk(page, 3000); // 4.2 m of walking: far more than the 0.7 m to the wall
   await page.keyboard.up('KeyW');
-  await rendered(page);
+  await stepWalk(page, 500);
 
-  const [x, , z] = (await flat(page, (f) => f.stats())).camera;
+  const [x, z] = await cameraXZ(page);
   const wallZ = south.start[1];
   expect(inside(sejour.polygon, [x, z])).toBe(true);
   // Moved towards the wall (not stuck at the start) ...
@@ -122,18 +137,23 @@ test('walking into a wall stops at the wall and stays inside the room', async ({
 });
 
 test('walk keys are ignored while a form control has focus', async ({ page }) => {
-  await page.evaluate(() => window.__flat!.setView({ mode: 'walk' }));
-  await page.evaluate(() => window.__flat!.setWalkPose({ x: 2, z: 7.3, yawDeg: 180 }));
+  await startWalk(page, { x: 2, z: 7.3, yawDeg: 180 });
   const before = (await flat(page, (f) => f.stats())).camera;
   await page.getByLabel('Flat', { exact: true }).focus();
   await page.keyboard.down('KeyW');
-  await page.waitForTimeout(700);
+  await stepWalk(page, 700);
   await page.keyboard.up('KeyW');
-  await rendered(page);
   expect((await flat(page, (f) => f.stats())).camera).toEqual(before);
+  // Control: with focus back on the page the same key does move the camera.
+  await page.evaluate(() => (document.activeElement as HTMLElement).blur());
+  await page.keyboard.down('KeyW');
+  await stepWalk(page, 200);
+  await page.keyboard.up('KeyW');
+  expect((await cameraXZ(page))[1]).toBeGreaterThan(before[2] + 0.1);
 });
 
 test('dropping a file on the page loads it', async ({ page }) => {
+  test.slow(); // swapping the scene recompiles the lamp/shadow shaders, which is slow on software GL
   await page.evaluate((json) => {
     const dt = new DataTransfer();
     dt.items.add(new File([json], 'dropped.flat.json', { type: 'application/json' }));
@@ -141,7 +161,9 @@ test('dropping a file on the page loads it', async ({ page }) => {
       .querySelector('.app')!
       .dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true }));
   }, JSON.stringify(sampleFlat));
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText(sampleFlat.name);
+  // The drop is read asynchronously: wait for the new scene to be committed, then for a frame drawn from it
+  // (`whenRendered` only waits for a frame that reflects the stores, so call it after the commit).
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(sampleFlat.name, { timeout: 20_000 });
   await rendered(page);
   expect((await flat(page, (f) => f.stats())).sceneName).toBe(sampleFlat.name);
 });
@@ -158,6 +180,7 @@ test('a file over the size limit is rejected before it is read', async ({ page }
 });
 
 test('reloading scenes repeatedly does not leak geometries or shader programs', async ({ page }) => {
+  test.slow(); // six scene loads, each recompiling shaders: heavy on software GL
   const samples: { geometries: number; programs: number }[] = [];
   for (let i = 0; i < 6; i++) {
     expect(await loadScene(page, i % 2 === 0 ? charmeFlat : sampleFlat)).toBe(true);
@@ -207,32 +230,31 @@ test.describe('walk controls overlay', () => {
   });
 
   test('holding the on-screen up button moves the camera and releasing stops it', async ({ page }) => {
-    await page.evaluate(() => window.__flat!.setView({ mode: 'walk' }));
-    await page.evaluate(() => window.__flat!.setWalkPose({ x: 2, z: 5, yawDeg: 180 })); // looks along +z in the sejour
-    const before = (await flat(page, (f) => f.stats())).camera;
+    await startWalk(page, { x: 2, z: 5, yawDeg: 180 }); // looks along +z in the sejour
+    const before = await cameraXZ(page);
     const button = page.getByRole('button', { name: 'Move forward' });
     const box = (await button.boundingBox())!;
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
     await page.mouse.down();
-    await page.waitForTimeout(1500);
+    await stepWalk(page, 1500); // 1.5 s at 1.4 m/s = 2.1 m, whatever the real frame rate
     await page.mouse.up();
-    await rendered(page);
-    const after = (await flat(page, (f) => f.stats())).camera;
-    expect(Math.hypot(after[0] - before[0], after[2] - before[2])).toBeGreaterThan(1);
-    await page.waitForTimeout(300);
-    await rendered(page);
-    expect((await flat(page, (f) => f.stats())).camera).toEqual(after);
+    const after = await cameraXZ(page);
+    const walked = Math.hypot(after[0] - before[0], after[1] - before[1]);
+    expect(walked).toBeGreaterThan(1.9);
+    expect(walked).toBeLessThan(2.3);
+    // Released: more frames, no more movement.
+    await stepWalk(page, 500);
+    expect(await cameraXZ(page)).toEqual(after);
   });
 
   test('holding ArrowUp into the entry door keeps the camera inside the flat', async ({ page }) => {
-    await page.evaluate(() => window.__flat!.setView({ mode: 'walk' }));
     // Entree, facing the entry door on w-landing (x = 7.78, y = 6.115): yaw 180 looks along +z.
-    await page.evaluate(() => window.__flat!.setWalkPose({ x: 7.78, z: 5.0, yawDeg: 180 }));
+    await startWalk(page, { x: 7.78, z: 5.0, yawDeg: 180 });
     await page.keyboard.down('ArrowUp');
-    await page.waitForTimeout(3000);
+    await stepWalk(page, 3000); // 4.2 m of walking: far more than the ~1 m to the door
     await page.keyboard.up('ArrowUp');
-    await rendered(page);
-    const [x, , z] = (await flat(page, (f) => f.stats())).camera;
+    await stepWalk(page, 500);
+    const [x, z] = await cameraXZ(page);
     expect(charmeFlat.rooms.some((r) => inPolygon([x, z], r.polygon))).toBe(true);
     expect(z).toBeGreaterThan(5.5); // it did walk towards the door ...
     expect(z).toBeLessThan(6.03); // ... and stopped before it

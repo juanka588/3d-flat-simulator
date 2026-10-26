@@ -1,3 +1,4 @@
+import { isBuiltinAsset } from './assets/builtin';
 import { edgeCoverage, roomCeilingHeight, triangulatePolygon } from './geometry/floors';
 import { polygonArea } from './measure';
 import type { Scene, Vec2 } from './schema';
@@ -254,6 +255,18 @@ export function validateScene(scene: Scene): ValidationResult {
         message: `light "${light.id}" is at ${light.elevation} m, above the ${ceiling} m ceiling of room "${room.id}"`,
         entityIds: [light.id, room.id],
         path: `lights[${i}].elevation`,
+      });
+    }
+  });
+
+  // Items whose asset is unknown are drawn as placeholder boxes.
+  scene.items.forEach((item, i) => {
+    if (!isBuiltinAsset(item.assetId)) {
+      warnings.push({
+        code: 'unknown_asset',
+        message: `item "${item.id}" uses unknown asset "${item.assetId}" (drawn as a placeholder box)`,
+        entityIds: [item.id],
+        path: `items[${i}].assetId`,
       });
     }
   });

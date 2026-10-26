@@ -1,9 +1,11 @@
 import { PerspectiveCamera, PointerLockControls } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
-import { useEffect, useMemo, useRef } from 'react';
+import type { RootState } from '@react-three/fiber';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { findSpawn, insideFlat, resolveWalk, sceneBounds3, walkObstacles } from '@flat/scene';
 import type { Scene } from '@flat/scene';
-import { clearVirtualKeys, onVirtualWake, virtualKeysHeld } from './walk-input';
+import { useClockStore } from '../state/dayClock';
+import { clearVirtualKeys, onVirtualWake, onWalkStep, virtualKeysHeld } from './walk-input';
 
 export const EYE_HEIGHT = 1.6;
 const BODY_RADIUS = 0.25;
@@ -139,42 +141,58 @@ export function WalkControls({ scene, onExit }: WalkControlsProps) {
     };
   }, [camera, gl, invalidate]);
 
+  const advance = useCallback(
+    (state: RootState, delta: number) => {
+      const keys = pressed.current;
+      let strafe = 0;
+      let ahead = 0;
+      keys.forEach((code) => {
+        const dir = KEY_DIRECTIONS[code];
+        if (dir) {
+          strafe += dir[0];
+          ahead += dir[1];
+        }
+      });
+      const virtual = virtualKeysHeld();
+      if (virtual.size > 0) {
+        ahead += (virtual.has('forward') ? 1 : 0) - (virtual.has('back') ? 1 : 0);
+        strafe += (virtual.has('right') ? 1 : 0) - (virtual.has('left') ? 1 : 0);
+        const turn = (virtual.has('turnLeft') ? 1 : 0) - (virtual.has('turnRight') ? 1 : 0);
+        if (turn !== 0) {
+          state.camera.rotation.order = 'YXZ';
+          state.camera.rotation.y += turn * TURN_SPEED * Math.min(delta, 0.1);
+          invalidate();
+        }
+      }
+      if (strafe === 0 && ahead === 0) return;
+      const speed = keys.has('ShiftLeft') || keys.has('ShiftRight') ? RUN_SPEED : WALK_SPEED;
+      const yaw = state.camera.rotation.y;
+      // three: forward = (-sin yaw, -cos yaw) in (x, z); right = (cos yaw, -sin yaw)
+      const len = Math.hypot(strafe, ahead);
+      const dx = (-Math.sin(yaw) * ahead + Math.cos(yaw) * strafe) / len;
+      const dz = (-Math.cos(yaw) * ahead - Math.sin(yaw) * strafe) / len;
+      const step = Math.min(delta, 0.1) * speed;
+      const from: [number, number] = [state.camera.position.x, state.camera.position.z];
+      const {
+        position: [x, z],
+      } = resolveWalk(inside, from, [dx * step, dz * step], obstacles, BODY_RADIUS);
+      state.camera.position.set(x, EYE_HEIGHT, z);
+      invalidate();
+    },
+    [inside, obstacles, invalidate],
+  );
+
+  // Test hook (inert unless a test installs a stepper): with the manual clock the walker moves only
+  // when stepped with a fixed dt, never with the real frame time.
+  const get = useThree((s) => s.get);
+  useEffect(() => {
+    onWalkStep((dtSeconds) => advance(get(), dtSeconds));
+    return () => onWalkStep(null);
+  }, [get, advance]);
+
   useFrame((state, delta) => {
-    const keys = pressed.current;
-    let strafe = 0;
-    let ahead = 0;
-    keys.forEach((code) => {
-      const dir = KEY_DIRECTIONS[code];
-      if (dir) {
-        strafe += dir[0];
-        ahead += dir[1];
-      }
-    });
-    const virtual = virtualKeysHeld();
-    if (virtual.size > 0) {
-      ahead += (virtual.has('forward') ? 1 : 0) - (virtual.has('back') ? 1 : 0);
-      strafe += (virtual.has('right') ? 1 : 0) - (virtual.has('left') ? 1 : 0);
-      const turn = (virtual.has('turnLeft') ? 1 : 0) - (virtual.has('turnRight') ? 1 : 0);
-      if (turn !== 0) {
-        state.camera.rotation.order = 'YXZ';
-        state.camera.rotation.y += turn * TURN_SPEED * Math.min(delta, 0.1);
-        invalidate();
-      }
-    }
-    if (strafe === 0 && ahead === 0) return;
-    const speed = keys.has('ShiftLeft') || keys.has('ShiftRight') ? RUN_SPEED : WALK_SPEED;
-    const yaw = state.camera.rotation.y;
-    // three: forward = (-sin yaw, -cos yaw) in (x, z); right = (cos yaw, -sin yaw)
-    const len = Math.hypot(strafe, ahead);
-    const dx = (-Math.sin(yaw) * ahead + Math.cos(yaw) * strafe) / len;
-    const dz = (-Math.cos(yaw) * ahead - Math.sin(yaw) * strafe) / len;
-    const step = Math.min(delta, 0.1) * speed;
-    const from: [number, number] = [state.camera.position.x, state.camera.position.z];
-    const {
-      position: [x, z],
-    } = resolveWalk(inside, from, [dx * step, dz * step], obstacles, BODY_RADIUS);
-    state.camera.position.set(x, EYE_HEIGHT, z);
-    invalidate();
+    if (useClockStore.getState().source === 'manual') return;
+    advance(state, delta);
   });
 
   return (

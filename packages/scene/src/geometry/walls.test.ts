@@ -6,6 +6,7 @@ import { wallLeftNormal, type Scene } from '../schema';
 import { computeWallJunctions } from './junctions';
 import { bounds, makeScene, triangles, uRatios } from './testUtil';
 import type { MeshData } from './types';
+import { wallSideRooms } from '../lighting/daylight';
 import { buildWalls } from './walls';
 
 const wall = (id: string, start: [number, number], end: [number, number], thickness = 0.2, height = 2.5) => ({
@@ -318,4 +319,31 @@ describe('buildWalls: fixtures', () => {
       }
     });
   }
+});
+
+describe('wall faces are cut where the room on the face changes', () => {
+  it('no left/right triangle of Charme spans two room stretches (so each gets one ambient texel)', () => {
+    const scene = load(charme);
+    const mesh = buildWalls(scene);
+    const sides = wallSideRooms(scene);
+    for (const w of scene.walls) {
+      const cuts = sides[w.id]!.segments.slice(1).map((s) => s.from);
+      const len = Math.hypot(w.end[0] - w.start[0], w.end[1] - w.start[1]);
+      const ux = (w.end[0] - w.start[0]) / len;
+      const uz = (w.end[1] - w.start[1]) / len;
+      for (const o of mesh.owners) {
+        if (o.entityId !== w.id || (o.face !== 'left' && o.face !== 'right')) continue;
+        for (let t = o.start; t < o.start + o.count; t++) {
+          const along = [0, 1, 2].map((k) => {
+            const v = mesh.indices[t * 3 + k]!;
+            return (mesh.positions[v * 3]! - w.start[0]) * ux + (mesh.positions[v * 3 + 2]! - w.start[1]) * uz;
+          });
+          for (const c of cuts) {
+            const strictlyInside = Math.min(...along) < c - 1e-6 && Math.max(...along) > c + 1e-6;
+            expect(strictlyInside, `${w.id} triangle ${t} crosses a room boundary at ${c}`).toBe(false);
+          }
+        }
+      }
+    }
+  });
 });

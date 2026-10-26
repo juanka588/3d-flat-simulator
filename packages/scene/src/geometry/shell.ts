@@ -1,3 +1,4 @@
+import { buildItems } from '../assets/builtin';
 import type { Scene } from '../schema';
 import { buildFittings } from './fittings';
 import { buildCeilings, buildFloors } from './floors';
@@ -11,5 +12,6 @@ export function buildShell(scene: Scene): ShellMeshes {
     floors: buildFloors(scene),
     ceilings: buildCeilings(scene),
     ...buildFittings(scene),
+    items: buildItems(scene),
   };
 }

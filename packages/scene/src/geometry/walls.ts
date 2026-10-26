@@ -1,4 +1,5 @@
 import type { Opening, Scene, Wall } from '../schema';
+import { wallSideRooms } from '../lighting/daylight';
 import { MeshBuilder, type Vec3 } from './builder';
 import { clampedOpeningSpans } from './openings';
 import { computeWallJunctions, type WallFootprint } from './junctions';
@@ -128,6 +129,8 @@ export function buildWalls(scene: Scene): MeshData {
   const b = new MeshBuilder();
   const footprints = computeWallJunctions(scene.walls);
   const edgeMat = wallEdgeMaterial(scene);
+  // Where the room on a wall face changes: the faces are cut there so every piece belongs to one room.
+  const sideRooms = wallSideRooms(scene);
   const openingsByWall = new Map<string, Opening[]>();
   for (const o of scene.openings) {
     const list = openingsByWall.get(o.wallId) ?? [];
@@ -144,7 +147,8 @@ export function buildWalls(scene: Scene): MeshData {
       endLeft: frame.length,
       endRight: frame.length,
     };
-    buildWall(b, scene, wall, frame, fp, openingsByWall.get(wall.id) ?? [], edgeMat);
+    const cuts = (sideRooms[wall.id]?.segments ?? []).slice(1).map((seg) => seg.from);
+    buildWall(b, scene, wall, frame, fp, openingsByWall.get(wall.id) ?? [], edgeMat, cuts);
   }
   return b.build();
 }
@@ -157,6 +161,7 @@ function buildWall(
   fp: WallFootprint,
   openings: Opening[],
   edgeMat: string,
+  cuts: readonly number[],
 ): void {
   const H = f.height;
   const h = f.half;
@@ -193,23 +198,32 @@ function buildWall(
 
   for (const seg of segs) {
     for (const [y0, y1] of seg.solid) {
-      emitQuad(
-        b,
-        [pt(seg.aL, h, y0), pt(seg.bL, h, y0), pt(seg.bL, h, y1), pt(seg.aL, h, y1)],
-        nL,
-        // Mirrored (u = length - s) so u grows to the viewer's right when facing the left face.
-        [[f.length - seg.aL, y0], [f.length - seg.bL, y0], [f.length - seg.bL, y1], [f.length - seg.aL, y1]],
-        leftMat,
-        own('left'),
-      );
-      emitQuad(
-        b,
-        [pt(seg.aR, -h, y0), pt(seg.bR, -h, y0), pt(seg.bR, -h, y1), pt(seg.aR, -h, y1)],
-        nR,
-        [[seg.aR, y0], [seg.bR, y0], [seg.bR, y1], [seg.aR, y1]],
-        rightMat,
-        own('right'),
-      );
+      // The two faces are emitted in pieces cut at `cuts` (the room on the face changes there).
+      const pieces = (a: number, z: number): [number, number][] => {
+        const at = [a, ...cuts.filter((c) => c > a + EPS && c < z - EPS), z];
+        return at.slice(1).map((end, k) => [at[k]!, end]);
+      };
+      for (const [a, z] of pieces(seg.aL, seg.bL)) {
+        emitQuad(
+          b,
+          [pt(a, h, y0), pt(z, h, y0), pt(z, h, y1), pt(a, h, y1)],
+          nL,
+          // Mirrored (u = length - s) so u grows to the viewer's right when facing the left face.
+          [[f.length - a, y0], [f.length - z, y0], [f.length - z, y1], [f.length - a, y1]],
+          leftMat,
+          own('left'),
+        );
+      }
+      for (const [a, z] of pieces(seg.aR, seg.bR)) {
+        emitQuad(
+          b,
+          [pt(a, -h, y0), pt(z, -h, y0), pt(z, -h, y1), pt(a, -h, y1)],
+          nR,
+          [[a, y0], [z, y0], [z, y1], [a, y1]],
+          rightMat,
+          own('right'),
+        );
+      }
       const horizontal = (y: number, up: boolean, face: WallFace) =>
         emitQuad(
           b,
