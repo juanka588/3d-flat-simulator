@@ -2,11 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { DragEvent } from 'react';
 import { MAX_SCENE_BYTES } from '@flat/scene';
 import { beginLoad, isLatestLoad, useSceneStore } from './state/sceneStore';
-import { FIXTURES } from './state/fixtures';
+import { DEFAULT_FIXTURE, FIXTURES } from './state/fixtures';
+import { useDocumentStatus } from './state/persistence';
 import { alignContext, contextFor } from './state/siteContext';
 import { readPref, writePref } from './state/prefs';
 import { useViewStore } from './state/viewStore';
 import { noteFrame, registerCanvas, testHookEnabled } from './testHook';
+import { DocumentMenu } from './ui/DocumentMenu';
 import { ErrorPanel } from './ui/ErrorPanel';
 import { LightingPanel } from './ui/LightingPanel';
 import { ModeToolbar } from './ui/ModeToolbar';
@@ -14,6 +16,7 @@ import { PropertiesPanel } from './ui/PropertiesPanel';
 import { SceneLoader } from './ui/SceneLoader';
 import { SitePanel } from './ui/SitePanel';
 import { useMobileLayout } from './ui/useMobileLayout';
+import { useUndoRedoKeys } from './ui/useUndoRedoKeys';
 import { ViewSettings } from './ui/ViewSettings';
 import { WarningsList } from './ui/WarningsList';
 import { FlatCanvas } from './viewer/FlatCanvas';
@@ -26,7 +29,15 @@ export const CONTEXT_ATTRIBUTION = '© IGN – BD TOPO, Licence Ouverte 2.0';
 /** Desktop: whether the sidebar is collapsed ('1') or shown ('0'). Remembered across visits. */
 export const SIDEBAR_COLLAPSED_KEY = 'flat.sidebarCollapsed';
 
+/** Asks before discarding edits (a document with undo history). True when it is fine to replace it. */
+function confirmReplace(): boolean {
+  if (!useSceneStore.getState().canUndo) return true;
+  return window.confirm('Replace the open flat? Your edits to it will be lost (export it first to keep them).');
+}
+
 export function App() {
+  useUndoRedoKeys();
+  const bootNotice = useDocumentStatus((s) => s.bootNotice);
   const { scene, source, warnings, errors, loadText } = useSceneStore();
   const { mode, selection, lighting, personHeightCm, setMode, select } = useViewStore();
   const [dragging, setDragging] = useState(false);
@@ -73,7 +84,8 @@ export function App() {
   };
 
   const loadFile = useCallback(
-    async (file: File) => {
+    async (file: File, confirmed = false) => {
+      if (!confirmed && !confirmReplace()) return;
       const token = beginLoad();
       if (file.size > MAX_SCENE_BYTES) {
         useSceneStore.getState().fail([`file is larger than ${MAX_SCENE_BYTES / 1024 / 1024} MB`]);
@@ -94,7 +106,11 @@ export function App() {
 
   const pickFixture = (id: string) => {
     const fixture = FIXTURES.find((f) => f.id === id);
-    if (fixture) loadText(fixture.text, fixture.id);
+    if (fixture && confirmReplace()) loadText(fixture.text, fixture.id);
+  };
+
+  const resetToSample = () => {
+    if (confirmReplace()) loadText(DEFAULT_FIXTURE.text, DEFAULT_FIXTURE.id);
   };
 
   const exitWalk = useCallback(() => {
@@ -168,6 +184,7 @@ export function App() {
         )}
         <ViewSettings />
         <SceneLoader fixtureId={fixtureId} onPickFixture={pickFixture} onFile={(f) => void loadFile(f)} />
+        <DocumentMenu confirmReplace={confirmReplace} onImportFile={(f) => void loadFile(f, true)} onReset={resetToSample} />
         <ErrorPanel errors={errors} onDismiss={() => useSceneStore.setState({ errors: [] })} />
         {scene && <LightingPanel scene={scene} hasContext={rawContext !== null} />}
         {scene && <SitePanel key={sceneKey(scene)} scene={scene} />}
@@ -179,6 +196,14 @@ export function App() {
         )}
       </header>
       <main className="stage">
+        {bootNotice && (
+          <div className="boot-banner" role="status" data-testid="boot-banner">
+            <span>{bootNotice}</span>
+            <button type="button" className="link" onClick={() => useDocumentStatus.getState().dismissBootNotice()}>
+              Dismiss
+            </button>
+          </div>
+        )}
         {scene && (
           <>
             <FlatCanvas

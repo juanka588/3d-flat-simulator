@@ -15,3 +15,5 @@ export * from './commands';
 export * from './structural';
 export * from './geometry/room-sides';
 export * from './materials';
+export * from './serialize';
+export * from './protocol';

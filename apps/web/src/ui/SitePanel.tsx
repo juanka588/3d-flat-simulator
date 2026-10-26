@@ -24,14 +24,28 @@ function draftOf(site: Scene['site']): Draft {
   };
 }
 
+const SITE_KEYS = ['latitude', 'longitude', 'northAngle', 'timezone', 'floorElevation'] as const;
+
 /**
- * Edits `scene.site` (mount with `key` = scene identity so loading another flat resets the form). Valid edits replace the in-memory scene's site immediately (no undo until
- * M3); invalid ones are reported next to the field and not applied.
+ * Edits `scene.site` through `site.set` commands (mount with `key` = scene identity so loading
+ * another flat resets the form). Valid edits are applied immediately and are undoable (quick
+ * successive edits merge into one step); invalid ones are reported next to the field and not
+ * applied. The form follows external changes to the site (undo, redo, remote edits).
  */
 export function SitePanel({ scene }: { scene: Scene }) {
   const idPrefix = useId();
   const [draft, setDraft] = useState<Draft>(() => draftOf(scene.site));
   const [errors, setErrors] = useState<Errors>({});
+  const [seenSite, setSeenSite] = useState(scene.site);
+  if (seenSite !== scene.site) {
+    // The site changed under us. Our own edits leave the draft alone (so half-typed text survives);
+    // anything else (undo, redo, remote) resets the form to the new site.
+    setSeenSite(scene.site);
+    if (SITE_KEYS.some((k) => (k === 'timezone' ? draft[k] !== scene.site[k] : draft[k].trim() === '' || Number(draft[k]) !== scene.site[k]))) {
+      setDraft(draftOf(scene.site));
+      setErrors({});
+    }
+  }
   const edit = (key: keyof Draft, value: string) => {
     const next = { ...draft, [key]: value };
     setDraft(next);
@@ -46,7 +60,11 @@ export function SitePanel({ scene }: { scene: Scene }) {
     });
     if (result.success) {
       setErrors({});
-      useSceneStore.getState().setSite(result.data);
+      const patch: Partial<Scene['site']> = {};
+      for (const k of SITE_KEYS) if (result.data[k] !== scene.site[k]) Object.assign(patch, { [k]: result.data[k] });
+      if (Object.keys(patch).length > 0) {
+        useSceneStore.getState().dispatch({ type: 'site.set', site: patch }, { coalesceKey: 'site.set', label: 'Edit site' });
+      }
       return;
     }
     const found: Errors = {};
@@ -87,7 +105,7 @@ export function SitePanel({ scene }: { scene: Scene }) {
           </div>
         );
       })}
-      <p className="hint">Changes apply to the open flat only and cannot be undone yet.</p>
+      <p className="hint">Changes apply to the open flat; Ctrl/Cmd+Z undoes them.</p>
     </section>
   );
 }

@@ -185,7 +185,7 @@ test('the page cannot scroll or zoom sideways; the canvas owns the touch gesture
   expect(await page.locator('meta[name=viewport]').getAttribute('content')).toBe('width=device-width, initial-scale=1, viewport-fit=cover');
 });
 
-test('tapping a wall selects it and shows a collapsible bottom sheet', async ({ page }, info) => {
+test('tapping a wall selects it and opens a compact bottom sheet that expands on demand', async ({ page }, info) => {
   await page.evaluate(() => window.__flat!.setView({ mode: 'top' }));
   const sheet = page.getByTestId('properties');
   await expect(sheet).toHaveCount(0); // nothing selected: nothing in the way
@@ -195,18 +195,26 @@ test('tapping a wall selects it and shows a collapsible bottom sheet', async ({ 
   await page.touchscreen.tap(at.x, at.y);
   await expect(sheet).toBeVisible();
   await expect(sheet).toContainText('Wall w-south');
-  const box = (await sheet.boundingBox())!;
   const vp = page.viewportSize()!;
-  expect(box.y + box.height).toBeGreaterThan(vp.height - 2); // docked to the bottom edge
-  expect(box.height).toBeLessThan(vp.height * 0.46);
+  const compact = (await sheet.boundingBox())!;
+  expect(compact.y + compact.height).toBeGreaterThan(vp.height - 2); // docked to the bottom edge
+  expect(compact.height).toBeLessThan(vp.height * 0.46); // compact: summary and the Finish button only
+  await expect(page.getByTestId('sheet-summary')).toBeVisible();
+  await expect(sheet.getByText('Net area')).toBeHidden();
   await shot(page, info, 'sheet');
 
-  const handle = sheet.getByRole('button');
+  // The handle expands the sheet to about 60-70% of the viewport (tall content scrolls inside it).
+  const handle = sheet.locator('.sheet-handle');
+  await expect(handle).toHaveAttribute('aria-expanded', 'false');
+  await handle.tap();
   await expect(handle).toHaveAttribute('aria-expanded', 'true');
+  await expect(sheet.getByText('Net area')).toBeVisible();
+  const expanded = (await sheet.boundingBox())!;
+  expect(expanded.height).toBeGreaterThan(compact.height);
+  expect(expanded.height).toBeLessThanOrEqual(vp.height * 0.7);
   await handle.tap();
   await expect(handle).toHaveAttribute('aria-expanded', 'false');
-  await expect(sheet.getByText('Net area')).toBeHidden();
-  expect((await sheet.boundingBox())!.height).toBeLessThan(box.height / 2);
+  expect((await sheet.boundingBox())!.height).toBeLessThan(vp.height * 0.46);
 
   // A selection does not cover the walk controls: the sheet is not shown in walk mode.
   await page.evaluate(() => window.__flat!.setView({ mode: 'walk' }));

@@ -2,17 +2,19 @@ import { addAfterEffect } from '@react-three/fiber';
 import type { RootState } from '@react-three/fiber';
 import { NeutralToneMapping, Vector3 } from 'three';
 import type { Camera, Light, Mesh, Object3D, PerspectiveCamera } from 'three';
-import { useSceneStore } from './state/sceneStore';
+import { committedScene, useSceneStore } from './state/sceneStore';
+import { exportSceneText, flushAutosave } from './state/persistence';
 import { alignContext, contextFor } from './state/siteContext';
 import { setClockSource, tickClock, useClockStore } from './state/dayClock';
 import { sunInfoFor } from './state/sunInfo';
 import { useViewStore } from './state/viewStore';
-import type { FlatStats, FlatTestHook } from './test-hook-types';
+import type { FlatStats, FlatTestHook, HistoryInfo } from './test-hook-types';
+import { textureStats, texturesSettled } from './viewer/texture-cache';
 import { stepWalker } from './viewer/walk-input';
 import { selectionForId } from './viewer/selection';
 import type { ViewState } from './viewer/view-types';
 import { sunPatches } from '@flat/scene';
-import type { Scene } from '@flat/scene';
+import type { Command, Scene } from '@flat/scene';
 
 interface FrameInfo {
   scene: Scene;
@@ -24,6 +26,7 @@ const WALK_STEP_MS = 16;
 
 let canvas: (() => RootState) | null = null;
 let resolveCanvas: () => void = () => undefined;
+let canvasReady: Promise<void> = Promise.resolve();
 /** What the next rendered frame is drawn from (reported by the viewer each frame, before drawing). */
 let pendingFrame: FrameInfo | null = null;
 /** What the last frame that actually reached the GPU was drawn from. */
@@ -62,12 +65,15 @@ function nextRenderedFrame(): Promise<void> {
   });
 }
 
+/** The store revision each Scene object was published at (a frame is stale when its scene is for an older rev). */
+const sceneRevs = new WeakMap<Scene, number>();
+
 function reflectsStores(): boolean {
-  const { scene } = useSceneStore.getState();
+  const { scene, rev } = useSceneStore.getState();
   const { mode, selection, lighting } = useViewStore.getState();
   return (
     renderedFrame !== null &&
-    (scene === null || renderedFrame.scene === scene) &&
+    (scene === null || (renderedFrame.scene === scene && sceneRevs.get(scene) === rev)) &&
     renderedFrame.view.mode === mode &&
     renderedFrame.view.selection === selection &&
     renderedFrame.view.lighting === lighting
@@ -82,8 +88,18 @@ async function whenRendered(): Promise<void> {
   const deadline = performance.now() + FRAME_TIMEOUT_MS;
   for (;;) {
     await nextRenderedFrame();
-    if (reflectsStores()) return;
+    if (reflectsStores()) break;
     if (performance.now() > deadline) throw new Error('timed out waiting for a rendered frame');
+  }
+  // Textures requested by that frame (material first use) load asynchronously: wait for them, then
+  // for a frame that actually draws them. Loop because a settled load can start another (catalog -> maps).
+  for (;;) {
+    await Promise.race([
+      texturesSettled(),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timed out waiting for textures')), FRAME_TIMEOUT_MS)),
+    ]);
+    await nextRenderedFrame();
+    if (textureStats().pending === 0) return;
   }
 }
 
@@ -145,11 +161,27 @@ function cameraYawDeg(camera: Camera): number {
   return (Math.atan2(-heading.x, -heading.z) * 180) / Math.PI;
 }
 
+async function stepAndRender(kind: 'undo' | 'redo'): Promise<{ ok: boolean; canUndo: boolean; canRedo: boolean }> {
+  const ok = useSceneStore.getState()[kind]();
+  if (ok) {
+    await canvasReady;
+    await whenRendered();
+  }
+  const { canUndo, canRedo } = useSceneStore.getState();
+  return { ok, canUndo, canRedo };
+}
+
 export function installTestHook(): void {
   if (!testHookEnabled()) return;
-  const canvasReady = new Promise<void>((resolve) => {
+  canvasReady = new Promise<void>((resolve) => {
     resolveCanvas = resolve;
   });
+  const noteRev = () => {
+    const { scene, rev } = useSceneStore.getState();
+    if (scene) sceneRevs.set(scene, rev);
+  };
+  noteRev();
+  useSceneStore.subscribe(noteRev);
   addAfterEffect(() => {
     renderedFrame = pendingFrame;
     if (canvas) frameCalls.push(canvas().gl.info.render.calls);
@@ -170,6 +202,7 @@ export function installTestHook(): void {
         triangles: gl.info.render.triangles,
         geometries: gl.info.memory.geometries,
         textures: gl.info.memory.textures,
+        textureSets: textureStats(),
         programs: gl.info.programs?.length ?? 0,
         meshes: meshNames(scene),
         mode: useViewStore.getState().mode,
@@ -272,6 +305,44 @@ export function installTestHook(): void {
       }
       await whenRendered();
     },
+    async applyCommand(cmd, author) {
+      const result = useSceneStore.getState().dispatch(cmd as Command, { author });
+      if (result.ok && !('noop' in result && result.noop)) {
+        await canvasReady;
+        await whenRendered();
+      }
+      return result;
+    },
+    async undo() {
+      return stepAndRender('undo');
+    },
+    async redo() {
+      return stepAndRender('redo');
+    },
+    history() {
+      const s = useSceneStore.getState();
+      const info: HistoryInfo = {
+        canUndo: s.canUndo,
+        canRedo: s.canRedo,
+        labels: [...s.historyLabels],
+        entries: s.history.past.map((e) => ({ id: e.envelope.id, type: e.envelope.cmd.type, author: e.envelope.author.kind })),
+        redoCount: s.history.future.length,
+        rev: s.rev,
+      };
+      return info;
+    },
+    getScene() {
+      const scene = committedScene(useSceneStore.getState());
+      if (!scene) throw new Error('no scene loaded');
+      return structuredClone(scene);
+    },
+    exportScene() {
+      const text = exportSceneText();
+      if (text === null) throw new Error('no scene loaded');
+      return text;
+    },
+    flushAutosave: () => flushAutosave(),
+    connection: () => ({ mode: 'local' }),
     select(id) {
       const scene = useSceneStore.getState().scene;
       const selection = scene && id ? selectionForId(scene, id) : null;

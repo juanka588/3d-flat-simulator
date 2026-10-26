@@ -15,3 +15,6 @@ blueprints/
 
 # material pipeline download cache
 .cache/
+
+# scene server runtime data
+apps/server/data/

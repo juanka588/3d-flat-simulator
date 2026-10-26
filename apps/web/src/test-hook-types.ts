@@ -1,4 +1,4 @@
-import type { LightingView, LoadResult } from '@flat/scene';
+import type { ApplyResult, Command, LightingView, LoadResult, Scene } from '@flat/scene';
 import type { SunInfo } from './state/sunInfo';
 import type { ViewState } from './viewer/view-types';
 
@@ -7,6 +7,8 @@ export interface FlatStats {
   triangles: number;
   geometries: number;
   textures: number;
+  /** Library texture sets (the app-wide cache): loaded, still loading (incl. catalog lookups), and the loaded slugs. */
+  textureSets: { loaded: number; pending: number; slugs: string[] };
   /** Compiled shader programs (renderer.info.programs). */
   programs: number;
   /** Names of the visible named meshes, e.g. walls, floors, ceilings. */
@@ -43,10 +45,22 @@ export interface FlatStats {
   toneMapping: 'neutral' | 'other';
 }
 
+export interface HistoryInfo {
+  canUndo: boolean;
+  canRedo: boolean;
+  /** Labels of the undo stack, newest last. */
+  labels: string[];
+  /** The undo stack, newest last. */
+  entries: { id: string; type: string; author: string }[];
+  /** Entries available to redo. */
+  redoCount: number;
+  rev: number;
+}
+
 export interface FlatTestHook {
   /** Resolves once the canvas has rendered its first frame with a scene. */
   ready: Promise<void>;
-  /** Resolves after a frame reflecting the current scene, mode and selection has been rendered. */
+  /** Resolves after a frame reflecting the current scene, mode and selection has been rendered, with pending library textures loaded and drawn. */
   whenRendered: () => Promise<void>;
   stats: () => FlatStats;
   /** Draw calls of every frame rendered by the render loop since the last `clearFrameCalls()` (frames right after a change include the shadow passes). */
@@ -81,6 +95,24 @@ export interface FlatTestHook {
    * the walker ignores real frames, so movement is exactly what was stepped.
    */
   stepWalk: (ms: number) => Promise<void>;
+  /**
+   * Dispatches a command (untrusted JSON is fine: invalid ones resolve `{ok:false, errors}` and leave
+   * the scene alone). On success resolves after a frame reflecting it has been rendered and the
+   * library textures it needs have loaded and been drawn.
+   */
+  applyCommand: (cmd: Command | Record<string, unknown>, author?: 'user' | 'llm' | 'planner') => Promise<ApplyResult>;
+  /** Undoes the last entry; resolves after the render with the new availability. */
+  undo: () => Promise<{ ok: boolean; canUndo: boolean; canRedo: boolean }>;
+  redo: () => Promise<{ ok: boolean; canUndo: boolean; canRedo: boolean }>;
+  history: () => HistoryInfo;
+  /** A structured clone of the committed scene. */
+  getScene: () => Scene;
+  /** The `.flat.json` text export would download (byte-stable). */
+  exportScene: () => string;
+  /** Saves now if there are unsaved changes; resolves when the write finished or failed. */
+  flushAutosave: () => Promise<void>;
+  /** Sync state. `local` until the server lane wires a transport. */
+  connection: () => { mode: 'local' };
 }
 
 declare global {

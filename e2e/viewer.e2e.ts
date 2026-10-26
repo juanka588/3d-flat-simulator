@@ -49,15 +49,20 @@ test('clicking a wall and a room in top view selects them', async ({ page }) => 
   await page.mouse.click(wallPoint.x, wallPoint.y);
   await expect(properties.getByRole('heading')).toHaveText(`Wall ${wall.id}`);
 
+  // The properties dock sits on the right edge and may cover the east rooms (it scrolls within a max
+  // height and never reaches the plan centre); collapsing it to its title bar uncovers them.
+  await properties.getByRole('button', { name: 'Hide details' }).click();
   const room = charmeFlat.rooms.find((r) => r.id === 'ch1')!;
   const centroid = room.polygon.reduce<[number, number]>((c, p) => [c[0] + p[0] / 4, c[1] + p[1] / 4], [0, 0]);
   const roomPoint = await page.evaluate(([x, z]) => window.__flat!.project([x!, 0, z!]), centroid);
   expect(await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.tagName, roomPoint)).toBe('CANVAS');
   await page.mouse.click(roomPoint.x, roomPoint.y);
   await expect(properties.getByRole('heading')).toHaveText(room.name);
+  await properties.getByRole('button', { name: 'Show details' }).click();
   await expect(properties).toContainText(`${polygonArea(room.polygon).toFixed(2)} m²`);
 
   // Clicking empty space deselects.
+  await properties.getByRole('button', { name: 'Hide details' }).click();
   const empty = await page.evaluate(() => window.__flat!.project([9, 0, 7.5])); // south-east, outside the flat
   await page.mouse.click(empty.x, empty.y);
   await expect(properties).toContainText('Click a wall');

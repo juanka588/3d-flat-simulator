@@ -1,4 +1,4 @@
-import { Canvas, useFrame } from '@react-three/fiber';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import type { RootState } from '@react-three/fiber';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
@@ -6,6 +6,7 @@ import type { Scene, SiteContext } from '@flat/scene';
 import { CameraRig } from './CameraRig';
 import { CompassDriver, CompassOverlay } from './Compass';
 import { SelectionHighlight } from './SelectionHighlight';
+import { StructuralOverlay } from './StructuralOverlay';
 import { ShellMesh, CLICK_DRAG_TOLERANCE_PX } from './ShellMesh';
 import { VIEWER_ELEMENT_ID, WalkControls } from './WalkControls';
 import { WalkOverlay } from './WalkOverlay';
@@ -13,6 +14,7 @@ import { createMaterialLibrary } from './materials';
 import { getPerfProfile } from './perf';
 import { createRoomAmbient, withRoomAmbient } from './room-ambient';
 import { shellFor } from './shell-cache';
+import { MAX_ANISOTROPY, textureCache } from './texture-cache';
 import { shadowCasterGeometry } from './derived-geometry';
 import { LightingRig } from './LightingRig';
 import { sceneKey } from './scene-identity';
@@ -70,6 +72,7 @@ export function FlatCanvas({ scene, view, context = null, onSelect, onExitWalk, 
           context={context}
         />
         <Shell scene={scene} view={view} onSelect={onSelect} />
+        {view.mode === 'top' && <StructuralOverlay scene={scene} />}
         {view.mode === 'walk' ? (
           <WalkControls key={`walk:${sceneKey(scene)}`} scene={scene} personHeightCm={view.personHeightCm} onExit={onExitWalk ?? noop} />
         ) : (
@@ -98,8 +101,27 @@ function Shell({ scene, view, onSelect }: { scene: Scene; view: ViewState; onSel
   // Per-room sky ambient (windowless rooms get less): an aoMap on the shell materials, see room-ambient.ts.
   const ambient = useMemo(() => createRoomAmbient(scene), [scene]);
   useEffect(() => () => ambient.dispose(), [ambient]);
-  const materials = useMemo(() => createMaterialLibrary(scene, ambient.texture), [scene, ambient]);
-  useEffect(() => () => materials.dispose(), [materials]);
+  const gl = useThree((s) => s.gl);
+  const invalidate = useThree((s) => s.invalidate);
+  const materials = useMemo(
+    () =>
+      createMaterialLibrary(scene, ambient.texture, {
+        anisotropy: Math.min(MAX_ANISOTROPY, gl.capabilities.getMaxAnisotropy()),
+        onChange: () => invalidate(),
+      }),
+    [scene, ambient, gl, invalidate],
+  );
+  useEffect(() => {
+    materials.resume();
+    return () => materials.dispose();
+  }, [materials]);
+  // After a lost WebGL context everything is re-uploaded: drop the cached sets and reload the used ones.
+  useEffect(() => {
+    const canvas = gl.domElement;
+    const restored = () => textureCache.reset();
+    canvas.addEventListener('webglcontextrestored', restored);
+    return () => canvas.removeEventListener('webglcontextrestored', restored);
+  }, [gl]);
   const roomMeshes = useMemo(
     () => ({
       walls: withRoomAmbient(shell.walls, scene, ambient),

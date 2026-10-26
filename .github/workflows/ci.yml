@@ -33,10 +33,38 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: npx playwright install --with-deps chromium
       - run: pnpm e2e
+        env:
+          E2E_STATIC: skip
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+
+  # The production build under the GitHub Pages base path (vite preview): catalog and textures load,
+  # autosave restores, the ?test hook is gated. Runs in parallel with `e2e` (chromium only, 4 tests).
+  e2e-static:
+    runs-on: ubuntu-latest
+    needs: check
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: npx playwright install --with-deps chromium
+      - run: pnpm e2e
+        env:
+          E2E_STATIC: only
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report-static
           path: |
             playwright-report/
             test-results/

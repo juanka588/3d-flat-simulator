@@ -1,0 +1,22 @@
+{
+  "name": "@flat/server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/main.ts",
+    "dev": "tsx watch src/main.ts",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@flat/scene": "workspace:*",
+    "@hono/node-server": "^1.19.0",
+    "hono": "^4.9.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.18.0",
+    "tsx": "^4.20.0",
+    "vitest": "^5.0.5"
+  }
+}

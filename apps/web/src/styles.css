@@ -137,6 +137,11 @@ button.link {
   top: 0.75rem;
   right: 0.75rem;
   width: 240px;
+  max-width: calc(100% - 1.5rem);
+  max-height: calc(100% - 1.5rem);
+  box-sizing: border-box;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   margin: 0;
   padding: 0.6rem 0.8rem;
   background: rgba(255, 255, 255, 0.92);
@@ -670,3 +675,331 @@ legend {
 .app.mobile .walk-move .pad-left { grid-column: 1; grid-row: 2; }
 .app.mobile .walk-move .pad-down { grid-column: 2; grid-row: 2; }
 .app.mobile .walk-move .pad-right { grid-column: 3; grid-row: 2; }
+
+/* ---- M3 finishes: finish panel, history, structural UI ---- */
+/* Desktop: a dock on the right edge. It scrolls inside a max height and collapses to its title bar, so
+   the plan centre (the middle of the stage) stays visible. */
+.properties.has-finish {
+  width: 17rem;
+}
+.properties-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.properties-head h2 {
+  margin: 0;
+}
+.dock-toggle {
+  flex: none;
+  min-width: 1.75rem;
+  min-height: 1.75rem;
+  padding: 0;
+  border: 1px solid #c9c9d0;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+}
+.properties.collapsed {
+  width: auto;
+  min-width: 11rem;
+  overflow: visible;
+}
+.properties-sheet .sheet-compact {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding-bottom: 0.6rem;
+}
+.sheet-summary {
+  margin: 0;
+  color: #4a4a52;
+  overflow-wrap: anywhere;
+}
+.sheet-finish {
+  flex: none;
+  font-weight: 600;
+}
+.finish-panel {
+  margin-top: 0.6rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid #e0e0e4;
+}
+.finish-panel h3 {
+  font-size: 0.85rem;
+  margin: 0 0 0.35rem;
+}
+.finish-note {
+  margin-top: 0.6rem;
+}
+.current-finish {
+  margin: 0 0 0.5rem;
+}
+.current-finish > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.15rem 0;
+}
+.material-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.chip-swatch {
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 3px;
+  border: 1px solid rgba(0, 0, 0, 0.25);
+  flex: none;
+}
+.scope-buttons,
+.finish-tabs,
+.finish-actions,
+.structural-actions,
+.history-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin: 0.4rem 0;
+}
+.finish-tabs {
+  border-bottom: 1px solid #d5d5da;
+  margin-bottom: 0.5rem;
+}
+.finish-tabs button[role='tab'] {
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: none;
+}
+.finish-tabs button[role='tab'][aria-selected='true'] {
+  border-bottom-color: #1d1d1f;
+  font-weight: 600;
+}
+.swatch-group-label {
+  font-size: 0.75rem;
+  color: #6b6b72;
+  margin: 0.4rem 0 0.2rem;
+}
+.swatch-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+.swatch {
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  border: 1px solid rgba(0, 0, 0, 0.3);
+  border-radius: 50%;
+}
+.swatch[aria-checked='true'] {
+  outline: 2px solid #1d1d1f;
+  outline-offset: 2px;
+}
+.custom-colour,
+.sheen {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0.5rem 0;
+}
+.field-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.field-inline input[type='color'] {
+  width: 2.25rem;
+  height: 1.8rem;
+  padding: 0;
+}
+.hex-field {
+  width: 5.5rem;
+  font-family: ui-monospace, monospace;
+}
+.hex-field[aria-invalid='true'] {
+  border-color: #b00020;
+}
+.field-error {
+  flex-basis: 100%;
+  margin: 0;
+  color: #8a0019;
+  font-size: 0.8rem;
+}
+.texture-grid {
+  list-style: none;
+  margin: 0.4rem 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.4rem;
+}
+.texture-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  width: 100%;
+  padding: 0.25rem;
+  font-size: 0.7rem;
+  line-height: 1.15;
+}
+.texture-card img {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 4px;
+}
+.finish-toast {
+  margin-top: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+}
+.finish-toast.warning {
+  background: #fff6e0;
+  border: 1px solid #e3c36a;
+  color: #5c4300;
+}
+.finish-toast.error {
+  background: #fdeef0;
+  border: 1px solid #e8a3ad;
+  color: #8a0019;
+}
+.finish-toast ul {
+  margin: 0 0 0.2rem;
+  padding-left: 1rem;
+}
+.structural-control {
+  margin-top: 0.5rem;
+}
+.structural-badge {
+  margin: 0 0 0.3rem;
+  padding: 0.3rem 0.5rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+}
+.structural-badge.structural {
+  background: #2a2f3a;
+  color: #fff;
+}
+.structural-badge.removable {
+  background: #f2c14e;
+  color: #3a2c00;
+}
+.structural-source {
+  opacity: 0.85;
+}
+.history-buttons {
+  position: relative;
+}
+.history-buttons button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.history-popover {
+  flex-basis: 100%;
+  max-height: 14rem;
+  overflow-y: auto;
+  padding: 0.3rem 0.6rem;
+  background: #fff;
+  border: 1px solid #d5d5da;
+  border-radius: 6px;
+  font-size: 0.8rem;
+}
+.history-popover ol {
+  margin: 0;
+  padding-left: 1.2rem;
+}
+.structural-legend {
+  margin: 0 0 0.75rem;
+  font-size: 0.85rem;
+}
+.legend-list {
+  list-style: none;
+  margin: 0.2rem 0 0;
+  padding: 0;
+  display: flex;
+  gap: 0.8rem;
+}
+.legend-key {
+  display: inline-block;
+  width: 1rem;
+  height: 0.7rem;
+  vertical-align: middle;
+  border: 1px solid rgba(0, 0, 0, 0.4);
+}
+.legend-key.structural {
+  background: repeating-linear-gradient(135deg, #2a2f3a 0 3px, #8b93a5 3px 5px);
+}
+.legend-key.removable {
+  background: #f2c14e;
+}
+
+/* Mobile: bigger tap targets (>= 44 px). The sheet opens compact (<= 45%: summary and the Finish
+   button) and expands to a taller scrollable sheet for the finish controls. */
+.app.mobile .properties {
+  overscroll-behavior: contain;
+}
+.app.mobile .properties.expanded {
+  max-height: 68%;
+}
+.app.mobile .finish-panel button,
+.app.mobile .finish-panel select,
+.app.mobile .finish-panel input[type='text'],
+.app.mobile .structural-control button,
+.app.mobile .history-buttons button,
+.app.mobile .structural-legend .check {
+  min-height: 2.75rem;
+  min-width: 2.75rem;
+}
+.app.mobile .finish-panel .field-inline input[type='color'] {
+  width: 3.5rem;
+  height: 2.75rem;
+}
+.app.mobile .swatch {
+  width: 2.75rem;
+  height: 2.75rem;
+}
+.app.mobile .swatch-row,
+.app.mobile .scope-buttons {
+  gap: 0.4rem;
+}
+.app.mobile .texture-grid {
+  grid-template-columns: repeat(2, 1fr);
+}
+.app.mobile .texture-card {
+  font-size: 0.8rem;
+}
+.app.mobile .finish-panel button.link {
+  min-height: 2.75rem;
+  padding: 0 0.5rem;
+}
+.document-menu .button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+.boot-banner {
+  position: absolute;
+  left: 0.75rem;
+  bottom: 0.75rem;
+  z-index: 5;
+  max-width: 28rem;
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  margin: 0 0 0.75rem;
+  padding: 0.5rem 0.7rem;
+  font-size: 0.8rem;
+  color: #5c4400;
+  background: #fff6dc;
+  border: 1px solid #e6cf8a;
+  border-radius: 6px;
+}

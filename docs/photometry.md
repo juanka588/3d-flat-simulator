@@ -308,6 +308,20 @@ balcon 1. `wallSideRooms(scene)` gives each wall's left/right room (see `wallLef
 beyond the face at mid-span, plus per-stretch `segments` (25 cm samples merged by room pair)
 so a long facade over several rooms can be shaded per room.
 
+## Surface albedo and textures (web layer)
+
+The exposure model assumes physically plausible surface reflectance. The viewer therefore clamps
+every paint colour to `ALBEDO_RANGE` (relative luminance 0.03 to 0.95) with `clampAlbedo`, hue kept,
+so pure white or pure black paint cannot blow out or crush the auto exposure. The clamp lives in the
+viewer only; the scene keeps the colour the user chose.
+
+Library textures keep their own colour (the colour map is sRGB, normal and roughness maps are data).
+`material.color` multiplies the map, so it is white, scaled down uniformly only if the catalog's
+`meanColor` luminance falls outside `ALBEDO_RANGE` (it does not for the shipped library). Until the maps
+have loaded the material shows its `color` (the mean colour) clamped the same way. The scalar
+`roughness` is relative to the roughness map: `min(1, scene.roughness / catalog.roughness)`, i.e. 1
+for an untouched library material and lower when the user asked for a smoother finish.
+
 ## Limitations
 
 - Neighbouring buildings only obstruct when a `context` is passed; balcony slab/railing, interior
