@@ -40,6 +40,8 @@ interface Info {
 }
 
 interface End {
+  /** Position in the `ends` list, used to keep cluster order stable. */
+  idx: number;
   wi: number;
   end: 'start' | 'end';
   p: V;
@@ -79,9 +81,38 @@ export function computeWallJunctions(
   const ends: End[] = [];
   infos.forEach((info, wi) => {
     if (info.length <= tol) return;
-    ends.push({ wi, end: 'start', p: info.wall.start, o: info.u });
-    ends.push({ wi, end: 'end', p: info.wall.end, o: [-info.u[0], -info.u[1]] });
+    ends.push({ idx: ends.length, wi, end: 'start', p: info.wall.start, o: info.u });
+    ends.push({ idx: ends.length, wi, end: 'end', p: info.wall.end, o: [-info.u[0], -info.u[1]] });
   });
+
+  // Spatial hash of wall ends (cell size = tolerance) and per-wall end lookup, so finding the
+  // ends at a node does not scan every end of every wall.
+  const cellSize = Math.max(tol, 1e-9);
+  const cellOf = (v: number) => Math.floor(v / cellSize);
+  const grid = new Map<string, End[]>();
+  const endsByWall = new Map<number, { start?: End; end?: End }>();
+  for (const e of ends) {
+    const key = `${cellOf(e.p[0])},${cellOf(e.p[1])}`;
+    const bucket = grid.get(key);
+    if (bucket) bucket.push(e);
+    else grid.set(key, [e]);
+    const entry = endsByWall.get(e.wi) ?? {};
+    entry[e.end] = e;
+    endsByWall.set(e.wi, entry);
+  }
+  const endsNear = (e: End): End[] => {
+    const out: End[] = [];
+    const cx = cellOf(e.p[0]);
+    const cy = cellOf(e.p[1]);
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        for (const f of grid.get(`${cx + dx},${cy + dy}`) ?? []) {
+          if (f === e || (f.wi !== e.wi && Math.hypot(f.p[0] - e.p[0], f.p[1] - e.p[1]) <= tol)) out.push(f);
+        }
+      }
+    }
+    return out.sort((a, b) => a.idx - b.idx);
+  };
 
   const trims = new Map<End, Trim>();
   for (const e of ends) trims.set(e, resolveEnd(e));
@@ -90,9 +121,7 @@ export function computeWallJunctions(
     const info = infos[e.wi]!;
     const zero: Trim = { left: 0, right: 0 };
 
-    const cluster = ends.filter(
-      (f) => f === e || (f.wi !== e.wi && Math.hypot(f.p[0] - e.p[0], f.p[1] - e.p[1]) <= tol),
-    );
+    const cluster = endsNear(e);
 
     // Host candidate 1: walls whose body passes through the node.
     let host: { dir: V; normal: V; half: number } | undefined;
@@ -188,8 +217,8 @@ export function computeWallJunctions(
 
   const result = new Map<string, WallFootprint>();
   infos.forEach((info, wi) => {
-    const s = ends.find((e) => e.wi === wi && e.end === 'start');
-    const t = ends.find((e) => e.wi === wi && e.end === 'end');
+    const s = endsByWall.get(wi)?.start;
+    const t = endsByWall.get(wi)?.end;
     const st = (s && trims.get(s)) ?? { left: 0, right: 0 };
     const en = (t && trims.get(t)) ?? { left: 0, right: 0 };
     let fp: WallFootprint = {

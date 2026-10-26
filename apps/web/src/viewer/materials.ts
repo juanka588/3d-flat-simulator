@@ -49,9 +49,11 @@ export function createMaterialLibrary(scene: Pick<Scene, 'materials'>): Material
       }
       return material;
     },
+    // Idempotent and non-clearing: the cache keeps handing out the same objects, so a library that
+    // is disposed and then reused (React StrictMode re-runs effects) still disposes everything it
+    // ever created on the final dispose.
     dispose() {
       cache.forEach((m) => m.dispose());
-      cache.clear();
     },
   };
 }

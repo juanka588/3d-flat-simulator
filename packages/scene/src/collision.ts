@@ -29,14 +29,20 @@ export function isPassable(opening: Pick<Opening, 'type' | 'sill' | 'height'>): 
 /** Wall footprints as obstacles, with the spans of passable openings cut out. */
 export function wallObstacles(scene: Scene): Obstacle[] {
   const result: Obstacle[] = [];
+  const passableByWall = new Map<string, Opening[]>();
+  for (const o of scene.openings) {
+    if (!isPassable(o)) continue;
+    const list = passableByWall.get(o.wallId);
+    if (list) list.push(o);
+    else passableByWall.set(o.wallId, [o]);
+  }
   for (const wall of scene.walls) {
     const length = wallLength(wall);
     if (length < 1e-9) continue;
     const dx = (wall.end[0] - wall.start[0]) / length;
     const dy = (wall.end[1] - wall.start[1]) / length;
     const at = (s: number): Vec2 => [wall.start[0] + dx * s, wall.start[1] + dy * s];
-    const gaps = scene.openings
-      .filter((o) => o.wallId === wall.id && isPassable(o))
+    const gaps = (passableByWall.get(wall.id) ?? [])
       .map((o): [number, number] => [Math.max(0, o.offset - o.width / 2), Math.min(length, o.offset + o.width / 2)])
       .sort((x, y) => x[0] - y[0]);
     let cursor = 0;
@@ -157,7 +163,7 @@ const SPAWN_PREFERENCE: Room['type'][] = ['hallway', 'living'];
 
 /**
  * Picks a standing point: first a hallway (entrance), then a living room, then any other
- * non-balcony room, then a balcony. In the chosen room it scans a 10 cm grid for points
+ * non-balcony room, then a balcony. In the chosen room it scans a 10 cm grid (coarser, at most 200 cells per axis, for large rooms) for points
  * inside the polygon at least `radius` from every wall and from the room's edges, and takes
  * the one closest to the centroid among the most spacious. `null` when nothing fits.
  */
@@ -175,19 +181,46 @@ export function findSpawn(scene: Scene, radius = DEFAULT_RADIUS): Spawn | null {
   return null;
 }
 
+/** Grid cells per axis at most, regardless of room size. */
+const MAX_CELLS = 200;
+/** Rooms with coordinates or extents beyond this (in scene units) are skipped. */
+const MAX_SPAWN_EXTENT = 1e6;
+
 function spawnInRoom(room: Room, obstacles: readonly Obstacle[], radius: number): Vec2 | null {
-  const xs = room.polygon.map((p) => p[0]);
-  const ys = room.polygon.map((p) => p[1]);
-  const step = 0.1;
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minY = Infinity;
+  let maxY = -Infinity;
+  for (const p of room.polygon) {
+    minX = Math.min(minX, p[0]);
+    maxX = Math.max(maxX, p[0]);
+    minY = Math.min(minY, p[1]);
+    maxY = Math.max(maxY, p[1]);
+  }
+  const extentX = maxX - minX;
+  const extentY = maxY - minY;
+  if (
+    ![minX, maxX, minY, maxY].every((v) => Number.isFinite(v) && Math.abs(v) <= MAX_SPAWN_EXTENT) ||
+    extentX > MAX_SPAWN_EXTENT ||
+    extentY > MAX_SPAWN_EXTENT
+  ) {
+    return null;
+  }
+  // 10 cm grid, coarsened for rooms drawn in other units so the cell count stays bounded.
+  const step = Math.max(0.1, extentX / MAX_CELLS, extentY / MAX_CELLS);
+  const nx = Math.floor(extentX / step);
+  const ny = Math.floor(extentY / step);
   const candidates: { p: Vec2; clearance: number }[] = [];
-  for (let x = Math.min(...xs); x <= Math.max(...xs); x += step) {
-    for (let y = Math.min(...ys); y <= Math.max(...ys); y += step) {
+  for (let i = 0; i <= nx; i++) {
+    const x = minX + i * step;
+    for (let j = 0; j <= ny; j++) {
+      const y = minY + j * step;
       const p: Vec2 = [x, y];
       if (!pointInPolygon(p, room.polygon, 0)) continue;
       let clearance = Infinity;
       for (const o of obstacles) clearance = Math.min(clearance, distanceToObstacle(p, o));
-      for (let i = 0; i < room.polygon.length; i++) {
-        clearance = Math.min(clearance, distanceToSegment(p, room.polygon[i]!, room.polygon[(i + 1) % room.polygon.length]!));
+      for (let k = 0; k < room.polygon.length; k++) {
+        clearance = Math.min(clearance, distanceToSegment(p, room.polygon[k]!, room.polygon[(k + 1) % room.polygon.length]!));
       }
       if (clearance >= radius) candidates.push({ p, clearance });
     }

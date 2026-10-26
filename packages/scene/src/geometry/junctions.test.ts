@@ -182,3 +182,20 @@ describe('computeWallJunctions', () => {
     }
   });
 });
+
+describe('computeWallJunctions at the wall limit', () => {
+  it('handles 2000 walls without quadratic blow-up', () => {
+    const walls = Array.from({ length: 2000 }, (_, i) => ({
+      id: `w${i}`,
+      start: [i, 0] as [number, number],
+      end: [i + 1, 0] as [number, number],
+      thickness: 0.2,
+      height: 2.5,
+      finish: {},
+    }));
+    const t0 = performance.now();
+    const result = computeWallJunctions(walls);
+    expect(result.size).toBe(2000);
+    expect(performance.now() - t0).toBeLessThan(1500);
+  });
+});

@@ -1,4 +1,4 @@
-import { Canvas } from '@react-three/fiber';
+import { Canvas, useFrame } from '@react-three/fiber';
 import type { RootState } from '@react-three/fiber';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
@@ -20,10 +20,12 @@ export interface FlatCanvasProps {
   onExitWalk?: () => void;
   /** Gives the host access to the r3f state (used by the test hook). */
   onCreated?: (state: RootState) => void;
+  /** Called every frame with the scene/view the frame is drawn from (used by the test hook). */
+  onFrame?: (frame: { scene: Scene; view: ViewState }) => void;
 }
 
 /** The 3D viewer: a pure function of `Scene` + `ViewState`. All UI chrome lives outside it. */
-export function FlatCanvas({ scene, view, onSelect, onExitWalk, onCreated }: FlatCanvasProps) {
+export function FlatCanvas({ scene, view, onSelect, onExitWalk, onCreated, onFrame }: FlatCanvasProps) {
   const needle = useRef<HTMLDivElement>(null);
   const downAt = useRef<[number, number]>([0, 0]);
 
@@ -42,7 +44,7 @@ export function FlatCanvas({ scene, view, onSelect, onExitWalk, onCreated }: Fla
     <div id={VIEWER_ELEMENT_ID} className="viewer" onPointerDownCapture={rememberPointerDown}>
       <Canvas
         frameloop="demand"
-        gl={{ preserveDrawingBuffer: true, antialias: true }}
+        gl={{ antialias: true }}
         dpr={[1, 2]}
         onCreated={onCreated}
         onPointerMissed={(e) => {
@@ -60,6 +62,7 @@ export function FlatCanvas({ scene, view, onSelect, onExitWalk, onCreated }: Fla
         ) : (
           <CameraRig key={`${view.mode}:${sceneKey(scene)}`} scene={scene} mode={view.mode} />
         )}
+        {onFrame && <FrameReporter scene={scene} view={view} onFrame={onFrame} />}
         <CompassDriver onAngle={setNeedle} northAngle={scene.site.northAngle} />
       </Canvas>
       <CompassOverlay needle={needle} />
@@ -68,6 +71,11 @@ export function FlatCanvas({ scene, view, onSelect, onExitWalk, onCreated }: Fla
 }
 
 const noop = () => undefined;
+
+function FrameReporter({ scene, view, onFrame }: { scene: Scene; view: ViewState; onFrame: NonNullable<FlatCanvasProps['onFrame']> }) {
+  useFrame(() => onFrame({ scene, view }));
+  return null;
+}
 
 // Stable identity key per Scene object, so camera rigs remount when a new scene loads.
 const keys = new WeakMap<Scene, number>();

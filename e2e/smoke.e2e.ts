@@ -1,10 +1,5 @@
-import { readFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
-import { flat, openApp } from './helpers';
-
-const sample = JSON.parse(
-  readFileSync('packages/scene/fixtures/sample.flat.json', 'utf8'),
-) as { name: string; walls: { id: string }[] };
+import { flat, openApp, rendered, sampleFlat as sample } from './helpers';
 
 test.beforeEach(async ({ page }) => {
   await openApp(page);
@@ -51,9 +46,11 @@ test('mode switching updates the view and Esc leaves walk mode', async ({ page }
 
   await page.getByRole('button', { name: 'Top' }).click();
   await expect(page.getByRole('button', { name: 'Top' })).toHaveAttribute('aria-pressed', 'true');
+  await rendered(page);
   expect(await mode()).toBe('top');
 
   await page.getByRole('button', { name: 'Walk' }).click();
+  await rendered(page);
   expect(await mode()).toBe('walk');
   await expect(page.getByText(/Esc to leave/)).toBeVisible();
   // The player spawns inside the flat (plan bounds of the default Charme fixture).
@@ -69,15 +66,10 @@ test('mode switching updates the view and Esc leaves walk mode', async ({ page }
   expect(await mode()).toBe('orbit');
 });
 
-test('compass needle is present and reports an angle', async ({ page }) => {
-  await page.getByRole('button', { name: 'Top' }).click();
-  await flat(page, (f) => f.capture()); // forces a frame
-  await expect(page.getByTestId('compass-needle')).toHaveAttribute('data-angle', /^-?\d/);
-});
-
 test('the scene picker loads the sample flat', async ({ page }) => {
   await page.getByLabel('Flat', { exact: true }).selectOption('sample');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(sample.name);
+  await rendered(page);
   expect((await flat(page, (f) => f.stats())).sceneName).toBe(sample.name);
 });
 

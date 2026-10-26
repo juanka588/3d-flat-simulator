@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { DragEvent } from 'react';
-import { useSceneStore } from './state/sceneStore';
+import { MAX_SCENE_BYTES } from '@flat/scene';
+import { beginLoad, isLatestLoad, useSceneStore } from './state/sceneStore';
 import { FIXTURES } from './state/fixtures';
 import { useViewStore } from './state/viewStore';
-import { registerCanvas } from './testHook';
+import { noteFrame, registerCanvas, testHookEnabled } from './testHook';
 import { ErrorPanel } from './ui/ErrorPanel';
 import { ModeToolbar } from './ui/ModeToolbar';
 import { PropertiesPanel } from './ui/PropertiesPanel';
@@ -19,7 +20,20 @@ export function App() {
 
   const loadFile = useCallback(
     async (file: File) => {
-      loadText(await file.text(), file.name);
+      const token = beginLoad();
+      if (file.size > MAX_SCENE_BYTES) {
+        useSceneStore.getState().fail([`file is larger than ${MAX_SCENE_BYTES / 1024 / 1024} MB`]);
+        return;
+      }
+      let text: string;
+      try {
+        text = await file.text();
+      } catch {
+        if (isLatestLoad(token)) useSceneStore.getState().fail([`could not read ${file.name}`]);
+        return;
+      }
+      // A newer load (another file, a fixture) started while this one was being read: it wins.
+      if (isLatestLoad(token)) loadText(text, file.name);
     },
     [loadText],
   );
@@ -85,6 +99,7 @@ export function App() {
               onSelect={select}
               onExitWalk={exitWalk}
               onCreated={registerCanvas}
+              onFrame={testHookEnabled() ? noteFrame : undefined}
             />
             <PropertiesPanel scene={scene} selection={selection} />
           </>

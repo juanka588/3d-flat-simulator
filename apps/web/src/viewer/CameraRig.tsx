@@ -6,6 +6,16 @@ import type { Scene } from '@flat/scene';
 import type { ViewMode } from './view-types';
 
 const ORBIT_FOV = 50;
+/** Constant near plane: small enough not to clip walls up close, large enough for depth precision. */
+const NEAR = 0.05;
+/** Closest the orbit camera may get to its target, in metres. */
+const MIN_DISTANCE = 1;
+/** How far out the user may zoom, as a multiple of the framing distance. */
+const MAX_DISTANCE_FACTOR = 3;
+/** Top view zoom range relative to the fitted zoom. */
+const MIN_ZOOM_FACTOR = 0.4;
+const MAX_ZOOM_FACTOR = 30;
+const TOP_MARGIN = 1.1;
 
 /**
  * Orbit and top-down cameras. Remount (via `key`) when the scene or mode changes to re-frame.
@@ -13,28 +23,34 @@ const ORBIT_FOV = 50;
  */
 export function CameraRig({ scene, mode }: { scene: Scene; mode: Exclude<ViewMode, 'walk'> }) {
   const size = useThree((s) => s.size);
-  const aspect = size.width / Math.max(size.height, 1);
-  const { fit, near, far } = useMemo(() => {
-    const bounds = sceneBounds3(scene);
-    const fit = fitCamera(bounds, { mode, aspect, fovDeg: ORBIT_FOV });
-    const diagonal = Math.hypot(
-      bounds.max[0] - bounds.min[0],
-      bounds.max[1] - bounds.min[1],
-      bounds.max[2] - bounds.min[2],
-    );
-    const distance = Math.hypot(
-      fit.position[0] - fit.target[0],
-      fit.position[1] - fit.target[1],
-      fit.position[2] - fit.target[2],
-    );
-    // The whole box lies within `diagonal` of its centre, so it is inside [distance - diagonal, distance + diagonal].
-    return {
-      fit,
-      near: Math.max(0.05, (distance - diagonal) * 0.5),
-      far: distance + diagonal * 2 + 10,
-    };
-  },
-    // Re-fit on scene/mode only, not on every resize (that would reset the user's view).
+  const { fit, far, maxDistance, topZoom } = useMemo(
+    () => {
+      const bounds = sceneBounds3(scene);
+      const fit = fitCamera(bounds, { mode, aspect: size.width / Math.max(size.height, 1), fovDeg: ORBIT_FOV });
+      const diagonal = Math.hypot(
+        bounds.max[0] - bounds.min[0],
+        bounds.max[1] - bounds.min[1],
+        bounds.max[2] - bounds.min[2],
+      );
+      const distance = Math.hypot(
+        fit.position[0] - fit.target[0],
+        fit.position[1] - fit.target[1],
+        fit.position[2] - fit.target[2],
+      );
+      const maxDistance = Math.max(distance * MAX_DISTANCE_FACTOR, MIN_DISTANCE * 2);
+      // Top view looks along -Y with screen-up = -Z, so plan x is screen width and plan y screen height.
+      const halfWidth = ((bounds.max[0] - bounds.min[0]) / 2) * TOP_MARGIN;
+      const halfHeight = ((bounds.max[2] - bounds.min[2]) / 2) * TOP_MARGIN;
+      const topZoom = Math.min(size.height / (2 * Math.max(halfHeight, 0.1)), size.width / (2 * Math.max(halfWidth, 0.1)));
+      return {
+        fit,
+        // The camera can sit `maxDistance` from the target and the box is within `diagonal` of it.
+        far: maxDistance + diagonal + 10,
+        maxDistance,
+        topZoom,
+      };
+    },
+    // Re-fit on scene/mode only: resizing the canvas must not reset the user's pan and zoom.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [scene, mode],
   );
@@ -42,22 +58,28 @@ export function CameraRig({ scene, mode }: { scene: Scene; mode: Exclude<ViewMod
   if (mode === 'top') {
     return (
       <>
-        <OrthographicCamera
+        <OrthographicCamera makeDefault position={fit.position} up={fit.up} zoom={topZoom} near={NEAR} far={far} />
+        <OrbitControls
           makeDefault
-          position={fit.position}
-          up={fit.up}
-          zoom={size.height / (2 * (fit.orthoHalfHeight ?? 1))}
-          near={near}
-          far={far}
+          target={fit.target}
+          enableRotate={false}
+          screenSpacePanning
+          minZoom={topZoom * MIN_ZOOM_FACTOR}
+          maxZoom={topZoom * MAX_ZOOM_FACTOR}
         />
-        <OrbitControls makeDefault target={fit.target} enableRotate={false} screenSpacePanning />
       </>
     );
   }
   return (
     <>
-      <PerspectiveCamera makeDefault fov={ORBIT_FOV} position={fit.position} up={fit.up} near={near} far={far} />
-      <OrbitControls makeDefault target={fit.target} maxPolarAngle={Math.PI / 2 - 0.01} />
+      <PerspectiveCamera makeDefault fov={ORBIT_FOV} position={fit.position} up={fit.up} near={NEAR} far={far} />
+      <OrbitControls
+        makeDefault
+        target={fit.target}
+        minDistance={MIN_DISTANCE}
+        maxDistance={maxDistance}
+        maxPolarAngle={Math.PI / 2 - 0.01}
+      />
     </>
   );
 }

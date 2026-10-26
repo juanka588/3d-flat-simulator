@@ -1,12 +1,35 @@
 import { BufferAttribute, BufferGeometry } from 'three';
 import type { MeshData } from '@flat/scene';
 
+interface VertexAttributes {
+  position: BufferAttribute;
+  normal: BufferAttribute;
+  uv: BufferAttribute;
+}
+
+// One set of attribute objects per MeshData, so the shell geometry and entity highlights share GPU buffers.
+const attributeCache = new WeakMap<MeshData, VertexAttributes>();
+
+function attributesFor(mesh: MeshData): VertexAttributes {
+  let attrs = attributeCache.get(mesh);
+  if (!attrs) {
+    attrs = {
+      position: new BufferAttribute(mesh.positions, 3),
+      normal: new BufferAttribute(mesh.normals, 3),
+      uv: new BufferAttribute(mesh.uvs, 2),
+    };
+    attributeCache.set(mesh, attrs);
+  }
+  return attrs;
+}
+
 /** Turns renderer-agnostic `MeshData` into a three geometry; material group i gets materialIndex i. */
 export function toBufferGeometry(mesh: MeshData): BufferGeometry {
+  const attrs = attributesFor(mesh);
   const geometry = new BufferGeometry();
-  geometry.setAttribute('position', new BufferAttribute(mesh.positions, 3));
-  geometry.setAttribute('normal', new BufferAttribute(mesh.normals, 3));
-  geometry.setAttribute('uv', new BufferAttribute(mesh.uvs, 2));
+  geometry.setAttribute('position', attrs.position);
+  geometry.setAttribute('normal', attrs.normal);
+  geometry.setAttribute('uv', attrs.uv);
   geometry.setIndex(new BufferAttribute(mesh.indices, 1));
   mesh.groups.forEach((group, i) => geometry.addGroup(group.start, group.count, i));
   return geometry;
@@ -30,9 +53,10 @@ export function ownerIndices(mesh: MeshData, entityId: string): Uint32Array {
 export function entityGeometry(mesh: MeshData, entityId: string): BufferGeometry | null {
   const indices = ownerIndices(mesh, entityId);
   if (indices.length === 0) return null;
+  const attrs = attributesFor(mesh);
   const geometry = new BufferGeometry();
-  geometry.setAttribute('position', new BufferAttribute(mesh.positions, 3));
-  geometry.setAttribute('normal', new BufferAttribute(mesh.normals, 3));
+  geometry.setAttribute('position', attrs.position);
+  geometry.setAttribute('normal', attrs.normal);
   geometry.setIndex(new BufferAttribute(indices, 1));
   return geometry;
 }

@@ -123,3 +123,42 @@ describe('parseScene strictness', () => {
     expect(errorsOf(bad)).toEqual(['materials[0].textureUrl: texture materials need a textureUrl']);
   });
 });
+
+describe('parseScene limits', () => {
+  const base = () => clone(sample) as any;
+  const errorsOf = (scene: unknown) => {
+    const r = parseScene(scene);
+    if (r.ok) throw new Error('expected failure');
+    return r.errors;
+  };
+  const wall = (i: number) => ({ id: `x${i}`, start: [0, 0], end: [1, 0] });
+  const many = (n: number, f: (i: number) => object) => Array.from({ length: n }, (_, i) => f(i));
+
+  it.each([
+    ['walls', 2000, (i: number) => wall(i)],
+    ['openings', 4000, (i: number) => ({ id: `x${i}`, wallId: 'w', type: 'door', offset: 1, width: 1, height: 1 })],
+    ['rooms', 500, (i: number) => ({ id: `x${i}`, name: 'r', type: 'other', polygon: [[0, 0], [1, 0], [1, 1]] })],
+    ['items', 5000, (i: number) => ({ id: `x${i}`, assetId: 'a', position: [0, 0] })],
+    ['lights', 1000, (i: number) => ({ id: `x${i}`, type: 'point', position: [0, 0], elevation: 1, lumens: 1 })],
+    ['materials', 1000, (i: number) => ({ id: `x${i}`, name: 'm', kind: 'paint', color: '#ffffff' })],
+  ] as const)('rejects more than %s=%i', (key, max, make) => {
+    const scene = base();
+    scene[key] = many(max + 1, make);
+    expect(errorsOf(scene)).toContain(`${key}: too many ${key} (max ${max})`);
+  });
+
+  it('rejects polygons with more than 500 vertices', () => {
+    const scene = base();
+    scene.rooms[0].polygon = many(501, (i) => [i, 0] as any);
+    expect(errorsOf(scene)).toContain('rooms[0].polygon: too many polygon vertices (max 500)');
+  });
+
+  it('caps reported errors at 50 plus a summary line', () => {
+    const scene = base();
+    scene.walls = many(200, (i) => ({ ...wall(i), thickness: -1 }));
+    const errors = errorsOf(scene);
+    expect(errors).toHaveLength(51);
+    expect(errors[50]).toMatch(/^…and \d+ more errors$/);
+    expect(Number(/\d+/.exec(errors[50]!)![0])).toBeGreaterThanOrEqual(150);
+  });
+});

@@ -1,5 +1,6 @@
 import type { Opening, Scene, Wall } from '../schema';
 import { MeshBuilder, type Vec3 } from './builder';
+import { clampedOpeningSpans } from './openings';
 import { computeWallJunctions, type WallFootprint } from './junctions';
 import { wallEdgeMaterial, wallSideMaterial } from './materials';
 import type { MeshData, WallFace } from './types';
@@ -23,6 +24,8 @@ export interface WallFrame {
   half: number;
   height: number;
 }
+
+export { openingSpan } from './openings';
 
 export function wallFrame(wall: Wall): WallFrame {
   const dx = wall.end[0] - wall.start[0];
@@ -120,16 +123,6 @@ interface Segment {
   solid: Range[];
 }
 
-/** Opening span clamped to the footprint, in wall coordinates. */
-export function openingSpan(o: Pick<Opening, 'offset' | 'width' | 'sill' | 'height'>, wallHeight: number) {
-  return {
-    from: o.offset - o.width / 2,
-    to: o.offset + o.width / 2,
-    sill: Math.min(o.sill, wallHeight),
-    top: Math.min(o.sill + o.height, wallHeight),
-  };
-}
-
 /** Wall solids with openings cut out and junctions resolved. Boxes around holes, no CSG. */
 export function buildWalls(scene: Scene): MeshData {
   const b = new MeshBuilder();
@@ -167,24 +160,10 @@ function buildWall(
 ): void {
   const H = f.height;
   const h = f.half;
-  const lo = Math.max(fp.startLeft, fp.startRight);
-  const hi = Math.min(fp.endLeft, fp.endRight);
   const own = (face: WallFace): Owner => ({ kind: 'wall', entityId: wall.id, face });
   const pt = (s: number, d: number, y: number) => framePoint(f, s, d, y);
 
-  // Holes clamped to the footprint, sorted and non-overlapping.
-  const holes: { from: number; to: number; sill: number; top: number }[] = [];
-  const spans = openings
-    .map((o) => openingSpan(o, H))
-    .sort((p, q) => p.from - q.from);
-  let cursor = lo;
-  for (const sp of spans) {
-    const from = Math.max(sp.from, cursor);
-    const to = Math.min(sp.to, hi);
-    if (to - from <= EPS || sp.top - sp.sill <= EPS) continue;
-    holes.push({ from, to, sill: sp.sill, top: sp.top });
-    cursor = to;
-  }
+  const holes = clampedOpeningSpans(openings, fp, H);
 
   // Segments along the wall: solid stretches and holes.
   const segs: Segment[] = [];
@@ -218,7 +197,8 @@ function buildWall(
         b,
         [pt(seg.aL, h, y0), pt(seg.bL, h, y0), pt(seg.bL, h, y1), pt(seg.aL, h, y1)],
         nL,
-        [[seg.aL, y0], [seg.bL, y0], [seg.bL, y1], [seg.aL, y1]],
+        // Mirrored (u = length - s) so u grows to the viewer's right when facing the left face.
+        [[f.length - seg.aL, y0], [f.length - seg.bL, y0], [f.length - seg.bL, y1], [f.length - seg.aL, y1]],
         leftMat,
         own('left'),
       );

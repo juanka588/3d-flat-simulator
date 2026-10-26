@@ -22,6 +22,12 @@ const KEY_DIRECTIONS: Record<string, [number, number]> = {
   ArrowRight: [1, 0],
 };
 
+/** Keystrokes aimed at form controls or editable text belong to them, not to the walker. */
+export function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  return target.isContentEditable || /^(INPUT|SELECT|TEXTAREA|BUTTON)$/.test(target.tagName);
+}
+
 /** Standing point and look direction (degrees, three.js `rotation.y`); looks towards the flat's centre. */
 function spawnPose(scene: Scene): { position: [number, number]; yaw: number } {
   const b = sceneBounds3(scene);
@@ -59,17 +65,23 @@ export function WalkControls({ scene, onExit }: WalkControlsProps) {
   }, [onExit]);
 
   useEffect(() => {
+    // Walking takes over the keyboard: a focused toolbar button would otherwise swallow WASD.
+    if (document.activeElement instanceof HTMLElement && isTypingTarget(document.activeElement)) {
+      document.activeElement.blur();
+    }
     const down = (e: KeyboardEvent) => {
       if (e.code === 'Escape') {
         exit.current();
         return;
       }
+      if (isTypingTarget(e.target) || e.ctrlKey || e.metaKey || e.altKey) return;
       if (e.code in KEY_DIRECTIONS || e.code.startsWith('Shift')) {
         if (e.code in KEY_DIRECTIONS) e.preventDefault();
         pressed.current.add(e.code);
         invalidate();
       }
     };
+    // Releases are never filtered, so a key can not stay stuck if focus moved while it was held.
     const up = (e: KeyboardEvent) => pressed.current.delete(e.code);
     const blur = () => pressed.current.clear();
     window.addEventListener('keydown', down);

@@ -97,12 +97,33 @@ function triangles(polygon: readonly Vec2[]): Vec2[][] {
  * tiny, so the O(n*m) cost is irrelevant.
  */
 export function polygonOverlapArea(a: readonly Vec2[], b: readonly Vec2[]): number {
-  const tb = triangles(b);
+  return trianglesOverlapArea(triangles(a), triangles(b));
+}
+
+function trianglesOverlapArea(ta: Vec2[][], tb: Vec2[][]): number {
   let area = 0;
-  for (const ta of triangles(a)) {
-    for (const clip of tb) area += polygonArea(clipConvex(ta, clip));
+  for (const subject of ta) {
+    for (const clip of tb) area += polygonArea(clipConvex(subject, clip));
   }
   return area;
+}
+
+interface Box {
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
+}
+
+function boundsOf(polygon: readonly Vec2[]): Box {
+  const box = { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity };
+  for (const [x, y] of polygon) {
+    box.minX = Math.min(box.minX, x);
+    box.maxX = Math.max(box.maxX, x);
+    box.minY = Math.min(box.minY, y);
+    box.maxY = Math.max(box.maxY, y);
+  }
+  return box;
 }
 
 /**
@@ -181,9 +202,16 @@ export function validateScene(scene: Scene): ValidationResult {
       }
     }
   });
+  // Triangulate each room once and skip pairs whose bounding boxes do not intersect.
+  const roomBounds = scene.rooms.map((r) => boundsOf(r.polygon));
+  const roomTriangles: (Vec2[][] | undefined)[] = [];
+  const trianglesOf = (i: number) => (roomTriangles[i] ??= triangles(scene.rooms[i]!.polygon));
   for (let i = 0; i < scene.rooms.length; i++) {
     for (let j = i + 1; j < scene.rooms.length; j++) {
-      const area = polygonOverlapArea(scene.rooms[i]!.polygon, scene.rooms[j]!.polygon);
+      const p = roomBounds[i]!;
+      const q = roomBounds[j]!;
+      if (p.maxX < q.minX || q.maxX < p.minX || p.maxY < q.minY || q.maxY < p.minY) continue;
+      const area = trianglesOverlapArea(trianglesOf(i), trianglesOf(j));
       if (area > OVERLAP_AREA_THRESHOLD) {
         warnings.push({
           code: 'rooms-overlap',

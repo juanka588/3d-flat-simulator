@@ -4,7 +4,7 @@ import sample from '../../fixtures/sample.flat.json';
 import { parseScene } from '../parse';
 import { wallLeftNormal, type Scene } from '../schema';
 import { computeWallJunctions } from './junctions';
-import { bounds, makeScene, triangles } from './testUtil';
+import { bounds, makeScene, triangles, uRatios } from './testUtil';
 import type { MeshData } from './types';
 import { buildWalls } from './walls';
 
@@ -50,8 +50,9 @@ function checkMeshConsistency(mesh: MeshData) {
   for (let v = 0; v < mesh.normals.length / 3; v++) {
     expect(Math.hypot(mesh.normals[v * 3]!, mesh.normals[v * 3 + 1]!, mesh.normals[v * 3 + 2]!)).toBeCloseTo(1, 5);
   }
+  const tris = triangles(mesh);
   for (let t = 0; t < triCount; t++) {
-    const tri = triangles(mesh, () => true)[t]!;
+    const tri = tris[t]!;
     expect(tri.area).toBeGreaterThan(1e-9);
     const i = mesh.indices[t * 3]!;
     const dotN = tri.n[0]! * mesh.normals[i * 3]! + tri.n[1]! * mesh.normals[i * 3 + 1]! + tri.n[2]! * mesh.normals[i * 3 + 2]!;
@@ -128,6 +129,25 @@ describe('buildWalls: single wall', () => {
   });
 });
 
+describe('buildWalls: uv orientation', () => {
+  it('makes u grow to the viewer\'s right on both faces', () => {
+    const mesh = buildWalls(makeScene([wall('w', [0, 0], [4, 0])]));
+    // Left face normal is world -z: viewer faces +z, right is -x. Right face normal +z: right is +x.
+    const left = uRatios(mesh, [0, 0, -1], [-1, 0, 0]);
+    const right = uRatios(mesh, [0, 0, 1], [1, 0, 0]);
+    expect(left.length).toBeGreaterThan(0);
+    expect(right.length).toBeGreaterThan(0);
+    for (const r of [...left, ...right]) expect(r).toBeCloseTo(1, 4);
+  });
+
+  it('holds on a wall running along -x as well', () => {
+    const mesh = buildWalls(makeScene([wall('w', [4, 0], [0, 0])]));
+    // Left normal is +z now: viewer faces -z, right is +x.
+    for (const r of uRatios(mesh, [0, 0, 1], [1, 0, 0])) expect(r).toBeCloseTo(1, 4);
+    for (const r of uRatios(mesh, [0, 0, -1], [-1, 0, 0])) expect(r).toBeCloseTo(1, 4);
+  });
+});
+
 describe('buildWalls: openings', () => {
   const walls = [wall('w', [0, 0], [6, 0], 0.2, 2.5)];
   const openings = [
@@ -142,8 +162,10 @@ describe('buildWalls: openings', () => {
 
   it('cuts holes at offset +/- width/2 and sill..sill+height', () => {
     const jambs = triangles(mesh, (o) => o.face === 'jamb');
-    const xs = new Set(jambs.flatMap((t) => t.p.map((p) => Math.round(p[0]! * 1000) / 1000)));
-    for (const x of [1.0, 2.0, 3.05, 3.95, 4.8, 5.6]) expect(xs).toContain(x);
+    // Vertical jamb faces have their normal along the wall axis; they must sit at the hole edges.
+    const vertical = jambs.filter((t) => Math.abs(t.n[0]!) > 0.99);
+    const xs = new Set(vertical.flatMap((t) => t.p.map((p) => Math.round(p[0]! * 1000) / 1000)));
+    expect([...xs].sort((a, b) => a - b)).toEqual([1.0, 2.0, 3.05, 3.95, 4.8, 5.6]);
     // Window sill and head heights.
     const horizontal = jambs.filter((t) => Math.abs(t.n[1]!) > 0.99);
     const ys = new Set(horizontal.map((t) => Math.round(t.p[0][1]! * 1000) / 1000));

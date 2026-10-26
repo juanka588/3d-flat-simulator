@@ -20,6 +20,17 @@ import { isSimplePolygon, polygonArea } from './measure';
 /** Tolerance for floating-point comparisons on plan geometry, in metres. */
 export const EPSILON = 1e-6;
 
+/** Upper bounds on collection sizes, so a hostile or broken file cannot cause unbounded work. */
+export const LIMITS = {
+  walls: 2000,
+  openings: 4000,
+  rooms: 500,
+  polygonVertices: 500,
+  items: 5000,
+  lights: 1000,
+  materials: 1000,
+} as const;
+
 export const Vec2 = z.tuple([z.number(), z.number()]);
 export type Vec2 = z.infer<typeof Vec2>;
 
@@ -96,7 +107,7 @@ export const Room = z.strictObject({
   id: Id,
   name: z.string(),
   type: RoomType,
-  polygon: z.array(Vec2).min(3),
+  polygon: z.array(Vec2).min(3).max(LIMITS.polygonVertices, `too many polygon vertices (max ${LIMITS.polygonVertices})`),
   floorMaterial: Id.optional(),
   ceilingMaterial: Id.optional(),
   /** Floor-to-ceiling height; defaults to the lowest wall bounding the room. */
@@ -164,16 +175,16 @@ export const SceneBase = z.strictObject({
   name: z.string(),
   units: z.literal('m').default('m'),
   site: Site,
-  materials: z.array(Material).default([]),
+  materials: z.array(Material).max(LIMITS.materials, `too many materials (max ${LIMITS.materials})`).default([]),
   /** Materials used when a wall side, floor or ceiling has none assigned. */
   defaults: z
     .strictObject({ wall: Id.optional(), floor: Id.optional(), ceiling: Id.optional() })
     .default({}),
-  walls: z.array(Wall).min(1),
-  openings: z.array(Opening).default([]),
-  rooms: z.array(Room).default([]),
-  items: z.array(Item).default([]),
-  lights: z.array(Light).default([]),
+  walls: z.array(Wall).min(1).max(LIMITS.walls, `too many walls (max ${LIMITS.walls})`),
+  openings: z.array(Opening).max(LIMITS.openings, `too many openings (max ${LIMITS.openings})`).default([]),
+  rooms: z.array(Room).max(LIMITS.rooms, `too many rooms (max ${LIMITS.rooms})`).default([]),
+  items: z.array(Item).max(LIMITS.items, `too many items (max ${LIMITS.items})`).default([]),
+  lights: z.array(Light).max(LIMITS.lights, `too many lights (max ${LIMITS.lights})`).default([]),
 });
 
 /**

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import charme from '../fixtures/charme-3205.flat.json';
-import { distanceToObstacle, findSpawn, isPassable, resolveMove, wallObstacles, type Obstacle } from './collision';
+import { DEFAULT_RADIUS, distanceToObstacle, findSpawn, isPassable, resolveMove, wallObstacles, type Obstacle } from './collision';
+import { polygonCentroid } from './measure';
 import { parseScene } from './parse';
 import type { Scene } from './schema';
 import { pointInPolygon } from './validate';
@@ -114,6 +115,133 @@ describe('resolveMove', () => {
     const x = -1.6 + 7.7;
     const r = resolveMove([x, 1], [0, -2], obstacles);
     expect(r.position[1]).toBeGreaterThan(0.2); // stopped at the north wall inner face + radius
+  });
+});
+
+describe('findSpawn: bounded work', () => {
+  const room = (id: string, poly: [number, number][]) => ({
+    id,
+    name: id,
+    type: 'living' as const,
+    polygon: poly,
+  });
+  const withRooms = (rooms: ReturnType<typeof room>[]) => ({ ...scene, rooms, walls: scene.walls.slice(0, 1), openings: [] });
+
+  it('handles a room drawn in millimetres quickly', () => {
+    const mm = withRooms([room('mm', [[0, 0], [4000, 0], [4000, 3000], [0, 3000]])]);
+    const t0 = performance.now();
+    const s = findSpawn(mm);
+    expect(performance.now() - t0).toBeLessThan(200);
+    expect(s?.roomId).toBe('mm');
+  });
+
+  it('terminates for coordinates around 1e17, where x + 0.1 === x', () => {
+    const far = withRooms([room('far', [[1e17, 1e17], [1e17 + 1e4, 1e17], [1e17 + 1e4, 1e17 + 1e4], [1e17, 1e17 + 1e4]])]);
+    expect(findSpawn(far)).toBeNull();
+  });
+
+  it('skips rooms with non-finite or enormous extents', () => {
+    const bad = withRooms([
+      room('inf', [[0, 0], [Infinity, 0], [Infinity, 1], [0, 1]]),
+      room('huge', [[0, 0], [1e12, 0], [1e12, 1e12], [0, 1e12]]),
+    ]);
+    expect(findSpawn(bad)).toBeNull();
+  });
+});
+
+describe('Charme reachability', () => {
+  const obstacles = wallObstacles(scene);
+  const radius = DEFAULT_RADIUS;
+  const step = 0.1;
+  const xs = scene.rooms.flatMap((r) => r.polygon.map((p) => p[0]));
+  const ys = scene.rooms.flatMap((r) => r.polygon.map((p) => p[1]));
+  const x0 = Math.min(...xs) - 1;
+  const y0 = Math.min(...ys) - 1;
+  const nx = Math.ceil((Math.max(...xs) + 1 - x0) / step);
+  const ny = Math.ceil((Math.max(...ys) + 1 - y0) / step);
+  const free = (i: number, j: number) => {
+    if (i < 0 || j < 0 || i > nx || j > ny) return false;
+    const p: [number, number] = [x0 + i * step, y0 + j * step];
+    return obstacles.every((o) => distanceToObstacle(p, o) >= radius);
+  };
+  const cell = (p: [number, number]): [number, number] => [Math.round((p[0] - x0) / step), Math.round((p[1] - y0) / step)];
+
+  function flood(start: [number, number]): Set<number> {
+    const [si, sj] = cell(start);
+    const seen = new Set<number>([si * (ny + 1) + sj]);
+    const queue: [number, number][] = [[si, sj]];
+    while (queue.length) {
+      const [i, j] = queue.pop()!;
+      for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+        const a = i + di;
+        const b = j + dj;
+        const key = a * (ny + 1) + b;
+        if (seen.has(key) || !free(a, b)) continue;
+        seen.add(key);
+        queue.push([a, b]);
+      }
+    }
+    return seen;
+  }
+
+  /** A free cell near the room centroid (the centroid itself may sit on a fixture-free but tight spot). */
+  const reachable = (reach: Set<number>, p: [number, number]) => {
+    const [ci, cj] = cell(p);
+    for (let di = -3; di <= 3; di++) {
+      for (let dj = -3; dj <= 3; dj++) {
+        if (reach.has((ci + di) * (ny + 1) + cj + dj)) return true;
+      }
+    }
+    return false;
+  };
+
+  it('reaches every room centroid from the spawn, balcony included (sill 0.15 <= 0.2)', () => {
+    const spawn = findSpawn(scene)!;
+    const reach = flood(spawn.position);
+    for (const room of scene.rooms) {
+      expect(reachable(reach, polygonCentroid(room.polygon)), room.id).toBe(true);
+    }
+  });
+
+  it('needs the doors: with every door and passage made solid the flat falls apart', () => {
+    const solid = wallObstacles({ ...scene, openings: [] });
+    const spawn = findSpawn(scene)!;
+    const [si, sj] = cell(spawn.position);
+    const seen = new Set<number>([si * (ny + 1) + sj]);
+    const queue: [number, number][] = [[si, sj]];
+    const freeSolid = (i: number, j: number) => {
+      if (i < 0 || j < 0 || i > nx || j > ny) return false;
+      const p: [number, number] = [x0 + i * step, y0 + j * step];
+      return solid.every((o) => distanceToObstacle(p, o) >= radius);
+    };
+    while (queue.length) {
+      const [i, j] = queue.pop()!;
+      for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+        const key = (i + di) * (ny + 1) + j + dj;
+        if (seen.has(key) || !freeSolid(i + di, j + dj)) continue;
+        seen.add(key);
+        queue.push([i + di, j + dj]);
+      }
+    }
+    const unreachable = scene.rooms.filter((r) => !reachable(seen, polygonCentroid(r.polygon)));
+    expect(unreachable.length).toBeGreaterThan(0);
+  });
+
+  it('walks from the spawn to a room centroid with resolveMove without being blocked', () => {
+    const spawn = findSpawn(scene)!;
+    const target = polygonCentroid(scene.rooms.find((r) => r.id === 'sejour')!.polygon);
+    // Straight line may clip a wall; route through the entrance door on the way.
+    const door = [8.735 - 0.955, 6.115 - 0.6] as [number, number];
+    let p = spawn.position;
+    for (const goal of [[door[0], spawn.position[1]], door, target] as [number, number][]) {
+      for (let k = 0; k < 40; k++) {
+        const d: [number, number] = [goal[0] - p[0], goal[1] - p[1]];
+        const len = Math.hypot(d[0], d[1]);
+        if (len < 0.05) break;
+        p = resolveMove(p, [(d[0] / len) * Math.min(len, 0.2), (d[1] / len) * Math.min(len, 0.2)], obstacles).position;
+      }
+    }
+    expect(Math.hypot(p[0] - target[0], p[1] - target[1])).toBeLessThan(0.5);
   });
 });
 
