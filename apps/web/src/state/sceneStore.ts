@@ -5,6 +5,7 @@ import type { LoadResult, ValidationWarning } from '@flat/scene';
 import { adoptSceneIdentity } from '../viewer/scene-identity';
 import { instantToLocal } from './localTime';
 import { useViewStore } from './viewStore';
+import type { CommandApi } from './commands-api';
 
 /** Today's date (YYYY-MM-DD) in a time zone, or null if the zone is unknown. */
 function localDate(timezone: string): string | null {
@@ -24,7 +25,7 @@ export function isLatestLoad(token: number): boolean {
   return token === latestLoad;
 }
 
-interface SceneStore {
+interface SceneStore extends CommandApi {
   scene: Scene | null;
   /** Where the current scene came from (fixture name or file name). */
   source: string;
@@ -47,6 +48,18 @@ export const useSceneStore = create<SceneStore>((set) => ({
   source: '',
   warnings: [],
   errors: [],
+  // M3.5 contract stubs — replaced by the command-store implementation (lane D1).
+  dispatch: () => ({ ok: false, errors: [{ code: 'not_supported', path: '', message: 'commands not wired yet' }] }),
+  preview: () => ({ ok: false, errors: [{ code: 'not_supported', path: '', message: 'commands not wired yet' }] }),
+  commitPreview: () => {},
+  cancelPreview: () => {},
+  undo: () => false,
+  redo: () => false,
+  canUndo: false,
+  canRedo: false,
+  historyLabels: [],
+  lastErrors: [],
+  rev: 0,
   fail: (errors) => set({ errors }),
   setSite: (site) =>
     set((s) => {
