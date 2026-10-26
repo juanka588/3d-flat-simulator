@@ -1,0 +1,98 @@
+{
+  "version": 1,
+  "name": "Blanc Nature – Charme n°3205 (3 pièces + alcôve, 2e étage)",
+  "units": "m",
+  "site": {
+    "latitude": 48.7893,
+    "longitude": 2.3038,
+    "northAngle": 0,
+    "timezone": "Europe/Paris",
+    "floorElevation": 5.8,
+    "address": "Rue de la Fontaine, 92220 Bagneux"
+  },
+  "materials": [
+    { "id": "paint-white", "name": "Warm white paint", "kind": "paint", "color": "#f2f0eb" },
+    { "id": "ceiling-white", "name": "Ceiling white", "kind": "paint", "color": "#fafafa" },
+    { "id": "facade", "name": "Facade render", "kind": "paint", "color": "#e4ded3" },
+    { "id": "floor-oak", "name": "Oak parquet", "kind": "paint", "color": "#b48a5a", "roughness": 0.6 },
+    { "id": "floor-tile", "name": "Light grey tile", "kind": "paint", "color": "#cfccc6", "roughness": 0.4 },
+    { "id": "floor-deck", "name": "Balcony slab", "kind": "paint", "color": "#9a958c", "roughness": 0.9 }
+  ],
+  "defaults": { "wall": "paint-white", "floor": "floor-tile", "ceiling": "ceiling-white" },
+  "walls": [
+    { "id": "w-north", "start": [-1.6, -0.1], "end": [10.15, -0.1], "thickness": 0.2, "height": 2.5, "finish": { "left": "facade" } },
+    { "id": "w-east", "start": [10.15, -0.1], "end": [10.15, 6.03], "thickness": 0.2, "height": 2.5, "finish": { "left": "facade" } },
+    { "id": "w-wc-south", "start": [10.15, 6.03], "end": [8.735, 6.03], "thickness": 0.2, "height": 2.5 },
+    { "id": "w-landing", "start": [8.735, 6.115], "end": [6.49, 6.115], "thickness": 0.17, "height": 2.5 },
+    { "id": "w-sdb-east", "start": [6.49, 6.115], "end": [6.49, 8.38], "thickness": 0.2, "height": 2.5 },
+    { "id": "w-south", "start": [6.49, 8.38], "end": [-0.1, 8.38], "thickness": 0.2, "height": 2.5, "finish": { "left": "facade" } },
+    { "id": "w-west", "start": [-0.1, 8.38], "end": [-0.1, -0.1], "thickness": 0.2, "height": 2.5, "finish": { "left": "facade" } },
+    { "id": "w-alcove", "start": [0, 2.235], "end": [4.105, 2.235], "thickness": 0.07, "height": 2.5 },
+    { "id": "w-sejour-ch2", "start": [4.105, 0], "end": [4.105, 4.155], "thickness": 0.07, "height": 2.5 },
+    { "id": "w-ch2-south", "start": [4.105, 4.155], "end": [6.875, 4.155], "thickness": 0.07, "height": 2.5 },
+    { "id": "w-ch2-ch1", "start": [6.875, 0], "end": [6.875, 4.455], "thickness": 0.07, "height": 2.5 },
+    { "id": "w-ch1-south", "start": [6.875, 4.455], "end": [10.05, 4.455], "thickness": 0.07, "height": 2.5 },
+    { "id": "w-wc-west", "start": [8.735, 6.115], "end": [8.735, 4.455], "thickness": 0.07, "height": 2.5 },
+    { "id": "w-sejour-entree", "start": [4.505, 4.155], "end": [4.505, 6.065], "thickness": 0.07, "height": 2.5 },
+    { "id": "w-sdb-north", "start": [4.505, 6.065], "end": [6.49, 6.065], "thickness": 0.07, "height": 2.5 },
+    { "id": "w-sdb-west", "start": [4.505, 6.065], "end": [4.505, 6.615], "thickness": 0.07, "height": 2.5 },
+    { "id": "w-niche-north", "start": [4.505, 6.615], "end": [3.745, 6.615], "thickness": 0.07, "height": 2.5 },
+    { "id": "w-niche-west", "start": [3.745, 6.615], "end": [3.745, 8.28], "thickness": 0.07, "height": 2.5 },
+    { "id": "w-balcony-rail", "start": [-1.575, -0.0], "end": [-1.575, 8.28], "thickness": 0.05, "height": 1.0 },
+    { "id": "w-balcony-screen", "start": [-1.575, 8.305], "end": [-0.2, 8.305], "thickness": 0.05, "height": 1.8 }
+  ],
+  "openings": [
+    { "id": "win-alcove", "wallId": "w-north", "type": "window", "offset": 3.24, "width": 1.0, "height": 1.7, "sill": 0.45 },
+    { "id": "win-ch2", "wallId": "w-north", "type": "window", "offset": 7.7, "width": 0.9, "height": 1.7, "sill": 0.45 },
+    { "id": "win-ch1", "wallId": "w-north", "type": "window", "offset": 10.89, "width": 0.9, "height": 1.7, "sill": 0.45 },
+    { "id": "door-balcony-sejour", "wallId": "w-west", "type": "door", "offset": 4.83, "width": 1.4, "height": 2.05, "sill": 0.15, "glazed": true },
+    { "id": "door-balcony-cuisine", "wallId": "w-west", "type": "door", "offset": 1.66, "width": 0.9, "height": 2.05, "sill": 0.15, "glazed": true },
+    { "id": "door-alcove", "wallId": "w-alcove", "type": "door", "offset": 0.47, "width": 0.8, "height": 2.04, "hinge": "start", "swing": "left" },
+    { "id": "door-ch2", "wallId": "w-ch2-south", "type": "door", "offset": 2.21, "width": 0.8, "height": 2.04, "hinge": "end", "swing": "right" },
+    { "id": "door-ch1", "wallId": "w-ch1-south", "type": "door", "offset": 0.475, "width": 0.8, "height": 2.04, "hinge": "start", "swing": "right" },
+    { "id": "door-sejour-entree", "wallId": "w-sejour-entree", "type": "door", "offset": 0.95, "width": 0.9, "height": 2.04 },
+    { "id": "door-sdb", "wallId": "w-sdb-north", "type": "door", "offset": 0.995, "width": 0.8, "height": 2.04 },
+    { "id": "door-wc", "wallId": "w-wc-west", "type": "door", "offset": 0.815, "width": 0.7, "height": 2.04 },
+    { "id": "door-entry", "wallId": "w-landing", "type": "door", "offset": 0.955, "width": 0.9, "height": 2.04 }
+  ],
+  "rooms": [
+    { "id": "alcove", "name": "Alcôve", "type": "bedroom", "polygon": [[0, 0], [4.07, 0], [4.07, 2.2], [0, 2.2]], "floorMaterial": "floor-oak", "ceilingHeight": 2.5 },
+    {
+      "id": "sejour",
+      "name": "Séjour / Cuisine",
+      "type": "living",
+      "polygon": [[0, 2.27], [4.07, 2.27], [4.07, 4.19], [4.47, 4.19], [4.47, 6.58], [3.71, 6.58], [3.71, 8.28], [0, 8.28]],
+      "ceilingHeight": 2.5
+    },
+    { "id": "ch2", "name": "Chambre 2", "type": "bedroom", "polygon": [[4.14, 0], [6.84, 0], [6.84, 4.12], [4.14, 4.12]], "floorMaterial": "floor-oak", "ceilingHeight": 2.5 },
+    { "id": "ch1", "name": "Chambre 1", "type": "bedroom", "polygon": [[6.91, 0], [10.05, 0], [10.05, 4.42], [6.91, 4.42]], "floorMaterial": "floor-oak", "ceilingHeight": 2.5 },
+    {
+      "id": "entree",
+      "name": "Entrée",
+      "type": "hallway",
+      "polygon": [[4.54, 4.19], [6.91, 4.19], [6.91, 4.49], [8.7, 4.49], [8.7, 6.03], [4.54, 6.03]],
+      "ceilingHeight": 2.5
+    },
+    { "id": "wc", "name": "WC", "type": "bathroom", "polygon": [[8.77, 4.49], [10.05, 4.49], [10.05, 5.93], [8.77, 5.93]], "ceilingHeight": 2.5 },
+    {
+      "id": "sdb",
+      "name": "Salle de bain",
+      "type": "bathroom",
+      "polygon": [[4.54, 6.1], [6.39, 6.1], [6.39, 8.28], [3.78, 8.28], [3.78, 6.65], [4.54, 6.65]],
+      "ceilingHeight": 2.5
+    },
+    { "id": "balcon", "name": "Balcon", "type": "balcony", "polygon": [[-1.55, 0], [-0.2, 0], [-0.2, 8.28], [-1.55, 8.28]], "floorMaterial": "floor-deck" }
+  ],
+  "items": [],
+  "lights": [
+    { "id": "l-sejour", "name": "Séjour ceiling", "type": "point", "roomId": "sejour", "position": [2.0, 3.8], "elevation": 2.3, "lumens": 1600, "kelvin": 2700 },
+    { "id": "l-cuisine", "name": "Kitchen panel", "type": "area", "roomId": "sejour", "position": [2.0, 7.6], "elevation": 2.48, "width": 1.2, "depth": 0.3, "lumens": 2500, "kelvin": 3500 },
+    { "id": "l-alcove", "name": "Alcôve ceiling", "type": "point", "roomId": "alcove", "position": [2.0, 1.1], "elevation": 2.3, "lumens": 800, "kelvin": 2700 },
+    { "id": "l-ch2", "name": "Chambre 2 ceiling", "type": "point", "roomId": "ch2", "position": [5.5, 2.0], "elevation": 2.3, "lumens": 800, "kelvin": 2700 },
+    { "id": "l-ch1", "name": "Chambre 1 ceiling", "type": "point", "roomId": "ch1", "position": [8.5, 2.2], "elevation": 2.3, "lumens": 800, "kelvin": 2700 },
+    { "id": "l-entree", "name": "Entrée spot", "type": "spot", "roomId": "entree", "position": [6.6, 5.2], "elevation": 2.45, "angle": 100, "lumens": 600, "kelvin": 3000 },
+    { "id": "l-sdb", "name": "Bathroom spot", "type": "spot", "roomId": "sdb", "position": [5.4, 7.2], "elevation": 2.45, "angle": 100, "lumens": 700, "kelvin": 4000 },
+    { "id": "l-wc", "name": "WC spot", "type": "spot", "roomId": "wc", "position": [9.4, 5.2], "elevation": 2.45, "angle": 90, "lumens": 300, "kelvin": 3000 },
+    { "id": "l-balcon", "name": "Balcony wall light", "type": "point", "roomId": "balcon", "position": [-0.35, 4.0], "elevation": 2.1, "lumens": 400, "kelvin": 2700 }
+  ]
+}

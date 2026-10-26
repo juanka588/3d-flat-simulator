@@ -10,8 +10,9 @@ import { isSimplePolygon, polygonArea } from './measure';
  *   World mapping: X = x, Z = y, Y = up. This is not mirrored: looking down from +Y the
  *   plan reads exactly like the blueprint.
  * - Rotations are counter-clockwise seen from above, which equals three.js `rotation.y`.
- * - Walls are defined by their centreline; room polygons follow wall centrelines too, so
- *   room areas are gross (they include half of each surrounding wall).
+ * - Walls are defined by their centreline. Room polygons should follow the inner faces of
+ *   the surrounding walls, so room areas are net (habitable) like the areas listed on
+ *   French plans. Centreline polygons are tolerated but then report gross areas.
  * - `site.northAngle` is the clockwise angle from plan "up" (-y) to true north.
  * - Unknown keys are rejected so typos (from humans or LLMs) surface as errors.
  */
@@ -61,7 +62,8 @@ export type Wall = z.infer<typeof Wall>;
 export const Opening = z.strictObject({
   id: Id,
   wallId: Id,
-  type: z.enum(['door', 'window']),
+  /** `passage` is a doorless opening (archway, open plan). */
+  type: z.enum(['door', 'window', 'passage']),
   /** Distance along the wall from `start` to the opening's centre. */
   offset: z.number().nonnegative(),
   width: z.number().positive(),
@@ -97,6 +99,8 @@ export const Room = z.strictObject({
   polygon: z.array(Vec2).min(3),
   floorMaterial: Id.optional(),
   ceilingMaterial: Id.optional(),
+  /** Floor-to-ceiling height; defaults to the lowest wall bounding the room. */
+  ceilingHeight: z.number().positive().optional(),
 });
 export type Room = z.infer<typeof Room>;
 
@@ -148,6 +152,10 @@ export const Site = z.strictObject({
   northAngle: z.number().default(0),
   /** IANA time zone used to interpret local date/time, e.g. "Europe/Paris". */
   timezone: TimeZone.default('UTC'),
+  /** Height of the flat's floor above street level, in metres (e.g. 2nd floor ≈ 5.8). */
+  floorElevation: z.number().default(0),
+  /** Postal address, used to fetch site context such as neighbouring buildings. */
+  address: z.string().optional(),
 });
 export type Site = z.infer<typeof Site>;
 
@@ -157,6 +165,10 @@ export const SceneBase = z.strictObject({
   units: z.literal('m').default('m'),
   site: Site,
   materials: z.array(Material).default([]),
+  /** Materials used when a wall side, floor or ceiling has none assigned. */
+  defaults: z
+    .strictObject({ wall: Id.optional(), floor: Id.optional(), ceiling: Id.optional() })
+    .default({}),
   walls: z.array(Wall).min(1),
   openings: z.array(Opening).default([]),
   rooms: z.array(Room).default([]),
@@ -238,6 +250,10 @@ export const Scene = SceneBase.superRefine((scene, ctx) => {
       }
     }
   }
+
+  checkMaterial(scene.defaults.wall, ['defaults', 'wall']);
+  checkMaterial(scene.defaults.floor, ['defaults', 'floor']);
+  checkMaterial(scene.defaults.ceiling, ['defaults', 'ceiling']);
 
   scene.rooms.forEach((room, i) => {
     if (polygonArea(room.polygon) < EPSILON) issue(['rooms', i, 'polygon'], 'room polygon has zero area');
