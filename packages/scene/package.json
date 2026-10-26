@@ -13,10 +13,13 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@date-fns/tz": "^1.5.0",
     "earcut": "^3.2.4",
+    "suncalc": "^2.1.1",
     "zod": "^4.6.7"
   },
   "devDependencies": {
-    "@types/earcut": "^3.2.4"
+    "@types/earcut": "^3.2.4",
+    "@types/suncalc": "^1.9.2"
   }
 }

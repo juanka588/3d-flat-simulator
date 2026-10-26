@@ -7,3 +7,6 @@ export * from './validate';
 export * from './stats';
 export * from './collision';
 export * from './camera';
+export * from './view';
+export * from './lighting';
+export * from './context';

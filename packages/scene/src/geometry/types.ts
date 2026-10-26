@@ -5,7 +5,7 @@
  */
 
 /** What a range of triangles belongs to, so picks can be mapped back to scene entities. */
-export type OwnerKind = 'wall' | 'opening' | 'floor' | 'ceiling';
+export type OwnerKind = 'wall' | 'opening' | 'floor' | 'ceiling' | 'context';
 
 /** Which face of a wall a triangle range belongs to. `left`/`right` follow `wallLeftNormal`. */
 export type WallFace = 'left' | 'right' | 'top' | 'end' | 'jamb';
