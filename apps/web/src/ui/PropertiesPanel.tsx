@@ -1,6 +1,5 @@
-import { wallEdgeMaterial, wallSideMaterial } from '@flat/scene';
+import { roomStats, wallEdgeMaterial, wallSideMaterial, wallStats } from '@flat/scene';
 import type { Scene } from '@flat/scene';
-import { roomStats, wallStats } from '../scene-adapters';
 import type { Selection } from '../viewer/view-types';
 
 const m = (v: number) => `${v.toFixed(2)} m`;
@@ -39,21 +38,22 @@ function describe(scene: Scene, selection: Selection): { title: string; rows: [s
         ['Thickness', m(stats.thickness)],
         ['Height', m(stats.height)],
         ['Material', materialName(scene, material)],
-        ['Net area', m2(stats.netArea)],
+        ['Net area', face === 'right' ? m2(stats.netArea.right) : m2(stats.netArea.left)],
       ],
     };
   }
   if (selection.kind === 'floor' || selection.kind === 'ceiling') {
     const stats = roomStats(scene, selection.entityId);
-    if (!stats) return null;
+    const room = scene.rooms.find((r) => r.id === selection.entityId);
+    if (!stats || !room) return null;
     return {
       title: stats.name,
       rows: [
         ['Surface', selection.kind],
-        ['Type', stats.type],
+        ['Type', room.type],
         ['Area', m2(stats.area)],
         ['Perimeter', m(stats.perimeter)],
-        ['Floor material', materialName(scene, stats.floorMaterialId)],
+        ['Floor material', materialName(scene, stats.floorMaterial)],
       ],
     };
   }

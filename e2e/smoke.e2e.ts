@@ -14,9 +14,8 @@ test('app loads the default flat and the test hook is ready', async ({ page }) =
   await expect(page.getByRole('heading', { level: 1 })).toContainText('Charme');
   const stats = await flat(page, (f) => f.stats());
   expect(stats.sceneName).toContain('Charme');
-  // Geometry builders may still be stubs; the contract is only that stats are numbers.
-  expect(stats.calls).toBeGreaterThanOrEqual(0);
-  expect(stats.triangles).toBeGreaterThanOrEqual(0);
+  expect(stats.calls).toBeGreaterThan(0);
+  expect(stats.triangles).toBeGreaterThan(0);
 });
 
 test('capture() returns a decodable, non-blank PNG', async ({ page }) => {
@@ -42,9 +41,8 @@ test('capture() returns a decodable, non-blank PNG', async ({ page }) => {
   }, url);
   expect(result.width).toBeGreaterThan(100);
   expect(result.opaque).toBeGreaterThan(0);
-  const { triangles } = await flat(page, (f) => f.stats());
-  // With real geometry the image has more than the flat background colour.
-  if (triangles > 0) expect(result.colours).toBeGreaterThan(3);
+  // Real geometry: more than the flat background colour.
+  expect(result.colours).toBeGreaterThan(3);
 });
 
 test('mode switching updates the view and Esc leaves walk mode', async ({ page }) => {
@@ -58,6 +56,13 @@ test('mode switching updates the view and Esc leaves walk mode', async ({ page }
   await page.getByRole('button', { name: 'Walk' }).click();
   expect(await mode()).toBe('walk');
   await expect(page.getByText(/Esc to leave/)).toBeVisible();
+  // The player spawns inside the flat (plan bounds of the default Charme fixture).
+  const [x, y, z] = (await flat(page, (f) => f.stats())).camera;
+  expect(x).toBeGreaterThan(-1.6);
+  expect(x).toBeLessThan(10.15);
+  expect(z).toBeGreaterThan(-0.1);
+  expect(z).toBeLessThan(8.38);
+  expect(y).toBeCloseTo(1.6, 1);
 
   await page.keyboard.press('Escape');
   await expect(page.getByRole('button', { name: 'Orbit' })).toHaveAttribute('aria-pressed', 'true');
@@ -114,4 +119,16 @@ test('selecting a wall shows its properties', async ({ page }) => {
   expect(await page.evaluate((wallId) => window.__flat!.select(wallId), id)).toBe(true);
   await expect(page.getByTestId('properties')).toContainText(`Wall ${id}`);
   await expect(page.getByTestId('properties')).toContainText('Net area');
+});
+
+test('the sample flat lists its warnings and clicking one selects its entity', async ({ page }) => {
+  await page.getByLabel('Flat', { exact: true }).selectOption('sample');
+  const warnings = page.getByTestId('warnings');
+  await expect(warnings.getByRole('listitem')).toHaveCount(4);
+  await expect(warnings.getByRole('heading')).toContainText('(4)');
+  await expect(page.getByTestId('properties')).toContainText('Click a wall');
+
+  await warnings.getByRole('button').first().click();
+  await expect(page.getByTestId('properties')).not.toContainText('Click a wall');
+  await expect(page.getByTestId('properties').getByRole('heading')).toBeVisible();
 });

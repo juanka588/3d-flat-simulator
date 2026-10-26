@@ -36,13 +36,14 @@ export function installTestHook(): void {
   const hook: FlatTestHook = {
     ready,
     stats() {
-      const { gl } = renderNow();
+      const { gl, camera } = renderNow();
       return {
         calls: gl.info.render.calls,
         triangles: gl.info.render.triangles,
         geometries: gl.info.memory.geometries,
         mode: useViewStore.getState().mode,
         sceneName: useSceneStore.getState().scene?.name ?? '',
+        camera: [camera.position.x, camera.position.y, camera.position.z],
       };
     },
     async setView(partial) {

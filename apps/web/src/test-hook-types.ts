@@ -1,4 +1,4 @@
-import type { LoadResult } from './scene-adapters';
+import type { LoadResult } from '@flat/scene';
 import type { ViewState } from './viewer/view-types';
 
 export interface FlatStats {
@@ -7,6 +7,8 @@ export interface FlatStats {
   geometries: number;
   mode: string;
   sceneName: string;
+  /** World position of the active camera. */
+  camera: [number, number, number];
 }
 
 export interface FlatTestHook {

@@ -1,8 +1,8 @@
 import { PerspectiveCamera, PointerLockControls } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
 import { useEffect, useMemo, useRef } from 'react';
+import { findSpawn, resolveMove, sceneBounds3, wallObstacles } from '@flat/scene';
 import type { Scene } from '@flat/scene';
-import { findSpawn, resolveMove, wallObstacles } from '../scene-adapters';
 
 export const EYE_HEIGHT = 1.6;
 const BODY_RADIUS = 0.25;
@@ -22,6 +22,19 @@ const KEY_DIRECTIONS: Record<string, [number, number]> = {
   ArrowRight: [1, 0],
 };
 
+/** Standing point and look direction (degrees, three.js `rotation.y`); looks towards the flat's centre. */
+function spawnPose(scene: Scene): { position: [number, number]; yaw: number } {
+  const b = sceneBounds3(scene);
+  const centre: [number, number] = [(b.min[0] + b.max[0]) / 2, (b.min[2] + b.max[2]) / 2];
+  const spawn = findSpawn(scene, BODY_RADIUS);
+  const position = spawn?.position ?? centre;
+  const dx = centre[0] - position[0];
+  const dz = centre[1] - position[1];
+  // forward = (-sin yaw, -cos yaw) in (x, z)
+  const yaw = Math.hypot(dx, dz) > 0.5 ? (Math.atan2(-dx, -dz) * 180) / Math.PI : 0;
+  return { position, yaw };
+}
+
 interface WalkControlsProps {
   scene: Scene;
   onExit: () => void;
@@ -29,7 +42,7 @@ interface WalkControlsProps {
 
 /** First-person walk: pointer lock look (drag fallback), WASD/arrows, wall collision, Esc to leave. */
 export function WalkControls({ scene, onExit }: WalkControlsProps) {
-  const spawn = useMemo(() => findSpawn(scene), [scene]);
+  const spawn = useMemo(() => spawnPose(scene), [scene]);
   const obstacles = useMemo(() => wallObstacles(scene), [scene]);
   const position = useMemo<[number, number, number]>(
     () => [spawn.position[0], EYE_HEIGHT, spawn.position[1]],
@@ -124,7 +137,9 @@ export function WalkControls({ scene, onExit }: WalkControlsProps) {
     const dz = (-Math.cos(yaw) * ahead - Math.sin(yaw) * strafe) / len;
     const step = Math.min(delta, 0.1) * speed;
     const from: [number, number] = [state.camera.position.x, state.camera.position.z];
-    const [x, z] = resolveMove(obstacles, from, [from[0] + dx * step, from[1] + dz * step], BODY_RADIUS);
+    const {
+      position: [x, z],
+    } = resolveMove(from, [dx * step, dz * step], obstacles, BODY_RADIUS);
     state.camera.position.set(x, EYE_HEIGHT, z);
     invalidate();
   });

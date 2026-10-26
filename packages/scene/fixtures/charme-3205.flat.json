@@ -22,7 +22,7 @@
   "walls": [
     { "id": "w-north", "start": [-1.6, -0.1], "end": [10.15, -0.1], "thickness": 0.2, "height": 2.5, "finish": { "left": "facade" } },
     { "id": "w-east", "start": [10.15, -0.1], "end": [10.15, 6.03], "thickness": 0.2, "height": 2.5, "finish": { "left": "facade" } },
-    { "id": "w-wc-south", "start": [10.15, 6.03], "end": [8.735, 6.03], "thickness": 0.2, "height": 2.5 },
+    { "id": "w-wc-south", "start": [10.15, 6.115], "end": [8.735, 6.115], "thickness": 0.17, "height": 2.5 },
     { "id": "w-landing", "start": [8.735, 6.115], "end": [6.49, 6.115], "thickness": 0.17, "height": 2.5 },
     { "id": "w-sdb-east", "start": [6.49, 6.115], "end": [6.49, 8.38], "thickness": 0.2, "height": 2.5 },
     { "id": "w-south", "start": [6.49, 8.38], "end": [-0.1, 8.38], "thickness": 0.2, "height": 2.5, "finish": { "left": "facade" } },
@@ -73,7 +73,7 @@
       "polygon": [[4.54, 4.19], [6.91, 4.19], [6.91, 4.49], [8.7, 4.49], [8.7, 6.03], [4.54, 6.03]],
       "ceilingHeight": 2.5
     },
-    { "id": "wc", "name": "WC", "type": "bathroom", "polygon": [[8.77, 4.49], [10.05, 4.49], [10.05, 5.93], [8.77, 5.93]], "ceilingHeight": 2.5 },
+    { "id": "wc", "name": "WC", "type": "bathroom", "polygon": [[8.77, 4.49], [10.05, 4.49], [10.05, 6.03], [8.77, 6.03]], "ceilingHeight": 2.5 },
     {
       "id": "sdb",
       "name": "Salle de bain",
