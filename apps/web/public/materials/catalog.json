@@ -1,0 +1,938 @@
+[
+  {
+    "id": "parquet-herringbone-glossy",
+    "name": "Herringbone parquet (glossy oak)",
+    "category": "floor-wood",
+    "tileSizeM": 3.4,
+    "tileSizeBasis": "api",
+    "resolution": 1024,
+    "meanColor": "#93704d",
+    "meanLinear": [
+      0.29298,
+      0.16256,
+      0.07478
+    ],
+    "roughness": 0.4,
+    "bytes": 169622,
+    "files": {
+      "color": "color.webp",
+      "normal": "normal.webp",
+      "roughness": "roughness.webp",
+      "thumb": "thumb.webp"
+    },
+    "fileBytes": {
+      "color": 132988,
+      "normal": 11448,
+      "roughness": 23780,
+      "thumb": 1406
+    },
+    "source": "polyhaven",
+    "sourceId": "herringbone_parquet",
+    "sourceUrl": "https://polyhaven.com/a/herringbone_parquet",
+    "license": "CC0-1.0",
+    "retrievedAt": "2026-10-26T17:32:07.196Z",
+    "sha256": {
+      "color": "51dc52f710c89ef192efc5f58fe329acbe98d54594062448aaf5862ab1bb9e90",
+      "normal": "39765585c2b92c0a460db7b8e504e5d76cccf40ae97cd6e26ab94239567b2dd1",
+      "roughness": "063959dafef92b15b9146e8320561c42100f85ec76fc88f1625bdf54b650494d",
+      "thumb": "59f6a5d42a00b2c756c0ff8a44a070d9e29336ef8f87de81dedc88c88d3cee91"
+    }
+  },
+  {
+    "id": "parquet-light-oak",
+    "name": "Light oak parquet",
+    "category": "floor-wood",
+    "tileSizeM": 1.8,
+    "tileSizeBasis": "api",
+    "resolution": 1024,
+    "meanColor": "#9b7b5e",
+    "meanLinear": [
+      0.32908,
+      0.19816,
+      0.11258
+    ],
+    "roughness": 0.5,
+    "bytes": 135764,
+    "files": {
+      "color": "color.webp",
+      "normal": "normal.webp",
+      "roughness": "roughness.webp",
+      "thumb": "thumb.webp"
+    },
+    "fileBytes": {
+      "color": 75250,
+      "normal": 26550,
+      "roughness": 32910,
+      "thumb": 1054
+    },
+    "source": "ambientcg",
+    "sourceId": "WoodFloor051",
+    "sourceUrl": "https://ambientcg.com/a/WoodFloor051",
+    "license": "CC0-1.0",
+    "retrievedAt": "2026-10-26T17:32:07.196Z",
+    "sha256": {
+      "color": "ccfd709bddadb1dd10658993d38893a87c89fbec6789a0dce5c4d94a271e6eb8",
+      "normal": "2b716fce28497adc7a870f0945bf550ed718ad4ad608986e52e1a7cb50c2fb26",
+      "roughness": "131b4f906011d7065cc24221b8cd8c0e988759f9f6c35c8931b9fa2bb1f69652",
+      "thumb": "5adc44988d6e8306e7ef8ff1cb38e3f8aa5ebed9db85d3a4d2eb74a70851b101"
+    }
+  },
+  {
+    "id": "planks-honey-oak",
+    "name": "Honey oak planks",
+    "category": "floor-wood",
+    "tileSizeM": 1.2,
+    "tileSizeBasis": "api",
+    "resolution": 1024,
+    "meanColor": "#a27654",
+    "meanLinear": [
+      0.36323,
+      0.18022,
+      0.08806
+    ],
+    "roughness": 0.55,
+    "bytes": 211088,
+    "files": {
+      "color": "color.webp",
+      "normal": "normal.webp",
+      "roughness": "roughness.webp",
+      "thumb": "thumb.webp"
+    },
+    "fileBytes": {
+      "color": 99940,
+      "normal": 6832,
+      "roughness": 103550,
+      "thumb": 766
+    },
+    "source": "polyhaven",
+    "sourceId": "oak_wood_planks",
+    "sourceUrl": "https://polyhaven.com/a/oak_wood_planks",
+    "license": "CC0-1.0",
+    "retrievedAt": "2026-10-26T17:32:07.196Z",
+    "sha256": {
+      "color": "1491b72dd8e4246d6bd8e6689c7af3ca51993d24131c48d04004c911f5b8a256",
+      "normal": "e5c1ab5f903ec22b4a717f63c900d0fd1b08137c66a353f0b94732b57a1b99fb",
+      "roughness": "bd4ad703fdc83255189f5be474f26f664d416072a4b6886f780cd20e6af1c584",
+      "thumb": "f63a8bf0655409adc7b861574f2a0cf7e356f881654a57cc32eb45fb1b9690af"
+    }
+  },
+  {
+    "id": "parquet-rectangular",
+    "name": "Rectangular parquet",
+    "category": "floor-wood",
+    "tileSizeM": 2.25,
+    "tileSizeBasis": "api",
+    "resolution": 1024,
+    "meanColor": "#785c33",
+    "meanLinear": [
+      0.18708,
+      0.107,
+      0.03333
+    ],
+    "roughness": 0.5,
+    "bytes": 81532,
+    "files": {
+      "color": "color.webp",
+      "normal": "normal.webp",
+      "roughness": "roughness.webp",
+      "thumb": "thumb.webp"
+    },
+    "fileBytes": {
+      "color": 64632,
+      "normal": 6432,
+      "roughness": 9510,
+      "thumb": 958
+    },
+    "source": "polyhaven",
+    "sourceId": "rectangular_parquet",
+    "sourceUrl": "https://polyhaven.com/a/rectangular_parquet",
+    "license": "CC0-1.0",
+    "retrievedAt": "2026-10-26T17:32:07.196Z",
+    "sha256": {
+      "color": "4e5574e4bed5c4b12ccc3db387fa04646fc6e2c01dd5659f356e83c8935ef1a9",
+      "normal": "711e549ea15606e15b4ac37b9056bdbefdeed878096b50de1f73ac0b139c75ab",
+      "roughness": "ddd7cb6d3a961ffce27b9ea16195745d013a1f5e5325208a2d4883339ddba10e",
+      "thumb": "77d24bf044e32ea0c1cd6cef21cc52daed0dd49b148ff912613276ee96f2b65e"
+    }
+  },
+  {
+    "id": "parquet-basketweave-dark",
+    "name": "Dark basketweave parquet",
+    "category": "floor-wood",
+    "tileSizeM": 1,
+    "tileSizeBasis": "estimate",
+    "resolution": 1024,
+    "meanColor": "#5a370f",
+    "meanLinear": [
+      0.10143,
+      0.03765,
+      0.00465
+    ],
+    "roughness": 0.5,
+    "bytes": 79584,
+    "files": {
+      "color": "color.webp",
+      "normal": "normal.webp",
+      "roughness": "roughness.webp",
+      "thumb": "thumb.webp"
+    },
+    "fileBytes": {
+      "color": 52908,
+      "normal": 2674,
+      "roughness": 22466,
+      "thumb": 1536
+    },
+    "source": "ambientcg",
+    "sourceId": "WoodFloor070",
+    "sourceUrl": "https://ambientcg.com/a/WoodFloor070",
+    "license": "CC0-1.0",
+    "retrievedAt": "2026-10-26T17:32:07.196Z",
+    "sha256": {
+      "color": "6ca929206b1123fc28d2d0f3dd77800974fec82a62d9248e32785268904751b2",
+      "normal": "1fa2b17c3a56b85a876cde73e00c23ca9558424a309518a0eb9e72f95dc1a765",
+      "roughness": "fe8955855e8e043490048e51a94c30281d384c3294487e1520edabd28423041b",
+      "thumb": "f972a2e77978aee9ea2a8c6d34c69eb4a81437464b213502da0f002839e0ea5f"
+    }
+  },
+  {
+    "id": "wood-walnut",
+    "name": "Walnut",
+    "category": "floor-wood",
+    "tileSizeM": 1,
+    "tileSizeBasis": "api",
+    "resolution": 1024,
+    "meanColor": "#aa8a72",
+    "meanLinear": [
+      0.39978,
+      0.25278,
+      0.16781
+    ],
+    "roughness": 0.5,
+    "bytes": 144026,
+    "files": {
+      "color": "color.webp",
+      "normal": "normal.webp",
+      "roughness": "roughness.webp",
+      "thumb": "thumb.webp"
+    },
+    "fileBytes": {
+      "color": 63188,
+      "normal": 8950,
+      "roughness": 71080,
+      "thumb": 808
+    },
+    "source": "polyhaven",
+    "sourceId": "walnut_veneer_02",
+    "sourceUrl": "https://polyhaven.com/a/walnut_veneer_02",
+    "license": "CC0-1.0",
+    "retrievedAt": "2026-10-26T17:32:07.196Z",
+    "sha256": {
+      "color": "368be342e127e8171fff36fb12b552e00d26ddfc78e80873b1d2005a23a3755e",
+      "normal": "1bf882533cc70c2611ab7157b3e808710ffb73780b908a577c62be7cec300da1",
+      "roughness": "5fe766913a95afcd2f9a92aaf01cc762a024e3ba97217c1b5af67235c0f80012",
+      "thumb": "f800af5383ce8cebe8e7900b0d1c2625d20e518bdcb2f7d5ddb17a1552a23b05"
+    }
+  },
+  {
+    "id": "tile-terracotta",
+    "name": "Terracotta tiles",
+    "category": "floor-tile",
+    "tileSizeM": 2.08,
+    "tileSizeBasis": "api",
+    "resolution": 1024,
+    "meanColor": "#4d271a",
+    "meanLinear": [
+      0.07461,
+      0.02018,
+      0.01028
+    ],
+    "roughness": 0.7,
+    "bytes": 117548,
+    "files": {
+      "color": "color.webp",
+      "normal": "normal.webp",
+      "roughness": "roughness.webp",
+      "thumb": "thumb.webp"
+    },
+    "fileBytes": {
+      "color": 39036,
+      "normal": 40822,
+      "roughness": 36988,
+      "thumb": 702
+    },
+    "source": "polyhaven",
+    "sourceId": "terracotta_floor_tiles",
+    "sourceUrl": "https://polyhaven.com/a/terracotta_floor_tiles",
+    "license": "CC0-1.0",
+    "retrievedAt": "2026-10-26T17:32:07.196Z",
+    "sha256": {
+      "color": "0316107033008093338b126d365b9359d03901d317bef6c0ab1b619bb3dfc584",
+      "normal": "e089d4ba09f83171738fab66cdbc61bdd7e1f262b92a38bbaf3c975dce96dbf1",
+      "roughness": "e209b1b4cb092a0c58e4367255e60b08ec2190faa6f0843e458484febfb89c5f",
+      "thumb": "cb242cdfdeb09ffdf9b77fc49aad92988c458ea3c6ccf9810a42a43677b85541"
+    }
+  },
+  {
+    "id": "tile-white-metro",
+    "name": "White metro tiles",
+    "category": "floor-tile",
+    "tileSizeM": 0.6,
+    "tileSizeBasis": "estimate",
+    "resolution": 1024,
+    "meanColor": "#d0d0d0",
+    "meanLinear": [
+      0.63077,
+      0.63077,
+      0.63077
+    ],
+    "roughness": 0.25,
+    "bytes": 59818,
+    "files": {
+      "color": "color.webp",
+      "normal": "normal.webp",
+      "roughness": "roughness.webp",
+      "thumb": "thumb.webp"
+    },
+    "fileBytes": {
+      "color": 15212,
+      "normal": 29006,
+      "roughness": 14900,
+      "thumb": 700
+    },
+    "source": "ambientcg",
+    "sourceId": "Tiles036",
+    "sourceUrl": "https://ambientcg.com/a/Tiles036",
+    "license": "CC0-1.0",
+    "retrievedAt": "2026-10-26T17:32:07.196Z",
+    "sha256": {
+      "color": "7d1bd7b43c2e9040b9eb7434fce2ad9acd9a981a4984a6170823636f8394d4f5",
+      "normal": "9b3703a438966cc287b3262fc5e769ae686910feb5258a863ab4a0312b5f3579",
+      "roughness": "85a256d77fdb63e131398f1b091a5f02ac85556c75ca376a664f3e510a67c6e7",
+      "thumb": "4452cc309a636210fb13b052af977781fa2791c85844fe2d4ba04a25d53d2e59"
+    }
+  },
+  {
+    "id": "tile-grey-large",
+    "name": "Large-format floor tiles",
+    "category": "floor-tile",
+    "tileSizeM": 3,
+    "tileSizeBasis": "api",
+    "resolution": 1024,
+    "meanColor": "#767774",
+    "meanLinear": [
+      0.18223,
+      0.18435,
+      0.17421
+    ],
+    "roughness": 0.45,
+    "bytes": 234406,
+    "files": {
+      "color": "color.webp",
+      "normal": "normal.webp",
+      "roughness": "roughness.webp",
+      "thumb": "thumb.webp"
+    },
+    "fileBytes": {
+      "color": 161490,
+      "normal": 23108,
+      "roughness": 48420,
+      "thumb": 1388
+    },
+    "source": "polyhaven",
+    "sourceId": "large_floor_tiles_02",
+    "sourceUrl": "https://polyhaven.com/a/large_floor_tiles_02",
+    "license": "CC0-1.0",
+    "retrievedAt": "2026-10-26T17:32:07.196Z",
+    "sha256": {
+      "color": "d95f1dba3367e5d4d7a0fc48c19a43ee8fe06b2a082fdfcdb205b2046815b942",
+      "normal": "5f851bd332fc9d148f84d1555830a9d13bed0ed48a9200acf88627f013c6c0ab",
+      "roughness": "e41c8ad506381ca551b4dfce178f4ee90cc749e64e743172c7a566ffb2a3a6d3",
+      "thumb": "7a88e4ff10016e5ef42c10e9955c0be7d344c48c0407121cd0da8358439cb08f"
+    }
+  },
+  {
+    "id": "marble-white",
+    "name": "White veined marble",
+    "category": "floor-tile",
+    "tileSizeM": 1,
+    "tileSizeBasis": "estimate",
+    "resolution": 1024,
+    "meanColor": "#adaeb7",
+    "meanLinear": [
+      0.41848,
+      0.42163,
+      0.47076
+    ],
+    "roughness": 0.2,
+    "bytes": 199090,
+    "files": {
+      "color": "color.webp",
+      "normal": "normal.webp",
+      "roughness": "roughness.webp",
+      "thumb": "thumb.webp"
+    },
+    "fileBytes": {
+      "color": 154020,
+      "normal": 2426,
+      "roughness": 40766,
+      "thumb": 1878
+    },
+    "source": "ambientcg",
+    "sourceId": "Marble012",
+    "sourceUrl": "https://ambientcg.com/a/Marble012",
+    "license": "CC0-1.0",
+    "retrievedAt": "2026-10-26T17:32:07.196Z",
+    "sha256": {
+      "color": "16db2b14e76d249675a4cf1515de5c659462b49c082f97b3b4e4f94f081ab29c",
+      "normal": "74be69d546b77837555d0a472d89ca3ee6acc1278071a6bf7138f1bb9083f82d",
+      "roughness": "db35cf2ccef7dec802343d15a74eaea0f672f2a7f46031eb1428fe54202628dc",
+      "thumb": "47be0f335f43dcaf43e515468f2bb10eebac57bef24f9d4331d696628c7ad511"
+    }
+  },
+  {
+    "id": "tile-checker-marble",
+    "name": "Black and beige marble checkerboard",
+    "category": "floor-tile",
+    "tileSizeM": 2.1,
+    "tileSizeBasis": "api",
+    "resolution": 1024,
+    "meanColor": "#6e6054",
+    "meanLinear": [
+      0.1573,
+      0.11612,
+      0.08904
+    ],
+    "roughness": 0.25,
+    "bytes": 132710,
+    "files": {
+      "color": "color.webp",
+      "normal": "normal.webp",
+      "roughness": "roughness.webp",
+      "thumb": "thumb.webp"
+    },
+    "fileBytes": {
+      "color": 103120,
+      "normal": 4294,
+      "roughness": 23480,
+      "thumb": 1816
+    },
+    "source": "ambientcg",
+    "sourceId": "Tiles074",
+    "sourceUrl": "https://ambientcg.com/a/Tiles074",
+    "license": "CC0-1.0",
+    "retrievedAt": "2026-10-26T17:32:07.196Z",
+    "sha256": {
+      "color": "b09d14be6eaac1c873ffed41795b2d1ed238fae48cdb87a3705caffac6419ce5",
+      "normal": "e51f60dad5eb7cb5e08ebd6a4ba07e956a9c0ce0c22ee6cbe8de32cefad81310",
+      "roughness": "fe5841b25817f6603b3166794831f0d3565a71ad1ca5421af1ef5fa5e06d4bab",
+      "thumb": "9e84e8cfb70b6cf3dade814281bf0b5bc6e4ae45c203b350a78c2b8fa1a965e0"
+    }
+  },
+  {
+    "id": "tile-limestone-beige",
+    "name": "Beige limestone tiles",
+    "category": "floor-tile",
+    "tileSizeM": 2,
+    "tileSizeBasis": "api",
+    "resolution": 1024,
+    "meanColor": "#b4a08a",
+    "meanLinear": [
+      0.45672,
+      0.34932,
+      0.25437
+    ],
+    "roughness": 0.6,
+    "bytes": 122352,
+    "files": {
+      "color": "color.webp",
+      "normal": "normal.webp",
+      "roughness": "roughness.webp",
+      "thumb": "thumb.webp"
+    },
+    "fileBytes": {
+      "color": 71342,
+      "normal": 10050,
+      "roughness": 39808,
+      "thumb": 1152
+    },
+    "source": "ambientcg",
+    "sourceId": "Tiles139",
+    "sourceUrl": "https://ambientcg.com/a/Tiles139",
+    "license": "CC0-1.0",
+    "retrievedAt": "2026-10-26T17:32:07.196Z",
+    "sha256": {
+      "color": "6825f6199af71584fba097aa2256b82bbb98b9ec02309c0b1cb4f19349031f3a",
+      "normal": "248a4511ad3e1d41ecc0c4ff70bc1f6faf313a6f2dd14d2b024db2a6b4ebf502",
+      "roughness": "4735954f0d3a89dcd9fb00a310c27f73140f2911bba28153130f83fc081fe2bc",
+      "thumb": "5ebe1b3856aba4bde3607556996214716124030cc36a1f4aea9117f02927b928"
+    }
+  },
+  {
+    "id": "plaster-painted-grey",
+    "name": "Painted plaster (soft grey)",
+    "category": "wall-plaster",
+    "tileSizeM": 1,
+    "tileSizeBasis": "estimate",
+    "resolution": 1024,
+    "meanColor": "#bebfba",
+    "meanLinear": [
+      0.51481,
+      0.51937,
+      0.49395
+    ],
+    "roughness": 0.9,
+    "bytes": 163784,
+    "files": {
+      "color": "color.webp",
+      "normal": "normal.webp",
+      "roughness": "roughness.webp",
+      "thumb": "thumb.webp"
+    },
+    "fileBytes": {
+      "color": 26642,
+      "normal": 128772,
+      "roughness": 8248,
+      "thumb": 122
+    },
+    "source": "ambientcg",
+    "sourceId": "PaintedPlaster017",
+    "sourceUrl": "https://ambientcg.com/a/PaintedPlaster017",
+    "license": "CC0-1.0",
+    "retrievedAt": "2026-10-26T17:32:07.196Z",
+    "sha256": {
+      "color": "b9b6958f883fd018e65dc72292b53aa66c38e4c3a02a77b4e1210a350ca6075f",
+      "normal": "ca86d227a3bec75afa26544da1e86a94066ae970bd73acbc47fd519d88ac1bbd",
+      "roughness": "bdde65488108c80e0e3cc624426d56869b77b6a5a521dee08ae5d5a6b102afac",
+      "thumb": "be25932328ad4a326ec89813ec6e8e72454d479b5177e9f4ff9de52ad5673337"
+    }
+  },
+  {
+    "id": "plaster-smooth-beige",
+    "name": "Smooth beige plaster",
+    "category": "wall-plaster",
+    "tileSizeM": 3,
+    "tileSizeBasis": "api",
+    "resolution": 1024,
+    "meanColor": "#9e8c78",
+    "meanLinear": [
+      0.34045,
+      0.26226,
+      0.18786
+    ],
+    "roughness": 0.9,
+    "bytes": 134682,
+    "files": {
+      "color": "color.webp",
+      "normal": "normal.webp",
+      "roughness": "roughness.webp",
+      "thumb": "thumb.webp"
+    },
+    "fileBytes": {
+      "color": 3824,
+      "normal": 91684,
+      "roughness": 39074,
+      "thumb": 100
+    },
+    "source": "polyhaven",
+    "sourceId": "beige_wall_001",
+    "sourceUrl": "https://polyhaven.com/a/beige_wall_001",
+    "license": "CC0-1.0",
+    "retrievedAt": "2026-10-26T17:32:07.196Z",
+    "sha256": {
+      "color": "8b9d221e2ada831f7d03c221db8fa6f917ed2f86ec1329ee41ae9d6f38f807f6",
+      "normal": "cb7fffa033ee1ed1b26efa86c42ef0664f9db983d80d2a90d81a459bd24b737b",
+      "roughness": "4acdd078243a5212a6f76154e77528ce4dc1b7c6afe15ff9da080f1e84b0ad61",
+      "thumb": "c3e2a578a879bda40b5dd0658fe0e8b6ad72695811ccbb5b5450b11a93b04279"
+    }
+  },
+  {
+    "id": "stucco-white",
+    "name": "White stucco",
+    "category": "wall-plaster",
+    "tileSizeM": 2,
+    "tileSizeBasis": "api",
+    "resolution": 1024,
+    "meanColor": "#d7d3d0",
+    "meanLinear": [
+      0.6795,
+      0.65132,
+      0.63062
+    ],
+    "roughness": 0.9,
+    "bytes": 155614,
+    "files": {
+      "color": "color.webp",
+      "normal": "normal.webp",
+      "roughness": "roughness.webp",
+      "thumb": "thumb.webp"
+    },
+    "fileBytes": {
+      "color": 39876,
+      "normal": 110168,
+      "roughness": 5462,
+      "thumb": 108
+    },
+    "source": "polyhaven",
+    "sourceId": "white_stucco",
+    "sourceUrl": "https://polyhaven.com/a/white_stucco",
+    "license": "CC0-1.0",
+    "retrievedAt": "2026-10-26T17:32:07.196Z",
+    "sha256": {
+      "color": "20b03c4f4adafa577d906a9c5309ac6ad309ad87c83964ff9cab9eefa6948500",
+      "normal": "50877539badad3e361d3f36edb2ca771c9186679c12863a7f03e8aa1cb4204a7",
+      "roughness": "be0357e4da5c55e3f3c18ae78eb59be1ffe729680aa8de23929274d5b4897ac3",
+      "thumb": "e2bcec5d3c9784d104d3175d7ad8eb309e20124556fe29afb3231f81e71af96e"
+    }
+  },
+  {
+    "id": "plaster-rough-white",
+    "name": "Rough white plaster",
+    "category": "wall-plaster",
+    "tileSizeM": 1,
+    "tileSizeBasis": "estimate",
+    "resolution": 1024,
+    "meanColor": "#d7d4d0",
+    "meanLinear": [
+      0.68146,
+      0.65537,
+      0.6335
+    ],
+    "roughness": 0.9,
+    "bytes": 325830,
+    "files": {
+      "color": "color.webp",
+      "normal": "normal.webp",
+      "roughness": "roughness.webp",
+      "thumb": "thumb.webp"
+    },
+    "fileBytes": {
+      "color": 164782,
+      "normal": 152326,
+      "roughness": 7964,
+      "thumb": 758
+    },
+    "source": "ambientcg",
+    "sourceId": "Plaster003",
+    "sourceUrl": "https://ambientcg.com/a/Plaster003",
+    "license": "CC0-1.0",
+    "retrievedAt": "2026-10-26T17:32:07.196Z",
+    "sha256": {
+      "color": "e337d1bdb9287709ad7276a5107999dc2ed3c38eaf0ad7a9e7626e3b650e1876",
+      "normal": "08d67bddc45d465b83d3c29f25f19ad00975cddce1e31224bd770c3c35a218c5",
+      "roughness": "3304ae6d055d37b0427bf8e484d4006d78de4d4af384c34d97f469c52ed76322",
+      "thumb": "7e30b2117b6c4a1bd5a234f85d111fcb3da9d2411609154b63254f980e86db85"
+    }
+  },
+  {
+    "id": "concrete-smooth-grey",
+    "name": "Smooth grey concrete",
+    "category": "stone",
+    "tileSizeM": 1.1,
+    "tileSizeBasis": "api",
+    "resolution": 1024,
+    "meanColor": "#b9b9b9",
+    "meanLinear": [
+      0.48294,
+      0.48294,
+      0.48294
+    ],
+    "roughness": 0.8,
+    "bytes": 159714,
+    "files": {
+      "color": "color.webp",
+      "normal": "normal.webp",
+      "roughness": "roughness.webp",
+      "thumb": "thumb.webp"
+    },
+    "fileBytes": {
+      "color": 31684,
+      "normal": 108758,
+      "roughness": 18818,
+      "thumb": 454
+    },
+    "source": "ambientcg",
+    "sourceId": "Concrete034",
+    "sourceUrl": "https://ambientcg.com/a/Concrete034",
+    "license": "CC0-1.0",
+    "retrievedAt": "2026-10-26T17:32:07.196Z",
+    "sha256": {
+      "color": "213ce512722dbc9d2bf10ff7de4f668e13e16f5974f30718991a0130990ff045",
+      "normal": "6b8c237b9ca885c65b64f4d6bce908132ceefbdd0a481ed0722954e22bbb3517",
+      "roughness": "1eb12846b4a4dbf8dfe8471364fbcf7f3db8652cd25708c80d818e85b2667eea",
+      "thumb": "91769682613c5c06bdb09c3bef94d9451a371844ae3945fcef50771e880d045e"
+    }
+  },
+  {
+    "id": "terrazzo",
+    "name": "Terrazzo",
+    "category": "stone",
+    "tileSizeM": 2,
+    "tileSizeBasis": "api",
+    "resolution": 1024,
+    "meanColor": "#896d57",
+    "meanLinear": [
+      0.25051,
+      0.15206,
+      0.09513
+    ],
+    "roughness": 0.4,
+    "bytes": 190868,
+    "files": {
+      "color": "color.webp",
+      "normal": "normal.webp",
+      "roughness": "roughness.webp",
+      "thumb": "thumb.webp"
+    },
+    "fileBytes": {
+      "color": 177778,
+      "normal": 3266,
+      "roughness": 8952,
+      "thumb": 872
+    },
+    "source": "polyhaven",
+    "sourceId": "terrazzo_tiles",
+    "sourceUrl": "https://polyhaven.com/a/terrazzo_tiles",
+    "license": "CC0-1.0",
+    "retrievedAt": "2026-10-26T17:32:07.196Z",
+    "sha256": {
+      "color": "7d457bfed91ab2a4484bc5f23ae861d6f1ffb5eb54c522b46f2bd8a5af1ce276",
+      "normal": "4ec1d7a5f4bafdc7cd7e43d16f51d719510004bcebd6c20460f3533b130032d6",
+      "roughness": "10490f058b8e06edd7ff1e9037524b551b3d7af67f5e015aaab4f438a54cbbed",
+      "thumb": "f964057e4d9688fac398e3d2fd63fb334b4282e3a2a0a647194c95675fc41566"
+    }
+  },
+  {
+    "id": "travertine-beige",
+    "name": "Beige travertine",
+    "category": "stone",
+    "tileSizeM": 1.2,
+    "tileSizeBasis": "api",
+    "resolution": 1024,
+    "meanColor": "#dfcbac",
+    "meanLinear": [
+      0.74097,
+      0.60028,
+      0.41432
+    ],
+    "roughness": 0.6,
+    "bytes": 67448,
+    "files": {
+      "color": "color.webp",
+      "normal": "normal.webp",
+      "roughness": "roughness.webp",
+      "thumb": "thumb.webp"
+    },
+    "fileBytes": {
+      "color": 58546,
+      "normal": 2428,
+      "roughness": 5620,
+      "thumb": 854
+    },
+    "source": "ambientcg",
+    "sourceId": "Travertine009",
+    "sourceUrl": "https://ambientcg.com/a/Travertine009",
+    "license": "CC0-1.0",
+    "retrievedAt": "2026-10-26T17:32:07.196Z",
+    "sha256": {
+      "color": "5c4977bd974fc5978cb0f7de060fa2e712540b06dff0cdb3aafa904130d56d4c",
+      "normal": "c070ad31c56e2277b5527349eb5cf225f17199ec8bccd8cc16ac731449f9cc1a",
+      "roughness": "18428011d7b314246f3ad727ef1e26ad67e77a30d037ca475ee564864c0ab189",
+      "thumb": "b5eb188a02970d24076dca81c8fb8a64e34c4f57d4c3a00dad4bf0d54eb00d49"
+    }
+  },
+  {
+    "id": "linen-rough",
+    "name": "Blue linen",
+    "category": "wall-paper",
+    "tileSizeM": 0.27,
+    "tileSizeBasis": "api",
+    "resolution": 512,
+    "meanColor": "#91abce",
+    "meanLinear": [
+      0.28475,
+      0.40815,
+      0.6141
+    ],
+    "roughness": 0.95,
+    "bytes": 74774,
+    "files": {
+      "color": "color.webp",
+      "normal": "normal.webp",
+      "roughness": "roughness.webp",
+      "thumb": "thumb.webp"
+    },
+    "fileBytes": {
+      "color": 8808,
+      "normal": 25494,
+      "roughness": 40364,
+      "thumb": 108
+    },
+    "source": "polyhaven",
+    "sourceId": "rough_linen",
+    "sourceUrl": "https://polyhaven.com/a/rough_linen",
+    "license": "CC0-1.0",
+    "retrievedAt": "2026-10-26T17:32:07.196Z",
+    "sha256": {
+      "color": "60a0dfb875c477e0e430d6839ad5580677b8ba57878eaa791d4449e94faccbf0",
+      "normal": "f6932016c821227faa70b72af94771e9fc05b424d84aeaf9bf693a4d65545808",
+      "roughness": "49372a4f46fbd037aa993c579407dc077443dcc8d53a51a9aa84f038d93d6a28",
+      "thumb": "ce10b4d9a6ed2a56bf000c5f1959781502b1b3ca8abebe8888b0289cc3ad8c65"
+    }
+  },
+  {
+    "id": "fabric-cream",
+    "name": "Cream woven fabric",
+    "category": "wall-paper",
+    "tileSizeM": 0.265,
+    "tileSizeBasis": "api",
+    "resolution": 512,
+    "meanColor": "#c5af99",
+    "meanLinear": [
+      0.55833,
+      0.42868,
+      0.31726
+    ],
+    "roughness": 0.95,
+    "bytes": 22562,
+    "files": {
+      "color": "color.webp",
+      "normal": "normal.webp",
+      "roughness": "roughness.webp",
+      "thumb": "thumb.webp"
+    },
+    "fileBytes": {
+      "color": 834,
+      "normal": 2606,
+      "roughness": 19012,
+      "thumb": 110
+    },
+    "source": "polyhaven",
+    "sourceId": "terlenka",
+    "sourceUrl": "https://polyhaven.com/a/terlenka",
+    "license": "CC0-1.0",
+    "retrievedAt": "2026-10-26T17:32:07.196Z",
+    "sha256": {
+      "color": "44a215849e6343c1943dc888e352aad3dfdf282bc85b0e9a84a997e7eda5e8a7",
+      "normal": "7b66ba5f828b09655ba521c2a910519a583b80a199be8c3151a7d29cf4385a55",
+      "roughness": "c112a5398d9c0dcb00f7963a39d190c3319f77b1b242dffdfb86b419268eeedf",
+      "thumb": "9cbf7fc5d163bdd899a836ecf4913e319647ce06c54fa3da95178fefac3d3c88"
+    }
+  },
+  {
+    "id": "wallpaper-jacquard",
+    "name": "Floral jacquard wallpaper",
+    "category": "wall-paper",
+    "tileSizeM": 0.25,
+    "tileSizeBasis": "api",
+    "resolution": 512,
+    "meanColor": "#414045",
+    "meanLinear": [
+      0.05337,
+      0.05149,
+      0.05942
+    ],
+    "roughness": 0.8,
+    "bytes": 105626,
+    "files": {
+      "color": "color.webp",
+      "normal": "normal.webp",
+      "roughness": "roughness.webp",
+      "thumb": "thumb.webp"
+    },
+    "fileBytes": {
+      "color": 25980,
+      "normal": 50408,
+      "roughness": 27752,
+      "thumb": 1486
+    },
+    "source": "polyhaven",
+    "sourceId": "floral_jacquard",
+    "sourceUrl": "https://polyhaven.com/a/floral_jacquard",
+    "license": "CC0-1.0",
+    "retrievedAt": "2026-10-26T17:32:07.196Z",
+    "sha256": {
+      "color": "1c2c31ad1476d39fb02e25661cc67a648c5279d973c86cf7d728ecd74490755e",
+      "normal": "07bb1d7a101972a9998b0a59f402319003b3fa1b70d85d2ee9fe821c99ef9166",
+      "roughness": "226f9d5038ec1255e1f744b08ee6ac8a7003f6ca2e8a788d7c24f3ec5de4d0e3",
+      "thumb": "485e195f59262d6803397a858ef67cdd9b6c80f54a1b12bae7f450631920c83f"
+    }
+  },
+  {
+    "id": "decking-wood",
+    "name": "Weathered wood decking",
+    "category": "outdoor",
+    "tileSizeM": 1,
+    "tileSizeBasis": "api",
+    "resolution": 1024,
+    "meanColor": "#9b876e",
+    "meanLinear": [
+      0.32927,
+      0.24408,
+      0.15633
+    ],
+    "roughness": 0.8,
+    "bytes": 304056,
+    "files": {
+      "color": "color.webp",
+      "normal": "normal.webp",
+      "roughness": "roughness.webp",
+      "thumb": "thumb.webp"
+    },
+    "fileBytes": {
+      "color": 162334,
+      "normal": 128258,
+      "roughness": 11922,
+      "thumb": 1542
+    },
+    "source": "polyhaven",
+    "sourceId": "brown_planks_09",
+    "sourceUrl": "https://polyhaven.com/a/brown_planks_09",
+    "license": "CC0-1.0",
+    "retrievedAt": "2026-10-26T17:32:07.196Z",
+    "sha256": {
+      "color": "271c8a977fe6b514b667031ff40da5c5bbba34e37d660f4f2113bc14dcc6f1b5",
+      "normal": "8c48856df4f5d361b93fe6c5bb9e5f768d075316f3b8af4a9cdfd6bedb1c8cb1",
+      "roughness": "8e0a26023871fac5904edd60118b391a0c2081efd696b944c3096be33117d823",
+      "thumb": "cb8918bb8e7bc817ce094aaeef877a13efb86e6733919e64a8e6876e38d53bc6"
+    }
+  },
+  {
+    "id": "pavers-stone",
+    "name": "Stone pavers",
+    "category": "outdoor",
+    "tileSizeM": 2,
+    "tileSizeBasis": "api",
+    "resolution": 1024,
+    "meanColor": "#64574b",
+    "meanLinear": [
+      0.12878,
+      0.09478,
+      0.07079
+    ],
+    "roughness": 0.85,
+    "bytes": 270102,
+    "files": {
+      "color": "color.webp",
+      "normal": "normal.webp",
+      "roughness": "roughness.webp",
+      "thumb": "thumb.webp"
+    },
+    "fileBytes": {
+      "color": 146436,
+      "normal": 107744,
+      "roughness": 15068,
+      "thumb": 854
+    },
+    "source": "polyhaven",
+    "sourceId": "stone_pavers",
+    "sourceUrl": "https://polyhaven.com/a/stone_pavers",
+    "license": "CC0-1.0",
+    "retrievedAt": "2026-10-26T17:32:07.196Z",
+    "sha256": {
+      "color": "665ab3491ca4bf562604c622ad168518be4463e201bee7011b493251a06d14c8",
+      "normal": "eb666b9a48d8dbc8a82307fb49dea96a592e1684da2545c4e4c7933786170f2c",
+      "roughness": "6fc3fbaa8ffd86d701c2fa71f3c44e0291c4d2da064d5739cace0f5788517af6",
+      "thumb": "cd9a9e3e832cb05f5630d2b775dd84aaaf7f3f36ec9422416375aa8e7f6cdce9"
+    }
+  }
+]

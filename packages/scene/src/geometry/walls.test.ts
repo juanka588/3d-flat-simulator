@@ -347,3 +347,40 @@ describe('wall faces are cut where the room on the face changes', () => {
     }
   });
 });
+
+describe('room-scoped wall finishes in the mesh', () => {
+  it('painting the sejour changes only its stretches of w-south and w-west', async () => {
+    const { FIXTURES, env } = await import('../commands/testUtil');
+    const { applyCommand } = await import('../commands/apply');
+    const base = FIXTURES.charme!;
+    const r = applyCommand(base, env({ type: 'room.setWallFinish', roomId: 'sejour', materialId: 'floor-tile' }));
+    if (!r.ok) throw new Error(JSON.stringify(r.errors));
+    const materialAt = (scene: typeof base, wallId: string, face: string) => {
+      const m = buildWalls(scene);
+      const out: { x: number; z: number; mat: string }[] = [];
+      for (const o of m.owners.filter((x) => x.entityId === wallId && x.face === face)) {
+        for (let t = o.start; t < o.start + o.count; t++) {
+          let x = 0;
+          let z = 0;
+          for (let k = 0; k < 3; k++) {
+            const i = m.indices[t * 3 + k]!;
+            x += m.positions[i * 3]! / 3;
+            z += m.positions[i * 3 + 2]! / 3;
+          }
+          const g = m.groups.find((gr) => gr.start <= t * 3 && t * 3 < gr.start + gr.count)!;
+          out.push({ x, z, mat: g.materialId });
+        }
+      }
+      return out;
+    };
+    const south = materialAt(r.scene, 'w-south', 'right');
+    expect(south.filter((p) => p.x < 3.4).every((p) => p.mat === 'floor-tile')).toBe(true);
+    expect(south.filter((p) => p.x > 4.1).every((p) => p.mat !== 'floor-tile')).toBe(true);
+    expect(south.some((p) => p.x > 4.1)).toBe(true);
+    const west = materialAt(r.scene, 'w-west', 'right');
+    expect(west.filter((p) => p.z > 2.6 && p.z < 8.0).every((p) => p.mat === 'floor-tile')).toBe(true);
+    expect(west.filter((p) => p.z < 1.9).every((p) => p.mat !== 'floor-tile')).toBe(true);
+    expect(west.some((p) => p.z < 1.9)).toBe(true);
+    expect(materialAt(r.scene, 'w-west', 'left').every((p) => p.mat !== 'floor-tile')).toBe(true);
+  });
+});

@@ -46,7 +46,7 @@ export const Material = z
     color: HexColor,
     roughness: z.number().min(0).max(1).default(0.9),
     /** Base URL of a PBR texture set (M3+). Required when `kind` is "texture". */
-    textureUrl: z.string().optional(),
+    textureUrl: z.string().refine(isTextureUrl, 'expected "lib:<slug>" or a relative path without a scheme or ".."').optional(),
     /** Texture tile size in metres. */
     textureScale: z.number().positive().optional(),
   })
@@ -67,6 +67,11 @@ export const Wall = z.strictObject({
    * See `wallLeftNormal` for the exact definition.
    */
   finish: z.strictObject({ left: Id.optional(), right: Id.optional() }).default({}),
+  /**
+   * Whether the wall is structural (load-bearing, facade, party wall) and so can never be
+   * removed. When absent it is resolved by `isStructural` (exterior/party or >= 15 cm thick).
+   */
+  structural: z.boolean().optional(),
 });
 export type Wall = z.infer<typeof Wall>;
 
@@ -108,6 +113,11 @@ export const Room = z.strictObject({
   name: z.string(),
   type: RoomType,
   polygon: z.array(Vec2).min(3).max(LIMITS.polygonVertices, `too many polygon vertices (max ${LIMITS.polygonVertices})`),
+  /**
+   * Finish of this room's wall faces. Applies to the stretches of wall faces that border this room
+   * unless the wall side has its own explicit `finish` (see `wallFaceMaterial`).
+   */
+  wallFinish: Id.optional(),
   floorMaterial: Id.optional(),
   ceilingMaterial: Id.optional(),
   /** Floor-to-ceiling height; defaults to the lowest wall bounding the room. */
@@ -269,6 +279,7 @@ export const Scene = SceneBase.superRefine((scene, ctx) => {
   scene.rooms.forEach((room, i) => {
     if (polygonArea(room.polygon) < EPSILON) issue(['rooms', i, 'polygon'], 'room polygon has zero area');
     else if (!isSimplePolygon(room.polygon)) issue(['rooms', i, 'polygon'], 'room polygon intersects itself');
+    checkMaterial(room.wallFinish, ['rooms', i, 'wallFinish']);
     checkMaterial(room.floorMaterial, ['rooms', i, 'floorMaterial']);
     checkMaterial(room.ceilingMaterial, ['rooms', i, 'ceilingMaterial']);
   });
@@ -293,6 +304,13 @@ export function wallLeftNormal(wall: Pick<Wall, 'start' | 'end'>): Vec2 {
   const dx = wall.end[0] - wall.start[0];
   const dy = wall.end[1] - wall.start[1];
   return [dy / length, -dx / length];
+}
+
+/** Texture set reference: a library slug (`lib:oak-parquet`) or a relative path (`materials/x/`). */
+export function isTextureUrl(url: string): boolean {
+  if (/^lib:[a-z0-9][a-z0-9-]*$/.test(url)) return true;
+  if (url === '' || /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(url) || url.startsWith('/') || url.includes('\\')) return false;
+  return !url.split('/').some((part) => part === '..');
 }
 
 function isTimeZone(tz: string): boolean {

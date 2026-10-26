@@ -12,3 +12,6 @@ playwright-report/
 blueprints/
 *.pdf
 .idea/
+
+# material pipeline download cache
+.cache/

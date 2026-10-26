@@ -11,3 +11,7 @@ export * from './view';
 export * from './lighting';
 export * from './context';
 export * from './assets';
+export * from './commands';
+export * from './structural';
+export * from './geometry/room-sides';
+export * from './materials';

@@ -1,9 +1,9 @@
 import type { Opening, Scene, Wall } from '../schema';
-import { wallSideRooms } from '../lighting/daylight';
+import { wallSideRooms, type WallSideSegment } from '../lighting/daylight';
 import { MeshBuilder, type Vec3 } from './builder';
 import { clampedOpeningSpans } from './openings';
 import { computeWallJunctions, type WallFootprint } from './junctions';
-import { wallEdgeMaterial, wallSideMaterial } from './materials';
+import { wallEdgeMaterial, wallFaceMaterial } from './materials';
 import type { MeshData, WallFace } from './types';
 
 const EPS = 1e-6;
@@ -147,8 +147,9 @@ export function buildWalls(scene: Scene): MeshData {
       endLeft: frame.length,
       endRight: frame.length,
     };
-    const cuts = (sideRooms[wall.id]?.segments ?? []).slice(1).map((seg) => seg.from);
-    buildWall(b, scene, wall, frame, fp, openingsByWall.get(wall.id) ?? [], edgeMat, cuts);
+    const segments = sideRooms[wall.id]?.segments ?? [];
+    const cuts = segments.slice(1).map((seg) => seg.from);
+    buildWall(b, scene, wall, frame, fp, openingsByWall.get(wall.id) ?? [], edgeMat, cuts, segments);
   }
   return b.build();
 }
@@ -162,6 +163,7 @@ function buildWall(
   openings: Opening[],
   edgeMat: string,
   cuts: readonly number[],
+  roomSegments: readonly WallSideSegment[],
 ): void {
   const H = f.height;
   const h = f.half;
@@ -191,8 +193,12 @@ function buildWall(
   }
   solidSeg(prevTo, null);
 
-  const leftMat = wallSideMaterial(scene, wall, 'left');
-  const rightMat = wallSideMaterial(scene, wall, 'right');
+  // Face material per piece: the room on that face at the piece's midpoint decides `Room.wallFinish`.
+  const faceMat = (side: 'left' | 'right', a: number, z: number): string => {
+    const mid = (a + z) / 2;
+    const seg = roomSegments.find((s) => mid >= s.from - EPS && mid <= s.to + EPS);
+    return wallFaceMaterial(scene, wall, side, seg?.[side]);
+  };
   const nL = frameDir(f, 0, 1);
   const nR = frameDir(f, 0, -1);
 
@@ -210,7 +216,7 @@ function buildWall(
           nL,
           // Mirrored (u = length - s) so u grows to the viewer's right when facing the left face.
           [[f.length - a, y0], [f.length - z, y0], [f.length - z, y1], [f.length - a, y1]],
-          leftMat,
+          faceMat('left', a, z),
           own('left'),
         );
       }
@@ -220,7 +226,7 @@ function buildWall(
           [pt(a, -h, y0), pt(z, -h, y0), pt(z, -h, y1), pt(a, -h, y1)],
           nR,
           [[a, y0], [z, y0], [z, y1], [a, y1]],
-          rightMat,
+          faceMat('right', a, z),
           own('right'),
         );
       }

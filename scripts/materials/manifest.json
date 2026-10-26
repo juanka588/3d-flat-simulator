@@ -1,0 +1,245 @@
+[
+  {
+    "slug": "parquet-herringbone-glossy",
+    "source": "polyhaven",
+    "sourceId": "herringbone_parquet",
+    "name": "Herringbone parquet (glossy oak)",
+    "category": "floor-wood",
+    "tileSizeM": 3.4,
+    "tileSizeBasis": "api",
+    "roughnessDefault": 0.4
+  },
+  {
+    "slug": "parquet-light-oak",
+    "source": "ambientcg",
+    "sourceId": "WoodFloor051",
+    "name": "Light oak parquet",
+    "category": "floor-wood",
+    "tileSizeM": 1.8,
+    "tileSizeBasis": "api",
+    "roughnessDefault": 0.5
+  },
+  {
+    "slug": "planks-honey-oak",
+    "source": "polyhaven",
+    "sourceId": "oak_wood_planks",
+    "name": "Honey oak planks",
+    "category": "floor-wood",
+    "tileSizeM": 1.2,
+    "tileSizeBasis": "api",
+    "roughnessDefault": 0.55
+  },
+  {
+    "slug": "parquet-rectangular",
+    "source": "polyhaven",
+    "sourceId": "rectangular_parquet",
+    "name": "Rectangular parquet",
+    "category": "floor-wood",
+    "tileSizeM": 2.25,
+    "tileSizeBasis": "api",
+    "roughnessDefault": 0.5
+  },
+  {
+    "slug": "parquet-basketweave-dark",
+    "source": "ambientcg",
+    "sourceId": "WoodFloor070",
+    "name": "Dark basketweave parquet",
+    "category": "floor-wood",
+    "tileSizeM": 1,
+    "tileSizeBasis": "estimate",
+    "roughnessDefault": 0.5
+  },
+  {
+    "slug": "wood-walnut",
+    "source": "polyhaven",
+    "sourceId": "walnut_veneer_02",
+    "name": "Walnut",
+    "category": "floor-wood",
+    "tileSizeM": 1,
+    "tileSizeBasis": "api",
+    "roughnessDefault": 0.5
+  },
+  {
+    "slug": "tile-terracotta",
+    "source": "polyhaven",
+    "sourceId": "terracotta_floor_tiles",
+    "name": "Terracotta tiles",
+    "category": "floor-tile",
+    "tileSizeM": 2.08,
+    "tileSizeBasis": "api",
+    "roughnessDefault": 0.7
+  },
+  {
+    "slug": "tile-white-metro",
+    "source": "ambientcg",
+    "sourceId": "Tiles036",
+    "name": "White metro tiles",
+    "category": "floor-tile",
+    "tileSizeM": 0.6,
+    "tileSizeBasis": "estimate",
+    "roughnessDefault": 0.25
+  },
+  {
+    "slug": "tile-grey-large",
+    "source": "polyhaven",
+    "sourceId": "large_floor_tiles_02",
+    "name": "Large-format floor tiles",
+    "category": "floor-tile",
+    "tileSizeM": 3.0,
+    "tileSizeBasis": "api",
+    "roughnessDefault": 0.45
+  },
+  {
+    "slug": "marble-white",
+    "source": "ambientcg",
+    "sourceId": "Marble012",
+    "name": "White veined marble",
+    "category": "floor-tile",
+    "tileSizeM": 1.0,
+    "tileSizeBasis": "estimate",
+    "roughnessDefault": 0.2
+  },
+  {
+    "slug": "tile-checker-marble",
+    "source": "ambientcg",
+    "sourceId": "Tiles074",
+    "name": "Black and beige marble checkerboard",
+    "category": "floor-tile",
+    "tileSizeM": 2.1,
+    "tileSizeBasis": "api",
+    "roughnessDefault": 0.25
+  },
+  {
+    "slug": "tile-limestone-beige",
+    "source": "ambientcg",
+    "sourceId": "Tiles139",
+    "name": "Beige limestone tiles",
+    "category": "floor-tile",
+    "tileSizeM": 2,
+    "tileSizeBasis": "api",
+    "roughnessDefault": 0.6
+  },
+  {
+    "slug": "plaster-painted-grey",
+    "source": "ambientcg",
+    "sourceId": "PaintedPlaster017",
+    "name": "Painted plaster (soft grey)",
+    "category": "wall-plaster",
+    "tileSizeM": 1,
+    "tileSizeBasis": "estimate",
+    "roughnessDefault": 0.9
+  },
+  {
+    "slug": "plaster-smooth-beige",
+    "source": "polyhaven",
+    "sourceId": "beige_wall_001",
+    "name": "Smooth beige plaster",
+    "category": "wall-plaster",
+    "tileSizeM": 3,
+    "tileSizeBasis": "api",
+    "roughnessDefault": 0.9
+  },
+  {
+    "slug": "stucco-white",
+    "source": "polyhaven",
+    "sourceId": "white_stucco",
+    "name": "White stucco",
+    "category": "wall-plaster",
+    "tileSizeM": 2,
+    "tileSizeBasis": "api",
+    "roughnessDefault": 0.9
+  },
+  {
+    "slug": "plaster-rough-white",
+    "source": "ambientcg",
+    "sourceId": "Plaster003",
+    "name": "Rough white plaster",
+    "category": "wall-plaster",
+    "tileSizeM": 1,
+    "tileSizeBasis": "estimate",
+    "roughnessDefault": 0.9
+  },
+  {
+    "slug": "concrete-smooth-grey",
+    "source": "ambientcg",
+    "sourceId": "Concrete034",
+    "name": "Smooth grey concrete",
+    "category": "stone",
+    "tileSizeM": 1.1,
+    "tileSizeBasis": "api",
+    "roughnessDefault": 0.8
+  },
+  {
+    "slug": "terrazzo",
+    "source": "polyhaven",
+    "sourceId": "terrazzo_tiles",
+    "name": "Terrazzo",
+    "category": "stone",
+    "tileSizeM": 2,
+    "tileSizeBasis": "api",
+    "roughnessDefault": 0.4
+  },
+  {
+    "slug": "travertine-beige",
+    "source": "ambientcg",
+    "sourceId": "Travertine009",
+    "name": "Beige travertine",
+    "category": "stone",
+    "tileSizeM": 1.2,
+    "tileSizeBasis": "api",
+    "roughnessDefault": 0.6
+  },
+  {
+    "slug": "linen-rough",
+    "source": "polyhaven",
+    "sourceId": "rough_linen",
+    "name": "Blue linen",
+    "category": "wall-paper",
+    "tileSizeM": 0.27,
+    "tileSizeBasis": "api",
+    "roughnessDefault": 0.95,
+    "size": 512
+  },
+  {
+    "slug": "fabric-cream",
+    "source": "polyhaven",
+    "sourceId": "terlenka",
+    "name": "Cream woven fabric",
+    "category": "wall-paper",
+    "tileSizeM": 0.265,
+    "tileSizeBasis": "api",
+    "roughnessDefault": 0.95,
+    "size": 512
+  },
+  {
+    "slug": "wallpaper-jacquard",
+    "source": "polyhaven",
+    "sourceId": "floral_jacquard",
+    "name": "Floral jacquard wallpaper",
+    "category": "wall-paper",
+    "tileSizeM": 0.25,
+    "tileSizeBasis": "api",
+    "roughnessDefault": 0.8,
+    "size": 512
+  },
+  {
+    "slug": "decking-wood",
+    "source": "polyhaven",
+    "sourceId": "brown_planks_09",
+    "name": "Weathered wood decking",
+    "category": "outdoor",
+    "tileSizeM": 1.0,
+    "tileSizeBasis": "api",
+    "roughnessDefault": 0.8
+  },
+  {
+    "slug": "pavers-stone",
+    "source": "polyhaven",
+    "sourceId": "stone_pavers",
+    "name": "Stone pavers",
+    "category": "outdoor",
+    "tileSizeM": 2,
+    "tileSizeBasis": "api",
+    "roughnessDefault": 0.85
+  }
+]

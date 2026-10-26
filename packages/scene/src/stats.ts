@@ -1,4 +1,5 @@
-import { ceilingMaterial, floorMaterial, wallSideMaterial } from './geometry/materials';
+import { ceilingMaterial, floorMaterial, wallFaceMaterial } from './geometry/materials';
+import { wallSideRooms } from './lighting/daylight';
 import { roomBoundaryWalls, roomCeilingHeight } from './geometry/floors';
 import { polygonArea } from './measure';
 import type { Opening, Scene } from './schema';
@@ -20,8 +21,16 @@ export interface WallStats {
   grossArea: SideValues<number>;
   /** Gross area minus the openings, per side, in m². */
   netArea: SideValues<number>;
-  /** Material id per side (own finish, else scene default, else builtin). */
+  /**
+   * Material id per side at mid-span: own side finish, else the finish of the room on that
+   * face, else scene default, else builtin. When `mixed` is true the side has several
+   * materials along it; see `faces`.
+   */
   finish: SideValues<string>;
+  /** True for a side whose material changes along the wall (a room-scoped finish on a shared side). */
+  mixed: SideValues<boolean>;
+  /** Per stretch of each side: metres from the wall start, the room on that face, and its material. */
+  faces: SideValues<{ from: number; to: number; roomId?: string; material: string }[]>;
   openings: Opening[];
 }
 
@@ -34,6 +43,19 @@ export function wallStats(scene: Scene, wallId: string): WallStats | undefined {
   const openings = scene.openings.filter((o) => o.wallId === wall.id);
   const holes = openings.reduce((sum, o) => sum + o.width * o.height, 0);
   const net = Math.max(0, gross - holes);
+  const rooms = wallSideRooms(scene)[wall.id];
+  const faces = (side: 'left' | 'right') => {
+    const out: { from: number; to: number; roomId?: string; material: string }[] = [];
+    for (const seg of rooms?.segments ?? []) {
+      const material = wallFaceMaterial(scene, wall, side, seg[side]);
+      const last = out[out.length - 1];
+      if (last && last.material === material && last.roomId === seg[side]) last.to = seg.to;
+      else out.push({ from: seg.from, to: seg.to, ...(seg[side] ? { roomId: seg[side] } : {}), material });
+    }
+    return out.length ? out : [{ from: 0, to: length, material: wallFaceMaterial(scene, wall, side, undefined) }];
+  };
+  const mid = (side: 'left' | 'right') => wallFaceMaterial(scene, wall, side, rooms?.[side]);
+  const mixed = (side: 'left' | 'right') => new Set(faces(side).map((f) => f.material)).size > 1;
   return {
     id: wall.id,
     length,
@@ -41,7 +63,9 @@ export function wallStats(scene: Scene, wallId: string): WallStats | undefined {
     height: wall.height,
     grossArea: { left: gross, right: gross },
     netArea: { left: net, right: net },
-    finish: { left: wallSideMaterial(scene, wall, 'left'), right: wallSideMaterial(scene, wall, 'right') },
+    finish: { left: mid('left'), right: mid('right') },
+    mixed: { left: mixed('left'), right: mixed('right') },
+    faces: { left: faces('left'), right: faces('right') },
     openings,
   };
 }
