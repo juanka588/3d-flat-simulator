@@ -2,6 +2,8 @@
 
 Blueprint → 3D flat in the browser, with sun and lamp lighting; later furnished by an LLM through an MCP server.
 
+**Live demo:** https://juanka588.github.io/3d-flat-simulator/ (deployed from `main` on every push).
+
 ## Run it
 
 pnpm does not need to be installed globally; `npx` fetches it. Run each command on its own line:
