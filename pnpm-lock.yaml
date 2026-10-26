@@ -21,7 +21,7 @@ importers:
         specifier: ^7.1.1
         version: 7.1.1(eslint@10.13.0)
       typescript:
-        specifier: ^6.0.3
+        specifier: ~6.0.3
         version: 6.0.3
       typescript-eslint:
         specifier: ^8.72.0
@@ -54,6 +54,9 @@ importers:
       vite:
         specifier: ^8.3.5
         version: 8.3.5(@types/node@26.6.5)
+      vitest:
+        specifier: ^5.0.5
+        version: 5.0.5(@types/node@26.6.5)(vite@8.3.5(@types/node@26.6.5))
 
   packages/scene:
     dependencies:

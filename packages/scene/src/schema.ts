@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isSimplePolygon, polygonArea } from './measure';
 
 /**
  * Scene JSON: the single source of truth for a flat.
@@ -6,44 +7,58 @@ import { z } from 'zod';
  * Conventions:
  * - Units are metres; angles are degrees.
  * - Plan coordinates are 2D `[x, y]` as drawn on a blueprint (y grows "down" the page).
- *   World mapping: X = x, Z = y, Y = up.
- * - Walls are defined by their centreline; room polygons follow wall centrelines too.
+ *   World mapping: X = x, Z = y, Y = up. This is not mirrored: looking down from +Y the
+ *   plan reads exactly like the blueprint.
+ * - Rotations are counter-clockwise seen from above, which equals three.js `rotation.y`.
+ * - Walls are defined by their centreline; room polygons follow wall centrelines too, so
+ *   room areas are gross (they include half of each surrounding wall).
  * - `site.northAngle` is the clockwise angle from plan "up" (-y) to true north.
+ * - Unknown keys are rejected so typos (from humans or LLMs) surface as errors.
  */
+
+/** Tolerance for floating-point comparisons on plan geometry, in metres. */
+export const EPSILON = 1e-6;
 
 export const Vec2 = z.tuple([z.number(), z.number()]);
 export type Vec2 = z.infer<typeof Vec2>;
 
 const Id = z.string().min(1);
 const HexColor = z.string().regex(/^#[0-9a-fA-F]{6}$/, 'expected a hex colour like #a1b2c3');
+const TimeZone = z.string().refine(isTimeZone, 'unknown IANA time zone');
 
-export const Material = z.object({
-  id: Id,
-  name: z.string(),
-  kind: z.enum(['paint', 'texture']),
-  color: HexColor,
-  roughness: z.number().min(0).max(1).default(0.9),
-  /** Base URL of a PBR texture set (M3+). */
-  textureUrl: z.string().optional(),
-  /** Texture tile size in metres. */
-  textureScale: z.number().positive().optional(),
-});
+export const Material = z
+  .strictObject({
+    id: Id,
+    name: z.string(),
+    kind: z.enum(['paint', 'texture']),
+    color: HexColor,
+    roughness: z.number().min(0).max(1).default(0.9),
+    /** Base URL of a PBR texture set (M3+). Required when `kind` is "texture". */
+    textureUrl: z.string().optional(),
+    /** Texture tile size in metres. */
+    textureScale: z.number().positive().optional(),
+  })
+  .refine((m) => m.kind !== 'texture' || m.textureUrl !== undefined, {
+    path: ['textureUrl'],
+    message: 'texture materials need a textureUrl',
+  });
 export type Material = z.infer<typeof Material>;
 
-export const Wall = z.object({
+export const Wall = z.strictObject({
   id: Id,
   start: Vec2,
   end: Vec2,
   thickness: z.number().positive().default(0.1),
   height: z.number().positive().default(2.6),
-  /** Material per side. `left`/`right` are relative to walking from start to end. */
-  finish: z
-    .object({ left: Id.optional(), right: Id.optional() })
-    .default({}),
+  /**
+   * Material per side, relative to walking from `start` to `end` as seen on the plan.
+   * See `wallLeftNormal` for the exact definition.
+   */
+  finish: z.strictObject({ left: Id.optional(), right: Id.optional() }).default({}),
 });
 export type Wall = z.infer<typeof Wall>;
 
-export const Opening = z.object({
+export const Opening = z.strictObject({
   id: Id,
   wallId: Id,
   type: z.enum(['door', 'window']),
@@ -53,6 +68,11 @@ export const Opening = z.object({
   height: z.number().positive(),
   /** Height of the opening's bottom edge above the floor (0 for doors). */
   sill: z.number().nonnegative().default(0),
+  /** Whether the opening lets light through. Defaults to true for windows, false for doors. */
+  glazed: z.boolean().optional(),
+  /** Door leaf: which end of the opening is hinged, and which wall side it swings into. */
+  hinge: z.enum(['start', 'end']).optional(),
+  swing: z.enum(['left', 'right']).optional(),
 });
 export type Opening = z.infer<typeof Opening>;
 
@@ -70,7 +90,7 @@ export const RoomType = z.enum([
 ]);
 export type RoomType = z.infer<typeof RoomType>;
 
-export const Room = z.object({
+export const Room = z.strictObject({
   id: Id,
   name: z.string(),
   type: RoomType,
@@ -80,7 +100,7 @@ export const Room = z.object({
 });
 export type Room = z.infer<typeof Room>;
 
-export const Item = z.object({
+export const Item = z.strictObject({
   id: Id,
   assetId: Id,
   position: Vec2,
@@ -91,70 +111,74 @@ export const Item = z.object({
 });
 export type Item = z.infer<typeof Item>;
 
-const LightBase = z.object({
+const lightBase = {
   id: Id,
   name: z.string().optional(),
   roomId: Id.optional(),
   position: Vec2,
   /** Height of the light source above the floor. */
-  elevation: z.number(),
+  elevation: z.number().nonnegative(),
   lumens: z.number().nonnegative(),
   kelvin: z.number().min(1000).max(12000).default(2700),
   on: z.boolean().default(true),
-});
+};
 
 export const Light = z.discriminatedUnion('type', [
-  LightBase.extend({ type: z.literal('point') }),
-  LightBase.extend({
+  z.strictObject({ ...lightBase, type: z.literal('point') }),
+  z.strictObject({
+    ...lightBase,
     type: z.literal('spot'),
     /** Full cone angle in degrees. Spots point straight down. */
     angle: z.number().min(1).max(179).default(60),
   }),
-  LightBase.extend({
+  z.strictObject({
+    ...lightBase,
     type: z.literal('area'),
+    /** Rectangular panel facing down; `width` runs along plan x before rotation. */
     width: z.number().positive(),
     depth: z.number().positive(),
+    rotation: z.number().default(0),
   }),
 ]);
 export type Light = z.infer<typeof Light>;
 
-export const Site = z.object({
+export const Site = z.strictObject({
   latitude: z.number().min(-90).max(90),
   longitude: z.number().min(-180).max(180),
   northAngle: z.number().default(0),
   /** IANA time zone used to interpret local date/time, e.g. "Europe/Paris". */
-  timezone: z.string().default('UTC'),
+  timezone: TimeZone.default('UTC'),
 });
 export type Site = z.infer<typeof Site>;
 
-export const SceneBase = z.object({
+export const SceneBase = z.strictObject({
   version: z.literal(1),
   name: z.string(),
   units: z.literal('m').default('m'),
   site: Site,
   materials: z.array(Material).default([]),
-  walls: z.array(Wall),
+  walls: z.array(Wall).min(1),
   openings: z.array(Opening).default([]),
   rooms: z.array(Room).default([]),
   items: z.array(Item).default([]),
   lights: z.array(Light).default([]),
 });
 
+/**
+ * Cross-reference checks run only once the structure is valid (Zod skips refinements
+ * after structural errors), so a file may reveal reference errors after a first fix.
+ */
 export const Scene = SceneBase.superRefine((scene, ctx) => {
+  const issue = (path: (string | number)[], message: string) =>
+    ctx.addIssue({ code: 'custom', path, message });
+
   const ids = new Map<string, string>();
   const collections = ['materials', 'walls', 'openings', 'rooms', 'items', 'lights'] as const;
   for (const key of collections) {
     scene[key].forEach((entity, index) => {
       const seen = ids.get(entity.id);
-      if (seen) {
-        ctx.addIssue({
-          code: 'custom',
-          path: [key, index, 'id'],
-          message: `duplicate id "${entity.id}" (already used in ${seen})`,
-        });
-      } else {
-        ids.set(entity.id, key);
-      }
+      if (seen) issue([key, index, 'id'], `duplicate id "${entity.id}" (already used in ${seen})`);
+      else ids.set(entity.id, key);
     });
   }
 
@@ -163,54 +187,61 @@ export const Scene = SceneBase.superRefine((scene, ctx) => {
   const walls = new Map(scene.walls.map((w) => [w.id, w]));
 
   const checkMaterial = (id: string | undefined, path: (string | number)[]) => {
-    if (id !== undefined && !materialIds.has(id)) {
-      ctx.addIssue({ code: 'custom', path, message: `unknown material "${id}"` });
-    }
+    if (id !== undefined && !materialIds.has(id)) issue(path, `unknown material "${id}"`);
   };
   const checkRoom = (id: string | undefined, path: (string | number)[]) => {
-    if (id !== undefined && !roomIds.has(id)) {
-      ctx.addIssue({ code: 'custom', path, message: `unknown room "${id}"` });
-    }
+    if (id !== undefined && !roomIds.has(id)) issue(path, `unknown room "${id}"`);
   };
 
   scene.walls.forEach((wall, i) => {
-    if (wallLength(wall) === 0) {
-      ctx.addIssue({ code: 'custom', path: ['walls', i], message: 'wall has zero length' });
-    }
+    if (wallLength(wall) < EPSILON) issue(['walls', i], 'wall has zero length');
     checkMaterial(wall.finish.left, ['walls', i, 'finish', 'left']);
     checkMaterial(wall.finish.right, ['walls', i, 'finish', 'right']);
   });
 
+  const spansByWall = new Map<string, { index: number; from: number; to: number }[]>();
   scene.openings.forEach((opening, i) => {
     const wall = walls.get(opening.wallId);
     if (!wall) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['openings', i, 'wallId'],
-        message: `unknown wall "${opening.wallId}"`,
-      });
+      issue(['openings', i, 'wallId'], `unknown wall "${opening.wallId}"`);
       return;
     }
     const length = wallLength(wall);
     const from = opening.offset - opening.width / 2;
     const to = opening.offset + opening.width / 2;
-    if (from < 0 || to > length) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['openings', i, 'offset'],
-        message: `opening spans ${from.toFixed(2)}–${to.toFixed(2)} m but wall "${wall.id}" is ${length.toFixed(2)} m long`,
-      });
+    if (from < -EPSILON || to > length + EPSILON) {
+      issue(
+        ['openings', i, 'offset'],
+        `opening spans ${from.toFixed(2)}–${to.toFixed(2)} m but wall "${wall.id}" is ${length.toFixed(2)} m long`,
+      );
     }
-    if (opening.sill + opening.height > wall.height) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['openings', i, 'height'],
-        message: `opening top (${(opening.sill + opening.height).toFixed(2)} m) is above wall height (${wall.height} m)`,
-      });
+    if (opening.sill + opening.height > wall.height + EPSILON) {
+      issue(
+        ['openings', i, 'height'],
+        `opening top (${(opening.sill + opening.height).toFixed(2)} m) is above wall height (${wall.height} m)`,
+      );
     }
+    const spans = spansByWall.get(wall.id) ?? [];
+    spans.push({ index: i, from, to });
+    spansByWall.set(wall.id, spans);
   });
+  for (const spans of spansByWall.values()) {
+    spans.sort((a, b) => a.from - b.from);
+    for (let k = 1; k < spans.length; k++) {
+      const prev = spans[k - 1]!;
+      const cur = spans[k]!;
+      if (cur.from < prev.to - EPSILON) {
+        issue(
+          ['openings', cur.index, 'offset'],
+          `overlaps opening "${scene.openings[prev.index]!.id}" on the same wall`,
+        );
+      }
+    }
+  }
 
   scene.rooms.forEach((room, i) => {
+    if (polygonArea(room.polygon) < EPSILON) issue(['rooms', i, 'polygon'], 'room polygon has zero area');
+    else if (!isSimplePolygon(room.polygon)) issue(['rooms', i, 'polygon'], 'room polygon intersects itself');
     checkMaterial(room.floorMaterial, ['rooms', i, 'floorMaterial']);
     checkMaterial(room.ceilingMaterial, ['rooms', i, 'ceilingMaterial']);
   });
@@ -223,4 +254,25 @@ export type SceneInput = z.input<typeof Scene>;
 
 export function wallLength(wall: Pick<Wall, 'start' | 'end'>): number {
   return Math.hypot(wall.end[0] - wall.start[0], wall.end[1] - wall.start[1]);
+}
+
+/**
+ * Unit normal pointing to the wall's "left" side: the left of someone walking from
+ * `start` to `end` on the plan as drawn (y down), i.e. `(dy, -dx) / length`.
+ * Example: a wall drawn left-to-right has its left side facing up the page (-y).
+ */
+export function wallLeftNormal(wall: Pick<Wall, 'start' | 'end'>): Vec2 {
+  const length = wallLength(wall);
+  const dx = wall.end[0] - wall.start[0];
+  const dy = wall.end[1] - wall.start[1];
+  return [dy / length, -dx / length];
+}
+
+function isTimeZone(tz: string): boolean {
+  try {
+    new Intl.DateTimeFormat('en', { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
 }
