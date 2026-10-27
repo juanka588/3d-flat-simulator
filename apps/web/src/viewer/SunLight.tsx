@@ -21,7 +21,7 @@ type OkModel = Extract<LightingModel, { ok: true }>;
  */
 export function SunLight({ model, scene, context }: { model: OkModel; scene: Scene; context: SiteContext | null }) {
   const light = useRef<DirectionalLight>(null);
-  const mapSize = getPerfProfile().sunMap;
+  const { sunMap: mapSize, shadowRadius } = getPerfProfile();
   const target = useMemo(() => new Object3D(), []);
   const invalidate = useThree((s) => s.invalidate);
   const [dx, dy, dz] = model.sun.direction;
@@ -65,6 +65,7 @@ export function SunLight({ model, scene, context }: { model: OkModel; scene: Sce
         intensity={intensity}
         castShadow
         shadow-mapSize={[mapSize, mapSize]}
+        shadow-radius={shadowRadius}
       />
     </>
   );

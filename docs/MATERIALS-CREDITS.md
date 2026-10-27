@@ -10,11 +10,14 @@ Attribution is not required, but we credit the sources. The files shipped here a
 
 | Material | Source | Original | Licence | Retrieved |
 | --- | --- | --- | --- | --- |
+| Brushed steel (`brushed-steel`) | ambientCG | [Metal009](https://ambientcg.com/a/Metal009) | CC0-1.0 | 2026-10-27 |
 | Smooth grey concrete (`concrete-smooth-grey`) | ambientCG | [Concrete034](https://ambientcg.com/a/Concrete034) | CC0-1.0 | 2026-10-26 |
 | Weathered wood decking (`decking-wood`) | Poly Haven | [brown_planks_09](https://polyhaven.com/a/brown_planks_09) | CC0-1.0 | 2026-10-26 |
 | Cream woven fabric (`fabric-cream`) | Poly Haven | [terlenka](https://polyhaven.com/a/terlenka) | CC0-1.0 | 2026-10-26 |
+| Grey woven upholstery (`fabric-weave-grey`) | ambientCG | [Fabric030](https://ambientcg.com/a/Fabric030) | CC0-1.0 | 2026-10-27 |
 | Blue linen (`linen-rough`) | Poly Haven | [rough_linen](https://polyhaven.com/a/rough_linen) | CC0-1.0 | 2026-10-26 |
 | White veined marble (`marble-white`) | ambientCG | [Marble012](https://ambientcg.com/a/Marble012) | CC0-1.0 | 2026-10-26 |
+| Oak veneer (cabinet fronts) (`oak-veneer`) | Poly Haven | [oak_veneer_01](https://polyhaven.com/a/oak_veneer_01) | CC0-1.0 | 2026-10-27 |
 | Dark basketweave parquet (`parquet-basketweave-dark`) | ambientCG | [WoodFloor070](https://ambientcg.com/a/WoodFloor070) | CC0-1.0 | 2026-10-26 |
 | Herringbone parquet (glossy oak) (`parquet-herringbone-glossy`) | Poly Haven | [herringbone_parquet](https://polyhaven.com/a/herringbone_parquet) | CC0-1.0 | 2026-10-26 |
 | Light oak parquet (`parquet-light-oak`) | ambientCG | [WoodFloor051](https://ambientcg.com/a/WoodFloor051) | CC0-1.0 | 2026-10-26 |
@@ -24,6 +27,7 @@ Attribution is not required, but we credit the sources. The files shipped here a
 | Painted plaster (soft grey) (`plaster-painted-grey`) | ambientCG | [PaintedPlaster017](https://ambientcg.com/a/PaintedPlaster017) | CC0-1.0 | 2026-10-26 |
 | Rough white plaster (`plaster-rough-white`) | ambientCG | [Plaster003](https://ambientcg.com/a/Plaster003) | CC0-1.0 | 2026-10-26 |
 | Smooth beige plaster (`plaster-smooth-beige`) | Poly Haven | [beige_wall_001](https://polyhaven.com/a/beige_wall_001) | CC0-1.0 | 2026-10-26 |
+| Light quartz / terrazzo (worktops) (`quartz-light`) | ambientCG | [Terrazzo004](https://ambientcg.com/a/Terrazzo004) | CC0-1.0 | 2026-10-27 |
 | White stucco (`stucco-white`) | Poly Haven | [white_stucco](https://polyhaven.com/a/white_stucco) | CC0-1.0 | 2026-10-26 |
 | Terrazzo (`terrazzo`) | Poly Haven | [terrazzo_tiles](https://polyhaven.com/a/terrazzo_tiles) | CC0-1.0 | 2026-10-26 |
 | Black and beige marble checkerboard (`tile-checker-marble`) | ambientCG | [Tiles074](https://ambientcg.com/a/Tiles074) | CC0-1.0 | 2026-10-26 |

@@ -1251,5 +1251,203 @@
       "roughness": "51b18f6137b715618521e28d1fd917992f9fa6ad5af5305395815ec91d6b3135",
       "thumb": "3270aa193b850c0471124496d5f0121bf93436333929d25fa28fa0ed74316c18"
     }
+  },
+  {
+    "id": "oak-veneer",
+    "name": "Oak veneer (cabinet fronts)",
+    "category": "floor-wood",
+    "tileSizeM": 1.83,
+    "tileSizeBasis": "api",
+    "resolution": 1024,
+    "meanColor": "#a17e58",
+    "meanLinear": [
+      0.35829,
+      0.20988,
+      0.09713
+    ],
+    "roughness": 0.5,
+    "bytes": 211548,
+    "files": {
+      "color": "color.webp",
+      "normal": "normal.webp",
+      "roughness": "roughness.webp",
+      "thumb": "thumb.webp"
+    },
+    "fileBytes": {
+      "color": 79286,
+      "normal": 30608,
+      "roughness": 100700,
+      "thumb": 954
+    },
+    "source": "polyhaven",
+    "sourceId": "oak_veneer_01",
+    "sourceUrl": "https://polyhaven.com/a/oak_veneer_01",
+    "license": "CC0-1.0",
+    "licenseEvidence": {
+      "basis": "site-policy",
+      "policyUrl": "https://polyhaven.com/license",
+      "needle": "creativecommons.org/publicdomain/zero",
+      "assetApiUrl": "https://api.polyhaven.com/info/oak_veneer_01",
+      "checkedAt": "2026-10-27T15:14:09.461Z"
+    },
+    "sourceSha256": {
+      "Diffuse": "c14681f72f59f17bff568cae7a837641443b607b899f0c279cd64a5638f877a7",
+      "nor_gl": "1297acf7b4476d5ccd83cc8b27be96aa6110f7a9c3a40be0bd767bf81b17db01",
+      "Rough": "ca2af5649b628ef05f196793d68cdca874c12ceb6e9ae566976546d9dd5a2604"
+    },
+    "retrievedAt": "2026-10-27T15:14:09.461Z",
+    "sha256": {
+      "color": "3eefff8699cccca6e97a26db128a50229cea99090d3aa9202b1d4c7e72a0e9de",
+      "normal": "bfc294f7a5848f1cbe68273b1d50c4f533cd52e6f6fa0d6e17a1ad4555ff9210",
+      "roughness": "655e29e7ba22544a0fc64eacb3fa7ee04088f7f71130449889708bfc6caba872",
+      "thumb": "d1a3f2ac7e17f86f91e7e15594c22cf0c7fbd3820d79839c9b7e320b14347d8f"
+    }
+  },
+  {
+    "id": "brushed-steel",
+    "name": "Brushed steel",
+    "category": "metal",
+    "tileSizeM": 0.6,
+    "tileSizeBasis": "estimate",
+    "resolution": 512,
+    "meanColor": "#939498",
+    "meanLinear": [
+      0.2913,
+      0.29768,
+      0.31491
+    ],
+    "roughness": 0.35,
+    "bytes": 25670,
+    "files": {
+      "color": "color.webp",
+      "normal": "normal.webp",
+      "roughness": "roughness.webp",
+      "thumb": "thumb.webp"
+    },
+    "fileBytes": {
+      "color": 9060,
+      "normal": 1050,
+      "roughness": 15336,
+      "thumb": 224
+    },
+    "source": "ambientcg",
+    "sourceId": "Metal009",
+    "sourceUrl": "https://ambientcg.com/a/Metal009",
+    "license": "CC0-1.0",
+    "licenseEvidence": {
+      "basis": "site-policy",
+      "policyUrl": "https://docs.ambientcg.com/license/",
+      "needle": "creativecommons.org/publicdomain/zero",
+      "assetApiUrl": "https://ambientcg.com/api/v2/full_json?id=Metal009&include=downloadData",
+      "checkedAt": "2026-10-27T15:15:09.955Z"
+    },
+    "sourceSha256": {
+      "zip": "1b1970219b40fe707e7194b28702f1a65b0d227bbea56da69dfbc8d8b5cfcb5e"
+    },
+    "retrievedAt": "2026-10-27T15:15:09.955Z",
+    "sha256": {
+      "color": "a2b56c12ae60970ee795f89703b6ac2d274784d837b6bad7c5c19d96dff4a7cd",
+      "normal": "bf2dc2a41b7678077709a2ba43cdb4b95c07368ab04b0efb5e5ec00aea5b1b31",
+      "roughness": "f21a90e20573ff0b7ec10095ca7f32362d4399e3aa95a4138ed73eb250dbf2d8",
+      "thumb": "8647f14f230c6f5b6e8bbdddbccb2f24825d1c6622e501f5a94546eaffbdf1e8"
+    }
+  },
+  {
+    "id": "quartz-light",
+    "name": "Light quartz / terrazzo (worktops)",
+    "category": "stone",
+    "tileSizeM": 0.8,
+    "tileSizeBasis": "estimate",
+    "resolution": 1024,
+    "meanColor": "#d7d7da",
+    "meanLinear": [
+      0.68069,
+      0.67608,
+      0.69834
+    ],
+    "roughness": 0.3,
+    "bytes": 293978,
+    "files": {
+      "color": "color.webp",
+      "normal": "normal.webp",
+      "roughness": "roughness.webp",
+      "thumb": "thumb.webp"
+    },
+    "fileBytes": {
+      "color": 156558,
+      "normal": 96076,
+      "roughness": 37782,
+      "thumb": 3562
+    },
+    "source": "ambientcg",
+    "sourceId": "Terrazzo004",
+    "sourceUrl": "https://ambientcg.com/a/Terrazzo004",
+    "license": "CC0-1.0",
+    "licenseEvidence": {
+      "basis": "site-policy",
+      "policyUrl": "https://docs.ambientcg.com/license/",
+      "needle": "creativecommons.org/publicdomain/zero",
+      "assetApiUrl": "https://ambientcg.com/api/v2/full_json?id=Terrazzo004&include=downloadData",
+      "checkedAt": "2026-10-27T15:14:09.461Z"
+    },
+    "sourceSha256": {
+      "zip": "fccfebac29c8f0c92905ba32d97fa7d36130fe5834085c9059316c1085be0949"
+    },
+    "retrievedAt": "2026-10-27T15:14:09.461Z",
+    "sha256": {
+      "color": "3321a726bf118dbaa9e4c1cc61093615912925029c9e291e2200eef299dbfb4d",
+      "normal": "aeee3219a76428956ace20781c06e6e6cffdd67584a92b8f3e60d18941c84277",
+      "roughness": "3d795b74eca9000d1c67ce5b65a24eba14aabfe28996944fdfa12c3d3b171da2",
+      "thumb": "a8915ec3eaf806279235a505f087f31a570a9db4acb6211f9c03838c9a8996ae"
+    }
+  },
+  {
+    "id": "fabric-weave-grey",
+    "name": "Grey woven upholstery",
+    "category": "wall-paper",
+    "tileSizeM": 0.4,
+    "tileSizeBasis": "estimate",
+    "resolution": 512,
+    "meanColor": "#5b5b5c",
+    "meanLinear": [
+      0.10534,
+      0.1043,
+      0.10598
+    ],
+    "roughness": 0.95,
+    "bytes": 233566,
+    "files": {
+      "color": "color.webp",
+      "normal": "normal.webp",
+      "roughness": "roughness.webp",
+      "thumb": "thumb.webp"
+    },
+    "fileBytes": {
+      "color": 66096,
+      "normal": 122270,
+      "roughness": 45104,
+      "thumb": 96
+    },
+    "source": "ambientcg",
+    "sourceId": "Fabric030",
+    "sourceUrl": "https://ambientcg.com/a/Fabric030",
+    "license": "CC0-1.0",
+    "licenseEvidence": {
+      "basis": "site-policy",
+      "policyUrl": "https://docs.ambientcg.com/license/",
+      "needle": "creativecommons.org/publicdomain/zero",
+      "assetApiUrl": "https://ambientcg.com/api/v2/full_json?id=Fabric030&include=downloadData",
+      "checkedAt": "2026-10-27T15:14:09.461Z"
+    },
+    "sourceSha256": {
+      "zip": "82d4d00ccf901cf4707c5489005945ab8574933fc60437e26c6737f0436699e0"
+    },
+    "retrievedAt": "2026-10-27T15:14:09.461Z",
+    "sha256": {
+      "color": "e09901298a27119bb7993e53c1b74a10dbcfffefa33545113a9e4d3097676a74",
+      "normal": "1bd38fc240ffd4d3bde567678c240937b66f46bbbcd4c8cab32dff051f2b82a9",
+      "roughness": "dc76b4e3367dc4ba0f431d5961da372a577154fa25c0b489df98e75036deecf7",
+      "thumb": "e902edca4216ec8e4150d2ae6bd7434b893933a5c70a014ee2a133b5c6ff9f00"
+    }
   }
 ]

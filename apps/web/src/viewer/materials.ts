@@ -1,4 +1,5 @@
-import { BUILTIN_MATERIALS, ITEM_MATERIALS, clampAlbedo, relativeLuminance } from '@flat/scene';
+import { BUILTIN_MATERIALS, ITEM_MATERIAL_SPECS, clampAlbedo, relativeLuminance } from '@flat/scene';
+import type { ItemMaterialId } from '@flat/scene';
 import type { CatalogEntry, Scene } from '@flat/scene';
 import { Color, DoubleSide, MeshStandardMaterial } from 'three';
 import type { Material, Texture } from 'three';
@@ -77,6 +78,17 @@ interface TextureSpec {
   roughness: number;
   url: string | undefined;
   scale: number | undefined;
+  /**
+   * Steer the texture's average colour to `color` (the material colour multiplies the map by `color / mean`), instead of
+   * showing the texture as it is. Used by furniture finishes: the library texture gives the grain / weave, the spec the colour.
+   */
+  retarget?: boolean;
+}
+
+/** Linear-light multiplier that moves a texture of mean `mean` (linear RGB) to the colour `target`. */
+export function retargetFactor(target: Color, mean: readonly [number, number, number]): Color {
+  const f = (t: number, m: number) => Math.min(4, t / Math.max(m, 1e-3));
+  return new Color(f(target.r, mean[0]), f(target.g, mean[1]), f(target.b, mean[2]));
 }
 
 /** One subscription to a slug's texture set; `catalog` resolves the entry before the set is acquired. */
@@ -126,8 +138,14 @@ class TexturedMaterial {
       const scale = this.spec.scale ?? t.tileSizeM;
       for (const map of [this.applied.color, this.applied.normal, this.applied.roughness]) map.repeat.set(1 / scale, 1 / scale);
       m.roughness = Math.min(1, this.spec.roughness / Math.max(t.roughness, 1e-6));
-      m.color.setScalar(1).multiplyScalar(textureTint(t.meanColor));
-      setAlbedo(m, clampAlbedo(t.meanColor));
+      if (this.spec.retarget) {
+        const target = clampAlbedo(this.spec.color);
+        m.color.copy(retargetFactor(new Color(target), t.meanLinear));
+        setAlbedo(m, target);
+      } else {
+        m.color.setScalar(1).multiplyScalar(textureTint(t.meanColor));
+        setAlbedo(m, clampAlbedo(t.meanColor));
+      }
     } else {
       m.roughness = this.spec.roughness;
       m.color.set(clampAlbedo(this.spec.color));
@@ -258,11 +276,7 @@ function builtin(id: string): MeshStandardMaterial {
       return new MeshStandardMaterial({ color: '#8a6a4b', roughness: 0.7 });
     case DOOR_WALK_MATERIAL:
       return new MeshStandardMaterial({ color: '#8a6a4b', roughness: 0.7, transparent: true, opacity: DOOR_WALK_OPACITY, depthWrite: false });
-    case ITEM_MATERIALS.tvBody:
-      return new MeshStandardMaterial({ color: '#2b2c2f', roughness: 0.45, metalness: 0.3 });
-    case ITEM_MATERIALS.tvScreen:
-      return new MeshStandardMaterial({ color: '#08090b', roughness: 0.08, metalness: 0.2 });
-    case ITEM_MATERIALS.placeholder:
+    case ITEM_MATERIAL_PLACEHOLDER:
       // A neutral solid box at the exact size (never a magenta wireframe): the badge in the item panel says why it is a stand-in.
       return new MeshStandardMaterial({ color: '#cfd2d8', roughness: 0.9, metalness: 0 });
     case BUILTIN_MATERIALS.fallbackFloor:
@@ -270,10 +284,19 @@ function builtin(id: string): MeshStandardMaterial {
     case BUILTIN_MATERIALS.fallbackCeiling:
       return new MeshStandardMaterial({ color: '#f6f6f6', roughness: 1 });
     case BUILTIN_MATERIALS.fallbackWall:
-    default:
-      return new MeshStandardMaterial({ color: '#e9e6e0', roughness: 0.95 });
+    default: {
+      const spec = itemSpec(id);
+      return spec ? new MeshStandardMaterial({ color: spec.color, roughness: spec.roughness, metalness: spec.metalness }) : new MeshStandardMaterial({ color: '#e9e6e0', roughness: 0.95 });
+    }
   }
 }
+
+/** The tuned look of a built-in furniture / fitting material id (see `ITEM_MATERIAL_SPECS`), if it is one. */
+function itemSpec(id: string) {
+  return Object.hasOwn(ITEM_MATERIAL_SPECS, id) ? ITEM_MATERIAL_SPECS[id as ItemMaterialId] : undefined;
+}
+
+const ITEM_MATERIAL_PLACEHOLDER = 'builtin:placeholder';
 
 /**
  * A material library for one canvas: scene materials plus builtins. Create it once and `update` it as the scene
@@ -375,7 +398,6 @@ export function createMaterialLibrary(initial: Pick<Scene, 'materials'> | null =
     get(id) {
       // Textures load when a material is first used by visible geometry; until then it shows its colour.
       handedOut.add(id);
-      textured.get(id)?.start();
       let material = cache.get(id);
       if (!material) {
         const made = builtin(id);
@@ -383,7 +405,13 @@ export function createMaterialLibrary(initial: Pick<Scene, 'materials'> | null =
         made.name = id; // lets the test hook (and devtools) tell the shell's materials apart
         material = isGlass(id) ? made : applyAmbient(made);
         cache.set(id, material);
+        // Furniture finishes with a library texture (oak veneer, fabric weave, brushed steel, quartz): wired like a scene texture.
+        const spec = itemSpec(id);
+        if (spec?.texture && !textured.has(id)) {
+          textured.set(id, new TexturedMaterial(made, { color: spec.color, roughness: spec.roughness, url: `lib:${spec.texture.slug}`, scale: spec.texture.scale, retarget: true }, opts));
+        }
       }
+      textured.get(id)?.start();
       return material;
     },
     update,

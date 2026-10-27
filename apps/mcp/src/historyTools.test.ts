@@ -260,7 +260,7 @@ describe('history tools against the real apps/server (in process)', () => {
     const r = await client.callTool({ name: 'wall_set_structural', arguments: { wallId: 'w-north', structural: false } });
     expect(json(r).code).toBe('precondition_failed');
     const mats = (await client.callTool({ name: 'list_materials', arguments: {} })).structuredContent as { library: unknown[] };
-    expect(mats.library.length).toBe(25);
+    expect(mats.library.length).toBe(29);
     const s = json(await client.callTool({ name: 'get_scene_summary', arguments: {} }));
     expect(s.counts.rooms).toBe(8);
   });

@@ -93,7 +93,7 @@ export const wardrobe: Generator<WardrobeParams> = {
       kit.box(mat, xa, ph + 0.002, face - FRONT, xa + dw, h - 0.002, face);
       const hx = i < doors - 1 || doors === 1 ? xa + dw - 0.04 : xa + 0.04;
       const ym = ph + dh * 0.5;
-      kit.box(ITEM_MATERIALS.metal, hx - 0.006, ym - 0.2, face, hx + 0.006, ym + 0.2, face + (front ? HANDLE : 0.004));
+      kit.handle(ITEM_MATERIALS.metal, hx, ym, 0.4, true, face, front ? HANDLE : 0.004);
     }
     return kit.build();
   },
@@ -129,7 +129,7 @@ export const kitchenBase: Generator<KitchenBaseParams> = {
       h,
       base: 'plinth',
       baseH: 0.1,
-      baseMat: ITEM_MATERIALS.metal, // aluminium kick plate: keeps the unit at 3 materials
+      baseMat: ITEM_MATERIALS.dark, // dark kick plate (the same dark as the reveal behind the fronts)
       bodyMat: mat,
       frontMat: mat,
       doors,

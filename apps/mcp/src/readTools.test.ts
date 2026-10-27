@@ -127,7 +127,7 @@ describe('read tools (M4.4)', () => {
       const text = (r.content as { text: string }[])[0]!.text;
       const lines = text.split('\n');
       const s = r.structuredContent as { library: { slug: string }[]; sceneMaterials: { id: string }[] };
-      expect(s.library).toHaveLength(25);
+      expect(s.library).toHaveLength(29);
       for (const m of s.library) expect(lines.filter((l) => l.startsWith(`${m.slug} | `))).toHaveLength(1);
       expect(s.sceneMaterials.map((m) => m.id)).toContain('floor-oak');
     });
@@ -214,7 +214,7 @@ describe('resources (M4.4)', () => {
     const text = await read(client, 'materials://list');
     const tool = await client.callTool({ name: 'list_materials', arguments: {} });
     expect(text).toBe((tool.content as { text: string }[])[0]!.text);
-    expect(text).toContain('Library textures (25)');
+    expect(text).toContain('Library textures (29)');
   });
 
   it('docs://conventions is concise Markdown covering the conventions', async () => {
