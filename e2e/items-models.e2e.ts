@@ -256,3 +256,40 @@ test('real catalog and resolver, Pages mode: a bed product shows the committed C
   expect(requests.some((u) => u.endsWith('/models/catalog.json'))).toBe(true);
   expectBox(await bounds(page, 'bed-1'), dims.w, dims.h, dims.d, 8.7, 6.0);
 });
+
+// ---- HD tier (M5R step 2): the real catalog, the real resolver ----
+
+const HD_DIMS = { w: 2.6, d: 1.2, h: 0.85 };
+function hdSofa(id: string, position: [number, number]) {
+  const item = sofaItem(id, position);
+  return { ...item, dims: HD_DIMS, product: { ...item.product, dims: HD_DIMS } };
+}
+
+test('an item whose product fits an HD hero model loads it lazily from models-hd, at the exact dims', async ({ page }) => {
+  const requests: string[] = [];
+  page.on('request', (r) => {
+    if (/\/models-hd\/.*\.glb/.test(r.url())) requests.push(new URL(r.url()).pathname);
+  });
+  await openApp(page);
+  expect(requests).toEqual([]);
+  expect(await loadScene(page, sceneWith(hdSofa('sofa-hd', [2.45, 4.2])))).toBe(true);
+  const stats = await flat(page, (f) => f.modelStats());
+  expect(stats.sources['sofa-hd']).toBe('lookalike');
+  expect(stats.failed).toBe(0);
+  expect(requests).toEqual(['/models-hd/sofa_curved.glb']);
+  expect(stats.warnings).toEqual([]);
+  expectBox(await bounds(page, 'sofa-hd'), HD_DIMS.w, HD_DIMS.h, HD_DIMS.d, 2.45, 4.2);
+});
+
+test('when the HD file cannot be loaded the item falls back to the light tier or a generator, never a hole', async ({ page }) => {
+  await page.route('**/models-hd/*.glb', (route) => route.fulfill({ status: 404, body: 'nope' }));
+  await openApp(page);
+  expect(await loadScene(page, sceneWith(hdSofa('sofa-hd', [2.45, 4.2])))).toBe(true);
+  await flat(page, (f) => f.whenRendered());
+  const stats = await flat(page, (f) => f.modelStats());
+  // The only light sofa distorts more than 25% at these dims, so the chain ends at the generator (still a real, exact-size sofa).
+  expect(['lookalike', 'parametric']).toContain(stats.sources['sofa-hd']);
+  expect(stats.sources['sofa-hd']).not.toBe('placeholder');
+  expect(stats.requests.some((u) => u.endsWith('/models-hd/sofa_curved.glb'))).toBe(true);
+  expect(stats.pending).toBe(0);
+});

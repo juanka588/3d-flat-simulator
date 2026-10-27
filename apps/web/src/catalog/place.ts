@@ -56,7 +56,15 @@ export function generatorSource(g: { id: string; label?: string }, params: Recor
   return { label: generatorTitle(g), assetId: meshAssetId(mesh), dims: { w: round3(dims.w), d: round3(dims.d), h: round3(dims.h) }, mount, elevation: defaultElevation(mount, dims.h), mesh, noProduct: true };
 }
 
-/** A source for a library (CC0) model at its native dims. */
+/** Where a library model hangs, from its style tags: `pendant` / `ceiling` -> ceiling, `wall mounted` -> wall, else floor. */
+export function libraryMount(styleTags: readonly string[]): ItemMount {
+  const tags = styleTags.map((t) => t.toLowerCase());
+  if (tags.includes('pendant') || tags.includes('ceiling')) return 'ceiling';
+  if (tags.includes('wall mounted')) return 'wall';
+  return 'floor';
+}
+
+/** A source for a library (CC0 / CC-BY) model at its native dims. */
 export function libraryModelSource(a: { id: string; name: string; nativeDims: Dims }, mount: ItemMount = 'floor'): PlaceSource {
   const mesh: MeshSource = { kind: 'lookalike', assetId: a.id };
   const d = a.nativeDims;

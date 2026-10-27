@@ -116,6 +116,12 @@ describe('dist scan (synthetic leaks)', () => {
   it('passes a clean build with the committed library', () => {
     expect(scanDist(dist({ 'index.html': '<html></html>', 'assets/a.js': 'fetch("/api/x")', 'models/catalog.json': catalog, 'models/sofa.glb': 'bin' }), cfg)).toEqual([]);
   });
+  it('passes the lazy HD tier when it is listed in its own catalog, and flags HD files that are not', () => {
+    const files = { 'models/catalog.json': catalog, 'models/sofa.glb': 'bin', 'models-hd/catalog.json': JSON.stringify([{ file: 'hero.glb' }]), 'models-hd/hero.glb': 'bin' };
+    expect(scanDist(dist(files), cfg)).toEqual([]);
+    expect(scanDist(dist({ ...files, 'models-hd/leak.glb': 'x' }), cfg)).toEqual(['models-hd/leak.glb: model file in the build that is not in the models catalog']);
+    expect(scanDist(dist({ 'models/catalog.json': catalog, 'models/sofa.glb': 'bin', 'models-hd/hero.glb': 'x' }), cfg)).toHaveLength(1);
+  });
   it('flags a retailer host in a bundle', () => {
     expect(scanDist(dist({ 'assets/a.js': 'x="https://www.ikea.com/p"', 'models/catalog.json': catalog }), cfg)).toEqual(['assets/a.js: mentions retailer host ikea.com']);
   });
@@ -129,7 +135,7 @@ describe('dist scan (synthetic leaks)', () => {
 describe('tracked files scan (synthetic leaks)', () => {
   const read = (map) => (f) => map[f];
   it('allows the library, .env.example and allowPaths', () => {
-    const files = ['apps/web/public/models/sofa.glb', 'apps/web/public/models/thumbs/a.webp', '.env.example', 'docs/notes.md', 'apps/server/src/providers/ikea.ts', 'scripts/ci/x.mjs'];
+    const files = ['apps/web/public/models/sofa.glb', 'apps/web/public/models-hd/hero.glb', 'apps/web/public/models-hd/thumbs/a.webp', 'apps/web/public/models/thumbs/a.webp', '.env.example', 'docs/notes.md', 'apps/server/src/providers/ikea.ts', 'scripts/ci/x.mjs'];
     const text = { 'docs/notes.md': 'see ikea.com', 'apps/server/src/providers/ikea.ts': 'https://www.ikea.com', 'scripts/ci/x.mjs': 'leroymerlin.fr' };
     expect(scanTracked(files, cfg, read(text))).toEqual([]);
   });

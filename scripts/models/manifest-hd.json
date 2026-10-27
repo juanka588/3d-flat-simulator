@@ -1,0 +1,1097 @@
+{
+  "$comment": "HD (hero) model tier (M5R step 2). Sketchfab CC0 / CC-BY models only; the licence is verified from the Sketchfab API at build time. `status`: accepted | rejected (with `reason`); candidates without a status are only built by `models:hd --preview`. Run `pnpm models:hd` (online once, then cached in .cache/models/sketchfab).",
+  "models": [
+    {
+      "slug": "bar_stool_chrome",
+      "name": "Bar stool",
+      "category": "chair",
+      "sourceId": "aaf556f40f634719bc80a331d2799e4f",
+      "maxDimM": [
+        0.55,
+        1.1
+      ],
+      "styleTags": [
+        "modern",
+        "bar stool",
+        "kitchen",
+        "metal"
+      ],
+      "status": "rejected",
+      "reason": "diner-style stool (white legs, black seat), wrong style for a modern kitchen"
+    },
+    {
+      "slug": "bar_stool_leather",
+      "name": "Leather bar stool",
+      "category": "chair",
+      "sourceId": "b117e9bb6647471cbba974430dfd3726",
+      "maxDimM": [
+        0.55,
+        1.2
+      ],
+      "styleTags": [
+        "modern",
+        "bar stool",
+        "kitchen",
+        "leather"
+      ],
+      "status": "accepted",
+      "front": "+z",
+      "sourceSha256": {
+        "archive": "d88fe7c8ecdd56824c30c452d80adc37e0e2da7de7fe22fbff8f6f29cda845f6"
+      }
+    },
+    {
+      "slug": "pendant_caroline",
+      "name": "Double pendant light",
+      "category": "lamp",
+      "sourceId": "fd51bfbf8a0c45c5989668272f200c15",
+      "maxDimM": [
+        0.25,
+        3
+      ],
+      "styleTags": [
+        "modern",
+        "pendant",
+        "kitchen"
+      ],
+      "status": "accepted",
+      "fitMaxM": 0.85,
+      "sourceSha256": {
+        "archive": "aa5023fb9bf40b0c109e5d4e00d3ea9e86eb712898073aea2b4a3ba9403e1dc2"
+      }
+    },
+    {
+      "slug": "pendant_globes",
+      "name": "Globe cluster pendant",
+      "category": "lamp",
+      "sourceId": "8f33fd91116c4d1a8ddb3d6c6c8102d5",
+      "maxDimM": [
+        0.25,
+        3
+      ],
+      "styleTags": [
+        "modern",
+        "pendant",
+        "dining room"
+      ],
+      "status": "accepted",
+      "fitMaxM": 1,
+      "sourceSha256": {
+        "archive": "16268436bcaacfd1676c4c7edfa66b248f327cdea4ebbcfc13a96168348dd0da"
+      }
+    },
+    {
+      "slug": "pendant_cages",
+      "name": "Triple cage pendant",
+      "category": "lamp",
+      "sourceId": "f011347c01e647f4acfa1bf42e44716d",
+      "maxDimM": [
+        0.4,
+        3
+      ],
+      "styleTags": [
+        "industrial",
+        "pendant",
+        "dining room"
+      ],
+      "status": "accepted",
+      "sourceSha256": {
+        "archive": "4ddf6ad0507e6770fc9c759a855d26fec5fdb3fc694fb5c19d8a001128eb701b"
+      }
+    },
+    {
+      "slug": "range_hood",
+      "name": "Chimney range hood",
+      "category": "appliance",
+      "sourceId": "e846cb48e88446808af55976ff76b1da",
+      "maxDimM": [
+        0.5,
+        1.6
+      ],
+      "styleTags": [
+        "modern",
+        "kitchen",
+        "hood",
+        "steel",
+        "wall mounted"
+      ],
+      "status": "accepted",
+      "front": "+z",
+      "sourceSha256": {
+        "archive": "8eed6159a6b34119ca6f3bc5f50d307f6575d70ca1ee8cb25aca635eebb8f85e"
+      }
+    },
+    {
+      "slug": "built_in_oven",
+      "name": "Built-in oven",
+      "category": "appliance",
+      "sourceId": "50be70931dcb4a838b906382233a28f1",
+      "maxDimM": [
+        0.45,
+        0.8
+      ],
+      "styleTags": [
+        "modern",
+        "kitchen",
+        "oven",
+        "steel"
+      ],
+      "status": "accepted",
+      "front": "+x",
+      "sourceSha256": {
+        "archive": "458c4295251a7c38138eeed518cb1b6fc2c89449fd96364e4991027a66ca4512"
+      }
+    },
+    {
+      "slug": "dishwasher",
+      "name": "Dishwasher",
+      "category": "appliance",
+      "sourceId": "7a4d8ed6ece248a596ec4dfb5741e7cc",
+      "maxDimM": [
+        0.5,
+        1
+      ],
+      "styleTags": [
+        "modern",
+        "kitchen",
+        "dishwasher",
+        "steel"
+      ],
+      "status": "accepted",
+      "front": "+x",
+      "sourceSha256": {
+        "archive": "834822752ab6e228d1b1569c5865ccc77d0f083b7b45587992edcdfdc14d7f25"
+      }
+    },
+    {
+      "slug": "fridge_steel",
+      "name": "Fridge-freezer",
+      "category": "appliance",
+      "sourceId": "2071bda681b642218b6829b82e4fd93b",
+      "maxDimM": [
+        1.4,
+        2.3
+      ],
+      "styleTags": [
+        "modern",
+        "kitchen",
+        "fridge",
+        "steel"
+      ],
+      "status": "accepted",
+      "front": "+z",
+      "fitMaxM": 1.75,
+      "sourceSha256": {
+        "archive": "3194f4a5fc38c5dea467a9deebf883201a523f392d993a9a22df5dfcc51665e6"
+      }
+    },
+    {
+      "slug": "kitchen_sink",
+      "name": "Kitchen sink with tap",
+      "category": "appliance",
+      "sourceId": "504248ed68e3480a807aced6f002b2d5",
+      "maxDimM": [
+        0.5,
+        1.3
+      ],
+      "styleTags": [
+        "modern",
+        "kitchen",
+        "sink",
+        "steel"
+      ],
+      "status": "accepted",
+      "front": "+x",
+      "sourceSha256": {
+        "archive": "d773c277ee8f6c731f80a60c453a79a46442e837a0a746253c0a62bcff7a7cfb"
+      }
+    },
+    {
+      "slug": "sofa_curved",
+      "name": "Curved boucl\u00e9 sofa",
+      "category": "sofa",
+      "sourceId": "5c123f31ae894d5db5b82a546998b92a",
+      "maxDimM": [
+        1.6,
+        3.2
+      ],
+      "maxTris": 38000,
+      "styleTags": [
+        "modern",
+        "boucle",
+        "fabric",
+        "living room"
+      ],
+      "status": "accepted",
+      "front": "+z",
+      "sourceSha256": {
+        "archive": "974d7c7fdbe8c51ecc62af4c76e804a67de337f5cc441138d00175de005b2813"
+      }
+    },
+    {
+      "slug": "sofa_delica",
+      "name": "Delica couch",
+      "category": "sofa",
+      "sourceId": "be956580a9b5457aa811c73701a49419",
+      "maxDimM": [
+        1.6,
+        3
+      ],
+      "styleTags": [
+        "modern",
+        "fabric",
+        "living room"
+      ],
+      "status": "rejected",
+      "reason": "misshapen chaise-like shape, not a sofa"
+    },
+    {
+      "slug": "sofa_corner",
+      "name": "Corner sectional sofa",
+      "category": "sofa",
+      "sourceId": "1680cc4638ba4902ada718b8b03f6a4b",
+      "maxDimM": [
+        2,
+        3.6
+      ],
+      "styleTags": [
+        "modern",
+        "fabric",
+        "corner",
+        "living room"
+      ],
+      "status": "accepted",
+      "fitMaxM": 2.9,
+      "sourceSha256": {
+        "archive": "bca123578756c54d73ad2e97dc9f8f06bd6ef6f51ce1c0e82eb9e4f28c97d484"
+      }
+    },
+    {
+      "slug": "loveseat_fabric",
+      "name": "Fabric loveseat",
+      "category": "sofa",
+      "sourceId": "5a1ccfe43ffd4f1883abe4dca7d2b3bb",
+      "maxDimM": [
+        1.3,
+        2.2
+      ],
+      "styleTags": [
+        "modern",
+        "fabric",
+        "living room"
+      ],
+      "status": "accepted",
+      "front": "-x",
+      "fitMaxM": 1.7,
+      "sourceSha256": {
+        "archive": "0a679abba3f981092d351258b5cb9ae4df17c895617b9ea1a2ab744cda9f0f78"
+      }
+    },
+    {
+      "slug": "armchair_upholstered",
+      "name": "Upholstered armchair",
+      "category": "armchair",
+      "sourceId": "fd402ff0f1654eb4b5ec20a832b6895c",
+      "maxDimM": [
+        0.7,
+        1.2
+      ],
+      "styleTags": [
+        "modern",
+        "fabric",
+        "living room"
+      ],
+      "status": "accepted",
+      "front": "+z",
+      "sourceSha256": {
+        "archive": "576d91451b3d4f4d8178e3e346ba70ec06d5bdf85a31c7d3fee759889e265caa"
+      }
+    },
+    {
+      "slug": "armchair_designer",
+      "name": "Designer armchair",
+      "category": "armchair",
+      "sourceId": "1042e4f25a93497a9c848cbddc7b7c8a",
+      "maxDimM": [
+        0.7,
+        1.2
+      ],
+      "styleTags": [
+        "modern",
+        "fabric",
+        "living room"
+      ],
+      "status": "rejected",
+      "reason": "three chairs in one file (Panton-style set), not one armchair"
+    },
+    {
+      "slug": "armchair_midcentury",
+      "name": "Midcentury armchair",
+      "category": "armchair",
+      "sourceId": "e54f711755a54b119b364fe6fcbfd821",
+      "maxDimM": [
+        0.7,
+        1.2
+      ],
+      "styleTags": [
+        "mid-century",
+        "wood",
+        "living room"
+      ],
+      "status": "accepted",
+      "front": "-z",
+      "sourceSha256": {
+        "archive": "117b34ff57650c8b0d65da9302925e5b71ad097873737063f1573880036b294b"
+      }
+    },
+    {
+      "slug": "coffee_table_marble",
+      "name": "Round side table",
+      "category": "table",
+      "sourceId": "49e5ede6a16d4dd39386d6aa705fdbeb",
+      "maxDimM": [
+        0.4,
+        1.3
+      ],
+      "styleTags": [
+        "modern",
+        "side table",
+        "coffee table",
+        "brass",
+        "living room"
+      ],
+      "status": "accepted",
+      "sourceSha256": {
+        "archive": "b5e18785f54f0b206fceca66d42d835fe4026ef37fc5b58c59d6923f4481f4eb"
+      }
+    },
+    {
+      "slug": "pouf_ribbed",
+      "name": "Ribbed pouf",
+      "category": "decor",
+      "sourceId": "1f47f62607204b56a4746216bc2c4b05",
+      "maxDimM": [
+        0.3,
+        0.8
+      ],
+      "styleTags": [
+        "modern",
+        "pouf",
+        "fabric",
+        "living room"
+      ],
+      "status": "accepted",
+      "fitMaxM": 0.6,
+      "sourceSha256": {
+        "archive": "1172b8644d54a08d7e7bcca4174921ed4c8f809a2970862816db4550c697a125"
+      }
+    },
+    {
+      "slug": "plant_fiddle_leaf",
+      "name": "Fiddle leaf fig",
+      "category": "decor",
+      "sourceId": "7689508dc9d9481c934a412255e8de67",
+      "maxDimM": [
+        0.8,
+        2.4
+      ],
+      "styleTags": [
+        "plant",
+        "green",
+        "living room"
+      ],
+      "status": "accepted",
+      "fitMaxM": 1.6,
+      "sourceSha256": {
+        "archive": "5770f2acb62581037efdb4e73cfaa80b32fe38e15b64871f0dcb3bcba61c57a0"
+      }
+    },
+    {
+      "slug": "plant_snake",
+      "name": "Snake plant in pot",
+      "category": "decor",
+      "sourceId": "68b8acaeb29e402ea4dc7c981cb5b497",
+      "maxDimM": [
+        0.3,
+        1.4
+      ],
+      "styleTags": [
+        "plant",
+        "green",
+        "living room"
+      ],
+      "status": "accepted",
+      "sourceSha256": {
+        "archive": "a845f7ff784b57227d2529b890b2e5617c811bb679fb39fb3c966a5f25554e75"
+      }
+    },
+    {
+      "slug": "tv_wall",
+      "name": "Wall-mounted television",
+      "category": "appliance",
+      "sourceId": "ce05a5d98b54400184ab60262dbf7232",
+      "maxDimM": [
+        0.8,
+        1.8
+      ],
+      "styleTags": [
+        "modern",
+        "tv",
+        "living room",
+        "wall mounted"
+      ],
+      "status": "accepted",
+      "front": "+z",
+      "sourceSha256": {
+        "archive": "81e7150a25d630efe99ddc17a278905e54e224b8e2ca8de55bf71a89a32bd8b9"
+      }
+    },
+    {
+      "slug": "tv_flat",
+      "name": "Flat screen television",
+      "category": "appliance",
+      "sourceId": "f90d4fb91dd34b6791e8d66d00f96591",
+      "maxDimM": [
+        0.8,
+        1.8
+      ],
+      "styleTags": [
+        "modern",
+        "tv",
+        "living room"
+      ],
+      "status": "accepted",
+      "front": "+x",
+      "sourceSha256": {
+        "archive": "4bcb7a7f2478818b032d238478b58e7b6bc72a8fb520ed293b9319cf8995476d"
+      }
+    },
+    {
+      "slug": "floor_lamp_arc",
+      "name": "Arc floor lamp",
+      "category": "lamp",
+      "sourceId": "fad285f48b1042aca4b4f421115280d4",
+      "maxDimM": [
+        1.3,
+        2.4
+      ],
+      "styleTags": [
+        "modern",
+        "floor lamp",
+        "brass",
+        "living room"
+      ],
+      "status": "accepted",
+      "fitMaxM": 1.85,
+      "sourceSha256": {
+        "archive": "527b6bbfbcb26f5f3cb482ac00dd90cf41e78995aaef019abe57e76cb1be5f95"
+      }
+    },
+    {
+      "slug": "table_lamp_ceramic",
+      "name": "Ceramic table lamp",
+      "category": "lamp",
+      "sourceId": "58df7e59e14b4cd29bd9403c6424d4b4",
+      "maxDimM": [
+        0.25,
+        0.9
+      ],
+      "styleTags": [
+        "modern",
+        "table lamp",
+        "ceramic",
+        "bedroom"
+      ],
+      "status": "rejected",
+      "reason": "two lamps in one file at 69k faces / 7 materials"
+    },
+    {
+      "slug": "mirror_arched",
+      "name": "Arched wall mirror",
+      "category": "mirror",
+      "sourceId": "82f24f884ee842fb982c3261ceaa4865",
+      "maxDimM": [
+        0.6,
+        2
+      ],
+      "styleTags": [
+        "modern",
+        "mirror",
+        "arched",
+        "wall mounted"
+      ],
+      "status": "accepted",
+      "front": "+x",
+      "sourceSha256": {
+        "archive": "dcf93fac38b724ecd0a032f16d0e178e4291e8433c019f3813943682e34bbf72"
+      }
+    },
+    {
+      "slug": "dining_chair_midcentury",
+      "name": "Mid-century dining chair",
+      "category": "chair",
+      "sourceId": "afc4b601ed2d434982959be87526909f",
+      "maxDimM": [
+        0.75,
+        1
+      ],
+      "styleTags": [
+        "mid-century",
+        "wood",
+        "dining room"
+      ],
+      "status": "rejected",
+      "reason": "authored at 45 degrees to the axes (width inflated to 0.85 m); plain"
+    },
+    {
+      "slug": "dining_chair_modern",
+      "name": "Modern dining chair",
+      "category": "chair",
+      "sourceId": "cf43cd4a84e044fd9830d3a5969fb19f",
+      "maxDimM": [
+        0.75,
+        1.1
+      ],
+      "styleTags": [
+        "modern",
+        "dining room"
+      ],
+      "status": "accepted",
+      "fitMaxM": 0.85,
+      "front": "+z",
+      "sourceSha256": {
+        "archive": "ae66ba17d05297a6b0d2c73a4af95268708951a8cd4d94247673a9a33c55fa59"
+      }
+    },
+    {
+      "slug": "dining_table_glass",
+      "name": "Glass dining table",
+      "category": "table",
+      "sourceId": "c41a27d7a1b24dc484bc603e1bc2d0ef",
+      "maxDimM": [
+        1.2,
+        2.6
+      ],
+      "styleTags": [
+        "modern",
+        "glass",
+        "dining room"
+      ],
+      "status": "rejected",
+      "reason": "a table plus six thin wire chairs (set), unit-less, 1.8 MB"
+    },
+    {
+      "slug": "bed_upholstered",
+      "name": "Upholstered double bed",
+      "category": "bed",
+      "sourceId": "7602267cc32e4caf8c92c60b677539be",
+      "maxDimM": [
+        1.8,
+        2.5
+      ],
+      "styleTags": [
+        "modern",
+        "upholstered",
+        "fabric",
+        "bedroom"
+      ],
+      "status": "accepted",
+      "fitMaxM": 2.15,
+      "front": "-x",
+      "sourceSha256": {
+        "archive": "9bdad62454dd19efc06f5d64e378e6bdd8ec30626c75390629076c8f68901f74"
+      }
+    },
+    {
+      "slug": "bed_dark",
+      "name": "Dark modern bed",
+      "category": "bed",
+      "sourceId": "d3aeb724e09c44af96ef09cd20885220",
+      "maxDimM": [
+        1.8,
+        2.5
+      ],
+      "styleTags": [
+        "modern",
+        "dark",
+        "bedroom"
+      ],
+      "status": "accepted",
+      "front": "-x",
+      "sourceSha256": {
+        "archive": "ba52b220060a8bdd35f47e0a93573af6c1866189c846c7e040ab58875e9b7eeb"
+      }
+    },
+    {
+      "slug": "nightstand_oak",
+      "name": "Oak nightstand",
+      "category": "bedside",
+      "sourceId": "65bf302726be4dbdb31fc9394cd83746",
+      "maxDimM": [
+        0.35,
+        0.7
+      ],
+      "styleTags": [
+        "modern",
+        "oak",
+        "wood",
+        "bedroom"
+      ],
+      "status": "accepted",
+      "front": "+z",
+      "sourceSha256": {
+        "archive": "fd1610c2f0818965f8bc78b026098bed96a500ca12049dcd1b348478330bacaf"
+      }
+    },
+    {
+      "slug": "bench_upholstered",
+      "name": "Upholstered bench",
+      "category": "decor",
+      "sourceId": "70c2c16114654e7e924f6254d4143c80",
+      "maxDimM": [
+        0.7,
+        1.7
+      ],
+      "styleTags": [
+        "modern",
+        "bench",
+        "fabric",
+        "bedroom"
+      ],
+      "status": "accepted",
+      "front": "+x",
+      "sourceSha256": {
+        "archive": "b303e19f618f3da97ab54722587d0dd6d11ca754fef6e7e627a53cce06ccbdbd"
+      }
+    },
+    {
+      "slug": "bathtub_freestanding",
+      "name": "Freestanding bathtub",
+      "category": "other",
+      "sourceId": "dcd691724f6b4d29a6d16def24d14e6e",
+      "maxDimM": [
+        1.4,
+        2
+      ],
+      "styleTags": [
+        "modern",
+        "bathtub",
+        "bathroom"
+      ],
+      "status": "accepted",
+      "sourceSha256": {
+        "archive": "042288311257caeaa5d293a733f2a5067f53c269e05b8039e8ef298643f9b2bf"
+      }
+    },
+    {
+      "slug": "vanity_white",
+      "name": "White bathroom vanity",
+      "category": "other",
+      "sourceId": "750dfa5fab444c28baf30e063d2b56d3",
+      "maxDimM": [
+        0.5,
+        1.4
+      ],
+      "styleTags": [
+        "modern",
+        "vanity",
+        "bathroom"
+      ],
+      "status": "accepted",
+      "front": "+z",
+      "sourceSha256": {
+        "archive": "43970ca50162b5a3f662251a59c9c4f5553af08a71471f9b364b9d33c9bab966"
+      }
+    },
+    {
+      "slug": "wall_lamp_twin",
+      "name": "Twin-spot wall lamp",
+      "category": "lamp",
+      "sourceId": "e3ee0a9ed50a4812bc18d5089bd9ca81",
+      "maxDimM": [
+        0.12,
+        0.8
+      ],
+      "styleTags": [
+        "modern",
+        "wall lamp",
+        "bedroom"
+      ],
+      "status": "rejected",
+      "reason": "modelled lying flat (ceiling-light orientation), size uncertain"
+    },
+    {
+      "slug": "desk_chair",
+      "name": "Office chair",
+      "category": "chair",
+      "sourceId": "675f34f7304e4d92812a41e9750539aa",
+      "maxDimM": [
+        0.8,
+        1.3
+      ],
+      "styleTags": [
+        "modern",
+        "office",
+        "desk chair"
+      ],
+      "status": "accepted",
+      "front": "+z",
+      "sourceSha256": {
+        "archive": "8c5904e8b8b6fd5da9a7eb4a765210aa89b50921d9da2f7e23ca381e3487af80"
+      }
+    },
+    {
+      "slug": "console_marble",
+      "name": "Marble-top console table",
+      "category": "sideboard",
+      "sourceId": "c28adc8d865f45c3a7e2d97d60e59b35",
+      "maxDimM": [
+        0.8,
+        1.6
+      ],
+      "styleTags": [
+        "modern",
+        "marble",
+        "console",
+        "entry"
+      ],
+      "status": "rejected",
+      "reason": "two console tables plus a backdrop panel in one file"
+    },
+    {
+      "slug": "clock_modern",
+      "name": "Modern wall clock",
+      "category": "decor",
+      "sourceId": "29a3f59a59204285b745f8acc8e09a19",
+      "maxDimM": [
+        0.2,
+        0.7
+      ],
+      "styleTags": [
+        "modern",
+        "clock",
+        "wall"
+      ],
+      "status": "rejected",
+      "reason": "flat 3 mm panel with a glowing laser-cut texture, looks broken"
+    },
+    {
+      "slug": "cushion_waves",
+      "name": "Wave cushion",
+      "category": "decor",
+      "sourceId": "3e5f382200c9449cb41120a2fc977372",
+      "maxDimM": [
+        0.25,
+        0.7
+      ],
+      "styleTags": [
+        "modern",
+        "cushion",
+        "fabric",
+        "living room"
+      ],
+      "status": "accepted",
+      "fitMaxM": 0.5,
+      "sourceSha256": {
+        "archive": "67e1c453d18a7d4b0bc230d527a8321af48bd9bb02492f08f6d09476cd5944df"
+      }
+    },
+    {
+      "slug": "coffee_table_modern",
+      "name": "Modern coffee table",
+      "category": "table",
+      "sourceId": "24dcef8d06f2456b82b93da1cf241c99",
+      "maxDimM": [
+        0.4,
+        1.4
+      ],
+      "styleTags": [
+        "modern",
+        "coffee table",
+        "living room"
+      ],
+      "status": "rejected",
+      "reason": "authored at desk height (0.75 m), wrong for a coffee table"
+    },
+    {
+      "slug": "tv_rack",
+      "name": "Modern TV rack",
+      "category": "tv_unit",
+      "sourceId": "df63c66f9e074de48707f189cf3a5310",
+      "maxDimM": [
+        1,
+        2.6
+      ],
+      "styleTags": [
+        "modern",
+        "tv",
+        "living room"
+      ],
+      "status": "rejected",
+      "reason": "heavy black block, 0.68 m tall (too tall for a TV unit) and unit-less"
+    },
+    {
+      "slug": "tv_unit_wood",
+      "name": "Wooden TV unit",
+      "category": "tv_unit",
+      "sourceId": "03e169016570411a9613c22d06a88a57",
+      "maxDimM": [
+        1,
+        2.6
+      ],
+      "styleTags": [
+        "wood",
+        "tv",
+        "living room"
+      ],
+      "status": "accepted",
+      "front": "+z",
+      "sourceSha256": {
+        "archive": "cc5c69db6eaebb9c906f9f22f4de022d276f3deb8b00f89d7cead257580f426d"
+      }
+    },
+    {
+      "slug": "bar_stool_gold",
+      "name": "Pub bar stool",
+      "category": "chair",
+      "sourceId": "67d88c3a9b1c4075aaf3feaeabde4fa1",
+      "maxDimM": [
+        0.55,
+        1.2
+      ],
+      "styleTags": [
+        "modern",
+        "bar stool",
+        "kitchen",
+        "metal"
+      ],
+      "status": "accepted",
+      "front": "+z",
+      "sourceSha256": {
+        "archive": "948720f424d978f582dececba8fb8129c253ee67a15b62f4c1bd9913cf8b3238"
+      }
+    },
+    {
+      "slug": "bar_stool_wood",
+      "name": "Wooden bar stool",
+      "category": "chair",
+      "sourceId": "c6b783ab624d42f992331a0ac002b2b5",
+      "maxDimM": [
+        0.55,
+        1.2
+      ],
+      "styleTags": [
+        "wood",
+        "bar stool",
+        "kitchen"
+      ],
+      "status": "accepted",
+      "front": "+z",
+      "fitMaxM": 0.85,
+      "sourceSha256": {
+        "archive": "c1f97d93efbd2a18f71ac6ef735814af1cfb86d85af793abc299f42e2d9361e0"
+      }
+    },
+    {
+      "slug": "dresser_ikea",
+      "name": "Eight-drawer dresser",
+      "category": "drawers",
+      "sourceId": "15562ed7b1d24a7a842d971f6555216e",
+      "maxDimM": [
+        0.7,
+        1.8
+      ],
+      "styleTags": [
+        "modern",
+        "white",
+        "dresser",
+        "bedroom"
+      ],
+      "status": "accepted",
+      "front": "+x",
+      "fitMaxM": 1.5,
+      "sourceSha256": {
+        "archive": "332e7042515048489456ac06916e93f2a187ff1bbe11a1b1ca094d0d54152145"
+      }
+    },
+    {
+      "slug": "dresser_light_wood",
+      "name": "Light wood dresser",
+      "category": "drawers",
+      "sourceId": "25134a84c07e420b93cae181731fd7a0",
+      "maxDimM": [
+        0.6,
+        1.8
+      ],
+      "styleTags": [
+        "modern",
+        "wood",
+        "dresser",
+        "bedroom"
+      ],
+      "status": "accepted",
+      "front": "+z",
+      "fitMaxM": 1.2,
+      "sourceSha256": {
+        "archive": "c6be150cdb700fbe09765d43e21495c81f7c7cff453abe057c176d0a6fd9ac21"
+      }
+    },
+    {
+      "slug": "dining_table_round",
+      "name": "Round dining table",
+      "category": "table",
+      "sourceId": "e1b3aba3a64b4017a79b7b824dfccce3",
+      "maxDimM": [
+        0.8,
+        1.5
+      ],
+      "styleTags": [
+        "modern",
+        "round",
+        "dining room"
+      ],
+      "status": "accepted",
+      "fitMaxM": 1.4,
+      "sourceSha256": {
+        "archive": "c7ad802b6e176468bd59c98fa763e94638ab8a706109304ee547f94fb8df4a2c"
+      }
+    },
+    {
+      "slug": "dining_table_wood_round",
+      "name": "Round wooden dining table",
+      "category": "table",
+      "sourceId": "06c8e51b60da4b14a5247a0d3c537047",
+      "maxDimM": [
+        0.8,
+        1.5
+      ],
+      "styleTags": [
+        "wood",
+        "round",
+        "dining room"
+      ],
+      "status": "accepted",
+      "fitMaxM": 1.15,
+      "maxTris": 12000,
+      "sourceSha256": {
+        "archive": "1b851543ec9cb03e90bc49cf3eb431d14053be2b99834a86a2717199e5df69c6"
+      }
+    },
+    {
+      "slug": "dining_set_modern",
+      "name": "Dining table set",
+      "category": "other",
+      "sourceId": "fc73e8d591ba45f8a3b369596593dcf5",
+      "maxDimM": [
+        1.2,
+        3
+      ],
+      "styleTags": [
+        "modern",
+        "dining set",
+        "dining room"
+      ],
+      "status": "accepted",
+      "fitMaxM": 2.4,
+      "front": "+x",
+      "sourceSha256": {
+        "archive": "8534eda1ba42f52d0a21bafbb777c757c227c51227a6985ecc9bb267d587840b"
+      }
+    },
+    {
+      "slug": "plant_monstera",
+      "name": "Monstera in pot",
+      "category": "decor",
+      "sourceId": "1ab9bf841df04c07b1819be596327629",
+      "maxDimM": [
+        0.5,
+        1.6
+      ],
+      "styleTags": [
+        "plant",
+        "green",
+        "living room"
+      ],
+      "status": "accepted",
+      "sourceSha256": {
+        "archive": "4e224fa1dbf7e3dbf1b898aa1087dc40a0ba07b42b69bc3566cb932c36ef12a0"
+      }
+    },
+    {
+      "slug": "plant_pothos",
+      "name": "Pothos in pot",
+      "category": "decor",
+      "sourceId": "e9832f38484f4f85b3f9081b51fa3799",
+      "maxDimM": [
+        0.3,
+        1.2
+      ],
+      "styleTags": [
+        "plant",
+        "green",
+        "living room"
+      ],
+      "status": "accepted",
+      "sourceSha256": {
+        "archive": "83c0b07e173b9d40af587549593a2aa47513811b2733afd78569da0e21511288"
+      }
+    },
+    {
+      "slug": "plant_pilea",
+      "name": "Pilea in terracotta pot",
+      "category": "decor",
+      "sourceId": "891b276aa29b4c42a0e3bc476203cb9b",
+      "maxDimM": [
+        0.2,
+        0.8
+      ],
+      "styleTags": [
+        "plant",
+        "green",
+        "terracotta"
+      ],
+      "status": "accepted",
+      "sourceSha256": {
+        "archive": "26bfa56fd65d90e118bac3d28f9051a24c69ba01c6a80d0ee1ddfa48584fee2b"
+      }
+    },
+    {
+      "slug": "bedside_table",
+      "name": "Bedside table",
+      "category": "bedside",
+      "sourceId": "b25de0eb97c64a00a538f09fc7072f67",
+      "maxDimM": [
+        0.35,
+        0.8
+      ],
+      "styleTags": [
+        "modern",
+        "wood",
+        "bedroom"
+      ],
+      "status": "accepted",
+      "fitMaxM": 0.58,
+      "front": "+z",
+      "sourceSha256": {
+        "archive": "3ad1209a5830f98ff22f01d2119c388c3598b645ce360e3942a82f4396e41d3e"
+      }
+    },
+    {
+      "slug": "table_lamp_modern",
+      "name": "Table lamp",
+      "category": "lamp",
+      "sourceId": "b0b170038cb24c94a443fbbb9205209e",
+      "maxDimM": [
+        0.25,
+        0.9
+      ],
+      "styleTags": [
+        "modern",
+        "table lamp",
+        "bedroom"
+      ],
+      "status": "rejected",
+      "reason": "floral shade on a turned-wood base, not modern"
+    }
+  ]
+}

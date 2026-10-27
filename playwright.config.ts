@@ -2,7 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 const PORT = Number(process.env.E2E_PORT ?? 5173);
 /** The production build served by `vite preview` under the GitHub Pages base path (e2e/static.e2e.ts). */
-const STATIC_PORT = 4173;
+const STATIC_PORT = Number(process.env.E2E_STATIC_PORT ?? 4173);
 const STATIC_BASE = '/3d-flat-simulator/';
 /** E2E_STATIC=only runs just the static project (CI `e2e-static`), E2E_STATIC=skip leaves it out; unset runs everything. */
 const STATIC = process.env.E2E_STATIC ?? 'all';

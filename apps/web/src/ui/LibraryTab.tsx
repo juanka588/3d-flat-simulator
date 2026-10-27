@@ -3,13 +3,13 @@ import type { AnyGenerator } from '@flat/scene';
 import { useEffect, useMemo, useState } from 'react';
 import { addToRoom } from '../catalog/add-to-room';
 import { formatDims } from '../catalog/format';
-import { loadLibraryModels, matchesFilter } from '../catalog/library';
+import { loadLibraryModels, matchesFilter, splitCredit } from '../catalog/library';
 import type { LibraryModel } from '../catalog/library';
 import { defaultParams, paramFields, resolveParams } from '../catalog/param-fields';
 import type { ParamValues } from '../catalog/param-fields';
 import { generatorTitle } from '../catalog/generator-titles';
 import { modelsBase } from '../viewer/model-env';
-import { generatorSource, libraryModelSource } from '../catalog/place';
+import { generatorSource, libraryModelSource, libraryMount } from '../catalog/place';
 import { useCardDrag } from '../catalog/use-card-drag';
 
 let modelsLoad: Promise<LibraryModel[]> | undefined;
@@ -40,14 +40,45 @@ export function LibraryTab({ onDragStart }: { onDragStart?: (() => void) | undef
           <GeneratorCard key={g.id} generator={g} onDragStart={onDragStart} />
         ))}
       </ul>
-      <h3>Models (CC0)</h3>
+      <h3>Models</h3>
       <ul className="product-list">
         {shown.map((m) => (
           <ModelCard key={m.asset.id} model={m} onDragStart={onDragStart} />
         ))}
       </ul>
       {models.length > 0 && shown.length === 0 && <p className="hint">No model matches.</p>}
+      <ModelCredits models={models} />
     </div>
+  );
+}
+
+/** Credit lines the licence requires: title, author, source and licence of every CC BY model (also in docs/MODELS-CREDITS.md). */
+function ModelCredits({ models }: { models: LibraryModel[] }) {
+  const credited = models.filter((m) => m.asset.licence === 'CC-BY-4.0' && m.asset.credit);
+  if (credited.length === 0) return null;
+  return (
+    <details className="model-credits" data-testid="model-credits">
+      <summary>Model credits ({credited.length})</summary>
+      <p className="hint">These models are licensed CC BY 4.0: credit is required. Others are CC0.</p>
+      <ul>
+        {credited.map((m) => {
+          const { text, url } = splitCredit(m.asset.credit ?? '');
+          return (
+            <li key={m.asset.id} data-asset-id={m.asset.id}>
+              {text}
+              {url && (
+                <>
+                  {' '}
+                  <a href={url} target="_blank" rel="noreferrer noopener">
+                    source
+                  </a>
+                </>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </details>
   );
 }
 
@@ -114,7 +145,7 @@ function GeneratorCard({ generator, onDragStart }: { generator: AnyGenerator; on
 
 function ModelCard({ model, onDragStart }: { model: LibraryModel; onDragStart?: (() => void) | undefined }) {
   const { asset } = model;
-  const drag = useCardDrag({ source: () => libraryModelSource(asset), onStart: onDragStart });
+  const drag = useCardDrag({ source: () => libraryModelSource(asset, libraryMount(asset.styleTags)), onStart: onDragStart });
   return (
     <li className="product-card model-card" data-testid="model-card" data-asset-id={asset.id} onPointerDown={drag.onPointerDown} onDragStart={(e) => e.preventDefault()} title={asset.credit ?? asset.licence}>
       <div className="thumb" aria-hidden="true">
@@ -124,8 +155,9 @@ function ModelCard({ model, onDragStart }: { model: LibraryModel; onDragStart?: 
         <strong className="name">{asset.name}</strong>
         <span className="dims">{formatDims(asset.nativeDims)}</span>
         <span className="badges">
+          {asset.tier === 'hd' && <span className="badge" title="High-detail model, downloaded only when placed">HD</span>}
           <span className="badge">{asset.licence}</span>
-          <button type="button" className="add-to-room" data-testid="add-to-room" aria-label={`Add ${asset.name} to the room`} title="Place it in the selected room (or the first room) at a spot the solver finds" onClick={() => void addToRoom(libraryModelSource(asset))}>
+          <button type="button" className="add-to-room" data-testid="add-to-room" aria-label={`Add ${asset.name} to the room`} title="Place it in the selected room (or the first room) at a spot the solver finds" onClick={() => void addToRoom(libraryModelSource(asset, libraryMount(asset.styleTags)))}>
             Add to room
           </button>
         </span>

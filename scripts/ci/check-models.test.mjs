@@ -8,7 +8,7 @@ import { Document, NodeIO } from '@gltf-transform/core';
 import { EXTMeshoptCompression } from '@gltf-transform/extensions';
 import { MeshoptEncoder } from 'meshoptimizer';
 import sharp from 'sharp';
-import { checkGlbFiles, checkModelsDir, inspectGlb } from './check-models.mjs';
+import { HD_BUDGETS, checkGlbFiles, checkModelsDir, inspectGlb } from './check-models.mjs';
 
 const sha = (b) => createHash('sha256').update(b).digest('hex');
 const glb = Buffer.from('glTF-pretend-model');
@@ -65,6 +65,33 @@ describe('models directory gate', () => {
     expect(checkModelsDir(make([entry({ credit: '' })]), { credits }).problems).toContain('polyhaven:chair: no credit line');
     expect(checkModelsDir(make([entry({ licence: 'CC-BY-4.0', credit: 'Chair, Sketchfab' })]), { credits }).problems[0]).toMatch(/needs an author/);
     expect(checkModelsDir(make(), { credits: 'nothing' }).problems[0]).toMatch(/missing from docs\/MODELS-CREDITS.md/);
+  });
+});
+
+describe('HD tier gate', () => {
+  const hd = (over = {}) => entry({ id: 'sketchfab:chair', tier: 'hd', licence: 'CC-BY-4.0', credit: '"Chair" by A, Sketchfab, CC-BY-4.0 (https://sketchfab.com/3d-models/x)', triangles: 30_000, materials: 12,
+    licenseEvidence: { basis: 'asset-field', needle: 'license.slug=by', checkedAt: '2026-10-27T10:00:00.000Z', assetApiUrl: 'https://api.sketchfab.com/v3/models/x' }, ...over });
+  const hdCredits = '| Chair (`sketchfab:chair`) |';
+  const opts = { credits: hdCredits, budgets: HD_BUDGETS, tier: 'hd' };
+  it('has its own budgets: 2 MiB per model, 60 MiB in total, 40k triangles', () => {
+    expect(HD_BUDGETS).toMatchObject({ modelBytes: 2 * 1024 * 1024, totalBytes: 60 * 1024 * 1024, triangles: 40_000, textureSize: 1024 });
+    expect(checkModelsDir(make([hd()]), opts).problems).toEqual([]);
+    expect(checkModelsDir(make([hd({ triangles: 40_001 })]), opts).problems).toContain('sketchfab:chair: 40001 triangles exceed 40000');
+    const tiny = { ...HD_BUDGETS, modelBytes: 5, totalBytes: 5 };
+    const p = checkModelsDir(make([hd()]), { ...opts, budgets: tiny }).problems;
+    expect(p.some((x) => x.includes('per model'))).toBe(true);
+    expect(p.some((x) => x.includes('models total'))).toBe(true);
+  });
+  it('keeps the light-tier limits for the light folder (an HD-sized model is rejected there)', () => {
+    expect(checkModelsDir(make([entry({ triangles: 30_000 })]), { credits }).problems).toContain('polyhaven:chair: 30000 triangles exceed 20000');
+  });
+  it('requires tier "hd" in models-hd and refuses it in models', () => {
+    expect(checkModelsDir(make([hd({ tier: undefined })]), opts).problems).toContain('sketchfab:chair: an entry of the HD tier must say tier "hd"');
+    expect(checkModelsDir(make([hd()]), { credits: hdCredits }).problems).toContain('sketchfab:chair: tier "hd" entries belong in models-hd/');
+  });
+  it('requires an author in the credit of a CC-BY model and the credits row', () => {
+    expect(checkModelsDir(make([hd({ credit: 'Chair, Sketchfab' })]), opts).problems[0]).toMatch(/needs an author/);
+    expect(checkModelsDir(make([hd()]), { ...opts, credits: 'nothing' }).problems[0]).toMatch(/missing from docs\/MODELS-CREDITS.md/);
   });
 });
 

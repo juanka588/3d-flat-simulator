@@ -1,10 +1,10 @@
 /* global console, process */
 // D4 local-only guard (M5.15): retailer data and models must never reach the Pages build or the repository.
 //  1. the Pages dist build (BASE_PATH=/3d-flat-simulator/ pnpm build) holds none of the deny-list hosts (retailer-hosts.json);
-//  2. no .glb / .gltf / .usdz in dist outside the committed model library (dist/models, listed in its catalog.json),
+//  2. no .glb / .gltf / .usdz in dist outside the committed model library (dist/models and the lazy HD tier dist/models-hd, each listed in its catalog.json),
 //     and no file of ANY name (.bin, .dat, no extension...) that is a glTF by content: binary `glTF` magic, or JSON with
 //     asset.version; no .env* file; `.wasm` modules are scanned for hosts too;
-//  3. `git ls-files` holds no model file outside apps/web/public/models, no .env / .envrc file (except .env.example), nothing
+//  3. `git ls-files` holds no model file outside apps/web/public/models and models-hd, no .env / .envrc file (except .env.example), nothing
 //     under the 3D-FUTURE folders, and no deny-list host outside `allowPaths`.
 // Flags: --dist <dir>, --worktree (also scan untracked, non-ignored files: for local runs before committing).
 import { execFileSync } from 'node:child_process';
@@ -90,12 +90,15 @@ export function isGltfContent(buf) {
 /** Problems of a built dist directory: retailer hosts, glTF content under any name, .env files, and model files outside the committed library. */
 export function scanDist(dist, cfg) {
   const problems = [];
-  let listed = new Set();
-  try {
-    const cat = JSON.parse(readFileSync(join(dist, 'models', 'catalog.json'), 'utf8'));
-    listed = new Set(cat.map((e) => `models/${e.file}`));
-  } catch {
-    // no library in dist: every model file below is a stray
+  const listed = new Set();
+  // The committed library: the light tier (models/) and the lazy HD tier (models-hd/), each listed in its own catalog.json.
+  for (const folder of ['models', 'models-hd']) {
+    try {
+      const cat = JSON.parse(readFileSync(join(dist, folder, 'catalog.json'), 'utf8'));
+      for (const e of cat) listed.add(`${folder}/${e.file}`);
+    } catch {
+      // no such tier in dist: every model file below it is a stray
+    }
   }
   for (const rel of walk(dist)) {
     const ext = extname(rel).toLowerCase();
@@ -127,7 +130,7 @@ export function scanTracked(files, cfg, read) {
       const hit = segments.some((_, i) => parts.every((p, k) => segments[i + k] === p) && i + parts.length < segments.length);
       if (hit) { problems.push(`${f}: inside forbidden folder ${d}`); break; }
     }
-    if (MODEL_EXT.test(f) && !/^apps\/web\/public\/models\//.test(f)) {
+    if (MODEL_EXT.test(f) && !/^apps\/web\/public\/models(-hd)?\//.test(f)) {
       if (!problems.some((p) => p.startsWith(`${f}:`))) problems.push(`${f}: model file outside apps/web/public/models`);
     }
     if (matchesAny(f, cfg.allowPaths ?? [])) continue;

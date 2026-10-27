@@ -34,7 +34,7 @@ export function objaverseLicence(slug, label = 'object') {
 /** The credit line required for an entry. CC-BY needs it; CC0 gets one anyway. */
 export function creditLine({ name, author, source, sourceUrl, licence }) {
   const who = author ? ` by ${author}` : '';
-  const via = { polyhaven: 'Poly Haven', kenney: 'Kenney (kenney.nl)', quaternius: 'Quaternius', objaverse: 'Objaverse / Sketchfab' }[source] ?? source;
+  const via = { polyhaven: 'Poly Haven', kenney: 'Kenney (kenney.nl)', quaternius: 'Quaternius', objaverse: 'Objaverse / Sketchfab', sketchfab: 'Sketchfab' }[source] ?? source;
   return `"${name}"${who}, ${via}, ${licence}${sourceUrl ? ` (${sourceUrl})` : ''}`.slice(0, 300);
 }
 

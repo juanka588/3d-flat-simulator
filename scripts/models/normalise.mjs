@@ -10,6 +10,8 @@ import { MeshoptDecoder, MeshoptEncoder, MeshoptSimplifier } from 'meshoptimizer
 import sharp from 'sharp';
 
 export const BUDGETS = { modelBytes: 300 * 1024, totalBytes: 6 * 1024 * 1024, triangles: 20_000, materials: 4 };
+/** The lazy `models-hd/` tier (M5R step 2): hero models, fetched only when an item that resolves to one is placed. */
+export const HD_BUDGETS = { modelBytes: 2 * 1024 * 1024, totalBytes: 60 * 1024 * 1024, triangles: 40_000, materials: 20, textureSize: 1024 };
 
 let ready;
 export async function getIO() {

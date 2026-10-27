@@ -53,7 +53,8 @@
   ],
   "allowFiles": [
     "**/.env.example",
-    "apps/web/public/models/**/*.glb"
+    "apps/web/public/models/**/*.glb",
+    "apps/web/public/models-hd/**/*.glb"
   ],
   "denyDirs": [
     "models/local",

@@ -1,0 +1,2689 @@
+[
+  {
+    "id": "sketchfab:armchair_midcentury",
+    "name": "Midcentury armchair",
+    "source": "cc0",
+    "tier": "hd",
+    "licence": "CC-BY-4.0",
+    "credit": "\"Midcentury Harvey Probber Armchair\" by eireni, Sketchfab, CC-BY-4.0 (https://sketchfab.com/3d-models/midcentury-harvey-probber-armchair-e54f711755a54b119b364fe6fcbfd821)",
+    "category": "armchair",
+    "styleTags": [
+      "mid-century",
+      "wood",
+      "living room"
+    ],
+    "nativeDims": {
+      "w": 0.731,
+      "d": 0.614,
+      "h": 0.657
+    },
+    "anchor": [
+      0,
+      0,
+      0
+    ],
+    "front": "+z",
+    "file": "armchair_midcentury.glb",
+    "thumb": "thumbs/armchair_midcentury.webp",
+    "thumbSha256": "16b7a73214994633fc9fb4503e89323d5aab694f1a8905596224630138133ee1",
+    "provider": "sketchfab",
+    "sourceId": "e54f711755a54b119b364fe6fcbfd821",
+    "sourceUrl": "https://sketchfab.com/3d-models/midcentury-harvey-probber-armchair-e54f711755a54b119b364fe6fcbfd821",
+    "author": "eireni",
+    "sha256": "becc761529b2d7c79e2f052cb093defe8b2b43b0121de75311aea1b62f36316c",
+    "bytes": 484620,
+    "triangles": 7062,
+    "materials": 1,
+    "textureMax": 1024,
+    "normalisation": {
+      "sourceFront": "-z",
+      "unitScale": 0.01,
+      "sourcePivot": [
+        0,
+        -0.356,
+        -15.111
+      ],
+      "sourceTriangles": 7062
+    },
+    "licenseEvidence": {
+      "basis": "asset-field",
+      "assetApiUrl": "https://api.sketchfab.com/v3/models/e54f711755a54b119b364fe6fcbfd821",
+      "needle": "license.slug=by",
+      "assetField": "by",
+      "licenceLabel": "CC Attribution",
+      "author": "eireni",
+      "modelUrl": "https://sketchfab.com/3d-models/midcentury-harvey-probber-armchair-e54f711755a54b119b364fe6fcbfd821",
+      "publishedAt": "2020-02-13T13:20:15.372791",
+      "checkedAt": "2026-10-27T18:41:15.484Z"
+    },
+    "sourceSha256": {
+      "archive": "117b34ff57650c8b0d65da9302925e5b71ad097873737063f1573880036b294b"
+    },
+    "retrievedAt": "2026-10-27T18:41:15.484Z"
+  },
+  {
+    "id": "sketchfab:armchair_upholstered",
+    "name": "Upholstered armchair",
+    "source": "cc0",
+    "tier": "hd",
+    "licence": "CC-BY-4.0",
+    "credit": "\"Modern Upholstered Armchair - 4096px²\" by Mark Peters, Sketchfab, CC-BY-4.0 (https://sketchfab.com/3d-models/modern-upholstered-armchair-4096px2-fd402ff0f1654eb4b5ec20a832b6895c)",
+    "category": "armchair",
+    "styleTags": [
+      "modern",
+      "fabric",
+      "living room"
+    ],
+    "nativeDims": {
+      "w": 0.693,
+      "d": 0.645,
+      "h": 0.892
+    },
+    "anchor": [
+      0,
+      0,
+      0
+    ],
+    "front": "+z",
+    "file": "armchair_upholstered.glb",
+    "thumb": "thumbs/armchair_upholstered.webp",
+    "thumbSha256": "09a9fd9befcf58e9d975c0420c7860207381e971292b692658455b85de1b8cbe",
+    "provider": "sketchfab",
+    "sourceId": "fd402ff0f1654eb4b5ec20a832b6895c",
+    "sourceUrl": "https://sketchfab.com/3d-models/modern-upholstered-armchair-4096px2-fd402ff0f1654eb4b5ec20a832b6895c",
+    "author": "Mark Peters",
+    "sha256": "e4a1d700f7b9df48469d18f702b393900e23db08e4f8b2fdfdf35e79350383be",
+    "bytes": 307688,
+    "triangles": 17732,
+    "materials": 1,
+    "textureMax": 1024,
+    "normalisation": {
+      "sourceFront": "+z",
+      "unitScale": 1,
+      "sourcePivot": [
+        0,
+        0,
+        -0.096
+      ],
+      "sourceTriangles": 17732
+    },
+    "licenseEvidence": {
+      "basis": "asset-field",
+      "assetApiUrl": "https://api.sketchfab.com/v3/models/fd402ff0f1654eb4b5ec20a832b6895c",
+      "needle": "license.slug=by",
+      "assetField": "by",
+      "licenceLabel": "CC Attribution",
+      "author": "Mark Peters",
+      "modelUrl": "https://sketchfab.com/3d-models/modern-upholstered-armchair-4096px2-fd402ff0f1654eb4b5ec20a832b6895c",
+      "publishedAt": "2025-08-03T19:23:56.773654",
+      "checkedAt": "2026-10-27T18:41:15.484Z"
+    },
+    "sourceSha256": {
+      "archive": "576d91451b3d4f4d8178e3e346ba70ec06d5bdf85a31c7d3fee759889e265caa"
+    },
+    "retrievedAt": "2026-10-27T18:41:15.484Z"
+  },
+  {
+    "id": "sketchfab:bar_stool_gold",
+    "name": "Pub bar stool",
+    "source": "cc0",
+    "tier": "hd",
+    "licence": "CC-BY-4.0",
+    "credit": "\"Pub Bar Rose Gold Metal Stool / Wood Top\" by Arts and Materials Lab, Sketchfab, CC-BY-4.0 (https://sketchfab.com/3d-models/pub-bar-rose-gold-metal-stool-wood-top-67d88c3a9b1c4075aaf3feaeabde4fa1)",
+    "category": "chair",
+    "styleTags": [
+      "modern",
+      "bar stool",
+      "kitchen",
+      "metal"
+    ],
+    "nativeDims": {
+      "w": 0.416,
+      "d": 0.416,
+      "h": 0.891
+    },
+    "anchor": [
+      0,
+      0,
+      0
+    ],
+    "front": "+z",
+    "file": "bar_stool_gold.glb",
+    "thumb": "thumbs/bar_stool_gold.webp",
+    "thumbSha256": "090784a6f1be090216b519a3d2749be0530b4294437582e0e76e764297f88c4d",
+    "provider": "sketchfab",
+    "sourceId": "67d88c3a9b1c4075aaf3feaeabde4fa1",
+    "sourceUrl": "https://sketchfab.com/3d-models/pub-bar-rose-gold-metal-stool-wood-top-67d88c3a9b1c4075aaf3feaeabde4fa1",
+    "author": "Arts and Materials Lab",
+    "sha256": "95a39281ff295ce70f2ddde3410f0e10c7e9c682e855b777bfe86759d55b962b",
+    "bytes": 301592,
+    "triangles": 1128,
+    "materials": 2,
+    "textureMax": 1024,
+    "normalisation": {
+      "sourceFront": "+z",
+      "unitScale": 1,
+      "sourcePivot": [
+        0.004,
+        -0.006,
+        0.009
+      ],
+      "sourceTriangles": 1128
+    },
+    "licenseEvidence": {
+      "basis": "asset-field",
+      "assetApiUrl": "https://api.sketchfab.com/v3/models/67d88c3a9b1c4075aaf3feaeabde4fa1",
+      "needle": "license.slug=by",
+      "assetField": "by",
+      "licenceLabel": "CC Attribution",
+      "author": "Arts and Materials Lab",
+      "modelUrl": "https://sketchfab.com/3d-models/pub-bar-rose-gold-metal-stool-wood-top-67d88c3a9b1c4075aaf3feaeabde4fa1",
+      "publishedAt": "2020-05-28T19:53:21.447703",
+      "checkedAt": "2026-10-27T18:49:59.808Z"
+    },
+    "sourceSha256": {
+      "archive": "948720f424d978f582dececba8fb8129c253ee67a15b62f4c1bd9913cf8b3238"
+    },
+    "retrievedAt": "2026-10-27T18:49:59.808Z"
+  },
+  {
+    "id": "sketchfab:bar_stool_leather",
+    "name": "Leather bar stool",
+    "source": "cc0",
+    "tier": "hd",
+    "licence": "CC-BY-4.0",
+    "credit": "\"Leather High Bar Stool\" by Nosakhae, Sketchfab, CC-BY-4.0 (https://sketchfab.com/3d-models/leather-high-bar-stool-b117e9bb6647471cbba974430dfd3726)",
+    "category": "chair",
+    "styleTags": [
+      "modern",
+      "bar stool",
+      "kitchen",
+      "leather"
+    ],
+    "nativeDims": {
+      "w": 0.596,
+      "d": 0.463,
+      "h": 0.991
+    },
+    "anchor": [
+      0,
+      0,
+      0
+    ],
+    "front": "+z",
+    "file": "bar_stool_leather.glb",
+    "thumb": "thumbs/bar_stool_leather.webp",
+    "thumbSha256": "46183c3c000bfaa54c66d7d4da64352d2fff42aabad02d9743d4a16071c19ea5",
+    "provider": "sketchfab",
+    "sourceId": "b117e9bb6647471cbba974430dfd3726",
+    "sourceUrl": "https://sketchfab.com/3d-models/leather-high-bar-stool-b117e9bb6647471cbba974430dfd3726",
+    "author": "Nosakhae",
+    "sha256": "52bc965b740a10f6cf6d2e90de4be41477b3ea62620bbe9454e361417b62fcb0",
+    "bytes": 358684,
+    "triangles": 28499,
+    "materials": 1,
+    "textureMax": 1024,
+    "normalisation": {
+      "sourceFront": "+z",
+      "unitScale": 1,
+      "sourcePivot": [
+        -0.005,
+        0,
+        0
+      ],
+      "sourceTriangles": 73216
+    },
+    "licenseEvidence": {
+      "basis": "asset-field",
+      "assetApiUrl": "https://api.sketchfab.com/v3/models/b117e9bb6647471cbba974430dfd3726",
+      "needle": "license.slug=by",
+      "assetField": "by",
+      "licenceLabel": "CC Attribution",
+      "author": "Nosakhae",
+      "modelUrl": "https://sketchfab.com/3d-models/leather-high-bar-stool-b117e9bb6647471cbba974430dfd3726",
+      "publishedAt": "2022-06-07T13:37:06.241776",
+      "checkedAt": "2026-10-27T18:41:15.484Z"
+    },
+    "sourceSha256": {
+      "archive": "d88fe7c8ecdd56824c30c452d80adc37e0e2da7de7fe22fbff8f6f29cda845f6"
+    },
+    "retrievedAt": "2026-10-27T18:41:15.484Z"
+  },
+  {
+    "id": "sketchfab:bar_stool_wood",
+    "name": "Wooden bar stool",
+    "source": "cc0",
+    "tier": "hd",
+    "licence": "CC-BY-4.0",
+    "credit": "\"Wooden Bar Stool\" by Sir Swaghorse, Sketchfab, CC-BY-4.0 (https://sketchfab.com/3d-models/wooden-bar-stool-c6b783ab624d42f992331a0ac002b2b5)",
+    "category": "chair",
+    "styleTags": [
+      "wood",
+      "bar stool",
+      "kitchen"
+    ],
+    "nativeDims": {
+      "w": 0.366,
+      "d": 0.276,
+      "h": 0.85
+    },
+    "anchor": [
+      0,
+      0,
+      0
+    ],
+    "front": "+z",
+    "file": "bar_stool_wood.glb",
+    "thumb": "thumbs/bar_stool_wood.webp",
+    "thumbSha256": "10b637b1fb45f92aee5e40cf919566aaf517f1cf9e1871c524ff46c4cb1d62b5",
+    "provider": "sketchfab",
+    "sourceId": "c6b783ab624d42f992331a0ac002b2b5",
+    "sourceUrl": "https://sketchfab.com/3d-models/wooden-bar-stool-c6b783ab624d42f992331a0ac002b2b5",
+    "author": "Sir Swaghorse",
+    "sha256": "f03fcaa6aee8c9558fa1c7d1b18885370db170d3d0d778694ba081da9ee3056a",
+    "bytes": 27808,
+    "triangles": 2240,
+    "materials": 1,
+    "textureMax": 1024,
+    "normalisation": {
+      "sourceFront": "+z",
+      "unitScale": 0.6446110806072038,
+      "sourcePivot": [
+        0.041,
+        -0.633,
+        -0.003
+      ],
+      "sourceTriangles": 2240
+    },
+    "licenseEvidence": {
+      "basis": "asset-field",
+      "assetApiUrl": "https://api.sketchfab.com/v3/models/c6b783ab624d42f992331a0ac002b2b5",
+      "needle": "license.slug=by",
+      "assetField": "by",
+      "licenceLabel": "CC Attribution",
+      "author": "Sir Swaghorse",
+      "modelUrl": "https://sketchfab.com/3d-models/wooden-bar-stool-c6b783ab624d42f992331a0ac002b2b5",
+      "publishedAt": "2017-12-17T18:57:28.787757",
+      "checkedAt": "2026-10-27T18:49:59.808Z"
+    },
+    "sourceSha256": {
+      "archive": "c1f97d93efbd2a18f71ac6ef735814af1cfb86d85af793abc299f42e2d9361e0"
+    },
+    "retrievedAt": "2026-10-27T18:49:59.808Z"
+  },
+  {
+    "id": "sketchfab:bathtub_freestanding",
+    "name": "Freestanding bathtub",
+    "source": "cc0",
+    "tier": "hd",
+    "licence": "CC-BY-4.0",
+    "credit": "\"Angelo Freestanding Bath\" by tissinouk, Sketchfab, CC-BY-4.0 (https://sketchfab.com/3d-models/angelo-freestanding-bath-dcd691724f6b4d29a6d16def24d14e6e)",
+    "category": "other",
+    "styleTags": [
+      "modern",
+      "bathtub",
+      "bathroom"
+    ],
+    "nativeDims": {
+      "w": 1.7,
+      "d": 0.8,
+      "h": 0.57
+    },
+    "anchor": [
+      0,
+      0,
+      0
+    ],
+    "front": "+z",
+    "file": "bathtub_freestanding.glb",
+    "thumb": "thumbs/bathtub_freestanding.webp",
+    "thumbSha256": "8f8a4226b56cc70ea2ddd92ab64bc7ea97b5eeba091f6fc3e2a92b1541025535",
+    "provider": "sketchfab",
+    "sourceId": "dcd691724f6b4d29a6d16def24d14e6e",
+    "sourceUrl": "https://sketchfab.com/3d-models/angelo-freestanding-bath-dcd691724f6b4d29a6d16def24d14e6e",
+    "author": "tissinouk",
+    "sha256": "d2904c61519fd4864ea3f17a8f8ce65a268ea5ade68ea7626feffefa7f192a84",
+    "bytes": 15780,
+    "triangles": 3028,
+    "materials": 2,
+    "textureMax": 1024,
+    "normalisation": {
+      "sourceFront": "+z",
+      "unitScale": 0.1,
+      "sourcePivot": [
+        0,
+        0,
+        4
+      ],
+      "sourceTriangles": 3028
+    },
+    "licenseEvidence": {
+      "basis": "asset-field",
+      "assetApiUrl": "https://api.sketchfab.com/v3/models/dcd691724f6b4d29a6d16def24d14e6e",
+      "needle": "license.slug=by",
+      "assetField": "by",
+      "licenceLabel": "CC Attribution",
+      "author": "tissinouk",
+      "modelUrl": "https://sketchfab.com/3d-models/angelo-freestanding-bath-dcd691724f6b4d29a6d16def24d14e6e",
+      "publishedAt": "2016-05-10T07:42:53.768213",
+      "checkedAt": "2026-10-27T18:41:15.484Z"
+    },
+    "sourceSha256": {
+      "archive": "042288311257caeaa5d293a733f2a5067f53c269e05b8039e8ef298643f9b2bf"
+    },
+    "retrievedAt": "2026-10-27T18:41:15.484Z"
+  },
+  {
+    "id": "sketchfab:bed_dark",
+    "name": "Dark modern bed",
+    "source": "cc0",
+    "tier": "hd",
+    "licence": "CC-BY-4.0",
+    "credit": "\"Dark Modern Bed\" by Ren Viro Store, Sketchfab, CC-BY-4.0 (https://sketchfab.com/3d-models/dark-modern-bed-d3aeb724e09c44af96ef09cd20885220)",
+    "category": "bed",
+    "styleTags": [
+      "modern",
+      "dark",
+      "bedroom"
+    ],
+    "nativeDims": {
+      "w": 1.993,
+      "d": 2.137,
+      "h": 0.858
+    },
+    "anchor": [
+      0,
+      0,
+      0
+    ],
+    "front": "+z",
+    "file": "bed_dark.glb",
+    "thumb": "thumbs/bed_dark.webp",
+    "thumbSha256": "59791d56a37cc91e84f705aa0371bc408680bb51a06291f1408de8bb1d5ae323",
+    "provider": "sketchfab",
+    "sourceId": "d3aeb724e09c44af96ef09cd20885220",
+    "sourceUrl": "https://sketchfab.com/3d-models/dark-modern-bed-d3aeb724e09c44af96ef09cd20885220",
+    "author": "Ren Viro Store",
+    "sha256": "268b7db193403195065d3530d58c661a1d6ce6b1be1f7eaa8ea18bc53e45cf33",
+    "bytes": 432636,
+    "triangles": 21526,
+    "materials": 1,
+    "textureMax": 1024,
+    "normalisation": {
+      "sourceFront": "-x",
+      "unitScale": 0.001,
+      "sourcePivot": [
+        26.323,
+        2.064,
+        0
+      ],
+      "sourceTriangles": 21526
+    },
+    "licenseEvidence": {
+      "basis": "asset-field",
+      "assetApiUrl": "https://api.sketchfab.com/v3/models/d3aeb724e09c44af96ef09cd20885220",
+      "needle": "license.slug=by",
+      "assetField": "by",
+      "licenceLabel": "CC Attribution",
+      "author": "Ren Viro Store",
+      "modelUrl": "https://sketchfab.com/3d-models/dark-modern-bed-d3aeb724e09c44af96ef09cd20885220",
+      "publishedAt": "2021-01-29T19:04:36.398902",
+      "checkedAt": "2026-10-27T18:41:15.484Z"
+    },
+    "sourceSha256": {
+      "archive": "ba52b220060a8bdd35f47e0a93573af6c1866189c846c7e040ab58875e9b7eeb"
+    },
+    "retrievedAt": "2026-10-27T18:41:15.484Z"
+  },
+  {
+    "id": "sketchfab:bed_upholstered",
+    "name": "Upholstered double bed",
+    "source": "cc0",
+    "tier": "hd",
+    "licence": "CC-BY-4.0",
+    "credit": "\"Upholstered Bed || Free model\" by CyberFox 3D Studio, Sketchfab, CC-BY-4.0 (https://sketchfab.com/3d-models/upholstered-bed-free-model-7602267cc32e4caf8c92c60b677539be)",
+    "category": "bed",
+    "styleTags": [
+      "modern",
+      "upholstered",
+      "fabric",
+      "bedroom"
+    ],
+    "nativeDims": {
+      "w": 2.15,
+      "d": 1.891,
+      "h": 1.268
+    },
+    "anchor": [
+      0,
+      0,
+      0
+    ],
+    "front": "+z",
+    "file": "bed_upholstered.glb",
+    "thumb": "thumbs/bed_upholstered.webp",
+    "thumbSha256": "cdc512d1c989cbef7be5e7da7370a86f256331310f2730d6657740272f9861a8",
+    "provider": "sketchfab",
+    "sourceId": "7602267cc32e4caf8c92c60b677539be",
+    "sourceUrl": "https://sketchfab.com/3d-models/upholstered-bed-free-model-7602267cc32e4caf8c92c60b677539be",
+    "author": "CyberFox 3D Studio",
+    "sha256": "fe473f1c2ab1020b551a5cab77eca97bd57e64a45e221aab2b70956ee204de2a",
+    "bytes": 291080,
+    "triangles": 29358,
+    "materials": 2,
+    "textureMax": 1024,
+    "normalisation": {
+      "sourceFront": "-x",
+      "unitScale": 0.8413885268062764,
+      "sourcePivot": [
+        -0.007,
+        0,
+        -0.074
+      ],
+      "sourceTriangles": 29358
+    },
+    "licenseEvidence": {
+      "basis": "asset-field",
+      "assetApiUrl": "https://api.sketchfab.com/v3/models/7602267cc32e4caf8c92c60b677539be",
+      "needle": "license.slug=by",
+      "assetField": "by",
+      "licenceLabel": "CC Attribution",
+      "author": "CyberFox 3D Studio",
+      "modelUrl": "https://sketchfab.com/3d-models/upholstered-bed-free-model-7602267cc32e4caf8c92c60b677539be",
+      "publishedAt": "2024-08-23T15:25:54.255290",
+      "checkedAt": "2026-10-27T18:41:15.484Z"
+    },
+    "sourceSha256": {
+      "archive": "9bdad62454dd19efc06f5d64e378e6bdd8ec30626c75390629076c8f68901f74"
+    },
+    "retrievedAt": "2026-10-27T18:41:15.484Z"
+  },
+  {
+    "id": "sketchfab:bedside_table",
+    "name": "Bedside table",
+    "source": "cc0",
+    "tier": "hd",
+    "licence": "CC-BY-4.0",
+    "credit": "\"Bedside Table\" by Melon Polygons, Sketchfab, CC-BY-4.0 (https://sketchfab.com/3d-models/bedside-table-b25de0eb97c64a00a538f09fc7072f67)",
+    "category": "bedside",
+    "styleTags": [
+      "modern",
+      "wood",
+      "bedroom"
+    ],
+    "nativeDims": {
+      "w": 0.515,
+      "d": 0.542,
+      "h": 0.58
+    },
+    "anchor": [
+      0,
+      0,
+      0
+    ],
+    "front": "+z",
+    "file": "bedside_table.glb",
+    "thumb": "thumbs/bedside_table.webp",
+    "thumbSha256": "b98d87c99a882ff9e9362f1f3a81fbe7233fb8da6b8f3f21cb46b1b31a0d722d",
+    "provider": "sketchfab",
+    "sourceId": "b25de0eb97c64a00a538f09fc7072f67",
+    "sourceUrl": "https://sketchfab.com/3d-models/bedside-table-b25de0eb97c64a00a538f09fc7072f67",
+    "author": "Melon Polygons",
+    "sha256": "c4de5c527a64f93786f4f6f403175e28baff5dfa938057dac1192767371fc6ce",
+    "bytes": 281260,
+    "triangles": 868,
+    "materials": 2,
+    "textureMax": 1024,
+    "normalisation": {
+      "sourceFront": "+z",
+      "unitScale": 0.2612685021091251,
+      "sourcePivot": [
+        0.005,
+        0,
+        0.061
+      ],
+      "sourceTriangles": 868
+    },
+    "licenseEvidence": {
+      "basis": "asset-field",
+      "assetApiUrl": "https://api.sketchfab.com/v3/models/b25de0eb97c64a00a538f09fc7072f67",
+      "needle": "license.slug=by",
+      "assetField": "by",
+      "licenceLabel": "CC Attribution",
+      "author": "Melon Polygons",
+      "modelUrl": "https://sketchfab.com/3d-models/bedside-table-b25de0eb97c64a00a538f09fc7072f67",
+      "publishedAt": "2023-01-16T17:44:32.193557",
+      "checkedAt": "2026-10-27T18:49:59.808Z"
+    },
+    "sourceSha256": {
+      "archive": "3ad1209a5830f98ff22f01d2119c388c3598b645ce360e3942a82f4396e41d3e"
+    },
+    "retrievedAt": "2026-10-27T18:49:59.808Z"
+  },
+  {
+    "id": "sketchfab:bench_upholstered",
+    "name": "Upholstered bench",
+    "source": "cc0",
+    "tier": "hd",
+    "licence": "CC-BY-4.0",
+    "credit": "\"upholstered bench\" by alixbaur, Sketchfab, CC-BY-4.0 (https://sketchfab.com/3d-models/upholstered-bench-70c2c16114654e7e924f6254d4143c80)",
+    "category": "decor",
+    "styleTags": [
+      "modern",
+      "bench",
+      "fabric",
+      "bedroom"
+    ],
+    "nativeDims": {
+      "w": 1.474,
+      "d": 0.452,
+      "h": 0.428
+    },
+    "anchor": [
+      0,
+      0,
+      0
+    ],
+    "front": "+z",
+    "file": "bench_upholstered.glb",
+    "thumb": "thumbs/bench_upholstered.webp",
+    "thumbSha256": "cc3bb676bc1269aa3b29b329dd6e72bcca88e8a7d6ecb2f784bf28802d84ee9c",
+    "provider": "sketchfab",
+    "sourceId": "70c2c16114654e7e924f6254d4143c80",
+    "sourceUrl": "https://sketchfab.com/3d-models/upholstered-bench-70c2c16114654e7e924f6254d4143c80",
+    "author": "alixbaur",
+    "sha256": "5bdbb83899dbb1764b14d418dabbab3a0ea13d62ee9dfe0eb612541e69de4435",
+    "bytes": 130000,
+    "triangles": 636,
+    "materials": 2,
+    "textureMax": 1024,
+    "normalisation": {
+      "sourceFront": "+x",
+      "unitScale": 1,
+      "sourcePivot": [
+        0.024,
+        -0.012,
+        -0.021
+      ],
+      "sourceTriangles": 636
+    },
+    "licenseEvidence": {
+      "basis": "asset-field",
+      "assetApiUrl": "https://api.sketchfab.com/v3/models/70c2c16114654e7e924f6254d4143c80",
+      "needle": "license.slug=by",
+      "assetField": "by",
+      "licenceLabel": "CC Attribution",
+      "author": "alixbaur",
+      "modelUrl": "https://sketchfab.com/3d-models/upholstered-bench-70c2c16114654e7e924f6254d4143c80",
+      "publishedAt": "2022-08-11T08:02:57.562408",
+      "checkedAt": "2026-10-27T18:41:15.484Z"
+    },
+    "sourceSha256": {
+      "archive": "b303e19f618f3da97ab54722587d0dd6d11ca754fef6e7e627a53cce06ccbdbd"
+    },
+    "retrievedAt": "2026-10-27T18:41:15.484Z"
+  },
+  {
+    "id": "sketchfab:built_in_oven",
+    "name": "Built-in oven",
+    "source": "cc0",
+    "tier": "hd",
+    "licence": "CC-BY-4.0",
+    "credit": "\"Built-in oven\" by 3DDomino, Sketchfab, CC-BY-4.0 (https://sketchfab.com/3d-models/built-in-oven-50be70931dcb4a838b906382233a28f1)",
+    "category": "appliance",
+    "styleTags": [
+      "modern",
+      "kitchen",
+      "oven",
+      "steel"
+    ],
+    "nativeDims": {
+      "w": 0.587,
+      "d": 0.604,
+      "h": 0.586
+    },
+    "anchor": [
+      0,
+      0,
+      0
+    ],
+    "front": "+z",
+    "file": "built_in_oven.glb",
+    "thumb": "thumbs/built_in_oven.webp",
+    "thumbSha256": "7c576d8bac662e068e2caee19c68059b2681ac85f2928d175d28791dbb7f1a41",
+    "provider": "sketchfab",
+    "sourceId": "50be70931dcb4a838b906382233a28f1",
+    "sourceUrl": "https://sketchfab.com/3d-models/built-in-oven-50be70931dcb4a838b906382233a28f1",
+    "author": "3DDomino",
+    "sha256": "e885b69750a5747adb6127e192195fac3fba3688882e5b31af61acd8576eb736",
+    "bytes": 88848,
+    "triangles": 12066,
+    "materials": 17,
+    "textureMax": 1024,
+    "normalisation": {
+      "sourceFront": "+x",
+      "unitScale": 0.001,
+      "sourcePivot": [
+        0,
+        0,
+        0
+      ],
+      "sourceTriangles": 12066
+    },
+    "licenseEvidence": {
+      "basis": "asset-field",
+      "assetApiUrl": "https://api.sketchfab.com/v3/models/50be70931dcb4a838b906382233a28f1",
+      "needle": "license.slug=by",
+      "assetField": "by",
+      "licenceLabel": "CC Attribution",
+      "author": "3DDomino",
+      "modelUrl": "https://sketchfab.com/3d-models/built-in-oven-50be70931dcb4a838b906382233a28f1",
+      "publishedAt": "2021-01-11T18:15:11.500568",
+      "checkedAt": "2026-10-27T18:41:15.484Z"
+    },
+    "sourceSha256": {
+      "archive": "458c4295251a7c38138eeed518cb1b6fc2c89449fd96364e4991027a66ca4512"
+    },
+    "retrievedAt": "2026-10-27T18:41:15.484Z"
+  },
+  {
+    "id": "sketchfab:coffee_table_marble",
+    "name": "Round side table",
+    "source": "cc0",
+    "tier": "hd",
+    "licence": "CC-BY-4.0",
+    "credit": "\"Round side coffee table marble top\" by 3DTechDesign, Sketchfab, CC-BY-4.0 (https://sketchfab.com/3d-models/round-side-coffee-table-marble-top-49e5ede6a16d4dd39386d6aa705fdbeb)",
+    "category": "table",
+    "styleTags": [
+      "modern",
+      "side table",
+      "coffee table",
+      "brass",
+      "living room"
+    ],
+    "nativeDims": {
+      "w": 0.498,
+      "d": 0.5,
+      "h": 0.42
+    },
+    "anchor": [
+      0,
+      0,
+      0
+    ],
+    "front": "+z",
+    "file": "coffee_table_marble.glb",
+    "thumb": "thumbs/coffee_table_marble.webp",
+    "thumbSha256": "cdcbc2158b9bc267ae18a3fdd6945f33afd029a0c4f3d29201ff2833dd150d92",
+    "provider": "sketchfab",
+    "sourceId": "49e5ede6a16d4dd39386d6aa705fdbeb",
+    "sourceUrl": "https://sketchfab.com/3d-models/round-side-coffee-table-marble-top-49e5ede6a16d4dd39386d6aa705fdbeb",
+    "author": "3DTechDesign",
+    "sha256": "c5b31dbfe23664cf750f732f26e966aea152f194923d305d2cc3c26f71669e91",
+    "bytes": 125668,
+    "triangles": 15240,
+    "materials": 4,
+    "textureMax": 1024,
+    "normalisation": {
+      "sourceFront": "+z",
+      "unitScale": 1,
+      "sourcePivot": [
+        -3.597,
+        -171.492,
+        161.288
+      ],
+      "sourceTriangles": 15240
+    },
+    "licenseEvidence": {
+      "basis": "asset-field",
+      "assetApiUrl": "https://api.sketchfab.com/v3/models/49e5ede6a16d4dd39386d6aa705fdbeb",
+      "needle": "license.slug=by",
+      "assetField": "by",
+      "licenceLabel": "CC Attribution",
+      "author": "3DTechDesign",
+      "modelUrl": "https://sketchfab.com/3d-models/round-side-coffee-table-marble-top-49e5ede6a16d4dd39386d6aa705fdbeb",
+      "publishedAt": "2020-07-21T12:04:14.308797",
+      "checkedAt": "2026-10-27T18:41:15.484Z"
+    },
+    "sourceSha256": {
+      "archive": "b5e18785f54f0b206fceca66d42d835fe4026ef37fc5b58c59d6923f4481f4eb"
+    },
+    "retrievedAt": "2026-10-27T18:41:15.484Z"
+  },
+  {
+    "id": "sketchfab:cushion_waves",
+    "name": "Wave cushion",
+    "source": "cc0",
+    "tier": "hd",
+    "licence": "CC-BY-4.0",
+    "credit": "\"Simple waves cushion/Pillow\" by Caio Stange, Sketchfab, CC-BY-4.0 (https://sketchfab.com/3d-models/simple-waves-cushionpillow-3e5f382200c9449cb41120a2fc977372)",
+    "category": "decor",
+    "styleTags": [
+      "modern",
+      "cushion",
+      "fabric",
+      "living room"
+    ],
+    "nativeDims": {
+      "w": 0.5,
+      "d": 0.418,
+      "h": 0.468
+    },
+    "anchor": [
+      0,
+      0,
+      0
+    ],
+    "front": "+z",
+    "file": "cushion_waves.glb",
+    "thumb": "thumbs/cushion_waves.webp",
+    "thumbSha256": "2bdce60525d931ed2119930d449c17b36559e8590467d44b2e4c8845a785f0e1",
+    "provider": "sketchfab",
+    "sourceId": "3e5f382200c9449cb41120a2fc977372",
+    "sourceUrl": "https://sketchfab.com/3d-models/simple-waves-cushionpillow-3e5f382200c9449cb41120a2fc977372",
+    "author": "Caio Stange",
+    "sha256": "9f1c1f5db2f2d62ea26b7fc064293b54b7cdc4f7e079e576f3324fe9f9953dc9",
+    "bytes": 482152,
+    "triangles": 3264,
+    "materials": 1,
+    "textureMax": 1024,
+    "normalisation": {
+      "sourceFront": "+z",
+      "unitScale": 0.0007924701843675341,
+      "sourcePivot": [
+        119.371,
+        332.579,
+        -38.97
+      ],
+      "sourceTriangles": 3264
+    },
+    "licenseEvidence": {
+      "basis": "asset-field",
+      "assetApiUrl": "https://api.sketchfab.com/v3/models/3e5f382200c9449cb41120a2fc977372",
+      "needle": "license.slug=by",
+      "assetField": "by",
+      "licenceLabel": "CC Attribution",
+      "author": "Caio Stange",
+      "modelUrl": "https://sketchfab.com/3d-models/simple-waves-cushionpillow-3e5f382200c9449cb41120a2fc977372",
+      "publishedAt": "2021-01-18T02:23:06.889241",
+      "checkedAt": "2026-10-27T18:49:59.808Z"
+    },
+    "sourceSha256": {
+      "archive": "67e1c453d18a7d4b0bc230d527a8321af48bd9bb02492f08f6d09476cd5944df"
+    },
+    "retrievedAt": "2026-10-27T18:49:59.808Z"
+  },
+  {
+    "id": "sketchfab:desk_chair",
+    "name": "Office chair",
+    "source": "cc0",
+    "tier": "hd",
+    "licence": "CC-BY-4.0",
+    "credit": "\"Office Chair Modern\" by thethieme, Sketchfab, CC-BY-4.0 (https://sketchfab.com/3d-models/office-chair-modern-675f34f7304e4d92812a41e9750539aa)",
+    "category": "chair",
+    "styleTags": [
+      "modern",
+      "office",
+      "desk chair"
+    ],
+    "nativeDims": {
+      "w": 0.72,
+      "d": 0.76,
+      "h": 0.966
+    },
+    "anchor": [
+      0,
+      0,
+      0
+    ],
+    "front": "+z",
+    "file": "desk_chair.glb",
+    "thumb": "thumbs/desk_chair.webp",
+    "thumbSha256": "4c91c6dada626606941e4d6f9d84916cf9f941729b32bf8a50924f6d08103df7",
+    "provider": "sketchfab",
+    "sourceId": "675f34f7304e4d92812a41e9750539aa",
+    "sourceUrl": "https://sketchfab.com/3d-models/office-chair-modern-675f34f7304e4d92812a41e9750539aa",
+    "author": "thethieme",
+    "sha256": "361e34fcffe477183b44ea557553cdb580319e2ff38fd02bc60a0869bf1f2b7c",
+    "bytes": 158856,
+    "triangles": 1234,
+    "materials": 1,
+    "textureMax": 1024,
+    "normalisation": {
+      "sourceFront": "+z",
+      "unitScale": 1,
+      "sourcePivot": [
+        -0.034,
+        0,
+        -0.037
+      ],
+      "sourceTriangles": 1234
+    },
+    "licenseEvidence": {
+      "basis": "asset-field",
+      "assetApiUrl": "https://api.sketchfab.com/v3/models/675f34f7304e4d92812a41e9750539aa",
+      "needle": "license.slug=by",
+      "assetField": "by",
+      "licenceLabel": "CC Attribution",
+      "author": "thethieme",
+      "modelUrl": "https://sketchfab.com/3d-models/office-chair-modern-675f34f7304e4d92812a41e9750539aa",
+      "publishedAt": "2018-08-28T08:11:20.382167",
+      "checkedAt": "2026-10-27T18:41:15.484Z"
+    },
+    "sourceSha256": {
+      "archive": "8c5904e8b8b6fd5da9a7eb4a765210aa89b50921d9da2f7e23ca381e3487af80"
+    },
+    "retrievedAt": "2026-10-27T18:41:15.484Z"
+  },
+  {
+    "id": "sketchfab:dining_chair_modern",
+    "name": "Modern dining chair",
+    "source": "cc0",
+    "tier": "hd",
+    "licence": "CC-BY-4.0",
+    "credit": "\"Modern Dining Chair\" by Johnson Martin, Sketchfab, CC-BY-4.0 (https://sketchfab.com/3d-models/modern-dining-chair-cf43cd4a84e044fd9830d3a5969fb19f)",
+    "category": "chair",
+    "styleTags": [
+      "modern",
+      "dining room"
+    ],
+    "nativeDims": {
+      "w": 0.662,
+      "d": 0.537,
+      "h": 0.85
+    },
+    "anchor": [
+      0,
+      0,
+      0
+    ],
+    "front": "+z",
+    "file": "dining_chair_modern.glb",
+    "thumb": "thumbs/dining_chair_modern.webp",
+    "thumbSha256": "b89a0848c0386adfd4eb58ffd9d8962c51d9ea33e36cf641c4567750d1be6d45",
+    "provider": "sketchfab",
+    "sourceId": "cf43cd4a84e044fd9830d3a5969fb19f",
+    "sourceUrl": "https://sketchfab.com/3d-models/modern-dining-chair-cf43cd4a84e044fd9830d3a5969fb19f",
+    "author": "Johnson Martin",
+    "sha256": "1f9647a7cbf1a4c6520d0d7c3d01142a0e0944a8207486d5a9b0d810de2ce318",
+    "bytes": 136716,
+    "triangles": 28498,
+    "materials": 2,
+    "textureMax": 1024,
+    "normalisation": {
+      "sourceFront": "+z",
+      "unitScale": 0.3089313817199476,
+      "sourcePivot": [
+        0,
+        -0.001,
+        0
+      ],
+      "sourceTriangles": 52224
+    },
+    "licenseEvidence": {
+      "basis": "asset-field",
+      "assetApiUrl": "https://api.sketchfab.com/v3/models/cf43cd4a84e044fd9830d3a5969fb19f",
+      "needle": "license.slug=by",
+      "assetField": "by",
+      "licenceLabel": "CC Attribution",
+      "author": "Johnson Martin",
+      "modelUrl": "https://sketchfab.com/3d-models/modern-dining-chair-cf43cd4a84e044fd9830d3a5969fb19f",
+      "publishedAt": "2017-02-07T21:32:04.874724",
+      "checkedAt": "2026-10-27T18:41:15.484Z"
+    },
+    "sourceSha256": {
+      "archive": "ae66ba17d05297a6b0d2c73a4af95268708951a8cd4d94247673a9a33c55fa59"
+    },
+    "retrievedAt": "2026-10-27T18:41:15.484Z"
+  },
+  {
+    "id": "sketchfab:dining_set_modern",
+    "name": "Dining table set",
+    "source": "cc0",
+    "tier": "hd",
+    "licence": "CC-BY-4.0",
+    "credit": "\"Modern Dining Room Table Set\" by Akshat, Sketchfab, CC-BY-4.0 (https://sketchfab.com/3d-models/modern-dining-room-table-set-fc73e8d591ba45f8a3b369596593dcf5)",
+    "category": "other",
+    "styleTags": [
+      "modern",
+      "dining set",
+      "dining room"
+    ],
+    "nativeDims": {
+      "w": 2.4,
+      "d": 1.621,
+      "h": 1.136
+    },
+    "anchor": [
+      0,
+      0,
+      0
+    ],
+    "front": "+z",
+    "file": "dining_set_modern.glb",
+    "thumb": "thumbs/dining_set_modern.webp",
+    "thumbSha256": "0db816342254bfe656366bcc20702424c2b962eba7e726088d4846a9a61638ce",
+    "provider": "sketchfab",
+    "sourceId": "fc73e8d591ba45f8a3b369596593dcf5",
+    "sourceUrl": "https://sketchfab.com/3d-models/modern-dining-room-table-set-fc73e8d591ba45f8a3b369596593dcf5",
+    "author": "Akshat",
+    "sha256": "06b8922681be018c88d17bc3399ec9ad2c5713b5547a702e85b2cdef0e9080e7",
+    "bytes": 385436,
+    "triangles": 1584,
+    "materials": 3,
+    "textureMax": 1024,
+    "normalisation": {
+      "sourceFront": "+x",
+      "unitScale": 0.001750797018587224,
+      "sourcePivot": [
+        228.66,
+        -109.065,
+        -2.113
+      ],
+      "sourceTriangles": 1584
+    },
+    "licenseEvidence": {
+      "basis": "asset-field",
+      "assetApiUrl": "https://api.sketchfab.com/v3/models/fc73e8d591ba45f8a3b369596593dcf5",
+      "needle": "license.slug=by",
+      "assetField": "by",
+      "licenceLabel": "CC Attribution",
+      "author": "Akshat",
+      "modelUrl": "https://sketchfab.com/3d-models/modern-dining-room-table-set-fc73e8d591ba45f8a3b369596593dcf5",
+      "publishedAt": "2020-11-17T05:57:03.113337",
+      "checkedAt": "2026-10-27T18:49:59.808Z"
+    },
+    "sourceSha256": {
+      "archive": "8534eda1ba42f52d0a21bafbb777c757c227c51227a6985ecc9bb267d587840b"
+    },
+    "retrievedAt": "2026-10-27T18:49:59.808Z"
+  },
+  {
+    "id": "sketchfab:dining_table_round",
+    "name": "Round dining table",
+    "source": "cc0",
+    "tier": "hd",
+    "licence": "CC-BY-4.0",
+    "credit": "\"Round Dining Table\" by RaynaudL, Sketchfab, CC-BY-4.0 (https://sketchfab.com/3d-models/round-dining-table-e1b3aba3a64b4017a79b7b824dfccce3)",
+    "category": "table",
+    "styleTags": [
+      "modern",
+      "round",
+      "dining room"
+    ],
+    "nativeDims": {
+      "w": 1.4,
+      "d": 1.4,
+      "h": 0.718
+    },
+    "anchor": [
+      0,
+      0,
+      0
+    ],
+    "front": "+z",
+    "file": "dining_table_round.glb",
+    "thumb": "thumbs/dining_table_round.webp",
+    "thumbSha256": "aa34eb139e73897fb0cf6e1e927a4d747fd03f21f8f45c61ce76ba0b460cb8bf",
+    "provider": "sketchfab",
+    "sourceId": "e1b3aba3a64b4017a79b7b824dfccce3",
+    "sourceUrl": "https://sketchfab.com/3d-models/round-dining-table-e1b3aba3a64b4017a79b7b824dfccce3",
+    "author": "RaynaudL",
+    "sha256": "9e1edb7c1f6859c6fdd3262c937d9b7a486462d95b9949755cbd6c8beb80a871",
+    "bytes": 433424,
+    "triangles": 1232,
+    "materials": 1,
+    "textureMax": 1024,
+    "normalisation": {
+      "sourceFront": "+z",
+      "unitScale": 0.7,
+      "sourcePivot": [
+        0,
+        -0.002,
+        0
+      ],
+      "sourceTriangles": 1232
+    },
+    "licenseEvidence": {
+      "basis": "asset-field",
+      "assetApiUrl": "https://api.sketchfab.com/v3/models/e1b3aba3a64b4017a79b7b824dfccce3",
+      "needle": "license.slug=by",
+      "assetField": "by",
+      "licenceLabel": "CC Attribution",
+      "author": "RaynaudL",
+      "modelUrl": "https://sketchfab.com/3d-models/round-dining-table-e1b3aba3a64b4017a79b7b824dfccce3",
+      "publishedAt": "2022-02-23T21:01:44.929930",
+      "checkedAt": "2026-10-27T18:49:59.808Z"
+    },
+    "sourceSha256": {
+      "archive": "c7ad802b6e176468bd59c98fa763e94638ab8a706109304ee547f94fb8df4a2c"
+    },
+    "retrievedAt": "2026-10-27T18:49:59.808Z"
+  },
+  {
+    "id": "sketchfab:dining_table_wood_round",
+    "name": "Round wooden dining table",
+    "source": "cc0",
+    "tier": "hd",
+    "licence": "CC-BY-4.0",
+    "credit": "\"Free Wooden Round Dining Table 3D Model\" by Circi3D, Sketchfab, CC-BY-4.0 (https://sketchfab.com/3d-models/free-wooden-round-dining-table-3d-model-06c8e51b60da4b14a5247a0d3c537047)",
+    "category": "table",
+    "styleTags": [
+      "wood",
+      "round",
+      "dining room"
+    ],
+    "nativeDims": {
+      "w": 1.15,
+      "d": 1.15,
+      "h": 0.726
+    },
+    "anchor": [
+      0,
+      0,
+      0
+    ],
+    "front": "+z",
+    "file": "dining_table_wood_round.glb",
+    "thumb": "thumbs/dining_table_wood_round.webp",
+    "thumbSha256": "7bdc27519ea702b8779a30f22fdae440394b58bd07279208aa24c04cbda83d0c",
+    "provider": "sketchfab",
+    "sourceId": "06c8e51b60da4b14a5247a0d3c537047",
+    "sourceUrl": "https://sketchfab.com/3d-models/free-wooden-round-dining-table-3d-model-06c8e51b60da4b14a5247a0d3c537047",
+    "author": "Circi3D",
+    "sha256": "78074d519a2c74f32ceb9e713f9f17ed2bf02828a2694675dc37a078bb4ace0e",
+    "bytes": 190812,
+    "triangles": 11400,
+    "materials": 1,
+    "textureMax": 1024,
+    "normalisation": {
+      "sourceFront": "+z",
+      "unitScale": 0.6217635401936127,
+      "sourcePivot": [
+        -0.002,
+        -0.023,
+        0
+      ],
+      "sourceTriangles": 31820
+    },
+    "licenseEvidence": {
+      "basis": "asset-field",
+      "assetApiUrl": "https://api.sketchfab.com/v3/models/06c8e51b60da4b14a5247a0d3c537047",
+      "needle": "license.slug=by",
+      "assetField": "by",
+      "licenceLabel": "CC Attribution",
+      "author": "Circi3D",
+      "modelUrl": "https://sketchfab.com/3d-models/free-wooden-round-dining-table-3d-model-06c8e51b60da4b14a5247a0d3c537047",
+      "publishedAt": "2025-03-24T17:42:17.850251",
+      "checkedAt": "2026-10-27T18:49:59.808Z"
+    },
+    "sourceSha256": {
+      "archive": "1b851543ec9cb03e90bc49cf3eb431d14053be2b99834a86a2717199e5df69c6"
+    },
+    "retrievedAt": "2026-10-27T18:49:59.808Z"
+  },
+  {
+    "id": "sketchfab:dishwasher",
+    "name": "Dishwasher",
+    "source": "cc0",
+    "tier": "hd",
+    "licence": "CC-BY-4.0",
+    "credit": "\"Dishwasher\" by rickmaolly, Sketchfab, CC-BY-4.0 (https://sketchfab.com/3d-models/dishwasher-7a4d8ed6ece248a596ec4dfb5741e7cc)",
+    "category": "appliance",
+    "styleTags": [
+      "modern",
+      "kitchen",
+      "dishwasher",
+      "steel"
+    ],
+    "nativeDims": {
+      "w": 0.6,
+      "d": 0.634,
+      "h": 0.845
+    },
+    "anchor": [
+      0,
+      0,
+      0
+    ],
+    "front": "+z",
+    "file": "dishwasher.glb",
+    "thumb": "thumbs/dishwasher.webp",
+    "thumbSha256": "7c73a6d4233307837d2c26662507f4bbd930dcbe5a70e70c98aded8bb5f7b9e3",
+    "provider": "sketchfab",
+    "sourceId": "7a4d8ed6ece248a596ec4dfb5741e7cc",
+    "sourceUrl": "https://sketchfab.com/3d-models/dishwasher-7a4d8ed6ece248a596ec4dfb5741e7cc",
+    "author": "rickmaolly",
+    "sha256": "f29170c8e16dcc8fc02e7ea1224fcdb9f14f0d036345404fa32ba780e3379ab6",
+    "bytes": 38208,
+    "triangles": 3128,
+    "materials": 1,
+    "textureMax": 1024,
+    "normalisation": {
+      "sourceFront": "+x",
+      "unitScale": 1,
+      "sourcePivot": [
+        0,
+        0,
+        0.017
+      ],
+      "sourceTriangles": 3128
+    },
+    "licenseEvidence": {
+      "basis": "asset-field",
+      "assetApiUrl": "https://api.sketchfab.com/v3/models/7a4d8ed6ece248a596ec4dfb5741e7cc",
+      "needle": "license.slug=by",
+      "assetField": "by",
+      "licenceLabel": "CC Attribution",
+      "author": "rickmaolly",
+      "modelUrl": "https://sketchfab.com/3d-models/dishwasher-7a4d8ed6ece248a596ec4dfb5741e7cc",
+      "publishedAt": "2023-06-23T19:41:11.822413",
+      "checkedAt": "2026-10-27T18:41:15.484Z"
+    },
+    "sourceSha256": {
+      "archive": "834822752ab6e228d1b1569c5865ccc77d0f083b7b45587992edcdfdc14d7f25"
+    },
+    "retrievedAt": "2026-10-27T18:41:15.484Z"
+  },
+  {
+    "id": "sketchfab:dresser_ikea",
+    "name": "Eight-drawer dresser",
+    "source": "cc0",
+    "tier": "hd",
+    "licence": "CC-BY-4.0",
+    "credit": "\"Ikea 8-drawer dresser white stain\" by allenbranch, Sketchfab, CC-BY-4.0 (https://sketchfab.com/3d-models/ikea-8-drawer-dresser-white-stain-15562ed7b1d24a7a842d971f6555216e)",
+    "category": "drawers",
+    "styleTags": [
+      "modern",
+      "white",
+      "dresser",
+      "bedroom"
+    ],
+    "nativeDims": {
+      "w": 1.5,
+      "d": 0.513,
+      "h": 0.75
+    },
+    "anchor": [
+      0,
+      0,
+      0
+    ],
+    "front": "+z",
+    "file": "dresser_ikea.glb",
+    "thumb": "thumbs/dresser_ikea.webp",
+    "thumbSha256": "a3f02a8873280c4636efb5db00360a7bbe4be3f24a42952bd4f6c654de566a80",
+    "provider": "sketchfab",
+    "sourceId": "15562ed7b1d24a7a842d971f6555216e",
+    "sourceUrl": "https://sketchfab.com/3d-models/ikea-8-drawer-dresser-white-stain-15562ed7b1d24a7a842d971f6555216e",
+    "author": "allenbranch",
+    "sha256": "4ad6cac0e9e9e5f04ba06067bdb7db9cb40aa87f988f3c8b0d86d065770fa3b0",
+    "bytes": 88076,
+    "triangles": 6581,
+    "materials": 4,
+    "textureMax": 1024,
+    "normalisation": {
+      "sourceFront": "+x",
+      "unitScale": 0.019736842105263157,
+      "sourcePivot": [
+        0,
+        0,
+        12.5
+      ],
+      "sourceTriangles": 6581
+    },
+    "licenseEvidence": {
+      "basis": "asset-field",
+      "assetApiUrl": "https://api.sketchfab.com/v3/models/15562ed7b1d24a7a842d971f6555216e",
+      "needle": "license.slug=by",
+      "assetField": "by",
+      "licenceLabel": "CC Attribution",
+      "author": "allenbranch",
+      "modelUrl": "https://sketchfab.com/3d-models/ikea-8-drawer-dresser-white-stain-15562ed7b1d24a7a842d971f6555216e",
+      "publishedAt": "2017-06-30T14:40:34.245919",
+      "checkedAt": "2026-10-27T18:49:59.808Z"
+    },
+    "sourceSha256": {
+      "archive": "332e7042515048489456ac06916e93f2a187ff1bbe11a1b1ca094d0d54152145"
+    },
+    "retrievedAt": "2026-10-27T18:49:59.808Z"
+  },
+  {
+    "id": "sketchfab:dresser_light_wood",
+    "name": "Light wood dresser",
+    "source": "cc0",
+    "tier": "hd",
+    "licence": "CC-BY-4.0",
+    "credit": "\"Dresser - modern light wood\" by MozillaHubs, Sketchfab, CC-BY-4.0 (https://sketchfab.com/3d-models/dresser-modern-light-wood-25134a84c07e420b93cae181731fd7a0)",
+    "category": "drawers",
+    "styleTags": [
+      "modern",
+      "wood",
+      "dresser",
+      "bedroom"
+    ],
+    "nativeDims": {
+      "w": 1.2,
+      "d": 0.376,
+      "h": 0.693
+    },
+    "anchor": [
+      0,
+      0,
+      0
+    ],
+    "front": "+z",
+    "file": "dresser_light_wood.glb",
+    "thumb": "thumbs/dresser_light_wood.webp",
+    "thumbSha256": "7ce1bc02a5a6796ea8f9bf2b72df8747acd3ac295502c3e9a64fb2867f93cd90",
+    "provider": "sketchfab",
+    "sourceId": "25134a84c07e420b93cae181731fd7a0",
+    "sourceUrl": "https://sketchfab.com/3d-models/dresser-modern-light-wood-25134a84c07e420b93cae181731fd7a0",
+    "author": "MozillaHubs",
+    "sha256": "6548b7cc59401d12ca0b18fbdd2621b43159f3741dda299ac0c8f4b5b8c9e603",
+    "bytes": 77896,
+    "triangles": 204,
+    "materials": 1,
+    "textureMax": 1024,
+    "normalisation": {
+      "sourceFront": "+z",
+      "unitScale": 0.5507056750158077,
+      "sourcePivot": [
+        0,
+        0,
+        0.015
+      ],
+      "sourceTriangles": 204
+    },
+    "licenseEvidence": {
+      "basis": "asset-field",
+      "assetApiUrl": "https://api.sketchfab.com/v3/models/25134a84c07e420b93cae181731fd7a0",
+      "needle": "license.slug=by",
+      "assetField": "by",
+      "licenceLabel": "CC Attribution",
+      "author": "MozillaHubs",
+      "modelUrl": "https://sketchfab.com/3d-models/dresser-modern-light-wood-25134a84c07e420b93cae181731fd7a0",
+      "publishedAt": "2018-10-11T01:23:01.988664",
+      "checkedAt": "2026-10-27T18:49:59.808Z"
+    },
+    "sourceSha256": {
+      "archive": "c6be150cdb700fbe09765d43e21495c81f7c7cff453abe057c176d0a6fd9ac21"
+    },
+    "retrievedAt": "2026-10-27T18:49:59.808Z"
+  },
+  {
+    "id": "sketchfab:floor_lamp_arc",
+    "name": "Arc floor lamp",
+    "source": "cc0",
+    "tier": "hd",
+    "licence": "CC-BY-4.0",
+    "credit": "\"Floor Lamp 3-Color CCT ) Arc Gold\" by CEOHive, Sketchfab, CC-BY-4.0 (https://sketchfab.com/3d-models/floor-lamp-3-color-cct-arc-gold-fad285f48b1042aca4b4f421115280d4)",
+    "category": "lamp",
+    "styleTags": [
+      "modern",
+      "floor lamp",
+      "brass",
+      "living room"
+    ],
+    "nativeDims": {
+      "w": 0.365,
+      "d": 0.691,
+      "h": 1.85
+    },
+    "anchor": [
+      0,
+      0,
+      0
+    ],
+    "front": "+z",
+    "file": "floor_lamp_arc.glb",
+    "thumb": "thumbs/floor_lamp_arc.webp",
+    "thumbSha256": "6bb62c8714ee8ed8e0b16b51411ffe2542920edc51eb563eef5bc55e2428d8e5",
+    "provider": "sketchfab",
+    "sourceId": "fad285f48b1042aca4b4f421115280d4",
+    "sourceUrl": "https://sketchfab.com/3d-models/floor-lamp-3-color-cct-arc-gold-fad285f48b1042aca4b4f421115280d4",
+    "author": "CEOHive",
+    "sha256": "1e9be7a23f628c4c37f13c285cd827f72f48d5c6791fda8e3e2ad0eeed409f27",
+    "bytes": 71768,
+    "triangles": 2214,
+    "materials": 1,
+    "textureMax": 1024,
+    "normalisation": {
+      "sourceFront": "+z",
+      "unitScale": 1.849245298948175,
+      "sourcePivot": [
+        0,
+        -0.5,
+        0.001
+      ],
+      "sourceTriangles": 2214
+    },
+    "licenseEvidence": {
+      "basis": "asset-field",
+      "assetApiUrl": "https://api.sketchfab.com/v3/models/fad285f48b1042aca4b4f421115280d4",
+      "needle": "license.slug=by",
+      "assetField": "by",
+      "licenceLabel": "CC Attribution",
+      "author": "CEOHive",
+      "modelUrl": "https://sketchfab.com/3d-models/floor-lamp-3-color-cct-arc-gold-fad285f48b1042aca4b4f421115280d4",
+      "publishedAt": "2026-07-30T04:59:53.456780",
+      "checkedAt": "2026-10-27T18:41:15.484Z"
+    },
+    "sourceSha256": {
+      "archive": "527b6bbfbcb26f5f3cb482ac00dd90cf41e78995aaef019abe57e76cb1be5f95"
+    },
+    "retrievedAt": "2026-10-27T18:41:15.484Z"
+  },
+  {
+    "id": "sketchfab:fridge_steel",
+    "name": "Fridge-freezer",
+    "source": "cc0",
+    "tier": "hd",
+    "licence": "CC-BY-4.0",
+    "credit": "\"Refrigerator - Grey Polished Metal\" by Glowbox 3D, Sketchfab, CC-BY-4.0 (https://sketchfab.com/3d-models/refrigerator-grey-polished-metal-2071bda681b642218b6829b82e4fd93b)",
+    "category": "appliance",
+    "styleTags": [
+      "modern",
+      "kitchen",
+      "fridge",
+      "steel"
+    ],
+    "nativeDims": {
+      "w": 0.871,
+      "d": 0.752,
+      "h": 1.75
+    },
+    "anchor": [
+      0,
+      0,
+      0
+    ],
+    "front": "+z",
+    "file": "fridge_steel.glb",
+    "thumb": "thumbs/fridge_steel.webp",
+    "thumbSha256": "05ae211801282d4ab5750dbd10d4d6f7bef773eb00a64abb54799343149ab5be",
+    "provider": "sketchfab",
+    "sourceId": "2071bda681b642218b6829b82e4fd93b",
+    "sourceUrl": "https://sketchfab.com/3d-models/refrigerator-grey-polished-metal-2071bda681b642218b6829b82e4fd93b",
+    "author": "Glowbox 3D",
+    "sha256": "049b53cef062c07cba281165c021e555f670efcfb928c7bc9c25d7f2c418e69f",
+    "bytes": 78068,
+    "triangles": 2096,
+    "materials": 1,
+    "textureMax": 1024,
+    "normalisation": {
+      "sourceFront": "+z",
+      "unitScale": 0.22006086058955698,
+      "sourcePivot": [
+        0.002,
+        0.006,
+        0.088
+      ],
+      "sourceTriangles": 2096
+    },
+    "licenseEvidence": {
+      "basis": "asset-field",
+      "assetApiUrl": "https://api.sketchfab.com/v3/models/2071bda681b642218b6829b82e4fd93b",
+      "needle": "license.slug=by",
+      "assetField": "by",
+      "licenceLabel": "CC Attribution",
+      "author": "Glowbox 3D",
+      "modelUrl": "https://sketchfab.com/3d-models/refrigerator-grey-polished-metal-2071bda681b642218b6829b82e4fd93b",
+      "publishedAt": "2019-03-03T04:39:14.526514",
+      "checkedAt": "2026-10-27T18:41:15.484Z"
+    },
+    "sourceSha256": {
+      "archive": "3194f4a5fc38c5dea467a9deebf883201a523f392d993a9a22df5dfcc51665e6"
+    },
+    "retrievedAt": "2026-10-27T18:41:15.484Z"
+  },
+  {
+    "id": "sketchfab:kitchen_sink",
+    "name": "Kitchen sink with tap",
+    "source": "cc0",
+    "tier": "hd",
+    "licence": "CC-BY-4.0",
+    "credit": "\"Kitchen Sink\" by HippoStance, Sketchfab, CC-BY-4.0 (https://sketchfab.com/3d-models/kitchen-sink-504248ed68e3480a807aced6f002b2d5)",
+    "category": "appliance",
+    "styleTags": [
+      "modern",
+      "kitchen",
+      "sink",
+      "steel"
+    ],
+    "nativeDims": {
+      "w": 0.833,
+      "d": 0.567,
+      "h": 0.631
+    },
+    "anchor": [
+      0,
+      0,
+      0
+    ],
+    "front": "+z",
+    "file": "kitchen_sink.glb",
+    "thumb": "thumbs/kitchen_sink.webp",
+    "thumbSha256": "295a5d9c8c39235d8997d7a5e2a49628465e387a9ce32d53841400626a420789",
+    "provider": "sketchfab",
+    "sourceId": "504248ed68e3480a807aced6f002b2d5",
+    "sourceUrl": "https://sketchfab.com/3d-models/kitchen-sink-504248ed68e3480a807aced6f002b2d5",
+    "author": "HippoStance",
+    "sha256": "284c03fb2cb130deb7a9fce323034226daf87dd7620242dd08659cee3bba160c",
+    "bytes": 80596,
+    "triangles": 4822,
+    "materials": 1,
+    "textureMax": 1024,
+    "normalisation": {
+      "sourceFront": "+x",
+      "unitScale": 1,
+      "sourcePivot": [
+        0,
+        -0.304,
+        -0.009
+      ],
+      "sourceTriangles": 4822
+    },
+    "licenseEvidence": {
+      "basis": "asset-field",
+      "assetApiUrl": "https://api.sketchfab.com/v3/models/504248ed68e3480a807aced6f002b2d5",
+      "needle": "license.slug=by",
+      "assetField": "by",
+      "licenceLabel": "CC Attribution",
+      "author": "HippoStance",
+      "modelUrl": "https://sketchfab.com/3d-models/kitchen-sink-504248ed68e3480a807aced6f002b2d5",
+      "publishedAt": "2020-05-06T01:19:35.598467",
+      "checkedAt": "2026-10-27T18:41:15.484Z"
+    },
+    "sourceSha256": {
+      "archive": "d773c277ee8f6c731f80a60c453a79a46442e837a0a746253c0a62bcff7a7cfb"
+    },
+    "retrievedAt": "2026-10-27T18:41:15.484Z"
+  },
+  {
+    "id": "sketchfab:loveseat_fabric",
+    "name": "Fabric loveseat",
+    "source": "cc0",
+    "tier": "hd",
+    "licence": "CC-BY-4.0",
+    "credit": "\"Modern Fabric Sofa - Low Poly / Game Ready\" by Renend Studio, Sketchfab, CC-BY-4.0 (https://sketchfab.com/3d-models/modern-fabric-sofa-low-poly-game-ready-5a1ccfe43ffd4f1883abe4dca7d2b3bb)",
+    "category": "sofa",
+    "styleTags": [
+      "modern",
+      "fabric",
+      "living room"
+    ],
+    "nativeDims": {
+      "w": 1.7,
+      "d": 0.667,
+      "h": 0.787
+    },
+    "anchor": [
+      0,
+      0,
+      0
+    ],
+    "front": "+z",
+    "file": "loveseat_fabric.glb",
+    "thumb": "thumbs/loveseat_fabric.webp",
+    "thumbSha256": "4f6a5fa998a9cde6b79938256387ef0eb3e8d666f495e0f779b59d451e2082e6",
+    "provider": "sketchfab",
+    "sourceId": "5a1ccfe43ffd4f1883abe4dca7d2b3bb",
+    "sourceUrl": "https://sketchfab.com/3d-models/modern-fabric-sofa-low-poly-game-ready-5a1ccfe43ffd4f1883abe4dca7d2b3bb",
+    "author": "Renend Studio",
+    "sha256": "4a0dba6af44260d503115681211db93411ba26c6cbf416d8068d0f1f13b82f39",
+    "bytes": 120276,
+    "triangles": 7912,
+    "materials": 1,
+    "textureMax": 1024,
+    "normalisation": {
+      "sourceFront": "-x",
+      "unitScale": 0.7128233930045641,
+      "sourcePivot": [
+        0,
+        -0.492,
+        0.061
+      ],
+      "sourceTriangles": 7912
+    },
+    "licenseEvidence": {
+      "basis": "asset-field",
+      "assetApiUrl": "https://api.sketchfab.com/v3/models/5a1ccfe43ffd4f1883abe4dca7d2b3bb",
+      "needle": "license.slug=by",
+      "assetField": "by",
+      "licenceLabel": "CC Attribution",
+      "author": "Renend Studio",
+      "modelUrl": "https://sketchfab.com/3d-models/modern-fabric-sofa-low-poly-game-ready-5a1ccfe43ffd4f1883abe4dca7d2b3bb",
+      "publishedAt": "2026-05-15T12:15:52.323846",
+      "checkedAt": "2026-10-27T18:41:15.484Z"
+    },
+    "sourceSha256": {
+      "archive": "0a679abba3f981092d351258b5cb9ae4df17c895617b9ea1a2ab744cda9f0f78"
+    },
+    "retrievedAt": "2026-10-27T18:41:15.484Z"
+  },
+  {
+    "id": "sketchfab:mirror_arched",
+    "name": "Arched wall mirror",
+    "source": "cc0",
+    "tier": "hd",
+    "licence": "CC-BY-4.0",
+    "credit": "\"Arched Mirror | Crafted by jerovdl\" by Jerovdl, Sketchfab, CC-BY-4.0 (https://sketchfab.com/3d-models/arched-mirror-crafted-by-jerovdl-82f24f884ee842fb982c3261ceaa4865)",
+    "category": "mirror",
+    "styleTags": [
+      "modern",
+      "mirror",
+      "arched",
+      "wall mounted"
+    ],
+    "nativeDims": {
+      "w": 0.923,
+      "d": 0.054,
+      "h": 1.933
+    },
+    "anchor": [
+      0,
+      0,
+      0
+    ],
+    "front": "+z",
+    "file": "mirror_arched.glb",
+    "thumb": "thumbs/mirror_arched.webp",
+    "thumbSha256": "d1c6a53c1008541da53358ab47aeac3d43761a73db2b16b7de2925ac7b82dd2b",
+    "provider": "sketchfab",
+    "sourceId": "82f24f884ee842fb982c3261ceaa4865",
+    "sourceUrl": "https://sketchfab.com/3d-models/arched-mirror-crafted-by-jerovdl-82f24f884ee842fb982c3261ceaa4865",
+    "author": "Jerovdl",
+    "sha256": "c387e8ce62efabf0307bf107f4b2ec6243e16392063ba39cbf68e9f0c9376c29",
+    "bytes": 5484,
+    "triangles": 341,
+    "materials": 2,
+    "textureMax": 1024,
+    "normalisation": {
+      "sourceFront": "+x",
+      "unitScale": 1,
+      "sourcePivot": [
+        0,
+        -0.966,
+        -0.029
+      ],
+      "sourceTriangles": 341
+    },
+    "licenseEvidence": {
+      "basis": "asset-field",
+      "assetApiUrl": "https://api.sketchfab.com/v3/models/82f24f884ee842fb982c3261ceaa4865",
+      "needle": "license.slug=by",
+      "assetField": "by",
+      "licenceLabel": "CC Attribution",
+      "author": "Jerovdl",
+      "modelUrl": "https://sketchfab.com/3d-models/arched-mirror-crafted-by-jerovdl-82f24f884ee842fb982c3261ceaa4865",
+      "publishedAt": "2026-09-13T00:27:17.570036",
+      "checkedAt": "2026-10-27T18:41:15.484Z"
+    },
+    "sourceSha256": {
+      "archive": "dcf93fac38b724ecd0a032f16d0e178e4291e8433c019f3813943682e34bbf72"
+    },
+    "retrievedAt": "2026-10-27T18:41:15.484Z"
+  },
+  {
+    "id": "sketchfab:nightstand_oak",
+    "name": "Oak nightstand",
+    "source": "cc0",
+    "tier": "hd",
+    "licence": "CC-BY-4.0",
+    "credit": "\"Modern Nightstand\" by Blaž Mraz, Sketchfab, CC-BY-4.0 (https://sketchfab.com/3d-models/modern-nightstand-65bf302726be4dbdb31fc9394cd83746)",
+    "category": "bedside",
+    "styleTags": [
+      "modern",
+      "oak",
+      "wood",
+      "bedroom"
+    ],
+    "nativeDims": {
+      "w": 0.45,
+      "d": 0.32,
+      "h": 0.54
+    },
+    "anchor": [
+      0,
+      0,
+      0
+    ],
+    "front": "+z",
+    "file": "nightstand_oak.glb",
+    "thumb": "thumbs/nightstand_oak.webp",
+    "thumbSha256": "1e542b77e86bc0e54b2b8bddc870c1932a02c0bdb402819adade4a320969e9d2",
+    "provider": "sketchfab",
+    "sourceId": "65bf302726be4dbdb31fc9394cd83746",
+    "sourceUrl": "https://sketchfab.com/3d-models/modern-nightstand-65bf302726be4dbdb31fc9394cd83746",
+    "author": "Blaž Mraz",
+    "sha256": "6bb217469be2c9a360bd73e19148d7ffdc4a089d2bed42e9fb9eb94cd5a4f46e",
+    "bytes": 367184,
+    "triangles": 1484,
+    "materials": 3,
+    "textureMax": 1024,
+    "normalisation": {
+      "sourceFront": "+z",
+      "unitScale": 0.01,
+      "sourcePivot": [
+        0,
+        0.013,
+        0
+      ],
+      "sourceTriangles": 1484
+    },
+    "licenseEvidence": {
+      "basis": "asset-field",
+      "assetApiUrl": "https://api.sketchfab.com/v3/models/65bf302726be4dbdb31fc9394cd83746",
+      "needle": "license.slug=by",
+      "assetField": "by",
+      "licenceLabel": "CC Attribution",
+      "author": "Blaž Mraz",
+      "modelUrl": "https://sketchfab.com/3d-models/modern-nightstand-65bf302726be4dbdb31fc9394cd83746",
+      "publishedAt": "2021-07-06T10:13:27.311726",
+      "checkedAt": "2026-10-27T18:41:15.484Z"
+    },
+    "sourceSha256": {
+      "archive": "fd1610c2f0818965f8bc78b026098bed96a500ca12049dcd1b348478330bacaf"
+    },
+    "retrievedAt": "2026-10-27T18:41:15.484Z"
+  },
+  {
+    "id": "sketchfab:pendant_cages",
+    "name": "Triple cage pendant",
+    "source": "cc0",
+    "tier": "hd",
+    "licence": "CC-BY-4.0",
+    "credit": "\"Industrial Diamond Pendant Light\" by Blizzy, Sketchfab, CC-BY-4.0 (https://sketchfab.com/3d-models/industrial-diamond-pendant-light-f011347c01e647f4acfa1bf42e44716d)",
+    "category": "lamp",
+    "styleTags": [
+      "industrial",
+      "pendant",
+      "dining room"
+    ],
+    "nativeDims": {
+      "w": 1.26,
+      "d": 0.313,
+      "h": 1.003
+    },
+    "anchor": [
+      0,
+      0,
+      0
+    ],
+    "front": "+z",
+    "file": "pendant_cages.glb",
+    "thumb": "thumbs/pendant_cages.webp",
+    "thumbSha256": "a2ab1c0f04831bbd88b4efd9de5598ae520e18fac3043a6891ad63d10860c801",
+    "provider": "sketchfab",
+    "sourceId": "f011347c01e647f4acfa1bf42e44716d",
+    "sourceUrl": "https://sketchfab.com/3d-models/industrial-diamond-pendant-light-f011347c01e647f4acfa1bf42e44716d",
+    "author": "Blizzy",
+    "sha256": "a4f66d0490c5ac093d03b46eb3f494eb78f712bc98db7c92f5208b73a96cbbaf",
+    "bytes": 622172,
+    "triangles": 29682,
+    "materials": 4,
+    "textureMax": 1024,
+    "normalisation": {
+      "sourceFront": "+z",
+      "unitScale": 1,
+      "sourcePivot": [
+        0,
+        1.498,
+        0
+      ],
+      "sourceTriangles": 40738
+    },
+    "licenseEvidence": {
+      "basis": "asset-field",
+      "assetApiUrl": "https://api.sketchfab.com/v3/models/f011347c01e647f4acfa1bf42e44716d",
+      "needle": "license.slug=by",
+      "assetField": "by",
+      "licenceLabel": "CC Attribution",
+      "author": "Blizzy",
+      "modelUrl": "https://sketchfab.com/3d-models/industrial-diamond-pendant-light-f011347c01e647f4acfa1bf42e44716d",
+      "publishedAt": "2024-02-08T17:46:32.222755",
+      "checkedAt": "2026-10-27T18:41:15.484Z"
+    },
+    "sourceSha256": {
+      "archive": "4ddf6ad0507e6770fc9c759a855d26fec5fdb3fc694fb5c19d8a001128eb701b"
+    },
+    "retrievedAt": "2026-10-27T18:41:15.484Z"
+  },
+  {
+    "id": "sketchfab:pendant_caroline",
+    "name": "Double pendant light",
+    "source": "cc0",
+    "tier": "hd",
+    "licence": "CC-BY-4.0",
+    "credit": "\"Caroline Double Pendant Light\" by Blizzy, Sketchfab, CC-BY-4.0 (https://sketchfab.com/3d-models/caroline-double-pendant-light-fd51bfbf8a0c45c5989668272f200c15)",
+    "category": "lamp",
+    "styleTags": [
+      "modern",
+      "pendant",
+      "kitchen"
+    ],
+    "nativeDims": {
+      "w": 0.579,
+      "d": 0.579,
+      "h": 0.85
+    },
+    "anchor": [
+      0,
+      0,
+      0
+    ],
+    "front": "+z",
+    "file": "pendant_caroline.glb",
+    "thumb": "thumbs/pendant_caroline.webp",
+    "thumbSha256": "231cc6709022df28274fcb8747e9c3753dc24c7f2578e3602a1a05e94e811207",
+    "provider": "sketchfab",
+    "sourceId": "fd51bfbf8a0c45c5989668272f200c15",
+    "sourceUrl": "https://sketchfab.com/3d-models/caroline-double-pendant-light-fd51bfbf8a0c45c5989668272f200c15",
+    "author": "Blizzy",
+    "sha256": "3125a359d5be2a096f28025d8f10a09259056455ee1eb0d6d1199f077f4760ee",
+    "bytes": 103384,
+    "triangles": 4940,
+    "materials": 3,
+    "textureMax": 1024,
+    "normalisation": {
+      "sourceFront": "+z",
+      "unitScale": 0.643569685510249,
+      "sourcePivot": [
+        0,
+        0.594,
+        0
+      ],
+      "sourceTriangles": 4940
+    },
+    "licenseEvidence": {
+      "basis": "asset-field",
+      "assetApiUrl": "https://api.sketchfab.com/v3/models/fd51bfbf8a0c45c5989668272f200c15",
+      "needle": "license.slug=by",
+      "assetField": "by",
+      "licenceLabel": "CC Attribution",
+      "author": "Blizzy",
+      "modelUrl": "https://sketchfab.com/3d-models/caroline-double-pendant-light-fd51bfbf8a0c45c5989668272f200c15",
+      "publishedAt": "2023-05-18T12:54:25.668799",
+      "checkedAt": "2026-10-27T18:41:15.484Z"
+    },
+    "sourceSha256": {
+      "archive": "aa5023fb9bf40b0c109e5d4e00d3ea9e86eb712898073aea2b4a3ba9403e1dc2"
+    },
+    "retrievedAt": "2026-10-27T18:41:15.484Z"
+  },
+  {
+    "id": "sketchfab:pendant_globes",
+    "name": "Globe cluster pendant",
+    "source": "cc0",
+    "tier": "hd",
+    "licence": "CC-BY-4.0",
+    "credit": "\"Modern Pendant Light\" by Seven Dimensions, Sketchfab, CC-BY-4.0 (https://sketchfab.com/3d-models/modern-pendant-light-8f33fd91116c4d1a8ddb3d6c6c8102d5)",
+    "category": "lamp",
+    "styleTags": [
+      "modern",
+      "pendant",
+      "dining room"
+    ],
+    "nativeDims": {
+      "w": 1,
+      "d": 0.955,
+      "h": 0.931
+    },
+    "anchor": [
+      0,
+      0,
+      0
+    ],
+    "front": "+z",
+    "file": "pendant_globes.glb",
+    "thumb": "thumbs/pendant_globes.webp",
+    "thumbSha256": "9ce2b3c24f516e20565e9661d463e42b79093e14eb2949c0a618e41648c17b6f",
+    "provider": "sketchfab",
+    "sourceId": "8f33fd91116c4d1a8ddb3d6c6c8102d5",
+    "sourceUrl": "https://sketchfab.com/3d-models/modern-pendant-light-8f33fd91116c4d1a8ddb3d6c6c8102d5",
+    "author": "Seven Dimensions",
+    "sha256": "c753cce63ae5a808721e9272baf285cd1f6a8ab7e30fd1679c1e21a720b6e763",
+    "bytes": 327384,
+    "triangles": 12120,
+    "materials": 2,
+    "textureMax": 1024,
+    "normalisation": {
+      "sourceFront": "+z",
+      "unitScale": 0.5524105828583147,
+      "sourcePivot": [
+        0.145,
+        3.544,
+        -0.608
+      ],
+      "sourceTriangles": 12120
+    },
+    "licenseEvidence": {
+      "basis": "asset-field",
+      "assetApiUrl": "https://api.sketchfab.com/v3/models/8f33fd91116c4d1a8ddb3d6c6c8102d5",
+      "needle": "license.slug=by",
+      "assetField": "by",
+      "licenceLabel": "CC Attribution",
+      "author": "Seven Dimensions",
+      "modelUrl": "https://sketchfab.com/3d-models/modern-pendant-light-8f33fd91116c4d1a8ddb3d6c6c8102d5",
+      "publishedAt": "2024-09-29T03:05:51.628087",
+      "checkedAt": "2026-10-27T18:41:15.484Z"
+    },
+    "sourceSha256": {
+      "archive": "16268436bcaacfd1676c4c7edfa66b248f327cdea4ebbcfc13a96168348dd0da"
+    },
+    "retrievedAt": "2026-10-27T18:41:15.484Z"
+  },
+  {
+    "id": "sketchfab:plant_fiddle_leaf",
+    "name": "Fiddle leaf fig",
+    "source": "cc0",
+    "tier": "hd",
+    "licence": "CC-BY-4.0",
+    "credit": "\"Fiddle Leaf Fig\" by Dahlia, Sketchfab, CC-BY-4.0 (https://sketchfab.com/3d-models/fiddle-leaf-fig-7689508dc9d9481c934a412255e8de67)",
+    "category": "decor",
+    "styleTags": [
+      "plant",
+      "green",
+      "living room"
+    ],
+    "nativeDims": {
+      "w": 0.734,
+      "d": 0.556,
+      "h": 1.6
+    },
+    "anchor": [
+      0,
+      0,
+      0
+    ],
+    "front": "+z",
+    "file": "plant_fiddle_leaf.glb",
+    "thumb": "thumbs/plant_fiddle_leaf.webp",
+    "thumbSha256": "8faaeec4f567737429aa6ec5d25d9a0275d7abae1903c90e0b1fd78b66361541",
+    "provider": "sketchfab",
+    "sourceId": "7689508dc9d9481c934a412255e8de67",
+    "sourceUrl": "https://sketchfab.com/3d-models/fiddle-leaf-fig-7689508dc9d9481c934a412255e8de67",
+    "author": "Dahlia",
+    "sha256": "2bc98a6ad8b33f6b1e337b2c810064585ef51f73569f477e8e811212dd6d7d89",
+    "bytes": 446036,
+    "triangles": 28488,
+    "materials": 4,
+    "textureMax": 1024,
+    "normalisation": {
+      "sourceFront": "+z",
+      "unitScale": 11.251875294689006,
+      "sourcePivot": [
+        0.004,
+        0,
+        -0.008
+      ],
+      "sourceTriangles": 49178
+    },
+    "licenseEvidence": {
+      "basis": "asset-field",
+      "assetApiUrl": "https://api.sketchfab.com/v3/models/7689508dc9d9481c934a412255e8de67",
+      "needle": "license.slug=by",
+      "assetField": "by",
+      "licenceLabel": "CC Attribution",
+      "author": "Dahlia",
+      "modelUrl": "https://sketchfab.com/3d-models/fiddle-leaf-fig-7689508dc9d9481c934a412255e8de67",
+      "publishedAt": "2023-12-19T04:44:00.064788",
+      "checkedAt": "2026-10-27T18:41:15.484Z"
+    },
+    "sourceSha256": {
+      "archive": "5770f2acb62581037efdb4e73cfaa80b32fe38e15b64871f0dcb3bcba61c57a0"
+    },
+    "retrievedAt": "2026-10-27T18:41:15.484Z"
+  },
+  {
+    "id": "sketchfab:plant_monstera",
+    "name": "Monstera in pot",
+    "source": "cc0",
+    "tier": "hd",
+    "licence": "CC-BY-4.0",
+    "credit": "\"Monstera Deliciosa Potted Mid-Century plant\" by Giora, Sketchfab, CC-BY-4.0 (https://sketchfab.com/3d-models/monstera-deliciosa-potted-mid-century-plant-1ab9bf841df04c07b1819be596327629)",
+    "category": "decor",
+    "styleTags": [
+      "plant",
+      "green",
+      "living room"
+    ],
+    "nativeDims": {
+      "w": 0.87,
+      "d": 0.791,
+      "h": 1.361
+    },
+    "anchor": [
+      0,
+      0,
+      0
+    ],
+    "front": "+z",
+    "file": "plant_monstera.glb",
+    "thumb": "thumbs/plant_monstera.webp",
+    "thumbSha256": "e281a0a0c323b22d4a505c28733e25c9fb5c3a037aa4db7a021fac6080cc532a",
+    "provider": "sketchfab",
+    "sourceId": "1ab9bf841df04c07b1819be596327629",
+    "sourceUrl": "https://sketchfab.com/3d-models/monstera-deliciosa-potted-mid-century-plant-1ab9bf841df04c07b1819be596327629",
+    "author": "Giora",
+    "sha256": "546dc03f23d7e7abc300d2b5ed2e0754d597c58386ab0c1fdd56defef0e49446",
+    "bytes": 774060,
+    "triangles": 9310,
+    "materials": 3,
+    "textureMax": 1024,
+    "normalisation": {
+      "sourceFront": "+z",
+      "unitScale": 1,
+      "sourcePivot": [
+        0.026,
+        -0.522,
+        -0.041
+      ],
+      "sourceTriangles": 9310
+    },
+    "licenseEvidence": {
+      "basis": "asset-field",
+      "assetApiUrl": "https://api.sketchfab.com/v3/models/1ab9bf841df04c07b1819be596327629",
+      "needle": "license.slug=by",
+      "assetField": "by",
+      "licenceLabel": "CC Attribution",
+      "author": "Giora",
+      "modelUrl": "https://sketchfab.com/3d-models/monstera-deliciosa-potted-mid-century-plant-1ab9bf841df04c07b1819be596327629",
+      "publishedAt": "2022-08-26T11:55:34.100102",
+      "checkedAt": "2026-10-27T18:49:59.808Z"
+    },
+    "sourceSha256": {
+      "archive": "4e224fa1dbf7e3dbf1b898aa1087dc40a0ba07b42b69bc3566cb932c36ef12a0"
+    },
+    "retrievedAt": "2026-10-27T18:49:59.808Z"
+  },
+  {
+    "id": "sketchfab:plant_pilea",
+    "name": "Pilea in terracotta pot",
+    "source": "cc0",
+    "tier": "hd",
+    "licence": "CC-BY-4.0",
+    "credit": "\"[FREE] Pilea Peperomioides Terracotta pot\" by AllQuad, Sketchfab, CC-BY-4.0 (https://sketchfab.com/3d-models/free-pilea-peperomioides-terracotta-pot-891b276aa29b4c42a0e3bc476203cb9b)",
+    "category": "decor",
+    "styleTags": [
+      "plant",
+      "green",
+      "terracotta"
+    ],
+    "nativeDims": {
+      "w": 0.368,
+      "d": 0.346,
+      "h": 0.478
+    },
+    "anchor": [
+      0,
+      0,
+      0
+    ],
+    "front": "+z",
+    "file": "plant_pilea.glb",
+    "thumb": "thumbs/plant_pilea.webp",
+    "thumbSha256": "17077674820e3ecce135be59937d6d4c150a6b1499dc473cd44c5d80ed4896d2",
+    "provider": "sketchfab",
+    "sourceId": "891b276aa29b4c42a0e3bc476203cb9b",
+    "sourceUrl": "https://sketchfab.com/3d-models/free-pilea-peperomioides-terracotta-pot-891b276aa29b4c42a0e3bc476203cb9b",
+    "author": "AllQuad",
+    "sha256": "d2f8c26a8d5b4b10b60b432bf45fce32d29f8e95c44471333f7828f8dbcc136d",
+    "bytes": 564764,
+    "triangles": 15436,
+    "materials": 2,
+    "textureMax": 1024,
+    "normalisation": {
+      "sourceFront": "+z",
+      "unitScale": 1,
+      "sourcePivot": [
+        0.008,
+        -0.002,
+        -0.005
+      ],
+      "sourceTriangles": 15436
+    },
+    "licenseEvidence": {
+      "basis": "asset-field",
+      "assetApiUrl": "https://api.sketchfab.com/v3/models/891b276aa29b4c42a0e3bc476203cb9b",
+      "needle": "license.slug=by",
+      "assetField": "by",
+      "licenceLabel": "CC Attribution",
+      "author": "AllQuad",
+      "modelUrl": "https://sketchfab.com/3d-models/free-pilea-peperomioides-terracotta-pot-891b276aa29b4c42a0e3bc476203cb9b",
+      "publishedAt": "2023-01-28T20:14:54.674196",
+      "checkedAt": "2026-10-27T18:49:59.808Z"
+    },
+    "sourceSha256": {
+      "archive": "26bfa56fd65d90e118bac3d28f9051a24c69ba01c6a80d0ee1ddfa48584fee2b"
+    },
+    "retrievedAt": "2026-10-27T18:49:59.808Z"
+  },
+  {
+    "id": "sketchfab:plant_pothos",
+    "name": "Pothos in pot",
+    "source": "cc0",
+    "tier": "hd",
+    "licence": "CC-BY-4.0",
+    "credit": "\"[FREE] Pothos Potted Plant - Money Plant\" by AllQuad, Sketchfab, CC-BY-4.0 (https://sketchfab.com/3d-models/free-pothos-potted-plant-money-plant-e9832f38484f4f85b3f9081b51fa3799)",
+    "category": "decor",
+    "styleTags": [
+      "plant",
+      "green",
+      "living room"
+    ],
+    "nativeDims": {
+      "w": 0.827,
+      "d": 0.974,
+      "h": 0.792
+    },
+    "anchor": [
+      0,
+      0,
+      0
+    ],
+    "front": "+z",
+    "file": "plant_pothos.glb",
+    "thumb": "thumbs/plant_pothos.webp",
+    "thumbSha256": "934cd7ee4bc2a177e8184c8be26ecba5333ce5e540982236f6dcdc75df7bcfca",
+    "provider": "sketchfab",
+    "sourceId": "e9832f38484f4f85b3f9081b51fa3799",
+    "sourceUrl": "https://sketchfab.com/3d-models/free-pothos-potted-plant-money-plant-e9832f38484f4f85b3f9081b51fa3799",
+    "author": "AllQuad",
+    "sha256": "67b6bccf98b7eeff11b6fb0a488bad8394844eafc4a42fd9dfb7e8372e145057",
+    "bytes": 349268,
+    "triangles": 15744,
+    "materials": 2,
+    "textureMax": 1024,
+    "normalisation": {
+      "sourceFront": "+z",
+      "unitScale": 1,
+      "sourcePivot": [
+        0.017,
+        0,
+        0.046
+      ],
+      "sourceTriangles": 15744
+    },
+    "licenseEvidence": {
+      "basis": "asset-field",
+      "assetApiUrl": "https://api.sketchfab.com/v3/models/e9832f38484f4f85b3f9081b51fa3799",
+      "needle": "license.slug=by",
+      "assetField": "by",
+      "licenceLabel": "CC Attribution",
+      "author": "AllQuad",
+      "modelUrl": "https://sketchfab.com/3d-models/free-pothos-potted-plant-money-plant-e9832f38484f4f85b3f9081b51fa3799",
+      "publishedAt": "2022-07-13T01:47:05.605675",
+      "checkedAt": "2026-10-27T18:49:59.808Z"
+    },
+    "sourceSha256": {
+      "archive": "83c0b07e173b9d40af587549593a2aa47513811b2733afd78569da0e21511288"
+    },
+    "retrievedAt": "2026-10-27T18:49:59.808Z"
+  },
+  {
+    "id": "sketchfab:plant_snake",
+    "name": "Snake plant in pot",
+    "source": "cc0",
+    "tier": "hd",
+    "licence": "CC-BY-4.0",
+    "credit": "\"Snake plant In Pot\" by FranklySketch, Sketchfab, CC-BY-4.0 (https://sketchfab.com/3d-models/snake-plant-in-pot-68b8acaeb29e402ea4dc7c981cb5b497)",
+    "category": "decor",
+    "styleTags": [
+      "plant",
+      "green",
+      "living room"
+    ],
+    "nativeDims": {
+      "w": 0.286,
+      "d": 0.197,
+      "h": 0.468
+    },
+    "anchor": [
+      0,
+      0,
+      0
+    ],
+    "front": "+z",
+    "file": "plant_snake.glb",
+    "thumb": "thumbs/plant_snake.webp",
+    "thumbSha256": "2410232d397ebd5a12bc57daccb679812f46569db2505a35ef30591ed244928d",
+    "provider": "sketchfab",
+    "sourceId": "68b8acaeb29e402ea4dc7c981cb5b497",
+    "sourceUrl": "https://sketchfab.com/3d-models/snake-plant-in-pot-68b8acaeb29e402ea4dc7c981cb5b497",
+    "author": "FranklySketch",
+    "sha256": "23673824b5b3e6fd6fc92d91e3b2d63254c7d8a9955a5c37b9fe7bfde111433a",
+    "bytes": 272816,
+    "triangles": 25000,
+    "materials": 1,
+    "textureMax": 1024,
+    "normalisation": {
+      "sourceFront": "+z",
+      "unitScale": 1,
+      "sourcePivot": [
+        -0.002,
+        -0.001,
+        -0.032
+      ],
+      "sourceTriangles": 25000
+    },
+    "licenseEvidence": {
+      "basis": "asset-field",
+      "assetApiUrl": "https://api.sketchfab.com/v3/models/68b8acaeb29e402ea4dc7c981cb5b497",
+      "needle": "license.slug=by",
+      "assetField": "by",
+      "licenceLabel": "CC Attribution",
+      "author": "FranklySketch",
+      "modelUrl": "https://sketchfab.com/3d-models/snake-plant-in-pot-68b8acaeb29e402ea4dc7c981cb5b497",
+      "publishedAt": "2023-06-15T13:22:48.534515",
+      "checkedAt": "2026-10-27T18:41:15.484Z"
+    },
+    "sourceSha256": {
+      "archive": "a845f7ff784b57227d2529b890b2e5617c811bb679fb39fb3c966a5f25554e75"
+    },
+    "retrievedAt": "2026-10-27T18:41:15.484Z"
+  },
+  {
+    "id": "sketchfab:pouf_ribbed",
+    "name": "Ribbed pouf",
+    "source": "cc0",
+    "tier": "hd",
+    "licence": "CC-BY-4.0",
+    "credit": "\"Designer Pouf Ottoman 01\" by Raphael Escamilla, Sketchfab, CC-BY-4.0 (https://sketchfab.com/3d-models/designer-pouf-ottoman-01-1f47f62607204b56a4746216bc2c4b05)",
+    "category": "decor",
+    "styleTags": [
+      "modern",
+      "pouf",
+      "fabric",
+      "living room"
+    ],
+    "nativeDims": {
+      "w": 0.599,
+      "d": 0.6,
+      "h": 0.262
+    },
+    "anchor": [
+      0,
+      0,
+      0
+    ],
+    "front": "+z",
+    "file": "pouf_ribbed.glb",
+    "thumb": "thumbs/pouf_ribbed.webp",
+    "thumbSha256": "d9a6a591b1e8cc2c258253f314706dcfe37f8ef41c98ad63343d5d0ffa49b19d",
+    "provider": "sketchfab",
+    "sourceId": "1f47f62607204b56a4746216bc2c4b05",
+    "sourceUrl": "https://sketchfab.com/3d-models/designer-pouf-ottoman-01-1f47f62607204b56a4746216bc2c4b05",
+    "author": "Raphael Escamilla",
+    "sha256": "43cfbf0572a62a0e82cb7f8812e70ba3e04807a5ed83c6ad9d809a921d6122fd",
+    "bytes": 504036,
+    "triangles": 11886,
+    "materials": 1,
+    "textureMax": 1024,
+    "normalisation": {
+      "sourceFront": "+z",
+      "unitScale": 0.5267644063661611,
+      "sourcePivot": [
+        0.144,
+        0,
+        -0.152
+      ],
+      "sourceTriangles": 11886
+    },
+    "licenseEvidence": {
+      "basis": "asset-field",
+      "assetApiUrl": "https://api.sketchfab.com/v3/models/1f47f62607204b56a4746216bc2c4b05",
+      "needle": "license.slug=by",
+      "assetField": "by",
+      "licenceLabel": "CC Attribution",
+      "author": "Raphael Escamilla",
+      "modelUrl": "https://sketchfab.com/3d-models/designer-pouf-ottoman-01-1f47f62607204b56a4746216bc2c4b05",
+      "publishedAt": "2020-04-23T05:22:40.619119",
+      "checkedAt": "2026-10-27T18:41:15.484Z"
+    },
+    "sourceSha256": {
+      "archive": "1172b8644d54a08d7e7bcca4174921ed4c8f809a2970862816db4550c697a125"
+    },
+    "retrievedAt": "2026-10-27T18:41:15.484Z"
+  },
+  {
+    "id": "sketchfab:range_hood",
+    "name": "Chimney range hood",
+    "source": "cc0",
+    "tier": "hd",
+    "licence": "CC-BY-4.0",
+    "credit": "\"Range Hood (Kitchen Hood)\" by govindu94, Sketchfab, CC-BY-4.0 (https://sketchfab.com/3d-models/range-hood-kitchen-hood-e846cb48e88446808af55976ff76b1da)",
+    "category": "appliance",
+    "styleTags": [
+      "modern",
+      "kitchen",
+      "hood",
+      "steel",
+      "wall mounted"
+    ],
+    "nativeDims": {
+      "w": 0.762,
+      "d": 0.505,
+      "h": 0.762
+    },
+    "anchor": [
+      0,
+      0,
+      0
+    ],
+    "front": "+z",
+    "file": "range_hood.glb",
+    "thumb": "thumbs/range_hood.webp",
+    "thumbSha256": "9e24b7d737106c43598c60fba530a7abc2d0795ddc7bab22e7ceb8fe61c21313",
+    "provider": "sketchfab",
+    "sourceId": "e846cb48e88446808af55976ff76b1da",
+    "sourceUrl": "https://sketchfab.com/3d-models/range-hood-kitchen-hood-e846cb48e88446808af55976ff76b1da",
+    "author": "govindu94",
+    "sha256": "86cbfeec7fdcb2bfa51a11e55531f2c6ac7909f3320ba9cf199339ce697ad999",
+    "bytes": 49516,
+    "triangles": 7876,
+    "materials": 3,
+    "textureMax": 1024,
+    "normalisation": {
+      "sourceFront": "+z",
+      "unitScale": 1,
+      "sourcePivot": [
+        0,
+        0,
+        0.002
+      ],
+      "sourceTriangles": 7876
+    },
+    "licenseEvidence": {
+      "basis": "asset-field",
+      "assetApiUrl": "https://api.sketchfab.com/v3/models/e846cb48e88446808af55976ff76b1da",
+      "needle": "license.slug=by",
+      "assetField": "by",
+      "licenceLabel": "CC Attribution",
+      "author": "govindu94",
+      "modelUrl": "https://sketchfab.com/3d-models/range-hood-kitchen-hood-e846cb48e88446808af55976ff76b1da",
+      "publishedAt": "2020-06-20T15:22:53.042490",
+      "checkedAt": "2026-10-27T18:41:15.484Z"
+    },
+    "sourceSha256": {
+      "archive": "8eed6159a6b34119ca6f3bc5f50d307f6575d70ca1ee8cb25aca635eebb8f85e"
+    },
+    "retrievedAt": "2026-10-27T18:41:15.484Z"
+  },
+  {
+    "id": "sketchfab:sofa_corner",
+    "name": "Corner sectional sofa",
+    "source": "cc0",
+    "tier": "hd",
+    "licence": "CC-BY-4.0",
+    "credit": "\"Large Corner Sectional Sofa\" by Spookyghostboo, Sketchfab, CC-BY-4.0 (https://sketchfab.com/3d-models/large-corner-sectional-sofa-1680cc4638ba4902ada718b8b03f6a4b)",
+    "category": "sofa",
+    "styleTags": [
+      "modern",
+      "fabric",
+      "corner",
+      "living room"
+    ],
+    "nativeDims": {
+      "w": 2.63,
+      "d": 2.9,
+      "h": 0.592
+    },
+    "anchor": [
+      0,
+      0,
+      0
+    ],
+    "front": "+z",
+    "file": "sofa_corner.glb",
+    "thumb": "thumbs/sofa_corner.webp",
+    "thumbSha256": "f9d623ec417787b3dbdf7a0803bd44544fffe3edba06ed0fd236db58f85bc9f1",
+    "provider": "sketchfab",
+    "sourceId": "1680cc4638ba4902ada718b8b03f6a4b",
+    "sourceUrl": "https://sketchfab.com/3d-models/large-corner-sectional-sofa-1680cc4638ba4902ada718b8b03f6a4b",
+    "author": "Spookyghostboo",
+    "sha256": "4f8a9f8c104afb39168d6cbb3f427dcbaaf54bb994c0fe355c85ed0b434e0f62",
+    "bytes": 324412,
+    "triangles": 22180,
+    "materials": 1,
+    "textureMax": 1024,
+    "normalisation": {
+      "sourceFront": "+z",
+      "unitScale": 0.5696900500758678,
+      "sourcePivot": [
+        0.095,
+        0,
+        0.362
+      ],
+      "sourceTriangles": 22180
+    },
+    "licenseEvidence": {
+      "basis": "asset-field",
+      "assetApiUrl": "https://api.sketchfab.com/v3/models/1680cc4638ba4902ada718b8b03f6a4b",
+      "needle": "license.slug=by",
+      "assetField": "by",
+      "licenceLabel": "CC Attribution",
+      "author": "Spookyghostboo",
+      "modelUrl": "https://sketchfab.com/3d-models/large-corner-sectional-sofa-1680cc4638ba4902ada718b8b03f6a4b",
+      "publishedAt": "2022-02-02T02:20:38.698014",
+      "checkedAt": "2026-10-27T18:41:15.484Z"
+    },
+    "sourceSha256": {
+      "archive": "bca123578756c54d73ad2e97dc9f8f06bd6ef6f51ce1c0e82eb9e4f28c97d484"
+    },
+    "retrievedAt": "2026-10-27T18:41:15.484Z"
+  },
+  {
+    "id": "sketchfab:sofa_curved",
+    "name": "Curved bouclé sofa",
+    "source": "cc0",
+    "tier": "hd",
+    "licence": "CC-BY-4.0",
+    "credit": "\"Sofa from MRS Collection by Roman Plyus\" by sdsketch, Sketchfab, CC-BY-4.0 (https://sketchfab.com/3d-models/sofa-from-mrs-collection-by-roman-plyus-5c123f31ae894d5db5b82a546998b92a)",
+    "category": "sofa",
+    "styleTags": [
+      "modern",
+      "boucle",
+      "fabric",
+      "living room"
+    ],
+    "nativeDims": {
+      "w": 3.139,
+      "d": 1.422,
+      "h": 0.793
+    },
+    "anchor": [
+      0,
+      0,
+      0
+    ],
+    "front": "+z",
+    "file": "sofa_curved.glb",
+    "thumb": "thumbs/sofa_curved.webp",
+    "thumbSha256": "f188b2851388710ca64a4730d6cc5e8faee3c9ae9c51e6718e84c49c66709a5f",
+    "provider": "sketchfab",
+    "sourceId": "5c123f31ae894d5db5b82a546998b92a",
+    "sourceUrl": "https://sketchfab.com/3d-models/sofa-from-mrs-collection-by-roman-plyus-5c123f31ae894d5db5b82a546998b92a",
+    "author": "sdsketch",
+    "sha256": "10c8d8a6a2d155b9b0ed7b6e8af4bc4de6f31243e0ee0742987923f6745164f3",
+    "bytes": 383792,
+    "triangles": 36100,
+    "materials": 1,
+    "textureMax": 1024,
+    "normalisation": {
+      "sourceFront": "+z",
+      "unitScale": 1,
+      "sourcePivot": [
+        0.212,
+        -0.997,
+        0.291
+      ],
+      "sourceTriangles": 49280
+    },
+    "licenseEvidence": {
+      "basis": "asset-field",
+      "assetApiUrl": "https://api.sketchfab.com/v3/models/5c123f31ae894d5db5b82a546998b92a",
+      "needle": "license.slug=by",
+      "assetField": "by",
+      "licenceLabel": "CC Attribution",
+      "author": "sdsketch",
+      "modelUrl": "https://sketchfab.com/3d-models/sofa-from-mrs-collection-by-roman-plyus-5c123f31ae894d5db5b82a546998b92a",
+      "publishedAt": "2021-10-22T19:23:04.296658",
+      "checkedAt": "2026-10-27T18:41:15.484Z"
+    },
+    "sourceSha256": {
+      "archive": "974d7c7fdbe8c51ecc62af4c76e804a67de337f5cc441138d00175de005b2813"
+    },
+    "retrievedAt": "2026-10-27T18:41:15.484Z"
+  },
+  {
+    "id": "sketchfab:tv_flat",
+    "name": "Flat screen television",
+    "source": "cc0",
+    "tier": "hd",
+    "licence": "CC-BY-4.0",
+    "credit": "\"Flat Screen Television\" by HippoStance, Sketchfab, CC-BY-4.0 (https://sketchfab.com/3d-models/flat-screen-television-f90d4fb91dd34b6791e8d66d00f96591)",
+    "category": "appliance",
+    "styleTags": [
+      "modern",
+      "tv",
+      "living room"
+    ],
+    "nativeDims": {
+      "w": 1.161,
+      "d": 0.366,
+      "h": 0.716
+    },
+    "anchor": [
+      0,
+      0,
+      0
+    ],
+    "front": "+z",
+    "file": "tv_flat.glb",
+    "thumb": "thumbs/tv_flat.webp",
+    "thumbSha256": "9fe7b2124a6940d5f2d94b2986bb47e91fdba546804d503a4e098392774a35dd",
+    "provider": "sketchfab",
+    "sourceId": "f90d4fb91dd34b6791e8d66d00f96591",
+    "sourceUrl": "https://sketchfab.com/3d-models/flat-screen-television-f90d4fb91dd34b6791e8d66d00f96591",
+    "author": "HippoStance",
+    "sha256": "d2bcb9a08ec0cef5ef7e27c208001e34c632ff77aaf34ffda82df1ac6e8973cb",
+    "bytes": 84924,
+    "triangles": 2706,
+    "materials": 1,
+    "textureMax": 1024,
+    "normalisation": {
+      "sourceFront": "+x",
+      "unitScale": 1,
+      "sourcePivot": [
+        0,
+        0,
+        0
+      ],
+      "sourceTriangles": 2706
+    },
+    "licenseEvidence": {
+      "basis": "asset-field",
+      "assetApiUrl": "https://api.sketchfab.com/v3/models/f90d4fb91dd34b6791e8d66d00f96591",
+      "needle": "license.slug=by",
+      "assetField": "by",
+      "licenceLabel": "CC Attribution",
+      "author": "HippoStance",
+      "modelUrl": "https://sketchfab.com/3d-models/flat-screen-television-f90d4fb91dd34b6791e8d66d00f96591",
+      "publishedAt": "2020-05-06T01:18:57.280785",
+      "checkedAt": "2026-10-27T18:40:48.425Z"
+    },
+    "sourceSha256": {
+      "archive": "4bcb7a7f2478818b032d238478b58e7b6bc72a8fb520ed293b9319cf8995476d"
+    },
+    "retrievedAt": "2026-10-27T18:40:48.425Z"
+  },
+  {
+    "id": "sketchfab:tv_unit_wood",
+    "name": "Wooden TV unit",
+    "source": "cc0",
+    "tier": "hd",
+    "licence": "CC-BY-4.0",
+    "credit": "\"Wooden tv Unit/tv\" by XaaH, Sketchfab, CC-BY-4.0 (https://sketchfab.com/3d-models/wooden-tv-unittv-03e169016570411a9613c22d06a88a57)",
+    "category": "tv_unit",
+    "styleTags": [
+      "wood",
+      "tv",
+      "living room"
+    ],
+    "nativeDims": {
+      "w": 1.25,
+      "d": 0.35,
+      "h": 0.517
+    },
+    "anchor": [
+      0,
+      0,
+      0
+    ],
+    "front": "+z",
+    "file": "tv_unit_wood.glb",
+    "thumb": "thumbs/tv_unit_wood.webp",
+    "thumbSha256": "e6f4d2fde2a3656323618ce355d8483f92af2bac33ca8d029b674c1562accc94",
+    "provider": "sketchfab",
+    "sourceId": "03e169016570411a9613c22d06a88a57",
+    "sourceUrl": "https://sketchfab.com/3d-models/wooden-tv-unittv-03e169016570411a9613c22d06a88a57",
+    "author": "XaaH",
+    "sha256": "e463e4aa01796b1a194d13cce352e11d43ca726946d39267bb92824d959a2bbc",
+    "bytes": 104048,
+    "triangles": 10060,
+    "materials": 1,
+    "textureMax": 1024,
+    "normalisation": {
+      "sourceFront": "+z",
+      "unitScale": 1,
+      "sourcePivot": [
+        0,
+        0,
+        0
+      ],
+      "sourceTriangles": 10060
+    },
+    "licenseEvidence": {
+      "basis": "asset-field",
+      "assetApiUrl": "https://api.sketchfab.com/v3/models/03e169016570411a9613c22d06a88a57",
+      "needle": "license.slug=by",
+      "assetField": "by",
+      "licenceLabel": "CC Attribution",
+      "author": "XaaH",
+      "modelUrl": "https://sketchfab.com/3d-models/wooden-tv-unittv-03e169016570411a9613c22d06a88a57",
+      "publishedAt": "2023-08-03T16:42:36.368078",
+      "checkedAt": "2026-10-27T18:49:59.808Z"
+    },
+    "sourceSha256": {
+      "archive": "cc5c69db6eaebb9c906f9f22f4de022d276f3deb8b00f89d7cead257580f426d"
+    },
+    "retrievedAt": "2026-10-27T18:49:59.808Z"
+  },
+  {
+    "id": "sketchfab:tv_wall",
+    "name": "Wall-mounted television",
+    "source": "cc0",
+    "tier": "hd",
+    "licence": "CC-BY-4.0",
+    "credit": "\"Television (Wall-mounted)\" by AleixoAlonso, Sketchfab, CC-BY-4.0 (https://sketchfab.com/3d-models/television-wall-mounted-ce05a5d98b54400184ab60262dbf7232)",
+    "category": "appliance",
+    "styleTags": [
+      "modern",
+      "tv",
+      "living room",
+      "wall mounted"
+    ],
+    "nativeDims": {
+      "w": 1.06,
+      "d": 0.068,
+      "h": 0.649
+    },
+    "anchor": [
+      0,
+      0,
+      0
+    ],
+    "front": "+z",
+    "file": "tv_wall.glb",
+    "thumb": "thumbs/tv_wall.webp",
+    "thumbSha256": "7f44b139e882906a17131c2f29fcc8b61b35bfec91a5d7cd12daae2fa339f8dd",
+    "provider": "sketchfab",
+    "sourceId": "ce05a5d98b54400184ab60262dbf7232",
+    "sourceUrl": "https://sketchfab.com/3d-models/television-wall-mounted-ce05a5d98b54400184ab60262dbf7232",
+    "author": "AleixoAlonso",
+    "sha256": "a0eabc8359f2f91698415f973efd828e24d3ce179a4b48d80695b90801785972",
+    "bytes": 21616,
+    "triangles": 2538,
+    "materials": 5,
+    "textureMax": 1024,
+    "normalisation": {
+      "sourceFront": "+z",
+      "unitScale": 1,
+      "sourcePivot": [
+        0,
+        0,
+        0.006
+      ],
+      "sourceTriangles": 2538
+    },
+    "licenseEvidence": {
+      "basis": "asset-field",
+      "assetApiUrl": "https://api.sketchfab.com/v3/models/ce05a5d98b54400184ab60262dbf7232",
+      "needle": "license.slug=by",
+      "assetField": "by",
+      "licenceLabel": "CC Attribution",
+      "author": "AleixoAlonso",
+      "modelUrl": "https://sketchfab.com/3d-models/television-wall-mounted-ce05a5d98b54400184ab60262dbf7232",
+      "publishedAt": "2020-06-15T13:05:53.023978",
+      "checkedAt": "2026-10-27T18:41:15.484Z"
+    },
+    "sourceSha256": {
+      "archive": "81e7150a25d630efe99ddc17a278905e54e224b8e2ca8de55bf71a89a32bd8b9"
+    },
+    "retrievedAt": "2026-10-27T18:41:15.484Z"
+  },
+  {
+    "id": "sketchfab:vanity_white",
+    "name": "White bathroom vanity",
+    "source": "cc0",
+    "tier": "hd",
+    "licence": "CC-BY-4.0",
+    "credit": "\"Legion Single Sink Bathroom Vanity & Sink\" by allenbranch, Sketchfab, CC-BY-4.0 (https://sketchfab.com/3d-models/legion-single-sink-bathroom-vanity-sink-750dfa5fab444c28baf30e063d2b56d3)",
+    "category": "other",
+    "styleTags": [
+      "modern",
+      "vanity",
+      "bathroom"
+    ],
+    "nativeDims": {
+      "w": 0.647,
+      "d": 0.419,
+      "h": 1.008
+    },
+    "anchor": [
+      0,
+      0,
+      0
+    ],
+    "front": "+z",
+    "file": "vanity_white.glb",
+    "thumb": "thumbs/vanity_white.webp",
+    "thumbSha256": "dc7a15dcede622178300689025fe287bdda4cafab650d9052a4d3e62f36d51cd",
+    "provider": "sketchfab",
+    "sourceId": "750dfa5fab444c28baf30e063d2b56d3",
+    "sourceUrl": "https://sketchfab.com/3d-models/legion-single-sink-bathroom-vanity-sink-750dfa5fab444c28baf30e063d2b56d3",
+    "author": "allenbranch",
+    "sha256": "f07d10fbbcc0beb56b79203f9421be2ee5b9289bb51c98fa2a931adf86f6c728",
+    "bytes": 41012,
+    "triangles": 2455,
+    "materials": 1,
+    "textureMax": 1024,
+    "normalisation": {
+      "sourceFront": "+z",
+      "unitScale": 1,
+      "sourcePivot": [
+        0.324,
+        0,
+        -0.19
+      ],
+      "sourceTriangles": 2455
+    },
+    "licenseEvidence": {
+      "basis": "asset-field",
+      "assetApiUrl": "https://api.sketchfab.com/v3/models/750dfa5fab444c28baf30e063d2b56d3",
+      "needle": "license.slug=by",
+      "assetField": "by",
+      "licenceLabel": "CC Attribution",
+      "author": "allenbranch",
+      "modelUrl": "https://sketchfab.com/3d-models/legion-single-sink-bathroom-vanity-sink-750dfa5fab444c28baf30e063d2b56d3",
+      "publishedAt": "2017-06-26T01:31:50.875584",
+      "checkedAt": "2026-10-27T18:41:15.484Z"
+    },
+    "sourceSha256": {
+      "archive": "43970ca50162b5a3f662251a59c9c4f5553af08a71471f9b364b9d33c9bab966"
+    },
+    "retrievedAt": "2026-10-27T18:41:15.484Z"
+  }
+]
