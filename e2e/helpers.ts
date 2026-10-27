@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
-import { orbitPose } from '../packages/scene/src/index';
+import { ITEM_MATERIAL_SPECS, orbitPose } from '../packages/scene/src/index';
 import type { Scene } from '../packages/scene/src/index';
 import type { FlatTestHook } from '../apps/web/src/test-hook-types';
 
@@ -62,7 +62,25 @@ export function paintOnlyCharme(): FlatJson {
     delete rest.textureScale;
     return rest;
   });
+  // Since M5R furniture and fittings use library textures too (oak veneer, quartz, steel): a texture-free baseline has no items.
+  json.items = [];
   return json;
+}
+
+/** Slugs of every library texture an item finish may use (`ITEM_MATERIAL_SPECS`): what items can add to a scene's own sets. */
+export function itemTextureSlugs(): Set<string> {
+  return new Set(Object.values(ITEM_MATERIAL_SPECS).flatMap((s) => (s.texture ? [s.texture.slug] : [])));
+}
+
+/** Requested texture maps grouped by set: `{ slug: ['color', 'normal', 'roughness'] }` (sorted). */
+export function mapsBySet(paths: string[]): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  for (const p of paths) {
+    const m = /\/materials\/([^/]+)\/(color|normal|roughness)\.webp$/.exec(p);
+    if (m) (out[m[1]!] ??= []).push(m[2]!);
+  }
+  for (const k of Object.keys(out)) out[k]!.sort();
+  return out;
 }
 
 /** Slugs of the library texture sets a scene JSON actually uses (texture materials referenced outside `materials`). */

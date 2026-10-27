@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
-import { charmeFlat, flat, loadScene, openApp, openAppPaintOnly, paintOnlyCharme, rendered, savePng, usedTextureSlugs } from './helpers';
+import { charmeFlat, flat, loadScene, openApp, openAppPaintOnly, paintOnlyCharme, rendered, savePng, itemTextureSlugs, mapsBySet, usedTextureSlugs } from './helpers';
 
 const MAX_DRAW_CALLS = 70;
 const catalog = JSON.parse(readFileSync('apps/web/public/materials/catalog.json', 'utf8')) as { id: string; tileSizeM: number; meanColor: string; roughness: number }[];
@@ -119,8 +119,17 @@ test('the default Charme load fetches exactly the texture sets the flat uses, on
   await idle(page);
   const slugsInUse = usedTextureSlugs(charmeFlat);
   expect(slugsInUse).toEqual(['parquet-light-oak', 'tile-grey-large', 'turf-artificial-green']);
-  expect(webpRequests.map((p) => p.split('/materials/')[1]).sort()).toEqual(slugsInUse.flatMap((s) => ['color', 'normal', 'roughness'].map((m) => `${s}/${m}.webp`)).sort());
-  expect(await texStats(page)).toMatchObject({ loaded: slugsInUse.length, pending: 0, slugs: slugsInUse });
+  // Plus the sets the fittings' finishes use (M5R): each set's three maps exactly once, nothing unrelated.
+  const sets = mapsBySet(webpRequests);
+  const items = itemTextureSlugs();
+  for (const slug of slugsInUse) expect(sets[slug], slug).toEqual(['color', 'normal', 'roughness']);
+  for (const [slug, maps] of Object.entries(sets)) {
+    expect(slugsInUse.includes(slug) || items.has(slug), slug).toBe(true);
+    expect(maps, slug).toEqual(['color', 'normal', 'roughness']);
+  }
+  const stats = await texStats(page);
+  expect(stats).toMatchObject({ loaded: Object.keys(sets).length, pending: 0 });
+  expect([...stats.slugs].sort()).toEqual(Object.keys(sets).sort());
   expect(libRequests.filter((p) => !p.endsWith('.webp'))).toEqual(['/materials/catalog.json']);
 });
 

@@ -8,7 +8,7 @@
  */
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
-import { charmeFlat, seedPaintOnly, usedTextureSlugs } from './helpers';
+import { charmeFlat, seedPaintOnly, itemTextureSlugs, mapsBySet, usedTextureSlugs } from './helpers';
 
 const BASE = '/3d-flat-simulator/';
 const SAGE_ID = 'paint-a3ae93-matt';
@@ -48,9 +48,17 @@ test('the hook is absent without ?test, and the default load fetches exactly the
   await page.waitForLoadState('networkidle');
   await page.evaluate(() => new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => done()))));
   const lib = traffic.requests.filter((p) => p.includes('/materials/'));
-  const maps = usedTextureSlugs(charmeFlat).flatMap((s) => ['color', 'normal', 'roughness'].map((m) => `${BASE}materials/${s}/${m}.webp`));
-  expect(maps).toHaveLength(9);
-  expect([...lib].sort()).toEqual([`${BASE}materials/catalog.json`, ...maps].sort());
+  // The flat's own sets (floors) plus the sets its fittings' finishes use (M5R), each set's three maps exactly once.
+  const sets = mapsBySet(lib);
+  const own = usedTextureSlugs(charmeFlat);
+  const items = itemTextureSlugs();
+  for (const slug of own) expect(sets[slug], slug).toEqual(['color', 'normal', 'roughness']);
+  for (const [slug, maps] of Object.entries(sets)) {
+    expect(own.includes(slug) || items.has(slug), `${slug} is used by the flat or an item finish`).toBe(true);
+    expect(maps, slug).toEqual(['color', 'normal', 'roughness']);
+  }
+  expect(lib.filter((p) => !p.endsWith('.webp'))).toEqual([`${BASE}materials/catalog.json`]);
+  expect(lib.every((p) => p.startsWith(`${BASE}materials/`))).toBe(true);
   expect(traffic.requests.every((p) => p.startsWith(BASE))).toBe(true);
   expect(traffic.bad).toEqual([]);
 });
