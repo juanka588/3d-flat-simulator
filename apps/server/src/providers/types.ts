@@ -28,6 +28,14 @@ export interface ModelStream {
   size?: number;
 }
 
+const partialResults = new WeakSet<object>();
+/** Marks a search result as incomplete (the rest is still being read in the background): the registry then does not cache it. */
+export function markPartial<T extends object>(results: T): T {
+  partialResults.add(results);
+  return results;
+}
+export const isPartial = (results: object): boolean => partialResults.has(results);
+
 /** Everything a provider needs from its host. Injected so tests run without network, clock or disk. */
 export interface ProviderContext {
   /** The only way to reach the network: the framework wraps it with the UA, 1 req/host, 1.5 s gap, robots.txt, GET-only and the circuit breaker. */
@@ -38,6 +46,11 @@ export interface ProviderContext {
   log: (level: 'info' | 'warn' | 'error', message: string) => void;
   /** Cancelled when the HTTP request that triggered the call is aborted. */
   signal?: AbortSignal;
+  /**
+   * The same context at LOW priority: its requests wait behind every interactive one in the host queue (prefetching the
+   * rest of a search, a model nobody asked for yet). Refused quietly (`provider_unavailable` "busy") when the queue is long.
+   */
+  background?: ProviderContext;
   /** DNS: every address of a host name (IPv4 and IPv6). Injected so SSRF tests need no network; defaults to `dns.lookup(all)`. */
   lookup?: (hostname: string) => Promise<string[]>;
 }
@@ -124,6 +137,8 @@ export interface ProviderRegistry {
   resolveUrl(url: string): Promise<ProductRecord>;
   /** GLB bytes for a product (cached 1 h, 20 MB cap). Throws `model_unavailable`. */
   fetchModel(productId: string): Promise<ModelStream>;
+  /** Starts downloading the GLBs of these products at low priority (fire and forget; unknown, disabled or model-less ones are skipped). */
+  prefetchModels?(productIds: readonly string[]): void;
   /** The product photo bytes (memory-cached 1 h, 2 MB cap, raster images only): the web never hotlinks retailer photos. */
   fetchPhoto(productId: string): Promise<{ data: Uint8Array; contentType: string }>;
   /** Records the ids a search returned to an MCP session (the "seen" registry of D9). */

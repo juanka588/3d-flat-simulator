@@ -34,6 +34,8 @@ interface FrameInfo {
 }
 
 const FRAME_TIMEOUT_MS = 15_000;
+/** How long a frame waits for model downloads before drawing the placeholders instead; null = the frame timeout, as an error. */
+let modelWaitMs: number | null = null;
 const WALK_STEP_MS = 16;
 
 let canvas: (() => RootState) | null = null;
@@ -117,17 +119,22 @@ async function whenRendered(): Promise<void> {
   }
   // Textures requested by that frame (material first use) load asynchronously: wait for them, then
   // for a frame that actually draws them. Loop because a settled load can start another (catalog -> maps).
+  const modelsDeadline = performance.now() + (modelWaitMs ?? FRAME_TIMEOUT_MS);
   for (;;) {
     await Promise.race([
       texturesSettled(),
       new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timed out waiting for textures')), FRAME_TIMEOUT_MS)),
     ]);
-    // Models (GLB items) load the same way: wait for them too, then for a frame that draws them.
-    await Promise.race([
-      modelsSettled(),
-      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timed out waiting for models')), FRAME_TIMEOUT_MS)),
+    // Models (GLB items) load the same way: wait for them too, then for a frame that draws them. With a model wait set, items whose
+    // model is still downloading when it runs out are drawn as placeholder boxes (reported by `modelStats().loading`) instead of failing the frame.
+    const gaveUp = await Promise.race([
+      modelsSettled().then(() => false),
+      new Promise<boolean>((resolve, reject) =>
+        setTimeout(() => (modelWaitMs === null ? reject(new Error('timed out waiting for models')) : resolve(true)), Math.max(0, modelsDeadline - performance.now())),
+      ),
     ]);
     await nextRenderedFrame();
+    if (gaveUp) return;
     if (textureStats().pending === 0 && modelStats().pending === 0) return;
   }
 }
@@ -516,6 +523,9 @@ export function installTestHook(): void {
     },
     setMeshResolver: (fn) => setMeshResolverOverride(fn as Parameters<typeof setMeshResolverOverride>[0]),
     setModelOrigin: (origin) => setModelOriginOverride(origin),
+    setModelWaitMs: (ms) => {
+      modelWaitMs = ms;
+    },
     setProviderFront: (fn) => setProviderFrontOverride(fn),
     connection: () => connectionInfo(),
     select(target) {

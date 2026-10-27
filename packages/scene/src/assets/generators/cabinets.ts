@@ -140,6 +140,51 @@ export const kitchenBase: Generator<KitchenBaseParams> = {
   },
 };
 
+// ---------------------------------------------------------------------------------------------
+// Kitchen island
+// ---------------------------------------------------------------------------------------------
+
+const islandParams = z.strictObject({
+  w: metres('Length of the island (its worktop).', 1.26, 0.6, 3.5),
+  d: metres('Depth of the island including the seating overhang.', 0.77, 0.5, 1.6),
+  h: metres('Overall height including the worktop; standard is 0.9.', 0.9, 0.5, 1.2),
+  overhang: metres('Worktop overhang at the back (-z) for stools, 0 for none. Clamped so a cabinet at least 0.3 m deep remains.', 0.25, 0, 0.5),
+  doors: count('Number of doors side by side below the drawers on the front (+z), 0 for none.', 2, 0, 6),
+  drawers: count('Number of drawers at the top of the front (0 for none).', 0, 0, 5),
+  finish: finish('white'),
+});
+type IslandParams = z.infer<typeof islandParams>;
+
+export const island: Generator<IslandParams> = {
+  id: 'island',
+  label: 'Kitchen island: base cabinets with a full-footprint worktop and a stool overhang at the back (-z)',
+  category: 'kitchen',
+  params: islandParams,
+  describeParams: ({ w, d, h }) => ({ dims: { w, d, h }, anchors: boxAnchors(w, d, h), clearance: { front: 0.9, back: 0.6, left: 0.6, right: 0.6 } }),
+  generate({ w, d, h, overhang, doors, drawers, finish: f }) {
+    const kit = new Kit();
+    const mat = finishMaterial(f);
+    const over = Math.max(0, Math.min(overhang, d - 0.3));
+    const baseH = 0.1;
+    const topT = 0.04;
+    const bodyTop = h - topT;
+    const z0 = -d / 2 + over; // back of the cabinet body
+    const zFace = d / 2 - HANDLE;
+    const zBodyFront = doors + drawers === 0 ? d / 2 : zFace - FRONT;
+    kit.box(ITEM_MATERIALS.dark, -w / 2, 0, z0 + 0.02, w / 2, baseH, zBodyFront - 0.03);
+    kit.box(mat, -w / 2, baseH, z0, w / 2, bodyTop, zBodyFront);
+    // End panels carry the overhang.
+    if (over > 0.05) {
+      const t = Math.min(0.03, w / 10);
+      kit.box(mat, -w / 2, baseH, -d / 2, -w / 2 + t, bodyTop, z0);
+      kit.box(mat, w / 2 - t, baseH, -d / 2, w / 2, bodyTop, z0);
+    }
+    kit.box(ITEM_MATERIALS.worktop, -w / 2, bodyTop, -d / 2, w / 2, h, d / 2);
+    addFronts(kit, { x0: -w / 2, x1: w / 2, y0: baseH, y1: bodyTop, zFace, doors, drawers, frontMaterial: mat });
+    return kit.build();
+  },
+};
+
 const kitchenWallParams = z.strictObject({
   w: metres('Width of the wall unit.', 0.6, 0.2, 2.4),
   d: metres('Depth of the wall unit (front to back); standard is 0.35.', 0.35, 0.2, 0.6),

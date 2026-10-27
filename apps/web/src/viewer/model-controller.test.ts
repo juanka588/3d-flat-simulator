@@ -269,10 +269,28 @@ describe('model fallback chain', () => {
     turned.update([item()]);
     await turned.settled();
     expect(turned.stats()).toMatchObject({ sources: { 'sofa-1': 'provider' }, warnings: [], failed: 0 });
+    // Without an override the controller turns the model itself when that clearly fits better (IKEA islands: "Largeur 77, Longueur 126" vs a model 1.26 along x).
     const plain = make();
     plain.update([item()]);
     await plain.settled();
-    expect(plain.stats().sources['sofa-1']).toBe('parametric');
+    expect(plain.stats().sources['sofa-1']).toBe('provider');
+    expect(plain.state('sofa-1')?.front).toBe('+x');
+    expect(plain.state('sofa-1')?.reason).toContain('quarter turn');
+  });
+
+  it('a model that fits in neither orientation falls to the generator, which is then drawn (fallbackMesh) and the reason says why', async () => {
+    const c = new ModelController<FakeModel>({
+      cache: createModelCache<FakeModel>({ dispose: () => undefined }),
+      load: async (url) => ({ value: { url, box: box(0.9, 0.9, 6) }, bytes: 1 }),
+      resolve: fakeResolve,
+      catalog: async () => EMPTY_MESH_CATALOG,
+      origin: () => 'http://127.0.0.1:8787',
+    });
+    c.update([item()]);
+    await c.settled();
+    expect(c.state('sofa-1')?.status).toBe('settled');
+    expect(c.state('sofa-1')?.reason).toContain('does not fit');
+    expect(c.fallbacks().get('sofa-1')).toMatchObject({ kind: 'parametric' });
   });
 
   it('above the hard limit (50%) a provider model is not used: the lookalike takes over; a smaller mismatch only warns', async () => {

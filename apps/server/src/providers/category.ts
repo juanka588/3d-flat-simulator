@@ -37,3 +37,12 @@ export function categoryOf(typeName: string, categoryPath: readonly string[] = [
 
 /** Categories that hang on a wall. */
 export const WALL_CATEGORIES = new Set<ProductCategory>(['mirror', 'wall_cabinet']);
+
+/** Names that say a product hangs on a wall although its shop category does not ("Étagère murale", "Wall shelf", "Applique murale"). */
+const WALL_NAME = /\b(murale?s?|muraux|mural|wall[- ]?mounted|wall[- ]?shelf|wall[- ]?shelves|wall lamp|a fixer au mur|suspendu au mur)\b/;
+
+/** How a product is fixed: the category's mount, else "wall" when its name says so (IKEA lists a wall shelf as an ordinary shelf). */
+export function mountOf(name: string, category: ProductCategory): 'wall' | 'floor' {
+  if (WALL_CATEGORIES.has(category)) return 'wall';
+  return WALL_NAME.test(fold(name)) ? 'wall' : 'floor';
+}

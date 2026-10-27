@@ -136,6 +136,8 @@ export interface Renderer {
       format?: 'png' | 'jpeg';
       /** The MCP session whose `set_sun_time` lighting sits under the call's own. */
       session?: Pick<McpSession, 'lighting' | 'lastRenderedRev'>;
+      /** Longest wait (ms) for shop models still downloading; then they are drawn as placeholder boxes and named in the warnings. */
+      modelWaitMs?: number;
     },
   ): Promise<{
     /** Base64 image of the requested view (the "after" image with `compare`). */

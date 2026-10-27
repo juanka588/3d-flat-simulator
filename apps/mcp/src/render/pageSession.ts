@@ -51,6 +51,15 @@ export interface PageJob {
   lighting: LightingView;
   size: { width: number; height: number };
   format: 'png' | 'jpeg';
+  /** Longest wait (ms) for model downloads; then the items still loading are drawn as placeholders. Absent: wait the page's frame timeout, then fail. */
+  modelWaitMs?: number | undefined;
+}
+
+/** How the items were drawn: which are still waiting for their model (drawn as grey boxes) and which ended on a stand-in shape, with why. */
+export interface ModelReport {
+  loading: string[];
+  sources: Record<string, string>;
+  reasons: Record<string, string>;
 }
 
 export interface PageOutput {
@@ -68,6 +77,7 @@ export interface PageOutput {
   contextLost: boolean;
   /** Pixel statistics of the capture (a blank image never gets here: it fails with `blank`). */
   pixels: PixelStats;
+  models: ModelReport;
 }
 
 interface Handle {
@@ -112,6 +122,7 @@ const RENDER_SCRIPT = `async (a) => {
   if (a.viewport) await f.setViewport({ width: a.viewport.width, height: a.viewport.height, dpr: 1 });
   let sceneError = null;
   if (a.modelOrigin && f.setModelOrigin) f.setModelOrigin(a.modelOrigin);
+  if (f.setModelWaitMs) f.setModelWaitMs(a.modelWaitMs ?? null);
   if (a.scene) {
     const r = await f.loadScene(a.scene);
     if (!r.ok) sceneError = (r.errors || []).join('; ') || 'the viewer rejected the scene';
@@ -137,6 +148,7 @@ const RENDER_SCRIPT = `async (a) => {
   }
   const s = f.stats();
   const sun = f.sunInfo();
+  const ms = f.modelStats();
   // A 128x96 nearest-neighbour thumbnail of the PNG capture, for the blank-image check done in Node.
   let thumb = null;
   try {
@@ -152,6 +164,7 @@ const RENDER_SCRIPT = `async (a) => {
     dataUrl, mimeType, thumb, triangles: s.triangles, meshes: s.meshes, canvasSize: s.canvasSize, lampsLit: s.lights.lampsLit, pose: s.pose,
     sun: sun.available ? { available: true, isUp: sun.isUp, altitudeDeg: sun.altitudeDeg, azimuthDeg: sun.azimuthDeg } : { available: false },
     contextLost: !!window.__renderCtxLost,
+    models: { loading: ms.loading, sources: ms.sources, reasons: ms.reasons },
   };
 }`;
 
@@ -312,32 +325,36 @@ export class PageSession {
     return handle;
   }
 
+  /** Starts the browser and loads the viewer when that has not happened yet (a render does it too; calling it first keeps the start out of the render's own time budget). */
+  async warmUp(size: { width: number; height: number }): Promise<void> {
+    if (this.isWarm) return;
+    await this.close();
+    const generation = this.generation;
+    const opened = await this.open(size, generation);
+    if (this.generation !== generation) {
+      // Superseded while the last step of open() ran: do not install a browser nobody will close.
+      await this.dispose(opened);
+      throw new SessionError('dead', 'the render start was abandoned (timed out or closed)');
+    }
+    this.handle = opened;
+  }
+
   /** Draws `job`. Throws `SessionError` (`dead` when the page/browser is gone) or the underlying error. */
   async render(job: PageJob): Promise<{ out: PageOutput; warm: boolean }> {
     const warm = this.isWarm;
-    if (!warm) {
-      await this.close();
-      const generation = this.generation;
-      const opened = await this.open(job.size, generation);
-      if (this.generation !== generation) {
-        // Superseded while the last step of open() ran: do not install a browser nobody will close.
-        await this.dispose(opened);
-        throw new SessionError('dead', 'the render start was abandoned (timed out or closed)');
-      }
-      this.handle = opened;
-    }
+    if (!warm) await this.warmUp(job.size);
     const h = this.handle!;
     try {
       const key = `${job.scene.epoch}:${job.scene.rev}`;
       const mustLoad = job.preview || h.sceneKey !== key;
       const viewport = h.viewport.width !== job.size.width || h.viewport.height !== job.size.height ? job.size : undefined;
       h.models = job.models;
-      const arg = { viewport, modelOrigin: job.models?.origin, scene: mustLoad ? job.scene.scene : undefined, lighting: job.lighting, pose: job.pose, format: job.format };
+      const arg = { viewport, modelOrigin: job.models?.origin, modelWaitMs: job.modelWaitMs, scene: mustLoad ? job.scene.scene : undefined, lighting: job.lighting, pose: job.pose, format: job.format };
       // The scene is dirty from the moment we start replacing it until a committed one is in.
       if (mustLoad) h.sceneKey = null;
       type Raw =
         | { error: string }
-        | { dataUrl: string; mimeType: 'image/png' | 'image/jpeg'; thumb: { w: number; h: number; rgba: number[] } | { error: string } | null; triangles: number; meshes: string[]; canvasSize: [number, number]; lampsLit: string[]; pose: CameraPose | null; sun: PageOutput['sun']; contextLost: boolean };
+        | { dataUrl: string; mimeType: 'image/png' | 'image/jpeg'; thumb: { w: number; h: number; rgba: number[] } | { error: string } | null; triangles: number; meshes: string[]; canvasSize: [number, number]; lampsLit: string[]; pose: CameraPose | null; sun: PageOutput['sun']; contextLost: boolean; models: ModelReport };
       let r: Raw;
       let pixels: PixelStats | undefined;
       let blank: string | undefined;
@@ -380,6 +397,7 @@ export class PageSession {
           appliedPose: r.pose,
           contextLost: false,
           pixels: pixels ?? { stddev: 0, mean: 0, colors: 0, topShare: 1, pixels: 0 },
+          models: r.models ?? { loading: [], sources: {}, reasons: {} },
         },
       };
     } catch (e) {

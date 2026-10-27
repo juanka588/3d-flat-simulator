@@ -1,10 +1,10 @@
 import { ProductRecord, type ProductVariant } from '@flat/scene';
 import { IKEA_FR_META } from './catalog';
 import { readTextCapped } from './http';
-import { categoryOf, fold, WALL_CATEGORIES } from './category';
+import { categoryOf, fold, mountOf } from './category';
 import { asArray, asPrice, extractJsonLd, hasType, isObj, str, type Json } from './jsonld';
 import { htmlToText, parseLumens } from './lumens';
-import { ProviderError, type ModelStream, type ProductProvider, type ProviderContext, type SearchOptions } from './types';
+import { ProviderError, markPartial, type ModelStream, type ProductProvider, type ProviderContext, type SearchOptions } from './types';
 import { parseLength, parseMeasureText } from './units';
 
 /**
@@ -25,10 +25,14 @@ const ASSET_BASE = 'https://web-api.ikea.com/dimma/assets/';
 const PAGE_MAX_BYTES = 4 * 1024 * 1024;
 const SEARCH_MAX_BYTES = 2 * 1024 * 1024;
 export const MODEL_MAX_BYTES = 20 * 1024 * 1024;
-/** Product pages fetched by one search call at most (each costs one polite request). */
-const ENRICH_MAX = 8;
-const TTL_HIT_MS = 10 * 60_000;
-const TTL_PRODUCT_MS = 60 * 60_000;
+/** Product pages one search reads at most, in the foreground and in the background together (each costs one polite request). */
+const ENRICH_MAX = 12;
+/** Pages a search reads before answering (about 2 s each with the politeness gap); the rest of its candidates are read in the background. */
+const FOREGROUND_PAGES = 6;
+/** A search answers once it has this many results and this much time has passed, even if more pages could be read. */
+const FOREGROUND_MS = 20_000;
+const TTL_HIT_MS = 60 * 60_000;
+const TTL_PRODUCT_MS = 24 * 60 * 60_000;
 
 const CAPABILITIES = IKEA_FR_META.capabilities;
 
@@ -351,7 +355,7 @@ export function parseProductPage(html: string, o: ParsePageOptions): ProductReco
     dims: { w, d, h },
     dimsSource: 'structured',
     category: finalCategory,
-    mount: WALL_CATEGORIES.has(finalCategory) ? 'wall' : 'floor',
+    mount: mountOf(name, finalCategory),
     styleTags: [],
     colours: colours.slice(0, 8),
     variants: o.hit?.variants ?? [],
@@ -371,12 +375,17 @@ export function parseProductPage(html: string, o: ParsePageOptions): ProductReco
 // ---------------------------------------------------------------------------------------------
 
 export interface IkeaFrOptions {
-  /** Product pages fetched by one search at most (default 8). */
+  /** Product pages read by one search at most, foreground and background (default 12). */
   enrichMax?: number;
+  /** Pages read before a search answers; the rest continue in the background (default 6). */
+  foregroundPages?: number;
+  foregroundMs?: number;
 }
 
 export function createIkeaFrProvider(options: IkeaFrOptions = {}): ProductProvider {
   const enrichMax = options.enrichMax ?? ENRICH_MAX;
+  const foregroundPages = options.foregroundPages ?? FOREGROUND_PAGES;
+  const foregroundMs = options.foregroundMs ?? FOREGROUND_MS;
   const inflight = new Map<string, Promise<ProductRecord>>();
 
   async function getRecord(sku: string, ctx: ProviderContext): Promise<ProductRecord> {
@@ -422,7 +431,8 @@ export function createIkeaFrProvider(options: IkeaFrOptions = {}): ProductProvid
     async search(query: string, opts: SearchOptions, ctx: ProviderContext): Promise<ProductRecord[]> {
       const q = query.trim();
       if (q === '') return [];
-      const size = Math.min(48, Math.max(opts.limit * 2, 12));
+      // One page size for every limit, so the same words hit the same cached JSON.
+      const size = Math.min(48, Math.max(opts.limit * 2, 24));
       const key = `search:${q.toLowerCase()}|${size}`;
       let hits = ctx.cache.get<IkeaHit[]>(key);
       if (!hits) {
@@ -453,16 +463,25 @@ export function createIkeaFrProvider(options: IkeaFrOptions = {}): ProductProvid
       const out: ProductRecord[] = [];
       let fetched = 0;
       let firstFailure: ProviderError | undefined;
-      for (const h of candidates) {
+      const started = ctx.clock.now();
+      const fits = (rec: ProductRecord) => {
+        const m = opts.maxDims;
+        return !(m && ((m.w !== undefined && rec.dims.w > m.w) || (m.d !== undefined && rec.dims.d > m.d) || (m.h !== undefined && rec.dims.h > m.h)));
+      };
+      let at = 0;
+      for (; at < candidates.length; at++) {
+        const h = candidates[at]!;
         if (out.length >= opts.limit) break;
         const warm = ctx.cache.get<ProductRecord>(`product:${h.sku}`) !== undefined;
-        if (!warm && fetched >= enrichMax) break;
+        if (!warm) {
+          // Out of foreground budget: answer with what we have (when there is something) and read the rest in the background.
+          if (fetched >= enrichMax) break;
+          if (out.length > 0 && (fetched >= foregroundPages || ctx.clock.now() - started > foregroundMs)) break;
+        }
         try {
           if (!warm) fetched++;
           const rec = await getRecord(h.sku, ctx);
-          const m = opts.maxDims;
-          if (m && ((m.w !== undefined && rec.dims.w > m.w) || (m.d !== undefined && rec.dims.d > m.d) || (m.h !== undefined && rec.dims.h > m.h))) continue;
-          out.push(rec);
+          if (fits(rec)) out.push(rec);
         } catch (e) {
           if (!(e instanceof ProviderError)) throw e;
           if (e.code === 'product_dims_missing' || e.code === 'product_not_found') {
@@ -478,6 +497,22 @@ export function createIkeaFrProvider(options: IkeaFrOptions = {}): ProductProvid
         }
       }
       if (out.length === 0 && firstFailure) throw firstFailure;
+      // The candidates we did not reach: read their pages behind everything else, so the next search or get_product finds them cached.
+      const rest = candidates.slice(at).filter((h) => ctx.cache.get<ProductRecord>(`product:${h.sku}`) === undefined).slice(0, Math.max(0, enrichMax - fetched));
+      if (out.length >= opts.limit || rest.length === 0) return out;
+      const bg = ctx.background;
+      if (bg) {
+        void (async () => {
+          for (const h of rest) {
+            try {
+              await getRecord(h.sku, bg);
+            } catch (e) {
+              if (e instanceof ProviderError && (e.code === 'provider_blocked' || e.code === 'provider_unavailable')) return;
+            }
+          }
+        })();
+        return markPartial(out);
+      }
       return out;
     },
 

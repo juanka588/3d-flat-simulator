@@ -11,7 +11,7 @@ import { PROVIDER_CATALOG, type ProviderMeta } from './catalog';
 import { createNetwork, readBytesCapped, type NetworkOptions, type ProviderNetwork } from './http';
 import { createPinnedFetch } from './pinned';
 import { createSecrets, type Secrets } from './secrets';
-import { ProviderError, type ModelStream, type ProductProvider, type ProviderContext, type ProviderRegistry, type SearchOptions } from './types';
+import { ProviderError, isPartial, type ModelStream, type ProductProvider, type ProviderContext, type ProviderRegistry, type SearchOptions } from './types';
 
 /** Seen-products registry TTL (D9): ids a search returned to an MCP session stay placeable for an hour after the last touch. */
 export const SEEN_TTL_MS = 60 * 60_000;
@@ -19,7 +19,7 @@ export const SEEN_MAX_SESSIONS = 200;
 export const SEEN_MAX_IDS = 5000;
 const GLB_MAGIC = [0x67, 0x6c, 0x54, 0x46]; // "glTF"
 export const PHOTO_MAX_BYTES = 2 * 1024 * 1024;
-const TTL_PHOTO_MS = 60 * 60_000;
+const TTL_PHOTO_MS = 24 * 60 * 60_000;
 
 type Loader = () => Promise<ProductProvider>;
 
@@ -136,13 +136,16 @@ function assembleRegistry(opts: RegistryOptions, providers: ReadonlyMap<string, 
     };
     slot.provider = provider;
     slot.net = net;
-    slot.ctx = {
+    const base: ProviderContext = {
       fetch: net.fetch,
       cache: cache.scope(provider.id),
       clock,
       log: (level, message) => log(level, `${provider.id}: ${message}`),
       ...(opts.lookup ? { lookup: opts.lookup } : {}),
     };
+    // The low-priority twin: same cache and rules, but its requests queue behind every interactive one.
+    const background: ProviderContext = { ...base, fetch: ((i: RequestInfo | URL, init: RequestInit = {}) => net.fetch(i, { ...init, priority: 'low' } as RequestInit)) as typeof fetch };
+    slot.ctx = { ...base, background };
     slots.set(id, slot);
     loadedIds.push(id);
   }
@@ -214,7 +217,15 @@ function assembleRegistry(opts: RegistryOptions, providers: ReadonlyMap<string, 
           try {
             if (!p.capabilities.search) throw new ProviderError('provider_disabled', `${p.id} has no search; paste a product URL instead`);
             const key = `search\0${p.id}\0${query.trim().toLowerCase()}\0${JSON.stringify(rest)}`;
-            const recs = await cache.flight(key, TTL_SEARCH_MS, () => p.search(query, rest, s.ctx!), (r) => 4096 * (r.length + 1));
+            // A partial answer (the rest of the pages is still being read in the background) is not cached: asking again gets more.
+            const cached = cache.get<ProductRecord[]>(key);
+            const recs =
+              cached ??
+              (await once(key, async () => {
+                const found = await p.search(query, rest, s.ctx!);
+                if (!isPartial(found)) cache.set(key, found, TTL_SEARCH_MS, 4096 * (found.length + 1));
+                return found;
+              }));
             for (const r of recs) rememberRecord(r);
             lists[i] = { rank: i, recs };
             statuses.push({ provider: p.id, ok: true });
@@ -305,6 +316,22 @@ function assembleRegistry(opts: RegistryOptions, providers: ReadonlyMap<string, 
       };
     },
 
+    prefetchModels(productIds) {
+      for (const id of productIds.slice(0, 60)) {
+        const ref = parseProductId(id);
+        const slot = ref ? slots.get(ref.provider) : undefined;
+        const p = slot?.provider;
+        if (!ref || !slot || !p || !slot.ctx || !p.capabilities.model3d || !p.fetchModel) continue;
+        const key = `glb\0${formatProductId(ref)}`;
+        if (cache.get(key) !== undefined) continue;
+        const ctx = slot.ctx.background ?? slot.ctx;
+        // Same cache key and single flight as a viewer request: whoever asks first downloads, the other one waits for it.
+        void cache
+          .flight(key, TTL_MODEL_MS, async () => readModel(await p.fetchModel!(ref.sku, ctx), cache.maxEntryBytes), (b) => b.byteLength)
+          .catch((e: unknown) => log('info', `${ref.provider}: model prefetch of ${ref.sku} skipped: ${e instanceof Error ? e.message : String(e)}`));
+      }
+    },
+
     markSeen(session, ids) {
       sweepSeen();
       let entry = seen.get(session);
@@ -351,7 +378,7 @@ function assembleRegistry(opts: RegistryOptions, providers: ReadonlyMap<string, 
         async () => {
           const rec = await reg.getProduct(productId);
           if (!rec.photoUrl) throw new ProviderError('product_not_found', `${productId} has no photo`);
-          return readPhoto(await p.fetchPhoto!(rec, s.ctx), PHOTO_MAX_BYTES);
+          return readPhoto(await p.fetchPhoto!(rec, s.ctx.background ?? s.ctx), PHOTO_MAX_BYTES);
         },
         (ph) => ph.data.byteLength,
       );

@@ -30,6 +30,8 @@ export interface RenderRequest {
   format?: 'png' | 'jpeg';
   /** Where the viewer gets provider models from (see `ModelSource`). */
   models?: ModelSource | undefined;
+  /** Longest wait (ms) for model downloads; then the items still loading are drawn as placeholder boxes and reported. */
+  modelWaitMs?: number | undefined;
 }
 
 export interface RenderOutput extends Omit<PageOutput, 'sceneLoaded' | 'contextLost'> {
@@ -112,9 +114,16 @@ export class BrowserRenderer {
     clearTimeout(this.idle);
     const started = performance.now();
     const cold = !this.session.isWarm;
-    const budget = cold ? this.coldTimeoutMs : this.timeoutMs;
-    const deadline = started + budget;
+    // The browser start has its own budget; the render's budget (plus the time it may wait for models) only starts once the page is up.
+    const renderBudget = this.timeoutMs + (req.modelWaitMs ?? 0);
+    let budget = cold ? this.coldTimeoutMs : renderBudget;
+    let deadline = started + budget;
     try {
+      if (cold) {
+        await this.within(this.session.warmUp(req.size), this.coldTimeoutMs);
+        budget = renderBudget;
+        deadline = performance.now() + renderBudget;
+      }
       for (let attempt = 0; ; attempt++) {
         const remaining = deadline - performance.now();
         if (remaining <= 0) throw new SessionError('timeout', 'render timed out');
@@ -128,12 +137,13 @@ export class BrowserRenderer {
               size: req.size,
               format: req.format ?? 'png',
               ...(req.models ? { models: req.models } : {}),
+              ...(req.modelWaitMs !== undefined ? { modelWaitMs: req.modelWaitMs } : {}),
             }),
             remaining,
           );
           const { contextLost: _c, ...rest } = out;
           void _c;
-          return { ...rest, warm, renderMs: Math.round(performance.now() - started) };
+          return { ...rest, warm: warm && !cold, renderMs: Math.round(performance.now() - started) };
         } catch (e) {
           if (e instanceof SessionError && e.kind === 'dead' && attempt === 0) continue; // recreate browser and page, once
           throw e;
@@ -146,7 +156,7 @@ export class BrowserRenderer {
           await this.session.discard();
           throw new RenderError(
             'render_timeout',
-            `the render took longer than ${Math.round(budget / 1000)} s${cold ? ' (it had to start the browser first)' : ''}`,
+            `the ${cold && budget === this.coldTimeoutMs ? 'browser start' : 'render'} took longer than ${Math.round(budget / 1000)} s`,
             `${cold ? 'Retry: the first render starts Chromium and loads the viewer, which can be slow on a cold machine (the phases are logged on stderr). ' : 'Retry with a smaller size. '}${diag.length ? `Page log: ${diag.join(' | ')}` : ''}`.trim(),
           );
         }

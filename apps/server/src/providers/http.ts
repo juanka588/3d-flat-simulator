@@ -99,22 +99,41 @@ export function createNetwork(opts: NetworkOptions) {
   // ---- per-host queue + gap ----
   // One request at a time per host. The slot is held until the response BODY is consumed (or cancelled, or
   // times out) and the gap is measured from that moment, so a big GLB never overlaps the next request.
-  const tails = new Map<string, Promise<void>>();
+  // Interactive requests go before background ones (prefetch); each class is first come, first served. A background request is
+  // refused when the queue is half full, so prefetching can never crowd out what somebody is waiting for.
+  interface HostState {
+    busy: boolean;
+    queue: { low: boolean; grant: () => void }[];
+  }
+  const hosts = new Map<string, HostState>();
   const lastEnd = new Map<string, number>();
-  const depth = new Map<string, number>();
   type Hold = (done: Promise<void>) => void;
-  async function onHost<T>(host: string, fn: (hold: Hold) => Promise<T>): Promise<T> {
-    const waiting = depth.get(host) ?? 0;
-    if (waiting >= maxQueue) throw new ProviderError('provider_unavailable', `${host}: busy (${waiting} requests already queued)`);
-    depth.set(host, waiting + 1);
-    const prev = tails.get(host) ?? Promise.resolve();
-    let release!: () => void;
-    const gate = new Promise<void>((r) => (release = r));
-    const tail = prev.then(() => gate);
-    tails.set(host, tail);
+  function pump(host: string, st: HostState) {
+    if (st.busy) return;
+    let at = st.queue.findIndex((w) => !w.low);
+    if (at < 0) at = 0;
+    const next = st.queue.splice(at, 1)[0];
+    if (!next) {
+      hosts.delete(host);
+      return;
+    }
+    st.busy = true;
+    next.grant();
+  }
+  async function onHost<T>(host: string, low: boolean, fn: (hold: Hold) => Promise<T>): Promise<T> {
+    const st = hosts.get(host) ?? { busy: false, queue: [] };
+    hosts.set(host, st);
+    const waiting = st.queue.length + (st.busy ? 1 : 0);
+    if (waiting >= (low ? Math.ceil(maxQueue / 2) : maxQueue)) {
+      if (!st.busy && st.queue.length === 0) hosts.delete(host);
+      throw new ProviderError('provider_unavailable', `${host}: busy (${waiting} requests already queued)`);
+    }
+    await new Promise<void>((grant) => {
+      st.queue.push({ low, grant });
+      pump(host, st);
+    });
     let held: Promise<void> | undefined;
     try {
-      await prev;
       const wait = (lastEnd.get(host) ?? -Infinity) + gapMs - now();
       if (wait > 0) await sleep(wait);
       return await fn((p) => {
@@ -123,11 +142,8 @@ export function createNetwork(opts: NetworkOptions) {
     } finally {
       const free = () => {
         lastEnd.set(host, now());
-        release();
-        if (tails.get(host) === tail) tails.delete(host);
-        const d = (depth.get(host) ?? 1) - 1;
-        if (d <= 0) depth.delete(host);
-        else depth.set(host, d);
+        st.busy = false;
+        pump(host, st);
       };
       if (held) void held.then(free, free);
       else free();
@@ -217,7 +233,7 @@ export function createNetwork(opts: NetworkOptions) {
     type Attempt = { res: Response } | { retry: unknown };
     /** One gated request inside the host slot. 403/429 open the circuit and throw; 5xx and network errors ask for a retry. */
     async function gatedAttempt(url: URL, init: RequestInit, b: Breaker): Promise<Attempt> {
-      return onHost(url.host, async (hold) => {
+      return onHost(url.host, (init as { priority?: string }).priority === 'low', async (hold) => {
         const probe = admit(b, url.hostname);
         try {
           let res: Response;
@@ -256,12 +272,12 @@ export function createNetwork(opts: NetworkOptions) {
      * a same-host redirect is followed; 403/429 open the circuit and refuse; anything else (other 4xx, 5xx,
      * a redirect off the host, an unreadable body) refuses this request. Only 200 and 404/410 are cached (24 h).
      */
-    async function robotsText(url: URL, b: Breaker): Promise<string> {
+    async function robotsText(url: URL, b: Breaker, prio: RequestInit): Promise<string> {
       const hit = robots.get(url.origin);
       if (hit && hit.expires > now()) return hit.text;
       let robotsUrl = new URL('/robots.txt', url.origin);
       for (let hop = 0; ; hop++) {
-        const r = await gatedAttempt(robotsUrl, {}, b).catch((e) => {
+        const r = await gatedAttempt(robotsUrl, prio, b).catch((e) => {
           if (e instanceof ProviderError) throw e;
           throw new ProviderError('provider_unavailable', `${url.host}: robots.txt unreachable`, { cause: e });
         });
@@ -297,9 +313,9 @@ export function createNetwork(opts: NetworkOptions) {
         return text;
       }
     }
-    async function assertRobots(url: URL, b: Breaker): Promise<void> {
+    async function assertRobots(url: URL, b: Breaker, prio: RequestInit): Promise<void> {
       if (url.pathname === '/robots.txt') return;
-      const text = await robotsText(url, b);
+      const text = await robotsText(url, b, prio);
       if (!robotsAllows(text, url.pathname + url.search, ROBOTS_TOKEN)) {
         throw new ProviderError('robots_disallowed', `robots.txt of ${url.host} disallows ${url.pathname}`);
       }
@@ -308,7 +324,7 @@ export function createNetwork(opts: NetworkOptions) {
     async function request(url: URL, init: RequestInit): Promise<Response> {
       const b = breaker(url.hostname);
       peek(b, url.hostname);
-      await assertRobots(url, b);
+      await assertRobots(url, b, { priority: (init as { priority?: string }).priority } as RequestInit);
       let lastError: unknown;
       for (let n = 0; n <= maxRetries; n++) {
         if (n > 0) await sleep(backoffBase * 2 ** (n - 1) + random() * backoffBase);

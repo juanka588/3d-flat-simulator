@@ -81,6 +81,9 @@ export function apiFailure(f: FlatApiFailure): CallToolResult {
     if (f.mayHaveApplied) {
       return toolError('server_unreachable', `the scene server did not answer in time (${f.message}); the change may have been applied`, 'It may have been applied: call list_history (or get_scene_summary) to see whether it landed BEFORE retrying; do not repeat the call blindly.');
     }
+    if ((f as { timedOut?: boolean }).timedOut) {
+      return toolError('server_unreachable', `the scene server is up but did not answer in time: ${f.message}`, 'The shop is read politely, one page every 1.5 s, so parallel searches queue behind each other. What was read is cached: retry the SAME call now (it is much faster), and run searches one after another instead of all at once.');
+    }
     return toolError('server_unreachable', `cannot reach the scene server: ${f.message}`, 'Start it with `pnpm server` (or `pnpm dev:all`) and retry; the URL is FLAT_SERVER_URL.');
   }
   if (f.status === 404 && f.errors[0]?.code === 'internal_error') {

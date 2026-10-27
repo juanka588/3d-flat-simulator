@@ -38,6 +38,7 @@ export const RenderViewArgs = z.strictObject({
   exposureEV: LightingView.shape.exposureEV.optional().describe('Exposure compensation in EV stops, -6 to 6.'),
   size: z.strictObject({ width: z.number().int().min(64).max(4096), height: z.number().int().min(64).max(4096) }).optional().describe(`Pixels. Default ${RENDER_LIMITS.defaultWidth}x${RENDER_LIMITS.defaultHeight}; the long edge is clamped to ${RENDER_LIMITS.maxEdgePx}.`),
   format: z.enum(['png', 'jpeg']).default('png').describe('png (lossless, default) or jpeg (quality 80, smaller).'),
+  waitForModelsS: z.number().min(0).max(300).optional().describe('Seconds to wait for 3D models still downloading from the shop (default 40). After that the picture is drawn anyway: those items are plain grey boxes and the result lists them in warnings; render again later to see them.'),
   compare: z.enum(['before_after']).optional().describe('Also return the flat as it was at the previous render_view of this session, as a second image (same camera and lighting).'),
 });
 export type RenderViewArgs = z.infer<typeof RenderViewArgs>;
@@ -89,8 +90,9 @@ function assemble(r: ServiceResult): { structured: RenderViewResult; content: Ca
 }
 
 function toSpec(a: RenderViewArgs): RenderSpecInput {
-  const { format: _f, view, ...rest } = a;
+  const { format: _f, waitForModelsS: _w, view, ...rest } = a;
   void _f;
+  void _w;
   return { ...rest, view: view === 'flat' ? 'orbit' : view } as RenderSpecInput;
 }
 
@@ -100,7 +102,7 @@ async function renderView(ctx: ToolContext, args: Record<string, unknown>): Prom
   const limited = rateLimited(ctx);
   if (limited) return limited;
   try {
-    const r = await renderCall(ctx)(toSpec(a.data), { format: a.data.format, session: ctx.session });
+    const r = await renderCall(ctx)(toSpec(a.data), { format: a.data.format, session: ctx.session, ...(a.data.waitForModelsS !== undefined ? { modelWaitMs: a.data.waitForModelsS * 1000 } : {}) });
     const { structured, content } = assemble(r);
     return toolOk(structured as unknown as Record<string, unknown>, content);
   } catch (e) {
@@ -122,7 +124,7 @@ export async function renderForWrite(ctx: ToolContext, spec: true | Record<strin
   const limited = rateLimited(ctx);
   if (limited) return { ok: false, result: limited };
   try {
-    let opts: NonNullable<Parameters<Call>[1]> = { format: a.data.format, session: ctx.session };
+    let opts: NonNullable<Parameters<Call>[1]> = { format: a.data.format, session: ctx.session, ...(a.data.waitForModelsS !== undefined ? { modelWaitMs: a.data.waitForModelsS * 1000 } : {}) };
     if (scene) {
       const sc = await fetchScene(ctx);
       if (!sc.ok) return sc;

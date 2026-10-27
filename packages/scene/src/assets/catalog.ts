@@ -371,6 +371,9 @@ export function parametricMeshAssets(registry: GeneratorRegistry = GENERATORS): 
 // ---------------------------------------------------------------------------------------------
 
 type Params = Record<string, number | string | boolean>;
+const foldName = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+/** Product names of a kitchen island (French and English). */
+const ISLAND_NAME = /\b(ilot|island)\b/;
 const clampInt = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, Math.round(v)));
 
 /**
@@ -378,7 +381,7 @@ const clampInt = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi
  * for categories without a sensible parametric shape (lamp, appliance, decor, other). The params are NOT
  * validated here; `resolveMesh` checks them against the registry.
  */
-export function defaultParametricFor(category: ProductCategory, dims: Dims): { generator: string; params: Params } | undefined {
+export function defaultParametricFor(category: ProductCategory, dims: Dims, name?: string): { generator: string; params: Params } | undefined {
   const { w, d, h } = dims;
   switch (category) {
     case 'bed':
@@ -412,6 +415,10 @@ export function defaultParametricFor(category: ProductCategory, dims: Dims): { g
     case 'wall_cabinet':
       return { generator: 'kitchenWall', params: { w, d, h, doors: clampInt(w / 0.45, 1, 4) } };
     case 'kitchen':
+      // A free-standing island (by its name): base cabinets, a full worktop and a stool overhang instead of a single run unit.
+      if (name !== undefined && ISLAND_NAME.test(foldName(name)) && Math.min(w, d) >= 0.5) {
+        return { generator: 'island', params: { w, d, h, overhang: Math.min(0.3, Math.min(w, d) * 0.35), doors: clampInt(w / 0.5, 0, 6) } };
+      }
       return { generator: 'kitchenBase', params: { w, d, h, doors: clampInt(w / 0.45, 0, 4), drawers: 0, worktop: true } };
     case 'lamp':
     case 'appliance':
@@ -483,7 +490,7 @@ export function resolveMesh(item: Pick<Item, 'assetId' | 'dims' | 'product' | 'p
     } else {
       const candidates: { generator: string; params: Record<string, unknown> }[] = [];
       if (mesh?.kind === 'parametric') candidates.push({ generator: mesh.generator, params: mesh.params });
-      const fallback = category && claimed ? defaultParametricFor(category, claimed) : undefined;
+      const fallback = category && claimed ? defaultParametricFor(category, claimed, item.product?.name) : undefined;
       if (fallback) candidates.push(fallback);
       for (const c of candidates) {
         const g = ctx.generators.get(c.generator);

@@ -133,9 +133,20 @@ function Shell({ scene, view, onSelect }: { scene: Scene; view: ViewState; onSel
   // Items that resolve to a GLB model (or wait for one) are drawn by ItemsMesh; the rest stay in the shell's items mesh.
   const models = useItemModels(scene, invalidate);
   const shell = useMemo<ShellMeshes>(
-    () => (models.claimed.size === 0 ? baseShell : { ...baseShell, items: buildItems({ items: scene.items.filter((i) => !models.claimed.has(i.id)) }) }),
+    () =>
+      models.claimed.size === 0 && models.fallbacks.size === 0
+        ? baseShell
+        : {
+            ...baseShell,
+            // An item whose model failed is drawn from the generator the chain ended at (the item's own `mesh` is still "provider").
+            // The visual dressing (a mattress on a bed frame) is drawn for every item, also those drawn from a model.
+            items: (() => {
+              const drawn = scene.items.map((i) => (models.fallbacks.has(i.id) ? { ...i, mesh: models.fallbacks.get(i.id)! } : i));
+              return buildItems({ items: drawn.filter((i) => !models.claimed.has(i.id)) }, { dressed: drawn });
+            })(),
+          },
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `claimed` is a new set per render; its content changes with `version`
-    [baseShell, scene.items, models.version, models.claimed.size],
+    [baseShell, scene.items, models.version, models.claimed.size, models.fallbacks.size],
   );
   // Per-room sky ambient (windowless rooms get less): an aoMap on the shell materials, see room-ambient.ts.
   const ambient = useMemo(() => createRoomAmbient(scene), [scene]);

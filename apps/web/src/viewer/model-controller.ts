@@ -1,5 +1,5 @@
 import { GENERATORS, isBuiltinAsset } from '@flat/scene';
-import type { Item, MeshAsset, MeshCatalog, MeshResolveContext, ResolvedMesh } from '@flat/scene';
+import type { Item, MeshAsset, MeshCatalog, MeshResolveContext, MeshSource, ResolvedMesh } from '@flat/scene';
 import type { Loaded, ModelCache, ModelHandle } from './model-cache';
 import { catalogWithout, libraryModelUrl, providerModelUrl } from './model-env';
 import { HARD_DIMS_LIMIT, checkDims, rotateBoxY, boxSize, frontRotationY } from './model-math';
@@ -36,6 +36,8 @@ export interface ItemModel<T extends ModelLike> {
   offline: boolean;
   /** URLs that failed to load on the way down the chain. */
   failures: string[];
+  /** A settled item whose chain ended at a generator the item does not carry itself (its provider model failed): drawn with this shape. */
+  fallbackMesh?: Extract<MeshSource, { kind: 'parametric' }>;
   /** Why this source won (from the resolver, or the failure that moved it). */
   reason: string;
 }
@@ -117,6 +119,13 @@ export class ModelController<T extends ModelLike> {
 
   state(itemId: string): ItemModel<T> | undefined {
     return this.records.get(itemId)?.state;
+  }
+
+  /** Items whose model could not be used and that fall back to a generator: the shape to draw them with (`buildItems` only knows the item's own `mesh`). */
+  fallbacks(): Map<string, Extract<MeshSource, { kind: 'parametric' }>> {
+    const out = new Map<string, Extract<MeshSource, { kind: 'parametric' }>>();
+    for (const [id, r] of this.records) if (r.state.status === 'settled' && r.state.fallbackMesh) out.set(id, r.state.fallbackMesh);
+    return out;
   }
 
   /** Ids of items the controller draws (loading placeholder or model); the rest come from `buildItems`. */
@@ -284,6 +293,8 @@ export class ModelController<T extends ModelLike> {
     const failedAssets = new Set<string>();
     let providerUsable = true;
     let providerFailed = false;
+    /** Why the last model on the way down was given up (shown by the badge when the item ends on a fallback). */
+    let why: string | undefined;
     const state = rec.state;
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
       const origin = this.deps.origin();
@@ -305,7 +316,10 @@ export class ModelController<T extends ModelLike> {
         }
         state.status = 'settled';
         state.source = resolved.source === 'builtin' ? 'parametric' : resolved.source === 'provider' || resolved.source === 'lookalike' ? 'placeholder' : resolved.source;
-        state.reason = resolved.reason;
+        state.reason = providerFailed || state.failures.length > 0 ? `${resolved.reason}; the model fell back because: ${why ?? 'its file could not be used'}` : resolved.reason;
+        if (resolved.source === 'parametric' && resolved.generator && item.mesh?.kind !== 'parametric') {
+          state.fallbackMesh = { kind: 'parametric', generator: resolved.generator.id, params: resolved.generator.params as Record<string, number | string | boolean> };
+        }
         if (providerFailed) this.scheduleRetry(item, rec);
         this.notify();
         return;
@@ -321,14 +335,28 @@ export class ModelController<T extends ModelLike> {
           return;
         }
         // The front used to CHECK the proportions is the one used to DRAW the model (provider models may be overridden).
-        const front = target.kind === 'provider' ? (this.deps.providerFront?.(item) ?? target.front) : target.front;
-        const check = checkDims(target.kind, boxSize(rotateBoxY(handle.value.box, frontRotationY(front))), state.dims);
+        const forced = target.kind === 'provider' ? this.deps.providerFront?.(item) : undefined;
+        let front = forced ?? target.front;
+        let check = checkDims(target.kind, boxSize(rotateBoxY(handle.value.box, frontRotationY(front))), state.dims);
+        let turned = false;
+        if (target.kind === 'provider' && forced === undefined && check.mismatch) {
+          // Shops disagree with their own models about which side is the width: IKEA lists an island as "Largeur 77, Longueur 126"
+          // (stored as w 0.77, d 1.26) while its model is 1.26 along x. Try the model turned a quarter; keep it when it fits clearly better.
+          const alt: Front = '+x';
+          const other = checkDims(target.kind, boxSize(rotateBoxY(handle.value.box, frontRotationY(alt))), state.dims);
+          if (other.distortion + 0.05 < check.distortion) {
+            front = alt;
+            check = other;
+            turned = true;
+          }
+        }
         if (check.distortion > HARD_DIMS_LIMIT) {
           // Far too different from the product's size: stretching it would misrepresent the product. Fall down the chain.
           handle.release();
           this.failedFiles++;
           state.failures.push(url);
-          state.reason = `${target.kind} model does not fit the item's size (${Math.round(check.distortion * 100)}% distortion > ${HARD_DIMS_LIMIT * 100}%); falling back`;
+          why = `${target.kind} model does not fit the item's size (${Math.round(check.distortion * 100)}% distortion > ${HARD_DIMS_LIMIT * 100}%)`;
+          state.reason = `${why}; falling back`;
           if (target.kind === 'provider') {
             providerUsable = false;
             providerFailed = true;
@@ -341,7 +369,7 @@ export class ModelController<T extends ModelLike> {
         state.url = url;
         state.model = handle.value;
         state.front = front;
-        state.reason = resolved.reason;
+        state.reason = turned ? `${resolved.reason}; the model was turned a quarter turn because its long side runs along the other axis than the shop's width and depth` : resolved.reason;
         state.warning = check.mismatch ? { code: 'dims_mismatch', kind: target.kind, distortion: check.distortion, limit: check.limit } : undefined;
         if (providerFailed) this.scheduleRetry(item, rec);
         this.notify();
@@ -350,7 +378,8 @@ export class ModelController<T extends ModelLike> {
         if (!this.current(item, rec)) return;
         this.failedFiles++;
         state.failures.push(url);
-        state.reason = `${target.kind} model failed (${error instanceof Error ? error.message : String(error)}); falling back`;
+        why = `${target.kind} model failed (${error instanceof Error ? error.message : String(error)})`;
+        state.reason = `${why}; falling back`;
         if (target.kind === 'provider') {
           providerUsable = false;
           providerFailed = true;

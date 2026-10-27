@@ -80,6 +80,7 @@ export const ItemDraft = ItemBase.extend({
   variant: ItemBase.shape.variant.describe('Chosen variant SKU or colour name of the product. Optional.'),
   mesh: MeshSourceD.describe('How the 3D shape is obtained (provider model, library lookalike or parametric generator). Optional.').optional(),
   clearance: ClearanceD.describe('Free space wanted around the item, in metres per side. Optional.').optional(),
+  dressing: ItemBase.shape.dressing.describe('Bed frames only: false draws the frame bare, without the visual mattress, duvet and pillows (which are not bought). Optional; place_item sets it.'),
   locked: ItemBase.shape.locked.describe('Existing furniture the designer must plan around (only the user may set it). Optional.'),
   relation: Relation.describe('The placement intent that put the item here (as returned by place_item). Optional.').optional(),
 }).superRefine(checkItemRules);

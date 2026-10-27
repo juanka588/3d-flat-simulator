@@ -198,6 +198,12 @@ export const ItemBase = z.strictObject({
   mesh: MeshSource.optional(),
   /** Free space wanted around the item (overrides the generator / category default). */
   clearance: Clearance.optional(),
+  /**
+   * Visual dressing the viewer draws with the product but that is not bought with it: a mattress, duvet and pillows on a
+   * bed FRAME (shops sell frames without a mattress). Absent or true = dressed when the product is a bed frame; false = bare.
+   * Never in the bill of materials.
+   */
+  dressing: z.boolean().optional(),
   /** Existing furniture the designer must plan around; only a user may move or remove it. */
   locked: z.boolean().optional(),
   /** The placement intent that put the item here (re-solved or validated when the room changes). */

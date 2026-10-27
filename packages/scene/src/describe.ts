@@ -7,6 +7,7 @@ import { SUN_PATCH_MIN_AREA, sunPatches, sunlightHours } from './lighting/sunpat
 import { localDayBounds, sunAtInstant } from './lighting/sun';
 import { polygonArea } from './measure';
 import { BUILTIN_ASSETS, isBuiltinAsset } from './assets/builtin';
+import { bedDressingOf } from './assets/dressing';
 import type { CompassPoint, RoomDescription, RoomItemDescription, RoomSummary } from './mcp-types';
 import { layoutContext, roomOfBox } from './placement/constraints';
 import type { ItemBox } from './placement/footprint';
@@ -275,10 +276,14 @@ function roomItems(scene: Scene, room: Room): RoomItemDescription[] {
       rotationDeg: r2(item.rotation),
       elevationM: r2(item.elevation),
       where: describeWhere(scene, room, edges, box),
+      ...(bedDressingOf(item) ? { note: BED_DRESSING_NOTE } : item.dressing === false && item.product?.category === 'bed' ? { note: 'drawn without a mattress (dressing: false)' } : {}),
     });
   }
   return out;
 }
+
+/** Said by `describe_room` for a bed frame the viewer dresses with a mattress. */
+export const BED_DRESSING_NOTE = 'bed FRAME only: mattress not included (the picture shows a mattress, duvet and pillows as a visual dressing that is not bought, not in the bill of materials); buy a mattress separately. place_item dressing:false draws it bare.';
 
 /** "against the north wall, 0.4 m from the east corner", "in the north-east corner", "1.2 m from the north wall". */
 function describeWhere(scene: Scene, room: Room, edges: readonly WallEdge[], box: ItemBox): string {

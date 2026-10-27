@@ -1,9 +1,10 @@
 import type { ProviderCache } from './types';
 
 /** TTLs and caps of D3. */
-export const TTL_SEARCH_MS = 10 * 60_000;
-export const TTL_PRODUCT_MS = 60 * 60_000;
-export const TTL_MODEL_MS = 60 * 60_000;
+export const TTL_SEARCH_MS = 60 * 60_000;
+export const TTL_PRODUCT_MS = 24 * 60 * 60_000;
+/** Models stay for the server's lifetime (memory only, never on disk); the 200 MB LRU bounds them. */
+export const TTL_MODEL_MS = Infinity;
 export const CACHE_TOTAL_BYTES = 200 * 1024 * 1024;
 export const CACHE_ENTRY_BYTES = 20 * 1024 * 1024;
 

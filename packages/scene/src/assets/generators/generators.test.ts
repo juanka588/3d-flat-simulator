@@ -74,19 +74,19 @@ function hash(mesh: MeshData): string {
 }
 
 describe('generator registry', () => {
-  it('registers the 14 furniture generators, the TV and the fixed bathroom / kitchen ware in the process-wide registry', () => {
+  it('registers the 15 furniture generators, the TV and the fixed bathroom / kitchen ware in the process-wide registry', () => {
     expect(GENERATORS.list().map((g) => g.id)).toEqual(
-      ['bathtub', 'bed', 'bookshelf', 'chair', 'cooktop', 'desk', 'fridge', 'kitchenBase', 'kitchenWall', 'mirror', 'nightstand', 'rug', 'sideboard', 'sofa', 'table', 'toilet', 'tv', 'tvUnit', 'wardrobe', 'washbasin'],
+      ['bathtub', 'bed', 'bookshelf', 'chair', 'cooktop', 'desk', 'fridge', 'island', 'kitchenBase', 'kitchenWall', 'mirror', 'nightstand', 'rug', 'sideboard', 'sofa', 'table', 'toilet', 'tv', 'tvUnit', 'wardrobe', 'washbasin'],
     );
-    expect(ALL_GENERATORS).toHaveLength(20);
+    expect(ALL_GENERATORS).toHaveLength(21);
   });
   it('registerGenerators is idempotent and fills any registry', () => {
     const r = createGeneratorRegistry();
     registerGenerators(r);
     registerGenerators(r);
-    expect(r.list()).toHaveLength(20);
+    expect(r.list()).toHaveLength(21);
     registerGenerators();
-    expect(GENERATORS.list()).toHaveLength(20);
+    expect(GENERATORS.list()).toHaveLength(21);
   });
 });
 
@@ -167,6 +167,7 @@ describe('generator geometry snapshot (determinism across versions)', () => {
         "cooktop": "25fad467c88c",
         "desk": "33b3f0f692b5",
         "fridge": "4a989acb1d4d",
+        "island": "55908420f6f3",
         "kitchenBase": "7595c22b3dc2",
         "kitchenWall": "0cfbd2b6c08b",
         "mirror": "9f58ba728e26",

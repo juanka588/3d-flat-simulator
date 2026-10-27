@@ -67,7 +67,10 @@ export interface McpRenderResult {
   before?: { image: string; mimeType: 'image/png' | 'image/jpeg' };
 }
 
-type Opts = { scene?: SceneResponse; format?: 'png' | 'jpeg'; session?: Pick<McpSession, 'lighting' | 'lampMode' | 'lastRenderedRev'> };
+type Opts = { scene?: SceneResponse; format?: 'png' | 'jpeg'; session?: Pick<McpSession, 'lighting' | 'lampMode' | 'lastRenderedRev'>; modelWaitMs?: number };
+
+/** Default wait for shop models still downloading (FLAT_MCP_MODEL_WAIT_MS), ms. */
+const DEFAULT_MODEL_WAIT_MS = Number(process.env['FLAT_MCP_MODEL_WAIT_MS']) || 40_000;
 
 export class McpRenderer implements Renderer {
   private readonly lastScene = new WeakMap<object, SceneResponse>();
@@ -113,7 +116,8 @@ export class McpRenderer implements Renderer {
     for (const id of Object.keys(lighting.lamps)) if (!scene.lights.some((l) => l.id === id)) warnings.push(`unknown lamp id "${id}" ignored (lights: ${scene.lights.map((l) => l.id).join(', ')})`);
 
     const models = modelSourceOf(this.flat);
-    const req = { pose, lighting, size: { width: size.width, height: size.height }, format: opts.format ?? ('png' as const), ...(models ? { models } : {}) };
+    const hasModels = scene.items.some((i) => i.mesh?.kind === 'provider');
+    const req = { pose, lighting, size: { width: size.width, height: size.height }, format: opts.format ?? ('png' as const), ...(models ? { models } : {}), ...(hasModels ? { modelWaitMs: opts.modelWaitMs ?? DEFAULT_MODEL_WAIT_MS } : {}) };
     const main = await this.browser.render({ ...req, scene: current, preview });
     let before: McpRenderResult['before'];
     let compare: { beforeRev: number } | undefined;
@@ -138,6 +142,16 @@ export class McpRenderer implements Renderer {
     if (lighting.sunEnabled && main.sun.available && main.sun.isUp === false) {
       warnings.push('sun below horizon at this time: the flat is lit only by lamps and the sky glow');
       if (main.lampsLit.length === 0) warnings.push('no lamp is lit and the sun is down: expect a very dark image; use preset "evening" or lamps');
+    }
+    // Items still waiting for their model are grey boxes in this picture; items whose model could not be used are stand-ins.
+    const nameOf = (id: string) => `${scene.items.find((i) => i.id === id)?.product?.name ?? id} (${id})`;
+    const modelReport = main.models ?? { loading: [], sources: {}, reasons: {} };
+    if (modelReport.loading.length > 0) {
+      warnings.push(`${modelReport.loading.length} item(s) are drawn as plain grey placeholder boxes because their 3D model was still downloading after ${Math.round((req.modelWaitMs ?? 0) / 1000)} s: ${modelReport.loading.slice(0, 8).map(nameOf).join('; ')}${modelReport.loading.length > 8 ? '; ...' : ''}. The downloads continue on the server: render again in a moment to see them.`);
+    }
+    const standIns = Object.entries(modelReport.sources).filter(([id, src]) => (src === 'parametric' || src === 'lookalike') && scene.items.find((i) => i.id === id)?.mesh?.kind === 'provider');
+    if (standIns.length > 0) {
+      warnings.push(`${standIns.length} item(s) use a stand-in shape instead of the shop's model: ${standIns.slice(0, 8).map(([id, src]) => `${nameOf(id)} as ${src} (${(modelReport.reasons[id] ?? '').slice(0, 140)})`).join('; ')}`);
     }
     const caption = await captionFor(this.flat, scene, spec.view, spec.roomId);
     if (preview) warnings.push('this is a PREVIEW of an uncommitted change; the flat has not been modified');

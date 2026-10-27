@@ -95,7 +95,7 @@ describe('search merge, product cache, seen registry', () => {
     await expect(reg.search('', { limit: 3, providerId: 'zzz' })).rejects.toMatchObject({ code: 'unknown_provider' });
   });
 
-  it('caches search results for 10 min and records for 1 h (injected clock)', async () => {
+  it('caches search results for 1 h and records for 24 h (injected clock)', async () => {
     const clock = fakeClock();
     let calls = 0;
     const mock = createMockProvider();
@@ -107,7 +107,7 @@ describe('search merge, product cache, seen registry', () => {
     await reg.search('lit', { limit: 5 });
     await reg.search('lit', { limit: 5 });
     expect(calls).toBe(1);
-    clock.advance(10 * 60_000 + 1);
+    clock.advance(60 * 60_000 + 1);
     await reg.search('lit', { limit: 5 });
     expect(calls).toBe(2);
     expect((await reg.getProduct(`mock:${mockProducts()[0]!.sku}`)).sku).toBe(mockProducts()[0]!.sku);
@@ -142,7 +142,7 @@ describe('fetchModel through the registry', () => {
     return { reg, f, modelCalls: () => modelCalls, clock };
   };
 
-  it('streams the GLB, caches it for 1 h (one upstream request, single-flight), nothing is written to disk', async () => {
+  it('streams the GLB, caches it for the server lifetime (one upstream request, single-flight), nothing is written to disk', async () => {
     const bytes = tinyGlb();
     const { reg, modelCalls, clock } = await ikeaReg(() => new Response(bytes.slice(), { headers: { 'content-type': 'model/gltf-binary' } }));
     const [a, b] = await Promise.all([reg.fetchModel('ikea-fr:80275887'), reg.fetchModel('ikea-fr:80275887')]);
@@ -151,9 +151,10 @@ describe('fetchModel through the registry', () => {
     expect(a.size).toBe(bytes.length);
     await reg.fetchModel('ikea-fr:80275887');
     expect(modelCalls()).toBe(1);
-    clock.advance(60 * 60_000 + 1);
+    // Models stay for the server's lifetime (memory only).
+    clock.advance(30 * 24 * 60 * 60_000);
     await reg.fetchModel('ikea-fr:80275887');
-    expect(modelCalls()).toBe(2);
+    expect(modelCalls()).toBe(1);
   });
 
   it('refuses a download that is not a GLB, and one over the per-file cap', async () => {

@@ -18,6 +18,7 @@ const TITLES: Readonly<Record<string, string>> = {
   wardrobe: 'Wardrobe',
   kitchenBase: 'Kitchen base unit',
   kitchenWall: 'Kitchen wall unit',
+  island: 'Kitchen island',
   sideboard: 'Sideboard',
   tvUnit: 'TV unit',
   nightstand: 'Bedside table',

@@ -32,6 +32,23 @@ async function boot() {
   return { client, clock, flat, call, url: real.url };
 }
 
+describe('place_item argument leniency', () => {
+  it('accepts a position sent as JSON text and a rotation sent as a string (models do that)', async () => {
+    const { call } = await boot();
+    await call('search_products', { query: '', limit: 12 });
+    const r = await call('place_item', { productId: 'mock:MOCK-DESK-120', roomId: 'ch1', position: '[8.3, 1.2]', rotation: '90' });
+    expect(r.j.ok, JSON.stringify(r.j)).toBe(true);
+    expect(r.j.placed[0]).toMatchObject({ rotation: 90 });
+  });
+  it('refuses an elevation on a floor product with a hint about mount "wall"', async () => {
+    const { call } = await boot();
+    await call('search_products', { query: '', limit: 12 });
+    const r = await call('place_item', { productId: 'mock:MOCK-DESK-120', roomId: 'ch1', position: [8.3, 1.2], elevation: 1.2 });
+    expect(r.j.code).toBe('invalid_command');
+    expect(r.j.hint).toContain('mount');
+  });
+});
+
 describe('furnishing flow against the real server (mock provider)', () => {
   it('providers -> search -> get -> options -> batch place (preview, commit) -> validate -> bill -> undo', async () => {
     const { call, flat } = await boot();

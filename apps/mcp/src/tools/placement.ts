@@ -5,6 +5,7 @@ import {
   Relation,
   Sku,
   applyCommand,
+  bedDressingOf,
   billOfMaterials,
   checkParametricMesh,
   defaultParametricFor,
@@ -52,7 +53,20 @@ export const MAX_PLACEMENTS = 12;
 // Schemas
 // ---------------------------------------------------------------------------------------------
 
-const Vec2 = z.tuple([z.number(), z.number()]);
+/** Models sometimes send numbers as strings ("90") and tuples as JSON text ("[5.1, 1.9]"): accept both, the tool schema still says number / [x, y]. */
+const asNumber = (v: unknown): unknown => (typeof v === 'string' && v.trim() !== '' && Number.isFinite(Number(v)) ? Number(v) : v);
+const lenientNumber = (inner: z.ZodNumber) => z.preprocess(asNumber, inner);
+const Vec2 = z.preprocess((v) => {
+  let value = v;
+  if (typeof value === 'string') {
+    try {
+      value = JSON.parse(value);
+    } catch {
+      return v;
+    }
+  }
+  return Array.isArray(value) ? value.map(asNumber) : v;
+}, z.tuple([z.number(), z.number()]));
 const RoomId = z.string().min(1).max(64);
 
 /** One thing to place. Strict: a price, a name or dims are rejected as unknown keys. */
@@ -62,8 +76,12 @@ const Entry = z
     roomId: RoomId,
     relation: Relation.optional(),
     position: Vec2.optional(),
-    rotation: z.number().min(-720).max(720).optional(),
-    elevation: z.number().min(0).max(10).optional(),
+    rotation: lenientNumber(z.number().min(-720).max(720)).optional(),
+    elevation: lenientNumber(z.number().min(0).max(10)).optional(),
+    /** Hang a product the shop lists as standing on the floor (a wall shelf): only for kinds that can hang. */
+    mount: z.enum(['floor', 'wall']).optional(),
+    /** A bed frame is drawn with a mattress, duvet and pillows (not bought, not in the bill); false draws it bare. */
+    dressing: z.boolean().optional(),
     mesh: MeshSource.optional(),
     variantSku: Sku.optional(),
     acknowledgeHeavyPartition: z.boolean().optional(),
@@ -99,7 +117,9 @@ const ENTRY_PROPS: Json = {
   relation: { ...RELATION_REF, description: 'Where, in designer terms (against_wall, in_corner, centered_in, facing, next_to, under_window). The server finds the exact position and rotation. Use this OR position. In items[], "$0" as the itemId of next_to (targetId of facing) means the item entry 0 of the same call places.' },
   position: { type: 'array', items: { type: 'number' }, minItems: 2, maxItems: 2, description: 'Explicit plan position [x, y] of the item centre, metres. Use this OR relation.' },
   rotation: { type: 'number', description: 'With position: degrees counter-clockwise seen from above (front faces plan +y at 0). With relation: an extra turn, usually omitted.' },
-  elevation: { type: 'number', minimum: 0, maximum: 10, description: 'Wall or ceiling products only: height of the bottom above the floor, metres.' },
+  elevation: { type: 'number', minimum: 0, maximum: 10, description: 'Wall or ceiling products only: height of the bottom above the floor, metres. A product named "murale"/"wall" is hung automatically.' },
+  mount: { type: 'string', enum: ['floor', 'wall'], description: `Override how the product is fixed. Only "wall" is useful: for a shelf, mirror, lamp or cabinet that the shop lists as floor-standing but that you want to hang (then give elevation). Floor-only furniture (bed, sofa, table...) cannot be hung.` },
+  dressing: { type: 'boolean', description: 'Bed frames only. Default true: the picture shows a mattress, duvet and pillows on the frame (a visual dressing: the mattress is NOT part of the product, not in the bill of materials; buy one separately). false draws the bare frame.' },
   mesh: { ...MESH_REF, description: 'Optional shape. Default: the real 3D model when the provider has one, else a lookalike from the CC0 library, else a parametric shape at the exact dims. A parametric shape must match the product dims within 2%.' },
   variantSku: { type: 'string', description: 'A variants[].sku from get_product (another colour or size).' },
   acknowledgeHeavyPartition: { type: 'boolean', description: 'Accept hanging a heavy (over 15 kg) wall product on a non-structural wall.' },
@@ -137,30 +157,44 @@ interface Prepared {
   record: ProductRecord;
   variant?: ProductRecord['variants'][number];
   dims: Dims;
+  /** How the item is fixed: the product's, unless the caller hangs a hangable floor product. */
+  mount: ProductRecord['mount'];
 }
 
 function prepare(record: ProductRecord, variantSku: string | undefined): Loaded<Prepared> {
-  if (variantSku === undefined) return { ok: true, data: { record, dims: record.dims } };
+  if (variantSku === undefined) return { ok: true, data: { record, dims: record.dims, mount: record.mount } };
   const variant = record.variants.find((v) => v.sku === variantSku);
   if (!variant) {
     const skus = record.variants.map((v) => v.sku);
     return { ok: false, result: toolError('invalid_command', `product ${record.provider}:${record.sku} has no variant "${variantSku}"`, skus.length ? `Variants: ${skus.join(', ')} (get_product).` : 'This product has no variants; omit variantSku.', { errors: [{ code: 'invalid_command', path: 'variantSku', message: 'unknown variant' }] }) };
   }
-  return { ok: true, data: { record, variant, dims: variant.dims ?? record.dims } };
+  return { ok: true, data: { record, variant, dims: variant.dims ?? record.dims, mount: record.mount } };
 }
 
 function requestFor(p: Prepared, roomId: string, relation: PlacementRequestInput['relation'], extra: { elevation?: number | undefined; rotation?: number | undefined; acknowledge?: boolean | undefined }): PlacementRequestInput {
   return {
     roomId,
     dims: p.dims,
-    mount: p.record.mount,
-    ...(extra.elevation !== undefined && p.record.mount !== 'floor' ? { elevation: extra.elevation } : {}),
+    mount: p.mount,
+    ...(extra.elevation !== undefined && p.mount !== 'floor' ? { elevation: extra.elevation } : {}),
     ...(p.record.weightKg !== undefined ? { weightKg: p.record.weightKg } : {}),
     relation,
     ...(extra.rotation !== undefined ? { rotation: extra.rotation } : {}),
     ...(extra.acknowledge ? { acknowledgeHeavyPartition: true } : {}),
     maxCandidates: 3,
   };
+}
+
+/** Kinds of product that can be hung when the caller says `mount: "wall"` (the shop's own "mount" is a guess from the category). */
+const HANGABLE: ReadonlySet<string> = new Set(['shelf', 'mirror', 'lamp', 'wall_cabinet', 'tv_unit', 'decor', 'other', 'drawers', 'sideboard']);
+/** Kinds hung on an elevation alone (a shelf the shop lists as floor-standing, placed at 1.4 m, is meant to hang). */
+const HUNG_BY_ELEVATION: ReadonlySet<string> = new Set(['shelf', 'mirror', 'wall_cabinet', 'tv_unit']);
+
+/** The mount of a placement: the product's, unless a floor product that can hang is asked to (`mount: "wall"`, or an elevation on a shelf, mirror, cabinet). */
+function effectiveMount(record: ProductRecord, entry: Pick<Entry, 'mount' | 'elevation'>): { ok: true; mount: ProductRecord['mount'] } | { ok: false; message: string } {
+  if (record.mount !== 'floor' || entry.mount === 'floor') return { ok: true, mount: record.mount };
+  if (entry.mount === 'wall') return HANGABLE.has(record.category) ? { ok: true, mount: 'wall' } : { ok: false, message: `"${record.name}" is a ${record.category}; it cannot be hung on a wall` };
+  return HUNG_BY_ELEVATION.has(record.category) && (entry.elevation ?? 0) > 0 ? { ok: true, mount: 'wall' } : { ok: true, mount: 'floor' };
 }
 
 const BACKREF = /^\$(\d{1,2})$/;
@@ -244,7 +278,7 @@ async function chooseMesh(ctx: ToolContext, cache: { list?: ProviderInfo[] }, p:
   if (has3d) return { ok: true, mesh: { kind: 'provider' }, source: 'provider' };
   const look = pickLookalike({ category: record.category, dims, styleTags: record.styleTags }, cc0Assets());
   if (look) return { ok: true, mesh: { kind: 'lookalike', assetId: look.asset.id }, source: 'lookalike' };
-  const def = defaultParametricFor(record.category, dims);
+  const def = defaultParametricFor(record.category, dims, record.name);
   if (def) {
     const r = parametric(def.generator, def.params, dims);
     if (r.ok) return r;
@@ -406,6 +440,7 @@ const getBillOfMaterials: ToolDef = {
         itemIds: g.itemIds,
         ...(g.stale ? { stale: true } : {}),
       })),
+      ...(scene.items.some((i) => bedDressingOf(i)) ? { notes: ['Bed frames are listed without a mattress: the mattress, duvet and pillows in the pictures are a visual dressing, not part of this bill. Add a mattress separately.'] } : {}),
       ...(nameless.length ? { withoutProduct: nameless.map((l) => ({ itemId: l.itemId, name: l.name, locked: l.locked })) } : {}),
       byRoom: bom.byRoom,
       ...(bom.stale.length ? { stale: bom.stale } : {}),
@@ -537,7 +572,10 @@ async function placeItem(ctx: ToolContext, args: Json): Promise<CallToolResult> 
     if (room) return room;
     const { record, variant, dims } = prep.data;
     if (!record.priceTtc) return toolError('invalid_command', `product ${entry.productId} has a non-TTC price and cannot be placed${at}`, 'Budgets count TTC prices only; pick another product.');
-    if (record.mount === 'floor' && entry.elevation !== undefined && entry.elevation > 0) return toolError('invalid_command', `elevation is only for wall or ceiling products; "${record.name}" stands on the floor${at}`, 'Remove elevation.', { errors: [{ code: 'invalid_command', path: 'elevation', message: 'floor product' }] });
+    const mounted = effectiveMount(record, entry);
+    if (!mounted.ok) return toolError('invalid_command', `${mounted.message}${at}`, 'Remove mount (and elevation), or pick a product that hangs (shelf, mirror, lamp, wall cabinet).', { errors: [{ code: 'invalid_command', path: 'mount', message: 'cannot be hung' }] });
+    prep.data.mount = mounted.mount;
+    if (prep.data.mount === 'floor' && entry.elevation !== undefined && entry.elevation > 0) return toolError('invalid_command', `elevation is only for wall or ceiling products; "${record.name}" stands on the floor${at}`, 'Remove elevation, or pass mount "wall" if this shelf, mirror, lamp or cabinet hangs on the wall (the shop lists it as floor-standing).', { errors: [{ code: 'invalid_command', path: 'elevation', message: 'floor product' }] });
 
     // Argument problems (shape, dims) are reported before the solver runs.
     const mesh = await chooseMesh(ctx, providers, prep.data, entry.mesh);
@@ -564,8 +602,9 @@ async function placeItem(ctx: ToolContext, args: Json): Promise<CallToolResult> 
       roomId: placement.roomId,
       productRef,
       product: snapshot,
-      mount: record.mount,
+      mount: prep.data.mount,
       dims,
+      ...(entry.dressing === false ? { dressing: false } : {}),
       ...(variant ? { variant: variant.sku } : {}),
       ...(mesh.mesh ? { mesh: mesh.mesh } : {}),
       relation: placement.relation,

@@ -217,6 +217,8 @@ export const RoomItemDescription = z.strictObject({
   elevationM: z.number(),
   /** Position in room terms, e.g. "against the north wall, 0.4 m from the east corner". */
   where: z.string(),
+  /** Something to know about how the item is drawn or sold, e.g. a bed frame drawn with a mattress that is not part of the product. */
+  note: z.string().optional(),
 });
 export type RoomItemDescription = z.infer<typeof RoomItemDescription>;
 

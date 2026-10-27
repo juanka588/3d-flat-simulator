@@ -21,6 +21,9 @@ async function main(): Promise<void> {
   // Lazy: the browser (and Playwright) start at the first render, never at start-up.
   const renderer = new McpRenderer(flat, sharedRenderer({ webUrl: config.webUrl, renderChannel: config.renderChannel, log: config.log }));
 
+  // FLAT_MCP_PREWARM=1 starts the browser in the background now, so the first render_view does not pay for it.
+  if (process.env['FLAT_MCP_PREWARM'] === '1') void renderer.browser.session.warmUp({ width: 1024, height: 768 }).catch((e: unknown) => config.log('warn', `render prewarm failed: ${e instanceof Error ? e.message : String(e)}`));
+
   let close: () => Promise<void> = async () => undefined;
   let closing = false;
   const shutdown = (): void => {

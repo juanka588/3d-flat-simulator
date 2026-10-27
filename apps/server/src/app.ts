@@ -149,7 +149,24 @@ export function createApp(store: SceneStore, config: ServerConfig, providers: Pr
       return undefined;
     }
   }
-  const send = (c: Context<Env>, o: Outcome) => c.json(o.body, o.status);
+  /** After a change that may have added products: start their models downloading at low priority, so the first render finds them in memory. */
+  const prefetchModels = () => {
+    if (!providers.prefetchModels) return;
+    try {
+      const ids = new Set<string>();
+      for (const it of store.sceneResponse().scene.items) {
+        const ref = it.productRef ?? it.product;
+        if (ref && it.mesh?.kind === 'provider') ids.add(`${ref.provider}:${ref.sku}`);
+      }
+      if (ids.size > 0) providers.prefetchModels([...ids]);
+    } catch (e) {
+      config.log('warn', redact(`model prefetch skipped: ${e instanceof Error ? e.message : String(e)}`));
+    }
+  };
+  const send = (c: Context<Env>, o: Outcome) => {
+    if (o.status < 300) prefetchModels();
+    return c.json(o.body, o.status);
+  };
   const malformed = (c: Context<Env>) => c.json(err('malformed_json', 'request body is not valid JSON'), 400);
 
   app.get('/healthz', (c) => c.json({ ok: true, epoch: store.epoch, rev: store.rev }));
@@ -252,6 +269,7 @@ export function createApp(store: SceneStore, config: ServerConfig, providers: Pr
       return c.json({ ok: false, errors } satisfies ErrorResponse, syntaxOk ? 422 : 400);
     }
     const { epoch, rev } = await store.importScene(loaded.scene);
+    prefetchModels();
     return c.json({ ok: true, epoch, rev, warnings: loaded.warnings });
   });
 

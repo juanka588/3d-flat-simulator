@@ -4,6 +4,7 @@ import type { MeshData } from '../geometry/types';
 import type { Item, Scene, Vec2 } from '../schema';
 import { BUILTIN_ASSETS } from './builtin-assets';
 import { GENERATORS } from './catalog';
+import { bedDressingOf, buildBedDressing } from './dressing';
 import { Kit } from './generators/kit';
 import { tv } from './generators/misc';
 import { ITEM_MATERIALS } from './item-materials';
@@ -156,11 +157,19 @@ function appendItemMesh(b: MeshBuilder, item: Item, local: MeshData): void {
  *  - `mesh.kind === 'provider' | 'lookalike'`: an exact-dims placeholder box (the viewer swaps in the GLB);
  *  - no mesh: `builtin:tv-55` gets its dedicated model, any other asset a placeholder box in
  *    `builtin:placeholder` (at its dims when known, else 0.3 m) and `validateScene` warns.
+ * `options.dressed` (default: the items) are the items that get their visual dressing (a mattress, duvet and
+ * pillows on a bed frame; see `dressing.ts`), also when the item itself is drawn from a model by the viewer.
  */
-export function buildItems(scene: Pick<Scene, 'items'>): MeshData {
-  if (scene.items.length === 0) return emptyMesh();
+export function buildItems(scene: Pick<Scene, 'items'>, options: { dressed?: readonly Item[] } = {}): MeshData {
+  const dressed = options.dressed ?? scene.items;
+  if (scene.items.length === 0 && dressed.length === 0) return emptyMesh();
   const b = new MeshBuilder();
   const cache = new Map<string, MeshData>();
   for (const item of scene.items) appendItemMesh(b, item, localMesh(item, cache));
+  // Visual dressing (a mattress on a bed frame): drawn whatever draws the item itself (its model, a generator, a box).
+  for (const item of dressed) {
+    const spec = bedDressingOf(item);
+    if (spec) appendItemMesh(b, item, buildBedDressing(spec));
+  }
   return b.build();
 }

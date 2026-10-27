@@ -110,6 +110,8 @@ export interface FlatTestHook {
   setMeshResolver: (fn: ((item: any, ctx: any) => any) | null) => void; // eslint-disable-line @typescript-eslint/no-explicit-any
   /** Pretends the scene server is at `origin` (provider models are then fetched from it) or that there is none (`null`); `undefined` follows the real sync state. */
   setModelOrigin: (origin: string | null | undefined) => void;
+  /** Longest wait (ms) of a frame for model downloads; when it runs out the frame draws placeholder boxes for the items still loading (`modelStats().loading`). null (default): wait the frame timeout, then fail. */
+  setModelWaitMs: (ms: number | null) => void;
   /** Per-item front axis override for provider models (default +z); null restores the default. */
   setProviderFront: (fn: ((item: { id: string }) => Front | undefined) | undefined) => void;
   /** Applies the view change and resolves after a frame reflecting it has been rendered. */

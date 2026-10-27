@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { ProductRecord } from '@flat/scene';
 import { PASTED_URL_META } from './catalog';
-import { categoryOf, WALL_CATEGORIES } from './category';
+import { categoryOf, mountOf } from './category';
 import { readTextCapped } from './http';
 import { asArray, asPrice, extractJsonLd, hasType, isObj, str, type Json } from './jsonld';
 import { checkPublicHost, dnsAll } from './ssrf';
@@ -24,7 +24,7 @@ export const PASTED_URL_ID = PASTED_URL_META.id;
 export const PAGE_MAX_BYTES = 2 * 1024 * 1024;
 const MODEL_MAX_BYTES = 20 * 1024 * 1024;
 const MAX_REDIRECTS = 3;
-const TTL_MS = 60 * 60_000;
+const TTL_MS = 24 * 60 * 60_000;
 export const BLOCKED_MESSAGE = 'This site blocks automated reads; enter the details by hand or pick another product';
 
 const CAPABILITIES = PASTED_URL_META.capabilities;
@@ -243,7 +243,7 @@ export function parsePastedPage(html: string, pageUrl: string, fetchedAt: string
     ...draft,
     dims: { w: dims.w, d: dims.d, h: dims.h },
     dimsSource: 'structured',
-    mount: WALL_CATEGORIES.has(category) ? 'wall' : 'floor',
+    mount: mountOf(name, category),
     styleTags: [],
     colours: str(product['color']) ? [str(product['color'])!.slice(0, 40)] : [],
     variants: [],

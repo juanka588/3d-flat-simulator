@@ -185,9 +185,9 @@ export class HttpFlatApi implements FlatApi {
     return { ok: false, kind: 'http', status: res.status, errors, ...(j.rev !== undefined ? { rev: j.rev } : {}), ...(j.epoch !== undefined ? { epoch: j.epoch } : {}) };
   }
 
-  /** Provider calls go to a retailer politely (1.5 s gap per request; a search also reads product pages): a live IKEA search takes about 10 s. */
+  /** Provider calls go to a retailer politely (1.5 s gap per request; a search also reads product pages): a cold live IKEA search takes 10-20 s, more when several are queued; the server answers after about 20 s with what it has read. */
   private providerTimeoutMs(): number {
-    return Math.max(this.config.requestTimeoutMs, 45_000);
+    return Math.max(this.config.requestTimeoutMs, 90_000);
   }
 
   getScene() {
@@ -254,7 +254,8 @@ export class HttpFlatApi implements FlatApi {
     try {
       const res = await this.fetchImpl(target.href, {
         headers: this.config.token ? { authorization: `Bearer ${this.config.token}` } : {},
-        signal: AbortSignal.timeout(Math.max(this.config.requestTimeoutMs, 30_000)),
+        // A model may wait behind other polite downloads (one per 1.5 s): the render decides how long to wait, not this request.
+        signal: AbortSignal.timeout(Math.max(this.config.requestTimeoutMs, 120_000)),
       });
       return { ok: true, data: { status: res.status, contentType: res.headers.get('content-type') ?? 'application/octet-stream', body: new Uint8Array(await res.arrayBuffer()) } };
     } catch (e) {

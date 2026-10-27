@@ -3330,8 +3330,12 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "description": "Accept hanging a heavy (over 15 kg) wall product on a non-structural wall.",
               "type": "boolean",
             },
+            "dressing": {
+              "description": "Bed frames only. Default true: the picture shows a mattress, duvet and pillows on the frame (a visual dressing: the mattress is NOT part of the product, not in the bill of materials; buy one separately). false draws the bare frame.",
+              "type": "boolean",
+            },
             "elevation": {
-              "description": "Wall or ceiling products only: height of the bottom above the floor, metres.",
+              "description": "Wall or ceiling products only: height of the bottom above the floor, metres. A product named "murale"/"wall" is hung automatically.",
               "maximum": 10,
               "minimum": 0,
               "type": "number",
@@ -3339,6 +3343,14 @@ exports[`snapshots (the contract) > tools/list 1`] = `
             "mesh": {
               "$ref": "#/$defs/mesh",
               "description": "Optional shape. Default: the real 3D model when the provider has one, else a lookalike from the CC0 library, else a parametric shape at the exact dims. A parametric shape must match the product dims within 2%.",
+            },
+            "mount": {
+              "description": "Override how the product is fixed. Only "wall" is useful: for a shelf, mirror, lamp or cabinet that the shop lists as floor-standing but that you want to hang (then give elevation). Floor-only furniture (bed, sofa, table...) cannot be hung.",
+              "enum": [
+                "floor",
+                "wall",
+              ],
+              "type": "string",
             },
             "position": {
               "description": "Explicit plan position [x, y] of the item centre, metres. Use this OR relation.",
@@ -3641,6 +3653,9 @@ exports[`snapshots (the contract) > tools/list 1`] = `
         "acknowledgeHeavyPartition": {
           "$ref": "#/$defs/placement/properties/acknowledgeHeavyPartition",
         },
+        "dressing": {
+          "$ref": "#/$defs/placement/properties/dressing",
+        },
         "elevation": {
           "$ref": "#/$defs/placement/properties/elevation",
         },
@@ -3670,6 +3685,9 @@ exports[`snapshots (the contract) > tools/list 1`] = `
         },
         "mesh": {
           "$ref": "#/$defs/placement/properties/mesh",
+        },
+        "mount": {
+          "$ref": "#/$defs/placement/properties/mount",
         },
         "position": {
           "$ref": "#/$defs/placement/properties/position",
@@ -4688,6 +4706,12 @@ exports[`snapshots (the contract) > tools/list 1`] = `
             "flat",
           ],
           "type": "string",
+        },
+        "waitForModelsS": {
+          "description": "Seconds to wait for 3D models still downloading from the shop (default 40). After that the picture is drawn anyway: those items are plain grey boxes and the result lists them in warnings; render again later to see them.",
+          "maximum": 300,
+          "minimum": 0,
+          "type": "number",
         },
       },
       "type": "object",

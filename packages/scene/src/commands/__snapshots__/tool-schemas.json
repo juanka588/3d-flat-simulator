@@ -1298,6 +1298,10 @@
               "additionalProperties": false,
               "description": "Free space wanted around the item, in metres per side. Optional."
             },
+            "dressing": {
+              "description": "Bed frames only: false draws the frame bare, without the visual mattress, duvet and pillows (which are not bought). Optional; place_item sets it.",
+              "type": "boolean"
+            },
             "locked": {
               "description": "Existing furniture the designer must plan around (only the user may set it). Optional.",
               "type": "boolean"
@@ -3695,6 +3699,10 @@
                   },
                   "additionalProperties": false,
                   "description": "Free space wanted around the item, in metres per side. Optional."
+                },
+                "dressing": {
+                  "description": "Bed frames only: false draws the frame bare, without the visual mattress, duvet and pillows (which are not bought). Optional; place_item sets it.",
+                  "type": "boolean"
                 },
                 "locked": {
                   "description": "Existing furniture the designer must plan around (only the user may set it). Optional.",

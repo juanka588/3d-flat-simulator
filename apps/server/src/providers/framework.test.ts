@@ -8,7 +8,7 @@ import { ProviderError } from './types';
 
 describe('MemoryCache (LRU + TTL, injected clock)', () => {
   it('uses the D3 TTLs and caps', () => {
-    expect([TTL_SEARCH_MS, TTL_PRODUCT_MS, TTL_MODEL_MS]).toEqual([600_000, 3_600_000, 3_600_000]);
+    expect([TTL_SEARCH_MS, TTL_PRODUCT_MS, TTL_MODEL_MS]).toEqual([3_600_000, 86_400_000, Infinity]);
     expect([CACHE_TOTAL_BYTES, CACHE_ENTRY_BYTES]).toEqual([200 * 1024 * 1024, 20 * 1024 * 1024]);
   });
 

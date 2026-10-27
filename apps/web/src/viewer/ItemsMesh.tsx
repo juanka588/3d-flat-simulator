@@ -18,6 +18,8 @@ export interface ItemModels {
   controller: ModelController<ModelTemplate>;
   /** Ids of the items ItemsMesh draws (a placeholder while loading, then the model); `buildItems` must skip them. */
   claimed: ReadonlySet<string>;
+  /** Items whose model could not be used and that are drawn from a generator instead (by id). */
+  fallbacks: ReadonlyMap<string, Extract<NonNullable<Item['mesh']>, { kind: 'parametric' }>>;
   version: number;
 }
 
@@ -34,6 +36,7 @@ export function useItemModels(scene: Scene, invalidate: () => void): ItemModels 
   // Idempotent and silent (listeners are only told from async work), so it is fine while rendering.
   controller.update(scene.items);
   const claimed = controller.claimed();
+  const fallbacks = controller.fallbacks();
   useEffect(() => {
     setActiveModelController(controller);
     const stop = controller.subscribe(invalidate);
@@ -43,7 +46,7 @@ export function useItemModels(scene: Scene, invalidate: () => void): ItemModels 
       controller.dispose();
     };
   }, [controller, invalidate]);
-  return { controller, claimed, version };
+  return { controller, claimed, fallbacks, version };
 }
 
 const unitBox = new BoxGeometry(1, 1, 1);
