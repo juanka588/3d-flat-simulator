@@ -26,6 +26,14 @@ type Vec3 = [number, number, number];
 export const MeshAssetSource = z.enum(['parametric', 'cc0', '3dfuture']);
 export type MeshAssetSource = z.infer<typeof MeshAssetSource>;
 
+/**
+ * Library tier of a `cc0` asset: `light` (default; `public/models`, <= 300 KB, fetched when placed) or `hd`
+ * (`public/models-hd`, hero models up to 2 MB with 1024 px textures, fetched only when an item resolves to one;
+ * lookalike picking prefers them and falls back to the light tier when they cannot be loaded).
+ */
+export const MeshAssetTier = z.enum(['light', 'hd']);
+export type MeshAssetTier = z.infer<typeof MeshAssetTier>;
+
 /** Source-model axis that is the item's FRONT (+z of the item frame). */
 export const FrontAxis = z.enum(['+z', '-z', '+x', '-x']);
 export type FrontAxis = z.infer<typeof FrontAxis>;
@@ -58,6 +66,8 @@ export const MeshAsset = z
     file: AssetFile.optional(),
     /** `parametric`: generator id (see `Generator`). */
     generator: z.string().min(1).max(64).optional(),
+    /** `cc0` assets: the library tier the file lives in (absent = `light`). */
+    tier: MeshAssetTier.optional(),
   })
   .refine((a) => (a.source === 'parametric' ? a.generator !== undefined : a.file !== undefined), {
     path: ['file'],
@@ -298,10 +308,13 @@ const SCORE_CATEGORY = 1000;
 const SCORE_RELATED_CATEGORY = 500;
 const SCORE_PER_STYLE_TAG = 20;
 const SCORE_PROPORTIONS = 10;
+/** HD hero models beat an otherwise equal light-tier model (more than the proportions term, less than a style tag). */
+const SCORE_HD_TIER = 15;
 
 /**
  * Deterministically picks the library asset that best fits a product: same category (a related one, e.g.
- * armchair <-> sofa, ranks lower), then the most shared style tags, then the closest proportions. Assets whose
+ * armchair <-> sofa, ranks lower), then the most shared style tags, then the closest proportions; `hd` tier assets of the exact
+ * category get a small bonus, so the light tier is the fallback. Assets whose
  * scaling would distort the shape by more than `MAX_LOOKALIKE_DISTORTION` are rejected, and so are
  * `parametric` assets (the chain's parametric rung covers those). Ties are broken by asset id.
  */
@@ -319,7 +332,8 @@ export function pickLookalike(
     const { scale, distortion } = scaleToDims(asset.nativeDims, product.dims);
     if (!(distortion <= MAX_LOOKALIKE_DISTORTION)) continue;
     const tags = asset.styleTags.filter((t) => wanted.has(t.toLowerCase())).length;
-    const score = categoryScore + SCORE_PER_STYLE_TAG * tags + SCORE_PROPORTIONS * (1 - distortion / MAX_LOOKALIKE_DISTORTION);
+    const hd = asset.tier === 'hd' && categoryScore === SCORE_CATEGORY ? SCORE_HD_TIER : 0;
+    const score = categoryScore + SCORE_PER_STYLE_TAG * tags + SCORE_PROPORTIONS * (1 - distortion / MAX_LOOKALIKE_DISTORTION) + hd;
     if (!best || score > best.score || (score === best.score && asset.id < best.asset.id)) best = { asset, scale, distortion, score };
   }
   return best;

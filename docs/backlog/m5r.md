@@ -14,9 +14,11 @@ Why: the viewer "looks like a video game instead of a realistic house upgrade pl
 
 Known limits: screen-space AO inside shelves and between items is not modelled; the lamp bounce strength was reviewed and left (the orange came from the 2700 K colour, not the bounce level).
 
-## Step 2: hero models (next)
+## Step 2: hero models (done, `models-hd/` tier)
 
-| Story | Acceptance |
-|---|---|
-| H1 `models-hd/` tier | Lazy folder, <= 2 MB per model, <= 60 MB total, KTX2 or WebP textures, loaded only for items that name a hero model; `check-models` extended. |
-| H2 Top-25 hero models | The top-25 list in `docs/research/m5-modern-assets.md` section 10 (kitchen island, stools, slat wall, sofa, bed, wardrobe fronts, lamps), CC0 or CC-BY with credit lines in `docs/MODELS-CREDITS.md`. |
+| Story | Acceptance | Status |
+|---|---|---|
+| H1 `models-hd/` tier | Lazy folder `apps/web/public/models-hd/` (+ its own `catalog.json`, entries say `tier: "hd"`): <= 2 MiB per model, <= 40k triangles, <= 20 materials, WebP textures <= 1024 px, Meshopt, <= 60 MiB in total (now 43 models, 10.3 MiB). `check-models` checks both folders (and `dist/`) against their own budgets; `check-no-retailer` lists both catalogs. The viewer fetches the small HD catalog with the light one and a hero GLB only when an item resolves to it (`${BASE_URL}models-hd/`); `pickLookalike` gives HD models of the exact category a small bonus (the 25 % aspect rule still applies) and a model that fails to load falls back to the light tier or the generator through the existing `catalogWithout` path. | done |
+| H2 Hero models | `pnpm models:hd` (`scripts/models/build-hd.mjs`, `sketchfab.mjs`, `manifest-hd.json`): Sketchfab API licence check (`cc0` / `by` only), token from `scripts/models/.env.local` (never logged, redacted in errors), sequential cached downloads in `.cache/models/sketchfab`, unit scale detected from the expected size range (or `fitMaxM`), front axis per model, `--preview` writes a 4-view sheet for the visual review. 43 models accepted, 12 rejected (reasons in the manifest). All are CC BY 4.0: credit lines in `docs/MODELS-CREDITS.md` and in the Library tab ("Model credits"). | done |
+| H3 Texture LOD | 512 px by default and 1024 px near / selected / walk is **not** done: it needs a second GLB per model and a swap in `model-*.ts` (the other agent's area). HD models ship at 1024 px. | open |
+| H4 Not in this step | Kitchen island (IKEA TORNVIKEN streams through the provider), TV slat panel, media wall, curtains, wall panelling, rug (parametric generators), throw blanket, BlenderKit CC0 (needs an add-on login: not downloadable without one). | open |

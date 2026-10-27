@@ -13,7 +13,7 @@ async function openHooked(page: import('@playwright/test').Page): Promise<void> 
 
 test('Pages mode with a product item: no retailer, provider or API request (M5.18)', async ({ page }) => {
   const hosts = (JSON.parse(readFileSync('scripts/ci/retailer-hosts.json', 'utf8')) as { hosts: string[] }).hosts;
-  const origin = 'http://127.0.0.1:4173';
+  const origin = `http://127.0.0.1:${process.env.E2E_STATIC_PORT ?? 4173}`;
   const urls: string[] = [];
   page.on('request', (r) => urls.push(r.url()));
   await openHooked(page);

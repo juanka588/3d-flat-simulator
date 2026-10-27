@@ -1,6 +1,6 @@
 import { MeshAsset } from '@flat/scene';
 import { registerLibraryNames } from './format';
-import { modelsBase, parseCatalogJson } from '../viewer/model-env';
+import { hdModelsBase, modelsBase, parseCatalogJson } from '../viewer/model-env';
 
 /** A library model for the Library tab: the asset plus its thumbnail URL. */
 export interface LibraryModel {
@@ -8,8 +8,17 @@ export interface LibraryModel {
   thumb?: string;
 }
 
-/** Reads the committed CC0 catalog (`public/models/catalog.json`) with thumbnails; a missing or broken file is an empty list. */
+/**
+ * Reads the committed catalogs, light tier first and then the HD tier (`public/models-hd/catalog.json`), with
+ * thumbnails; a missing or broken file is an empty list.
+ */
 export async function loadLibraryModels(fetcher: typeof fetch = (...a) => fetch(...a), base: string = modelsBase()): Promise<LibraryModel[]> {
+  const [light, hd] = await Promise.all([loadTier(fetcher, base), loadTier(fetcher, hdModelsBase(base), 'hd')]);
+  const seen = new Set<string>();
+  return [...light, ...hd].filter((m) => !seen.has(m.asset.id) && !!seen.add(m.asset.id));
+}
+
+async function loadTier(fetcher: typeof fetch, base: string, tier?: 'hd'): Promise<LibraryModel[]> {
   try {
     const res = await fetcher(`${base}catalog.json`);
     if (!res.ok) return [];
@@ -24,10 +33,17 @@ export async function loadLibraryModels(fetcher: typeof fetch = (...a) => fetch(
     registerLibraryNames(assets);
     return assets
       .filter((a) => a.source === 'cc0')
+      .map((a) => (tier ? { ...a, tier } : a))
       .map((asset) => ({ asset, ...(thumbs.has(asset.id) ? { thumb: thumbs.get(asset.id)! } : {}) }));
   } catch {
     return [];
   }
+}
+
+/** Splits a credit line like `"Title" by Author, Source, CC-BY-4.0 (https://...)` into its text and the https URL, if any. */
+export function splitCredit(credit: string): { text: string; url?: string } {
+  const m = /\s*\((https:\/\/[^)\s]+)\)\s*$/.exec(credit);
+  return m ? { text: credit.slice(0, m.index), url: m[1]! } : { text: credit };
 }
 
 /** Case- and accent-insensitive match of a filter text against a name or category. */

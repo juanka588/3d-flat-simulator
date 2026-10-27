@@ -1,5 +1,6 @@
 import { MeshAsset } from '@flat/scene';
 import catalogJson from '../../web/public/models/catalog.json';
+import hdCatalogJson from '../../web/public/models-hd/catalog.json';
 
 /**
  * The committed CC0 model library (`apps/web/public/models/catalog.json`), as `MeshAsset`s. The build
@@ -7,14 +8,15 @@ import catalogJson from '../../web/public/models/catalog.json';
  * ones are kept and invalid entries are skipped, like the viewer does (`parseCatalogJson`).
  */
 
-const KEYS = ['id', 'name', 'source', 'licence', 'credit', 'category', 'styleTags', 'nativeDims', 'anchor', 'front', 'file', 'generator'] as const;
+const KEYS = ['id', 'name', 'source', 'licence', 'credit', 'category', 'styleTags', 'nativeDims', 'anchor', 'front', 'file', 'generator', 'tier'] as const;
 
 let cached: MeshAsset[] | undefined;
 
 export function cc0Assets(): readonly MeshAsset[] {
   if (cached) return cached;
   const out: MeshAsset[] = [];
-  const list = Array.isArray(catalogJson) ? (catalogJson as unknown[]) : [];
+  // Light tier first, then the HD hero tier (`models-hd`, lazy in the viewer): the same ids the viewer resolves.
+  const list = [...(Array.isArray(catalogJson) ? (catalogJson as unknown[]) : []), ...(Array.isArray(hdCatalogJson) ? (hdCatalogJson as unknown[]) : [])];
   for (const entry of list) {
     if (!entry || typeof entry !== 'object') continue;
     const src = entry as Record<string, unknown>;

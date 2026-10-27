@@ -2,6 +2,9 @@
 // Model library gates (M5.15, model parts), run after the web build:
 //  - every file in public/models (and dist/models) is listed in catalog.json (GLB, thumbnail) with the recorded sha256;
 //  - budgets: <= 300 KB per model, <= 6 MiB in total, <= 20k triangles, <= 4 materials;
+//  - the lazy HD tier (public/models-hd and dist/models-hd, M5R step 2) is checked the same way against its own
+//    budgets: <= 2 MiB per model, <= 60 MiB in total, <= 40k triangles, <= 20 materials, textures <= 1024 px, and
+//    every entry says `tier: "hd"`;
 //  - credits: every entry has a licence (CC0-1.0 or CC-BY-4.0) and a credit line, and docs/MODELS-CREDITS.md lists it;
 //  - licence evidence: every entry records HOW the licence was verified (basis, needle, source URL, date);
 //  - the GLBs themselves are parsed (`checkGlbFiles`, with @gltf-transform/core): catalog.json is not trusted for
@@ -18,6 +21,8 @@ import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 export const BUDGETS = { modelBytes: 300 * 1024, totalBytes: 6 * 1024 * 1024, triangles: 20_000, materials: 4, textureSize: 1024 };
+/** The lazy `models-hd/` tier: hero models, fetched only when placed. */
+export const HD_BUDGETS = { modelBytes: 2 * 1024 * 1024, totalBytes: 60 * 1024 * 1024, triangles: 40_000, materials: 20, textureSize: 1024 };
 /** How far (m) the model's bottom may be from y = 0, its footprint centre from the origin, and its measured size from `nativeDims`. */
 /** Library thumbnails of the parametric generators (`pnpm assets:thumbs`): generated, not catalogued, small. */
 export const PARAM_THUMB = /^thumbs\/param-[A-Za-z0-9]+\.webp$/;
@@ -37,7 +42,7 @@ export function listFiles(dir, prefix = '') {
 }
 
 /** Problems of a models directory against its catalog (and, when given, the credits document text). */
-export function checkModelsDir(dir, { credits, budgets = BUDGETS } = {}) {
+export function checkModelsDir(dir, { credits, budgets = BUDGETS, tier = 'light' } = {}) {
   const problems = [];
   const catalog = JSON.parse(readFileSync(join(dir, 'catalog.json'), 'utf8'));
   if (!Array.isArray(catalog)) return { problems: ['catalog.json is not an array'], bytes: 0 };
@@ -49,6 +54,8 @@ export function checkModelsDir(dir, { credits, budgets = BUDGETS } = {}) {
     ids.add(e.id);
     if (e.file) listed.set(e.file, e.sha256);
     if (e.thumb) listed.set(e.thumb, e.thumbSha256);
+    if (tier === 'hd' && e.tier !== 'hd') problems.push(`${e.id}: an entry of the HD tier must say tier "hd"`);
+    if (tier !== 'hd' && e.tier === 'hd') problems.push(`${e.id}: tier "hd" entries belong in models-hd/`);
     if (!ALLOWED_LICENCES.has(e.licence)) problems.push(`${e.id}: licence "${e.licence}" is not CC0-1.0 or CC-BY-4.0`);
     if (!e.credit || !String(e.credit).trim()) problems.push(`${e.id}: no credit line`);
     if (e.licence === 'CC-BY-4.0' && !/\bby\b/i.test(String(e.credit ?? ''))) problems.push(`${e.id}: CC-BY needs an author in the credit`);
@@ -163,7 +170,14 @@ async function main() {
   const creditsPath = resolve(root, 'docs/MODELS-CREDITS.md');
   const credits = existsSync(creditsPath) ? readFileSync(creditsPath, 'utf8') : undefined;
   if (credits === undefined) { console.error('docs/MODELS-CREDITS.md is missing (run pnpm models:credits)'); failed = true; }
-  for (const rel of ['apps/web/public/models', 'apps/web/dist/models']) {
+  const hdSource = existsSync(resolve(root, 'apps/web/public/models-hd/catalog.json'));
+  const targets = [
+    { rel: 'apps/web/public/models', budgets: BUDGETS, tier: 'light' },
+    { rel: 'apps/web/dist/models', budgets: BUDGETS, tier: 'light' },
+    // The HD tier is optional, but once its source folder exists the Pages build must carry it too.
+    ...(hdSource ? [{ rel: 'apps/web/public/models-hd', budgets: HD_BUDGETS, tier: 'hd' }, { rel: 'apps/web/dist/models-hd', budgets: HD_BUDGETS, tier: 'hd' }] : []),
+  ];
+  for (const { rel, budgets, tier } of targets) {
     const dir = resolve(root, rel);
     if (!existsSync(dir)) {
       if (rel.includes('dist')) { console.error(`${rel} missing: build the web app first`); process.exit(2); }
@@ -171,8 +185,8 @@ async function main() {
       failed = true;
       continue;
     }
-    const { problems, bytes } = checkModelsDir(dir, { credits });
-    if (existsSync(join(dir, 'catalog.json'))) problems.push(...(await checkGlbFiles(dir)));
+    const { problems, bytes } = checkModelsDir(dir, { credits, budgets, tier });
+    if (existsSync(join(dir, 'catalog.json'))) problems.push(...(await checkGlbFiles(dir, { budgets })));
     console.log(`${rel}: ${(bytes / 1024 / 1024).toFixed(2)} MiB, ${problems.length} problem(s)`);
     for (const p of problems) console.error(`  ${p}`);
     if (problems.length) failed = true;

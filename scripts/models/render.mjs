@@ -14,17 +14,18 @@ async function decodeTexture(tex) {
   return { data, w: info.width, h: info.height };
 }
 
-/** Renders the (unquantised) document to a `size` x `size` WebP with transparent background. */
-export async function renderThumb(doc, size = 160) {
+/** Renders the (unquantised) document to a `size` x `size` WebP with transparent background. `yaw` turns the camera about +y (0 = from the front-right). */
+export async function renderThumb(doc, size = 160, { yaw = 0 } = {}) {
   const S = size * 2;
   const scene = doc.getRoot().listScenes()[0];
   const bb = getBounds(scene);
   const centre = [0, 1, 2].map((i) => (bb.min[i] + bb.max[i]) / 2);
   const radius = Math.hypot(bb.max[0] - bb.min[0], bb.max[1] - bb.min[1], bb.max[2] - bb.min[2]) / 2 || 1;
-  const toCam = norm([0.75, 0.6, 1]);
+  const turn = ([x, y, z]) => [x * Math.cos(yaw) + z * Math.sin(yaw), y, -x * Math.sin(yaw) + z * Math.cos(yaw)]; // about +y, for the 4-view previews
+  const toCam = norm(turn([0.75, 0.6, 1]));
   const right = norm(cross([0, 1, 0], toCam));
   const up = cross(toCam, right);
-  const light = norm([0.35, 0.8, 0.5]);
+  const light = norm(turn([0.35, 0.8, 0.5]));
   const color = new Uint8ClampedArray(S * S * 4);
   const depth = new Float32Array(S * S).fill(-Infinity);
   const scale = (S * 0.46) / radius;
