@@ -107,6 +107,10 @@ function firstError(errors: CommandError[]): string {
   return e ? e.message : 'unknown error';
 }
 
+let activeToken: string | null = null;
+/** The bearer token of the connected server (memory only), for the product routes that POST. */
+export const serverToken = (): string | null => activeToken;
+
 export class SyncClient {
   readonly core: SyncCore;
   /** Ephemeral `view` messages (camera/lighting from the assistant); applied only while "Follow assistant view" is on. */
@@ -158,6 +162,7 @@ export class SyncClient {
   // ---- lifecycle ---------------------------------------------------------------------------
 
   start(): void {
+    activeToken = this.target.token;
     useSyncStore.setState({
       mode: 'server',
       serverUrl: this.target.url,
@@ -182,6 +187,7 @@ export class SyncClient {
 
   stop(): void {
     this.stopped = true;
+    activeToken = null;
     setActiveViewRelay(null);
     window.removeEventListener('online', this.onOnline);
     clearTimeout(this.reconnectTimer);

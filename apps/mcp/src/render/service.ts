@@ -7,6 +7,40 @@ import { RenderError } from './errors';
 import { BrowserRenderer, clampSize, sharedRenderer, type RendererOptions } from './browserRenderer';
 import { effectiveSessionLighting } from '../readModel';
 import { resolveLighting, resolvePose } from './resolve';
+import type { ModelSource } from './pageSession';
+
+/** The server's own asset routes, served to the headless viewer from Node (see `ModelSource`). */
+function modelSourceOf(flat: FlatApi): ModelSource | undefined {
+  try {
+    const origin = new URL(flat.assetUrl({ kind: 'mesh', assetId: 'probe' })).origin;
+    return {
+      origin,
+      async fetch(url) {
+        const r = await flat.fetchAsset(url);
+        return r.ok ? r.data : undefined;
+      },
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+/** Attribution brand of a provider: "IKEA" for the IKEA ids, else its label. */
+const brandOf = (p: { id: string; label: string }) => (/^ikea/i.test(p.id) ? 'IKEA' : p.label);
+
+/**
+ * "IKEA models, personal use" when items of a personal-use-only provider are in view: the whole flat for
+ * top/orbit views, the room for room/walk views. Needs one `listProviders` call, made only when the scene has products.
+ */
+async function captionFor(flat: FlatApi, scene: SceneResponse['scene'], view: string, roomId: string | undefined): Promise<string | undefined> {
+  const inView = scene.items.filter((i) => i.product && ((view !== 'room' && view !== 'walk') || roomId === undefined || i.roomId === roomId));
+  if (inView.length === 0) return undefined;
+  const r = await flat.listProviders();
+  if (!r.ok) return undefined;
+  const personal = new Map(r.data.providers.filter((p) => p.personalUseOnly).map((p) => [p.id, p]));
+  const brands = [...new Set(inView.flatMap((i) => (personal.has(i.product!.provider) ? [brandOf(personal.get(i.product!.provider)!)] : [])))];
+  return brands.length ? `${brands.join(', ')} models, personal use` : undefined;
+}
 
 /**
  * The MCP-facing render service: implements the `Renderer` of `tools/registry.ts` on top of the warm
@@ -78,7 +112,8 @@ export class McpRenderer implements Renderer {
     const lighting = resolveLighting(scene, base, spec);
     for (const id of Object.keys(lighting.lamps)) if (!scene.lights.some((l) => l.id === id)) warnings.push(`unknown lamp id "${id}" ignored (lights: ${scene.lights.map((l) => l.id).join(', ')})`);
 
-    const req = { pose, lighting, size: { width: size.width, height: size.height }, format: opts.format ?? ('png' as const) };
+    const models = modelSourceOf(this.flat);
+    const req = { pose, lighting, size: { width: size.width, height: size.height }, format: opts.format ?? ('png' as const), ...(models ? { models } : {}) };
     const main = await this.browser.render({ ...req, scene: current, preview });
     let before: McpRenderResult['before'];
     let compare: { beforeRev: number } | undefined;
@@ -104,6 +139,7 @@ export class McpRenderer implements Renderer {
       warnings.push('sun below horizon at this time: the flat is lit only by lamps and the sky glow');
       if (main.lampsLit.length === 0) warnings.push('no lamp is lit and the sun is down: expect a very dark image; use preset "evening" or lamps');
     }
+    const caption = await captionFor(this.flat, scene, spec.view, spec.roomId);
     if (preview) warnings.push('this is a PREVIEW of an uncommitted change; the flat has not been modified');
 
     return {
@@ -125,6 +161,7 @@ export class McpRenderer implements Renderer {
         lampsLit: main.lampsLit,
         sun,
         warnings,
+        ...(caption ? { caption } : {}),
       },
       ...(before ? { before } : {}),
     };

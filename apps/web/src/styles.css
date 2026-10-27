@@ -1128,3 +1128,265 @@ legend {
   display: flex;
   gap: 0.75rem;
 }
+
+/* ---- Catalog, placement and item properties (M5.13) ---- */
+.catalog-tabs {
+  display: flex;
+  gap: 0.3rem;
+  margin-bottom: 0.5rem;
+}
+.catalog-tabs button.active {
+  background: #1d1d1f;
+  color: #fff;
+}
+.catalog h3,
+.room-items h3 {
+  font-size: 0.8rem;
+  margin: 0.5rem 0 0.25rem;
+}
+.catalog-search input,
+.paste-url input {
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0.25rem 0;
+}
+.paste-url {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  align-items: center;
+}
+.paste-url label {
+  flex: 1;
+}
+.dims-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+.dims-form label {
+  flex: 1 1 4rem;
+  font-size: 0.75rem;
+}
+.dims-form input {
+  width: 100%;
+  box-sizing: border-box;
+}
+.personal-banner,
+.catalog-error,
+.placement-notice {
+  margin: 0.3rem 0;
+  padding: 0.35rem 0.5rem;
+  border-radius: 6px;
+  font-size: 0.78rem;
+}
+.personal-banner {
+  background: #fff4d6;
+  border: 1px solid #e6c15c;
+}
+.catalog-error,
+.placement-notice {
+  background: #fdeef0;
+  border: 1px solid #e8a3ad;
+  color: #8a0019;
+}
+.provider-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+}
+.chip .dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: #2e9e5b;
+}
+.chip.circuit-open .dot {
+  background: #d64545;
+}
+.chip.circuit-half_open .dot {
+  background: #e6a017;
+}
+.chip[disabled] {
+  opacity: 0.5;
+}
+.product-list {
+  list-style: none;
+  margin: 0.4rem 0;
+  padding: 0;
+  display: grid;
+  gap: 0.4rem;
+}
+.product-card {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.35rem;
+  border: 1px solid #d8d8dc;
+  border-radius: 8px;
+  background: #fafafb;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: pan-y;
+}
+.product-card[data-draggable='false'] {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+.product-card .thumb {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 3.2rem;
+  height: 3.2rem;
+  border-radius: 6px;
+  background: #e8ebf0;
+  color: #6b6b72;
+  overflow: hidden;
+}
+.product-card .thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.product-card .meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+  font-size: 0.78rem;
+}
+.product-card .name {
+  overflow-wrap: anywhere;
+}
+.badges,
+.item-badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+}
+.badge {
+  padding: 0 0.35rem;
+  border-radius: 4px;
+  background: #e8ebf0;
+  font-size: 0.7rem;
+}
+.badge-3d {
+  background: #1d1d1f;
+  color: #fff;
+}
+.badge-warn {
+  background: #fff4d6;
+}
+.badge-locked {
+  background: #e3ecff;
+}
+.badge-offline {
+  background: #eee;
+  border: 1px dashed #888;
+}
+.param-form {
+  display: grid;
+  gap: 0.2rem;
+  margin-top: 0.3rem;
+}
+.param-form label {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.4rem;
+}
+.param-form input[type='number'],
+.param-form select {
+  width: 5rem;
+  margin: 0;
+}
+.room-items ul {
+  list-style: none;
+  padding: 0;
+}
+.room-items li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.1rem 0;
+}
+.room-items li .link {
+  flex: 1;
+  min-width: 0;
+}
+.room-items .link.current {
+  font-weight: 600;
+}
+.room-items h3 .room-total,
+.flat-total span {
+  float: right;
+  font-variant-numeric: tabular-nums;
+}
+.item-props {
+  display: grid;
+  gap: 0.4rem;
+}
+.item-photo {
+  width: 100%;
+  max-height: 7rem;
+  object-fit: cover;
+  border-radius: 6px;
+}
+.item-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+.item-messages {
+  margin: 0;
+  color: #8a0019;
+  font-size: 0.78rem;
+}
+.variant-picker {
+  display: grid;
+  gap: 0.15rem;
+}
+.ghost-tip {
+  position: fixed;
+  z-index: 40;
+  display: grid;
+  gap: 0.1rem;
+  max-width: 16rem;
+  padding: 0.3rem 0.5rem;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 0.78rem;
+  pointer-events: none;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.3);
+}
+.ghost-tip.ok {
+  background: #2e9e5b;
+}
+.ghost-tip.bad {
+  background: #d64545;
+}
+.placement-notice {
+  position: absolute;
+  z-index: 30;
+  left: 50%;
+  bottom: 1rem;
+  transform: translateX(-50%);
+  max-width: min(32rem, 90%);
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.2);
+}
+.app.mobile .product-card .meta {
+  font-size: 0.9rem;
+}

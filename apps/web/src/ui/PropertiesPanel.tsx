@@ -1,10 +1,12 @@
-import { BUILTIN_ASSETS, itemLabel, roomStats, wallEdgeMaterial, wallStats } from '@flat/scene';
+import { BUILTIN_ASSETS, roomStats, wallEdgeMaterial, wallStats } from '@flat/scene';
 import type { Scene } from '@flat/scene';
 import { useId, useState } from 'react';
 import { readPref, writePref } from '../state/prefs';
 import type { Selection } from '../viewer/view-types';
+import { itemName } from '../catalog/format';
 import { FinishPanel, takesFinish } from './FinishPanel';
 import { HistoryButtons } from './HistoryButtons';
+import { ItemProperties } from './ItemProperties';
 import { StructuralControl } from './StructuralControl';
 
 /** Desktop: whether the properties dock is collapsed ('1') or open ('0'). Remembered across visits. */
@@ -82,8 +84,8 @@ function describe(scene: Scene, selection: Selection): Description | null {
     if (!item) return null;
     const asset = BUILTIN_ASSETS[item.assetId];
     return {
-      title: itemLabel(item),
-      summary: `${item.roomId ?? 'no room'} · elevation ${m(item.elevation)}`,
+      title: itemName(item),
+      summary: item.product ? `${item.product.price.toFixed(2)} ${item.product.currency} TTC · ${item.roomId ?? 'no room'}` : `${item.locked ? 'locked · ' : ''}${item.roomId ?? 'no room'} · elevation ${m(item.elevation)}`,
       rows: [
         ['Id', item.id],
         ['Room', item.roomId ?? '-'],
@@ -111,7 +113,14 @@ function describe(scene: Scene, selection: Selection): Description | null {
 function SelectionBody({ scene, selection, rows, history = false }: { scene: Scene; selection: Selection; rows: [string, string][]; history?: boolean }) {
   return (
     <>
-      <Rows rows={rows} />
+      {selection.kind === 'item' ? (
+        (() => {
+          const item = scene.items.find((i) => i.id === selection.entityId);
+          return item ? <ItemProperties scene={scene} item={item} /> : <Rows rows={rows} />;
+        })()
+      ) : (
+        <Rows rows={rows} />
+      )}
       {selection.kind === 'wall' && <StructuralControl scene={scene} wallId={selection.entityId} />}
       {history && <HistoryButtons />}
       <FinishPanel scene={scene} selection={selection} />

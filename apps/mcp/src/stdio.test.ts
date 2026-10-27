@@ -19,11 +19,11 @@ const connect = async (env: Record<string, string>, name?: string) => {
 const json = (r: { content: unknown }) => JSON.parse((r.content as { text: string }[])[0]!.text);
 
 describe('stdio server', () => {
-  it('lists the 18 write tools (13 + 5 item tools) plus the stubs', async () => {
+  it('lists the 19 write tools (13 + 5 item tools + place_item) plus the 18 read, view, render and history tools', async () => {
     const { client } = await connect({ FLAT_SERVER_URL: DEAD_URL });
     const names = (await client.listTools()).tools.map((t) => t.name);
     for (const t of commandToolSchemas()) expect(names).toContain(t.name);
-    expect(names).toHaveLength(18 + 11);
+    expect(names).toHaveLength(19 + 18);
     expect(client.getServerVersion()?.name).toBe('flat');
     expect(client.getInstructions()).toContain('plan');
   });

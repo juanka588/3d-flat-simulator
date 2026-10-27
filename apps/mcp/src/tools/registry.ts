@@ -57,6 +57,8 @@ export type LampMode = 'scene' | 'allOn' | 'allOff';
 export const LAMP_MODES = ['scene', 'allOn', 'allOff'] as const;
 
 export interface McpSession {
+  /** Opaque id of this MCP session: the key of the server's seen-products registry (`POST /api/products/seen`). */
+  id: string;
   /** `clientInfo.name` of the connected client (`unknown` before initialize). */
   clientName: string;
   /** How the client is connected; only changes the wording of hints (an HTTP client cannot "reconnect"). */
@@ -77,13 +79,18 @@ export interface McpSession {
   writes: TokenBucket;
   /** Rate limit of renders (`FLAT_MCP_RENDERS_PER_MIN`); lane E takes from it. */
   renders: TokenBucket;
+  /** Rate limit of `search_products` (`FLAT_MCP_SEARCHES_PER_MIN`, default 20). */
+  searches: TokenBucket;
+  /** Rate limit of `get_product` (`FLAT_MCP_PRODUCT_GETS_PER_MIN`, default 60). */
+  productGets: TokenBucket;
   /** Scene-mutating calls that passed validation in this session (cap: `limits.sessionWriteCap`). */
   writeCount: number;
 }
 
 /** A fresh session. Stdio: one per process. Stateless HTTP: one per client key (see `http.ts`). */
-export function newSession(limits: Pick<McpLimits, 'writesPerMinute' | 'rendersPerMinute'>, clock: Pick<Clock, 'now'>, transport: 'stdio' | 'http' = 'stdio'): McpSession {
+export function newSession(limits: Pick<McpLimits, 'writesPerMinute' | 'rendersPerMinute' | 'searchesPerMinute' | 'productGetsPerMinute'>, clock: Pick<Clock, 'now'>, transport: 'stdio' | 'http' = 'stdio'): McpSession {
   return {
+    id: ulid(),
     clientName: 'unknown',
     transport,
     lighting: {},
@@ -91,6 +98,8 @@ export function newSession(limits: Pick<McpLimits, 'writesPerMinute' | 'rendersP
     syncToUserTab: false,
     writes: new TokenBucket(limits.writesPerMinute, () => clock.now()),
     renders: new TokenBucket(limits.rendersPerMinute, () => clock.now()),
+    searches: new TokenBucket(limits.searchesPerMinute, () => clock.now()),
+    productGets: new TokenBucket(limits.productGetsPerMinute, () => clock.now()),
     writeCount: 0,
   };
 }
@@ -114,6 +123,8 @@ export type RenderMeta = Omit<RenderResult, 'mimeType'> & {
   lampsLit: string[];
   sun: { available: boolean; isUp?: boolean; azimuthDeg?: number; elevationDeg?: number };
   warnings: string[];
+  /** Attribution to show with the picture, e.g. "IKEA models, personal use" (retailer products in view). */
+  caption?: string;
 };
 
 export interface Renderer {

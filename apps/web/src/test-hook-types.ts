@@ -93,6 +93,12 @@ export interface FlatTestHook {
    * `whenRendered` waits for pending models.
    */
   modelStats: () => ModelStats;
+  /** M5.13: the drag in progress (`drag` null when none), the ghost it shows (`valid`, the violation `message`) and the last refusal `notice`. */
+  placement: () => {
+    drag: { kind: 'new' | 'move' | 'rotate' | 'elevate'; label: string; itemId?: string } | null;
+    notice: string | null;
+    ghost: { position: [number, number]; rotation: number; elevation: number; valid: boolean; message: string | null; kind: string } | null;
+  };
   /** World bounding box of the GLB-drawn item `id` (plain or instanced), measured on the objects in the three.js scene; null if it is not drawn from a model. */
   itemBounds: (id: string) => { min: [number, number, number]; max: [number, number, number] } | null;
   /** Replaces `resolveMesh` in the viewer (a self-contained function, or null to restore it). Tests drive the chain with it. */

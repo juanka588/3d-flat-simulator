@@ -2,6 +2,7 @@ import { commandToolSchemas } from '@flat/scene';
 import { describe, expect, it } from 'vitest';
 import { connect, json } from './testing/inproc';
 import { withMcpExtras } from './tools';
+import { DESCRIPTION_NOTES } from './tools/commandTools';
 
 describe('SDK spike: schemas are advertised unchanged (a)', () => {
   it('every commandToolSchemas() inputSchema reaches the client byte-for-byte', async () => {
@@ -12,7 +13,7 @@ describe('SDK spike: schemas are advertised unchanged (a)', () => {
       expect(listed, t.name).toBeDefined();
       if (t.name === 'batch') continue; // the MCP layer states ITS command limit (config) on batch: see below
       expect(listed!.inputSchema).toEqual(withMcpExtras(t.inputSchema));
-      expect(listed!.description).toBe(t.description);
+      expect(listed!.description).toBe(t.description + (DESCRIPTION_NOTES[t.name] ?? '')); // the MCP layer may append pointers to the M5.11 tools
     }
     // batch: identical except for the command limit, which is the server's (50), not the reducer's (500)
     const rawBatch = commandToolSchemas().find((t) => t.name === 'batch')!;
@@ -85,7 +86,7 @@ describe('write tools through the mock FlatApi', () => {
   });
 
   it('batch_too_large is enforced by the MCP limit', async () => {
-    const { client } = await connect({ limits: { maxBatch: 2, writesPerMinute: 30, rendersPerMinute: 10, maxArgBytes: 262144, sessionWriteCap: 500 } });
+    const { client } = await connect({ limits: { maxBatch: 2, writesPerMinute: 30, rendersPerMinute: 10, maxArgBytes: 262144, sessionWriteCap: 500, searchesPerMinute: 20, productGetsPerMinute: 60 } });
     const cmd = { type: 'room.setFloor', roomId: 'sejour', materialId: 'floor-oak' };
     const r = await client.callTool({ name: 'batch', arguments: { label: 'x', commands: [cmd, cmd, cmd] } });
     expect(json(r).code).toBe('batch_too_large');

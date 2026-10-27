@@ -39,7 +39,7 @@ import {
 } from '@flat/scene';
 import charme from '@flat/scene/fixtures/charme-3205.flat.json';
 import productsFixture from '@flat/scene/fixtures/products.json';
-import type { AssetRef, FlatApi, FlatApiFailure, FlatResult, StepBody, WriteOptions } from '../flatApi';
+import type { AssetRef, FetchedAsset, FlatApi, FlatApiFailure, FlatResult, StepBody, WriteOptions } from '../flatApi';
 
 /** The Charme 3205 fixture, parsed and validated. */
 export function charmeScene(): Scene {
@@ -318,6 +318,16 @@ export class MockFlatApi implements FlatApi {
     const g = this.gate<IsSeenResponse>('isProductSeen');
     if (g) return g;
     return { ok: true, data: { seen: this.seenProducts.get(session)?.has(productId) ?? false } };
+  }
+
+  /** Assets the mock serves, by URL (tests). */
+  readonly assets = new Map<string, FetchedAsset>();
+
+  async fetchAsset(url: string): Promise<FlatResult<FetchedAsset>> {
+    const g = this.gate<FetchedAsset>('fetchAsset');
+    if (g) return g;
+    const a = this.assets.get(url);
+    return a ? { ok: true, data: a } : this.http(404, 'not_found', `no asset ${url}`);
   }
 
   assetUrl(ref: AssetRef): string {

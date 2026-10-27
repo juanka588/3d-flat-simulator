@@ -234,7 +234,7 @@ describe('preview (M4.6)', () => {
   });
 
   it('does not use up the write allowance', async () => {
-    const { client } = await connect({ limits: { maxBatch: 50, writesPerMinute: 2, rendersPerMinute: 10, maxArgBytes: 262144, sessionWriteCap: 500 } });
+    const { client } = await connect({ limits: { maxBatch: 50, writesPerMinute: 2, rendersPerMinute: 10, maxArgBytes: 262144, sessionWriteCap: 500, searchesPerMinute: 20, productGetsPerMinute: 60 } });
     for (let i = 0; i < 5; i++) {
       const r = await client.callTool({ name: 'room_set_floor', arguments: { roomId: 'sejour', materialId: 'floor-oak', preview: true } });
       expect(r.isError).toBeFalsy();
@@ -277,7 +277,7 @@ describe('label', () => {
 });
 
 describe('rate limits and session cap (M4.6)', () => {
-  const limits = (over: Record<string, number>) => ({ limits: { maxBatch: 50, writesPerMinute: 30, rendersPerMinute: 10, maxArgBytes: 262144, sessionWriteCap: 500, ...over } });
+  const limits = (over: Record<string, number>) => ({ limits: { maxBatch: 50, writesPerMinute: 30, rendersPerMinute: 10, maxArgBytes: 262144, sessionWriteCap: 500, searchesPerMinute: 20, productGetsPerMinute: 60, ...over } });
   const write = (client: Awaited<ReturnType<typeof connect>>['client'], materialId = 'floor-oak') => client.callTool({ name: 'room_set_floor', arguments: { roomId: 'sejour', materialId } });
 
   it('allows 30 writes in a burst, then answers rate_limited with retryAfterMs, and recovers with time', async () => {
@@ -324,7 +324,7 @@ describe('rate limits and session cap (M4.6)', () => {
   });
 
   it('stops at the session write cap', async () => {
-    const { client, clock } = await connect(limits({ sessionWriteCap: 2 }));
+    const { client, clock } = await connect(limits({ sessionWriteCap: 2, searchesPerMinute: 20, productGetsPerMinute: 60 }));
     await write(client, 'floor-tile');
     await write(client, 'floor-oak');
     clock.advance(120_000);
@@ -433,7 +433,7 @@ describe('render argument', () => {
 
   it('a failing renderer is reported next to the result; the write stays applied; renders are rate limited', async () => {
     const boom = { async render() { throw Object.assign(new Error('browser crashed'), { code: 'render_timeout' }); } };
-    const { client, flat } = await connect({ limits: { maxBatch: 50, writesPerMinute: 30, rendersPerMinute: 1, maxArgBytes: 262144, sessionWriteCap: 500 } }, undefined, { renderer: boom });
+    const { client, flat } = await connect({ limits: { maxBatch: 50, writesPerMinute: 30, rendersPerMinute: 1, maxArgBytes: 262144, sessionWriteCap: 500, searchesPerMinute: 20, productGetsPerMinute: 60 } }, undefined, { renderer: boom });
     const r = json(await client.callTool({ name: 'room_set_floor', arguments: { roomId: 'sejour', materialId: 'floor-oak', render: true } }));
     expect(r.committed).toBe(true);
     expect(r.render).toMatchObject({ ok: false, code: 'render_timeout', message: 'browser crashed' });

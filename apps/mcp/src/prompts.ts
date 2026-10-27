@@ -4,7 +4,6 @@ import { z } from 'zod';
 /**
  * Prompt templates (M4.12). Each returns a message sequence the client shows or sends. Every tool
  * they mention is written in backticks; a test checks that each one exists in the tool registry.
- * `furnish_room` is a placeholder until furniture arrives in M5.
  */
 
 const text = (t: string) => ({ role: 'user' as const, content: { type: 'text' as const, text: t } });
@@ -26,13 +25,25 @@ export function applyStyleMessages(args: { style: string; roomId?: string | unde
   ];
 }
 
-export function furnishRoomMessages(args: { roomId: string; brief: string }) {
+const money = (n: number) => `${Math.round(n * 100) / 100} EUR`;
+
+export function furnishRoomMessages(args: { roomId: string; brief: string; budgetEur?: number | undefined }) {
   const room = clean(args.roomId);
+  const budget = args.budgetEur;
+  const budgetText = budget !== undefined ? `Budget: ${money(budget)} in total, TTC (tax included) prices of the items you place; existing locked furniture counts 0.` : 'No budget was given: ask the user for one before you buy anything, or keep the total modest and say what it is.';
+  const cap = budget !== undefined ? ` with \`budgetEur\` ${budget}` : '';
   return [
-    text(`The user wants to furnish the room "${room}". Brief: ${clean(args.brief)}`),
-    text('Be upfront: placing furniture (items) arrives in a later milestone (M5) and is not available yet. Do not pretend to place anything, and do not try to simulate furniture with walls or lights.'),
-    text(`Meanwhile you can prepare the room. Call \`describe_room\` for "${room}" to see its size, openings, daylight and current finishes, then propose floor, wall and ceiling finishes (\`room_set_floor\`, \`room_set_wall_finish\`, \`room_set_ceiling\`) and lighting (\`light_add\`, \`light_update\`) that suit the brief. Show a \`preview: true\` of the batch first, apply it only if the user agrees, and verify with \`render_view\`.`),
-    text('Finish by summarising what is ready and what will be possible once furniture lands; offer `undo` if they want the changes reverted.'),
+    text(`The user wants to furnish the room "${room}". Brief: ${clean(args.brief)}. ${budgetText} Follow these steps in order and keep the user informed. Only real products can be placed: you never invent furniture, prices or sizes.`),
+    text(`1. Read. Call \`describe_room\` for "${room}": size, ceiling, doors and windows (their swings and sills), daylight, and the items already there (locked ones are existing furniture: plan around them, never move or remove them). Call \`list_providers\` and use only enabled providers whose circuit is not open. Note the free wall lengths.`),
+    text('2. Search. Use `search_products` per piece of furniture the brief needs (category, `maxPrice`, and maxWidth / maxDepth / maxHeight taken from the room size, so every result fits). Keep the queries few: searches are limited to 20 per minute. Only products these searches (or `get_product`) returned in this session can be placed.'),
+    text('3. Pick. Call `get_product` for the few products you choose: check the TTC price, the dimensions, the variants (colours or sizes) and weightKg. Keep the running total below the budget; prefer fewer, well-chosen pieces over filling the room. Tell the user your picks and the total before placing anything.'),
+    text('4. Position. Call `get_placement_options` for each pick with the relation you want (against_wall, in_corner, facing, next_to, under_window, centered_in). Use a valid candidate; never block a door swing or a window, and keep the walkways free (0.8 m, 0.9 m at the entry). Heavy wall mounts only on structural walls. Structural walls stay untouched. Take a `checkpoint` named "before-furnish".'),
+    text('5. Preview. Make ONE call of `place_item` with items[] holding every pick (one undo step), `preview: true` and a `render` (an overview of the room), plus a `label` like "Furnish the room". Check the diff, the warnings and the picture. If a spot was refused, use the candidates it returned.'),
+    text(`6. Validate. Call \`validate_layout\` for "${room}"${cap}: there must be no violations and overBudget must be false. Fix the picks or positions and preview again otherwise. Then call \`get_bill_of_materials\` for the room and check the total.`),
+    text('7. Apply. If the preview is right, send the same `place_item` call without `preview`, with `ifRev` set to the baseRev of the preview. If it is refused as stale, read the room again and redo steps 4 to 6.'),
+    text(`8. Render. Call \`render_view\` with view "room" for "${room}", then view "walk" for "${room}" as someone coming in through the door would see it: set facing to the compass point of the wall opposite the door (see the doors in describe_room). Look at the pictures: nothing floating, nothing in a doorway, the light as expected. Keep any caption the render returns (for example "IKEA models, personal use").`),
+    text('9. Summarise. Give a price table with one row per item: item, sku (productId), dimensions (w x d x h m), price (TTC), link. Add the total, which must stay at or below the budget, and the note "indicative prices as of <date>" using the oldest snapshot date in the bill of materials. Mention anything you could not do, and that prices and stock can change.'),
+    text('10. Offer undo. Say that `undo` reverts the whole furnishing batch in one step (the history is shared with the user) and that `restore_checkpoint` with "before-furnish" returns to the starting point.'),
   ];
 }
 
@@ -54,9 +65,17 @@ export function registerPrompts(server: McpServer): void {
     'furnish_room',
     {
       title: 'Furnish a room',
-      description: 'Furniture arrives in M5; meanwhile prepare the room with finishes and lighting.',
-      argsSchema: z.object({ roomId: z.string().max(64).describe('Room id.'), brief: z.string().max(500).describe('What the room is for and the look the user wants.') }),
+      description: 'Furnish a room with real products within a budget: read, search, pick, position, preview, validate, apply, render, price table, offer undo.',
+      argsSchema: z.object({
+        roomId: z.string().max(64).describe('Room id.'),
+        brief: z.string().max(500).describe('What the room is for and the look the user wants.'),
+        budgetEur: z
+          .string()
+          .regex(/^\d{1,7}(\.\d{1,2})?$/, 'a number of euros, e.g. 1500')
+          .optional()
+          .describe('Total budget in EUR, TTC prices (e.g. "1500"). Locked existing furniture counts 0.'),
+      }),
     },
-    (args) => ({ messages: furnishRoomMessages(args) }),
+    (args) => ({ messages: furnishRoomMessages({ roomId: args.roomId, brief: args.brief, budgetEur: args.budgetEur === undefined ? undefined : Number(args.budgetEur) }) }),
   );
 }

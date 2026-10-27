@@ -28,7 +28,21 @@ export class SessionError extends Error {
   }
 }
 
+/**
+ * How the headless viewer gets the server's models (provider GLBs, library meshes). The page is served
+ * from its own loopback origin, which the scene server's provider routes (retailer data) refuse by design,
+ * so the page never calls the server itself: requests to `<origin>/api/assets/` are answered here, from
+ * Node, with the server token. The viewer is told the origin through `__flat.setModelOrigin`.
+ */
+export interface ModelSource {
+  /** Origin of the scene server, no trailing slash. */
+  origin: string;
+  fetch(url: string): Promise<{ status: number; contentType: string; body: Uint8Array } | undefined>;
+}
+
 export interface PageJob {
+  /** Where provider models come from; absent: the viewer is in plain local mode (no provider models). */
+  models?: ModelSource | undefined;
   /** The scene to draw; loaded into the page only when `(epoch, rev)` differs from what is there, or `preview`. */
   scene: SceneResponse;
   /** Preview state: always loaded, and the page is then marked dirty so the next committed render reloads. */
@@ -64,6 +78,8 @@ interface Handle {
   sceneKey: string | null;
   viewport: { width: number; height: number };
   dead: boolean;
+  /** Current `ModelSource` (set by every job); the page's asset route reads it. */
+  models: ModelSource | undefined;
   /** Recent page console errors, uncaught errors and failed requests, newest last. */
   diagnostics: string[];
 }
@@ -95,6 +111,7 @@ const RENDER_SCRIPT = `async (a) => {
   if (!f) return { error: 'the viewer test hook is missing' };
   if (a.viewport) await f.setViewport({ width: a.viewport.width, height: a.viewport.height, dpr: 1 });
   let sceneError = null;
+  if (a.modelOrigin && f.setModelOrigin) f.setModelOrigin(a.modelOrigin);
   if (a.scene) {
     const r = await f.loadScene(a.scene);
     if (!r.ok) sceneError = (r.errors || []).join('; ') || 'the viewer rejected the scene';
@@ -232,7 +249,7 @@ export class PageSession {
     }
     lap('browser launched');
     this.stats.launches += 1;
-    const handle: Handle = { browser, page: undefined as unknown as Page, server, sceneKey: null, viewport: size, dead: false, diagnostics: [] };
+    const handle: Handle = { browser, page: undefined as unknown as Page, server, sceneKey: null, viewport: size, dead: false, models: undefined, diagnostics: [] };
     const note = (line: string) => {
       handle.diagnostics.push(line.slice(0, 300));
       if (handle.diagnostics.length > 30) handle.diagnostics.shift();
@@ -244,6 +261,16 @@ export class PageSession {
       superseded();
       const context = await browser.newContext({ viewport: { width: size.width, height: size.height }, deviceScaleFactor: 1 });
       await context.addInitScript(INIT_SCRIPT);
+      await context.route('**/api/assets/**', async (route) => {
+        const m = handle.models;
+        const req = route.request();
+        if (!m || !req.url().startsWith(`${m.origin}/api/assets/`)) return route.continue();
+        const cors = { 'access-control-allow-origin': '*', 'access-control-allow-methods': 'GET, OPTIONS', 'cache-control': 'no-store' };
+        if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
+        const r = await m.fetch(req.url()).catch(() => undefined);
+        if (!r) return route.abort('failed');
+        return route.fulfill({ status: r.status, contentType: r.contentType, body: Buffer.from(r.body), headers: cors });
+      });
       const page = await context.newPage();
       page.on('crash', () => {
         handle.dead = true;
@@ -304,7 +331,8 @@ export class PageSession {
       const key = `${job.scene.epoch}:${job.scene.rev}`;
       const mustLoad = job.preview || h.sceneKey !== key;
       const viewport = h.viewport.width !== job.size.width || h.viewport.height !== job.size.height ? job.size : undefined;
-      const arg = { viewport, scene: mustLoad ? job.scene.scene : undefined, lighting: job.lighting, pose: job.pose, format: job.format };
+      h.models = job.models;
+      const arg = { viewport, modelOrigin: job.models?.origin, scene: mustLoad ? job.scene.scene : undefined, lighting: job.lighting, pose: job.pose, format: job.format };
       // The scene is dirty from the moment we start replacing it until a committed one is in.
       if (mustLoad) h.sceneKey = null;
       type Raw =

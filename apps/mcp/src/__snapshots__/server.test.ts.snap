@@ -39,8 +39,13 @@ exports[`snapshots (the contract) > prompts/list 1`] = `
         "name": "brief",
         "required": true,
       },
+      {
+        "description": "Total budget in EUR, TTC prices (e.g. "1500"). Locked existing furniture counts 0.",
+        "name": "budgetEur",
+        "required": false,
+      },
     ],
-    "description": "Furniture arrives in M5; meanwhile prepare the room with finishes and lighting.",
+    "description": "Furnish a room with real products within a budget: read, search, pick, position, preview, validate, apply, render, price table, offer undo.",
     "icons": undefined,
     "name": "furnish_room",
     "title": "Furnish a room",
@@ -56,6 +61,7 @@ exports[`snapshots (the contract) > server instructions 1`] = `
 - Start with get_scene_summary, then list_rooms / describe_room. Ids are exact; unknown ids come back with the nearest ones.
 - Prefer roomId on finishes (wall_set_finish, room_set_wall_finish) so neighbouring rooms keep their look.
 - Use batch for multi-step edits (one undo step, all or nothing); define materials before using them.
+- Furniture: search_products, then place_item with a productId it returned (never type prices or sizes); validate_layout checks the result.
 - Changes apply live to the user's open tab. Verify visually with render_view after a change.
 - Structural walls can never be removed or marked removable by you; do not try to work around that.
 - Undo is shared with the user: undo reverts the latest change whoever made it. Use checkpoint before big edits.
@@ -1150,7 +1156,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "openWorldHint": false,
       "readOnlyHint": false,
     },
-    "description": "Put a real, purchasable product into a room. Only products returned by search_products may be placed; an item without productRef or product is refused with precondition_failed ("search_products first"). Normally use place_item, which finds a valid position and rotation and fills in the product facts (price, dims, link) from the server's record; never type those yourself. The item is refused with placement_invalid when it would stand outside its room, overlap a wall or another item, or block a door swing (the message and hint say which and what to try). Windows, glazing, heavy wall mounts and walkways are checked by place_item and validate_layout. Item frame: the front faces plan +y at rotation 0; rotation is degrees counter-clockwise seen from above; a floor item has elevation 0. The id is derived (item-N) when omitted. At most 60 items per room. Undo removes the item.",
+    "description": "Put a real, purchasable product into a room. Only products returned by search_products may be placed; an item without productRef or product is refused with precondition_failed ("search_products first"). Normally use place_item, which finds a valid position and rotation and fills in the product facts (price, dims, link) from the server's record; never type those yourself. The item is refused with placement_invalid when it would stand outside its room, overlap a wall or another item, or block a door swing (the message and hint say which and what to try). Windows, glazing, heavy wall mounts and walkways are checked by place_item and validate_layout. Item frame: the front faces plan +y at rotation 0; rotation is degrees counter-clockwise seen from above; a floor item has elevation 0. The id is derived (item-N) when omitted. At most 60 items per room. Undo removes the item. Prefer place_item: it checks the product against search_products and fills in price, dims and link itself. To see valid spots first, call get_placement_options; get_product lists variants and weight.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -1803,7 +1809,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "openWorldHint": false,
       "readOnlyHint": false,
     },
-    "description": "Move a placed item (items[].id from describe_room) to a new plan position, optionally with a new rotation, height, room or placement relation. Omitted fields stay as they are; roomId and relation accept null to clear. Refused with placement_invalid when the new spot is outside the room, over a wall or another item, or in a door swing, and with precondition_failed for a locked item (existing furniture such as a built-in wardrobe; only the user may move it). Call validate_layout afterwards to check windows and walkways. Undo moves it back.",
+    "description": "Move a placed item (items[].id from describe_room) to a new plan position, optionally with a new rotation, height, room or placement relation. Omitted fields stay as they are; roomId and relation accept null to clear. Refused with placement_invalid when the new spot is outside the room, over a wall or another item, or in a door swing, and with precondition_failed for a locked item (existing furniture such as a built-in wardrobe; only the user may move it). Call validate_layout afterwards to check windows and walkways. Undo moves it back. To find a valid spot first, call get_placement_options.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -2200,7 +2206,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "openWorldHint": false,
       "readOnlyHint": false,
     },
-    "description": "Switch a placed product to another variant (variants[].sku of the product record): a colour or size, usually another article with its own price and dimensions. Pass the variant SKU and the product snapshot and dims the server resolved for it; variant null clears the choice, dims null returns to the product dimensions. The new dimensions are checked like item_move (placement_invalid when the item no longer fits). Undo restores the previous variant, price and dimensions.",
+    "description": "Switch a placed product to another variant (variants[].sku of the product record): a colour or size, usually another article with its own price and dimensions. Pass the variant SKU and the product snapshot and dims the server resolved for it; variant null clears the choice, dims null returns to the product dimensions. The new dimensions are checked like item_move (placement_invalid when the item no longer fits). Undo restores the previous variant, price and dimensions. get_product lists the variants (variants[].sku) of a product.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -2414,7 +2420,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "openWorldHint": false,
       "readOnlyHint": false,
     },
-    "description": "Remove a placed item by id (items[].id from describe_room). A locked item (existing furniture) can only be removed by the user. Undo puts it back at the same position in the list.",
+    "description": "Remove a placed item by id (items[].id from describe_room). A locked item (existing furniture) can only be removed by the user. Undo puts it back at the same position in the list. To find which item to remove, read items[] with describe_room; get_bill_of_materials shows the cost.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -4440,6 +4446,494 @@ exports[`snapshots (the contract) > tools/list 1`] = `
   {
     "annotations": {
       "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": false,
+    },
+    "description": "Put a real product into a room. The productId must come from search_products or get_product in this session (else unknown_product); the name, price, dimensions and link are read from the server's own product record, never from you, so there are no such arguments. Give a relation (against_wall, in_corner, centered_in, facing, next_to, under_window: the server finds a valid position and rotation) or an explicit position + rotation. Several products at once: pass items[] (up to 12, one undo step, placed in order so later ones see earlier ones). If a spot is not valid you get placement_invalid with the violations and alternative candidates. The shape defaults to the real 3D model, else a lookalike, else a parametric shape at the exact dims. Supports preview, render, ifRev and label like every write tool. Check the result with validate_layout.",
+    "inputSchema": {
+      "$defs": {
+        "mesh": {
+          "oneOf": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "kind": {
+                  "const": "provider",
+                  "type": "string",
+                },
+              },
+              "required": [
+                "kind",
+              ],
+              "type": "object",
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "assetId": {
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string",
+                },
+                "kind": {
+                  "const": "lookalike",
+                  "type": "string",
+                },
+              },
+              "required": [
+                "kind",
+                "assetId",
+              ],
+              "type": "object",
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "generator": {
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string",
+                },
+                "kind": {
+                  "const": "parametric",
+                  "type": "string",
+                },
+                "params": {
+                  "additionalProperties": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                      },
+                      {
+                        "maxLength": 64,
+                        "type": "string",
+                      },
+                      {
+                        "type": "boolean",
+                      },
+                    ],
+                  },
+                  "default": {},
+                  "propertyNames": {
+                    "maxLength": 32,
+                    "minLength": 1,
+                    "type": "string",
+                  },
+                  "type": "object",
+                },
+              },
+              "required": [
+                "kind",
+                "generator",
+              ],
+              "type": "object",
+            },
+          ],
+        },
+        "placement": {
+          "additionalProperties": false,
+          "properties": {
+            "acknowledgeHeavyPartition": {
+              "description": "Accept hanging a heavy (over 15 kg) wall product on a non-structural wall.",
+              "type": "boolean",
+            },
+            "elevation": {
+              "description": "Wall or ceiling products only: height of the bottom above the floor, metres.",
+              "maximum": 10,
+              "minimum": 0,
+              "type": "number",
+            },
+            "mesh": {
+              "$ref": "#/$defs/mesh",
+              "description": "Optional shape. Default: the real 3D model when the provider has one, else a lookalike from the CC0 library, else a parametric shape at the exact dims. A parametric shape must match the product dims within 2%.",
+            },
+            "position": {
+              "description": "Explicit plan position [x, y] of the item centre, metres. Use this OR relation.",
+              "items": {
+                "type": "number",
+              },
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array",
+            },
+            "productId": {
+              "description": "productId returned by search_products or get_product in this session, "<provider>:<sku>".",
+              "type": "string",
+            },
+            "relation": {
+              "$ref": "#/$defs/relation",
+              "description": "Where, in designer terms (against_wall, in_corner, centered_in, facing, next_to, under_window). The server finds the exact position and rotation. Use this OR position.",
+            },
+            "roomId": {
+              "description": "Room to place in (list_rooms).",
+              "type": "string",
+            },
+            "rotation": {
+              "description": "With position: degrees counter-clockwise seen from above (front faces plan +y at 0). With relation: an extra turn, usually omitted.",
+              "type": "number",
+            },
+            "variantSku": {
+              "description": "A variants[].sku from get_product (another colour or size).",
+              "type": "string",
+            },
+          },
+          "required": [
+            "productId",
+            "roomId",
+          ],
+          "type": "object",
+        },
+        "relation": {
+          "oneOf": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "align": {
+                  "default": "center",
+                  "description": "Where along the wall, seen from the room: its start end, its middle, or its end.",
+                  "enum": [
+                    "start",
+                    "center",
+                    "end",
+                  ],
+                  "type": "string",
+                },
+                "gap": {
+                  "default": 0,
+                  "description": "Free gap in metres between the item and what it touches (default 0).",
+                  "maximum": 2,
+                  "minimum": 0,
+                  "type": "number",
+                },
+                "kind": {
+                  "const": "against_wall",
+                  "description": "Relation discriminator, always "against_wall".",
+                  "type": "string",
+                },
+                "offset": {
+                  "default": 0,
+                  "description": "Metres from the aligned end of the wall to the nearest edge of the item (ignored for "center").",
+                  "minimum": 0,
+                  "type": "number",
+                },
+                "roomId": {
+                  "description": "Room on the wall side to use when a wall borders two rooms (rooms[].id).",
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string",
+                },
+                "wallId": {
+                  "description": "Wall to stand against (walls[].wallId from describe_room).",
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string",
+                },
+              },
+              "required": [
+                "kind",
+                "wallId",
+              ],
+              "type": "object",
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "corner": {
+                  "description": "Index of the room polygon vertex (rooms[].polygon order); 0 is the first vertex.",
+                  "maximum": 9007199254740991,
+                  "minimum": 0,
+                  "type": "integer",
+                },
+                "gap": {
+                  "default": 0,
+                  "description": "Free gap in metres between the item and what it touches (default 0).",
+                  "maximum": 2,
+                  "minimum": 0,
+                  "type": "number",
+                },
+                "kind": {
+                  "const": "in_corner",
+                  "description": "Relation discriminator, always "in_corner".",
+                  "type": "string",
+                },
+                "roomId": {
+                  "description": "Room whose corner to use (rooms[].id).",
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string",
+                },
+              },
+              "required": [
+                "kind",
+                "roomId",
+                "corner",
+              ],
+              "type": "object",
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "axis": {
+                  "default": "both",
+                  "description": "Centre on both plan axes, or only on x / y (the other coordinate is then kept).",
+                  "enum": [
+                    "both",
+                    "x",
+                    "y",
+                  ],
+                  "type": "string",
+                },
+                "kind": {
+                  "const": "centered_in",
+                  "description": "Relation discriminator, always "centered_in".",
+                  "type": "string",
+                },
+                "roomId": {
+                  "description": "Room to centre in (rooms[].id).",
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string",
+                },
+              },
+              "required": [
+                "kind",
+                "roomId",
+              ],
+              "type": "object",
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "kind": {
+                  "const": "facing",
+                  "description": "Relation discriminator, always "facing".",
+                  "type": "string",
+                },
+                "targetId": {
+                  "description": "Entity to face: an item id, an opening id, a wall id or a room id.",
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string",
+                },
+              },
+              "required": [
+                "kind",
+                "targetId",
+              ],
+              "type": "object",
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "align": {
+                  "default": "center",
+                  "description": "Alignment along that side: start, middle or end.",
+                  "enum": [
+                    "start",
+                    "center",
+                    "end",
+                  ],
+                  "type": "string",
+                },
+                "gap": {
+                  "default": 0.02,
+                  "description": "Free gap in metres between the item and what it touches (default 0).",
+                  "maximum": 2,
+                  "minimum": 0,
+                  "type": "number",
+                },
+                "itemId": {
+                  "description": "The existing item to stand next to (items[].id).",
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string",
+                },
+                "kind": {
+                  "const": "next_to",
+                  "description": "Relation discriminator, always "next_to".",
+                  "type": "string",
+                },
+                "side": {
+                  "description": "Side of that item, as seen from its front.",
+                  "enum": [
+                    "left",
+                    "right",
+                    "front",
+                    "back",
+                  ],
+                  "type": "string",
+                },
+              },
+              "required": [
+                "kind",
+                "itemId",
+                "side",
+              ],
+              "type": "object",
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "gap": {
+                  "default": 0,
+                  "description": "Free gap in metres between the item and what it touches (default 0).",
+                  "maximum": 2,
+                  "minimum": 0,
+                  "type": "number",
+                },
+                "kind": {
+                  "const": "under_window",
+                  "description": "Relation discriminator, always "under_window".",
+                  "type": "string",
+                },
+                "openingId": {
+                  "description": "Window (openings[].id) to stand under.",
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string",
+                },
+              },
+              "required": [
+                "kind",
+                "openingId",
+              ],
+              "type": "object",
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "elevation": {
+                  "default": 0,
+                  "description": "Height of the item bottom above the floor, in metres.",
+                  "minimum": 0,
+                  "type": "number",
+                },
+                "kind": {
+                  "const": "at",
+                  "description": "Relation discriminator, always "at".",
+                  "type": "string",
+                },
+                "position": {
+                  "description": "Plan position [x, y] of the item origin (footprint centre).",
+                  "items": false,
+                  "maxItems": 2,
+                  "minItems": 2,
+                  "prefixItems": [
+                    {
+                      "type": "number",
+                    },
+                    {
+                      "type": "number",
+                    },
+                  ],
+                  "type": "array",
+                },
+                "rotation": {
+                  "default": 0,
+                  "description": "Degrees counter-clockwise seen from above.",
+                  "type": "number",
+                },
+              },
+              "required": [
+                "kind",
+                "position",
+              ],
+              "type": "object",
+            },
+          ],
+        },
+      },
+      "additionalProperties": false,
+      "properties": {
+        "acknowledgeHeavyPartition": {
+          "description": "Accept hanging a heavy (over 15 kg) wall product on a non-structural wall.",
+          "type": "boolean",
+        },
+        "elevation": {
+          "description": "Wall or ceiling products only: height of the bottom above the floor, metres.",
+          "maximum": 10,
+          "minimum": 0,
+          "type": "number",
+        },
+        "ifRev": {
+          "description": "Optional. Apply only if the flat is still at this revision, else stale_scene and nothing changes. Pass baseRev from a preview of the same change to apply only if nothing changed since; or rev from a previous result.",
+          "minimum": 0,
+          "type": "integer",
+        },
+        "items": {
+          "description": "Several placements in one call (instead of the fields above), at most 12.",
+          "items": {
+            "$ref": "#/$defs/placement",
+          },
+          "maxItems": 12,
+          "minItems": 1,
+          "type": "array",
+        },
+        "label": {
+          "description": "Short description of this change, shown in the undo history (at most 200 characters).",
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string",
+        },
+        "mesh": {
+          "$ref": "#/$defs/mesh",
+          "description": "Optional shape. Default: the real 3D model when the provider has one, else a lookalike from the CC0 library, else a parametric shape at the exact dims. A parametric shape must match the product dims within 2%.",
+        },
+        "position": {
+          "description": "Explicit plan position [x, y] of the item centre, metres. Use this OR relation.",
+          "items": {
+            "type": "number",
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array",
+        },
+        "preview": {
+          "description": "true: do NOT change the flat; return what the change would do (diff, warnings, would-be changed ids). Use it to show the user before applying.",
+          "type": "boolean",
+        },
+        "productId": {
+          "description": "productId returned by search_products or get_product in this session, "<provider>:<sku>".",
+          "type": "string",
+        },
+        "relation": {
+          "$ref": "#/$defs/relation",
+          "description": "Where, in designer terms (against_wall, in_corner, centered_in, facing, next_to, under_window). The server finds the exact position and rotation. Use this OR position.",
+        },
+        "render": {
+          "anyOf": [
+            {
+              "type": "boolean",
+            },
+            {
+              "additionalProperties": true,
+              "type": "object",
+            },
+          ],
+          "description": "true or render_view arguments (view, roomId, ...): also return an image of the result (after the change, or of the previewed state). true = the overview of the first changed room, else the whole flat from above. Without the render service the result carries render_unavailable.",
+        },
+        "roomId": {
+          "description": "Room to place in (list_rooms).",
+          "type": "string",
+        },
+        "rotation": {
+          "description": "With position: degrees counter-clockwise seen from above (front faces plan +y at 0). With relation: an extra turn, usually omitted.",
+          "type": "number",
+        },
+        "variantSku": {
+          "description": "A variants[].sku from get_product (another colour or size).",
+          "type": "string",
+        },
+      },
+      "required": [],
+      "type": "object",
+    },
+    "name": "place_item",
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
       "idempotentHint": true,
       "openWorldHint": false,
       "readOnlyHint": true,
@@ -4538,6 +5032,548 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "type": "object",
     },
     "name": "list_materials",
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true,
+    },
+    "description": "List the product providers (shops) the server can search: id, label, whether it is enabled, what it can do (search, real 3D model, dimension quality, pasted URLs), its circuit state (open = paused after repeated blocks; retryAt) and whether its data may only be used personally. Call it before search_products to pick a provider id.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {},
+      "required": [],
+      "type": "object",
+    },
+    "name": "list_providers",
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true,
+    },
+    "description": "Search real, purchasable furniture at the enabled providers. Returns at most 12 compact results (productId, name, TTC price, assembled dims w x d x h in metres, colours, has3d = a real 3D model exists). The returned productIds are the only ones place_item accepts in this session. Filter by category, maxPrice and the maximum width/depth/height that fits the room (use describe_room for its size) so results fit. Prices are indicative shelf prices. Limited to 20 searches per minute.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "category": {
+          "description": "Furniture category.",
+          "enum": [
+            "bed",
+            "wardrobe",
+            "bedside",
+            "drawers",
+            "shelf",
+            "sideboard",
+            "tv_unit",
+            "table",
+            "desk",
+            "chair",
+            "armchair",
+            "sofa",
+            "rug",
+            "lamp",
+            "mirror",
+            "wall_cabinet",
+            "kitchen",
+            "appliance",
+            "decor",
+            "other",
+          ],
+          "type": "string",
+        },
+        "colour": {
+          "description": "Keep products that come in this colour (case-insensitive text match on the colour names).",
+          "maxLength": 40,
+          "type": "string",
+        },
+        "limit": {
+          "description": "Results wanted, default 8.",
+          "maximum": 12,
+          "minimum": 1,
+          "type": "integer",
+        },
+        "maxDepth": {
+          "description": "Deepest acceptable product, metres (item z).",
+          "exclusiveMinimum": 0,
+          "type": "number",
+        },
+        "maxHeight": {
+          "description": "Tallest acceptable product, metres.",
+          "exclusiveMinimum": 0,
+          "type": "number",
+        },
+        "maxPrice": {
+          "description": "Highest TTC price, in the product currency (EUR for the shops here).",
+          "minimum": 0,
+          "type": "number",
+        },
+        "maxWidth": {
+          "description": "Widest acceptable product, metres (item x).",
+          "exclusiveMinimum": 0,
+          "type": "number",
+        },
+        "provider": {
+          "description": "Restrict to one provider id (list_providers). Default: every enabled provider.",
+          "type": "string",
+        },
+        "query": {
+          "description": "Words to look for, e.g. "bed 160", "oak desk". May be empty with a category.",
+          "maxLength": 200,
+          "type": "string",
+        },
+      },
+      "required": [
+        "query",
+      ],
+      "type": "object",
+    },
+    "name": "search_products",
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true,
+    },
+    "description": "Full facts of one product from search_products: price (TTC), link, assembled dimensions, colours, variants (variants[].sku with their own price and dims, for place_item variantSku), weightKg (wall mounts over 15 kg need a structural wall), has3d and when the data was read. Use it for the few products you intend to place. Limited to 60 per minute.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "productId": {
+          "description": "productId from search_products, "<provider>:<sku>".",
+          "type": "string",
+        },
+      },
+      "required": [
+        "productId",
+      ],
+      "type": "object",
+    },
+    "name": "get_product",
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true,
+    },
+    "description": "Find SHAPES (not products) for place_item's optional mesh argument: parametric generators with their parameter ranges ({kind:"parametric", generator, params}; the dims must match the product within 2%) and the CC0 model library ({kind:"lookalike", assetId}; scaled to the product, at most 25% distortion). Normally you do not need it: place_item picks the real model, else a lookalike, else a parametric shape by itself.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "category": {
+          "description": "Furniture category.",
+          "enum": [
+            "bed",
+            "wardrobe",
+            "bedside",
+            "drawers",
+            "shelf",
+            "sideboard",
+            "tv_unit",
+            "table",
+            "desk",
+            "chair",
+            "armchair",
+            "sofa",
+            "rug",
+            "lamp",
+            "mirror",
+            "wall_cabinet",
+            "kitchen",
+            "appliance",
+            "decor",
+            "other",
+          ],
+          "type": "string",
+        },
+        "limit": {
+          "description": "Library models wanted, default 12.",
+          "maximum": 30,
+          "minimum": 1,
+          "type": "integer",
+        },
+        "maxDims": {
+          "additionalProperties": false,
+          "description": "Keep library models whose authored size fits this box (metres). Generators are resizable, so they are always kept.",
+          "properties": {
+            "d": {
+              "exclusiveMinimum": 0,
+              "type": "number",
+            },
+            "h": {
+              "exclusiveMinimum": 0,
+              "type": "number",
+            },
+            "w": {
+              "exclusiveMinimum": 0,
+              "type": "number",
+            },
+          },
+          "type": "object",
+        },
+        "style": {
+          "description": "A style tag to prefer/filter, e.g. "wood", "modern" (library models).",
+          "maxLength": 32,
+          "type": "string",
+        },
+      },
+      "required": [],
+      "type": "object",
+    },
+    "name": "search_assets",
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true,
+    },
+    "description": "Dry run of the placement solver, nothing is changed: where could this product go in this room for a relation (against_wall, in_corner, centered_in, facing, next_to, under_window, at)? Returns up to 3 candidate spots (position, rotation, elevation, the relation to pass to place_item) each with the reasons, or the violations (outside_room, overlap, door_swing_blocked, window_blocked, walkway_too_narrow, ...) with alternative spots. The product must come from search_products in this session.",
+    "inputSchema": {
+      "$defs": {
+        "relation": {
+          "oneOf": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "align": {
+                  "default": "center",
+                  "description": "Where along the wall, seen from the room: its start end, its middle, or its end.",
+                  "enum": [
+                    "start",
+                    "center",
+                    "end",
+                  ],
+                  "type": "string",
+                },
+                "gap": {
+                  "default": 0,
+                  "description": "Free gap in metres between the item and what it touches (default 0).",
+                  "maximum": 2,
+                  "minimum": 0,
+                  "type": "number",
+                },
+                "kind": {
+                  "const": "against_wall",
+                  "description": "Relation discriminator, always "against_wall".",
+                  "type": "string",
+                },
+                "offset": {
+                  "default": 0,
+                  "description": "Metres from the aligned end of the wall to the nearest edge of the item (ignored for "center").",
+                  "minimum": 0,
+                  "type": "number",
+                },
+                "roomId": {
+                  "description": "Room on the wall side to use when a wall borders two rooms (rooms[].id).",
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string",
+                },
+                "wallId": {
+                  "description": "Wall to stand against (walls[].wallId from describe_room).",
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string",
+                },
+              },
+              "required": [
+                "kind",
+                "wallId",
+              ],
+              "type": "object",
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "corner": {
+                  "description": "Index of the room polygon vertex (rooms[].polygon order); 0 is the first vertex.",
+                  "maximum": 9007199254740991,
+                  "minimum": 0,
+                  "type": "integer",
+                },
+                "gap": {
+                  "default": 0,
+                  "description": "Free gap in metres between the item and what it touches (default 0).",
+                  "maximum": 2,
+                  "minimum": 0,
+                  "type": "number",
+                },
+                "kind": {
+                  "const": "in_corner",
+                  "description": "Relation discriminator, always "in_corner".",
+                  "type": "string",
+                },
+                "roomId": {
+                  "description": "Room whose corner to use (rooms[].id).",
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string",
+                },
+              },
+              "required": [
+                "kind",
+                "roomId",
+                "corner",
+              ],
+              "type": "object",
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "axis": {
+                  "default": "both",
+                  "description": "Centre on both plan axes, or only on x / y (the other coordinate is then kept).",
+                  "enum": [
+                    "both",
+                    "x",
+                    "y",
+                  ],
+                  "type": "string",
+                },
+                "kind": {
+                  "const": "centered_in",
+                  "description": "Relation discriminator, always "centered_in".",
+                  "type": "string",
+                },
+                "roomId": {
+                  "description": "Room to centre in (rooms[].id).",
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string",
+                },
+              },
+              "required": [
+                "kind",
+                "roomId",
+              ],
+              "type": "object",
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "kind": {
+                  "const": "facing",
+                  "description": "Relation discriminator, always "facing".",
+                  "type": "string",
+                },
+                "targetId": {
+                  "description": "Entity to face: an item id, an opening id, a wall id or a room id.",
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string",
+                },
+              },
+              "required": [
+                "kind",
+                "targetId",
+              ],
+              "type": "object",
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "align": {
+                  "default": "center",
+                  "description": "Alignment along that side: start, middle or end.",
+                  "enum": [
+                    "start",
+                    "center",
+                    "end",
+                  ],
+                  "type": "string",
+                },
+                "gap": {
+                  "default": 0.02,
+                  "description": "Free gap in metres between the item and what it touches (default 0).",
+                  "maximum": 2,
+                  "minimum": 0,
+                  "type": "number",
+                },
+                "itemId": {
+                  "description": "The existing item to stand next to (items[].id).",
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string",
+                },
+                "kind": {
+                  "const": "next_to",
+                  "description": "Relation discriminator, always "next_to".",
+                  "type": "string",
+                },
+                "side": {
+                  "description": "Side of that item, as seen from its front.",
+                  "enum": [
+                    "left",
+                    "right",
+                    "front",
+                    "back",
+                  ],
+                  "type": "string",
+                },
+              },
+              "required": [
+                "kind",
+                "itemId",
+                "side",
+              ],
+              "type": "object",
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "gap": {
+                  "default": 0,
+                  "description": "Free gap in metres between the item and what it touches (default 0).",
+                  "maximum": 2,
+                  "minimum": 0,
+                  "type": "number",
+                },
+                "kind": {
+                  "const": "under_window",
+                  "description": "Relation discriminator, always "under_window".",
+                  "type": "string",
+                },
+                "openingId": {
+                  "description": "Window (openings[].id) to stand under.",
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string",
+                },
+              },
+              "required": [
+                "kind",
+                "openingId",
+              ],
+              "type": "object",
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "elevation": {
+                  "default": 0,
+                  "description": "Height of the item bottom above the floor, in metres.",
+                  "minimum": 0,
+                  "type": "number",
+                },
+                "kind": {
+                  "const": "at",
+                  "description": "Relation discriminator, always "at".",
+                  "type": "string",
+                },
+                "position": {
+                  "description": "Plan position [x, y] of the item origin (footprint centre).",
+                  "items": false,
+                  "maxItems": 2,
+                  "minItems": 2,
+                  "prefixItems": [
+                    {
+                      "type": "number",
+                    },
+                    {
+                      "type": "number",
+                    },
+                  ],
+                  "type": "array",
+                },
+                "rotation": {
+                  "default": 0,
+                  "description": "Degrees counter-clockwise seen from above.",
+                  "type": "number",
+                },
+              },
+              "required": [
+                "kind",
+                "position",
+              ],
+              "type": "object",
+            },
+          ],
+        },
+      },
+      "additionalProperties": false,
+      "properties": {
+        "productId": {
+          "description": "productId returned by search_products or get_product in this session, "<provider>:<sku>".",
+          "type": "string",
+        },
+        "relation": {
+          "$ref": "#/$defs/relation",
+          "description": "The relation to try.",
+        },
+        "roomId": {
+          "description": "Room to place in (list_rooms).",
+          "type": "string",
+        },
+        "variantSku": {
+          "description": "A variants[].sku from get_product (another colour or size).",
+          "type": "string",
+        },
+      },
+      "required": [
+        "productId",
+        "roomId",
+        "relation",
+      ],
+      "type": "object",
+    },
+    "name": "get_placement_options",
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true,
+    },
+    "description": "Check the placed furniture of one room (or the whole flat) against the layout rules: inside the room, no overlaps, door swings and landings, window sills, glazing, walkways at least 0.8 m (0.9 m at the entry). Returns violations and warnings with the entities involved and a hint, the free floor area, the narrowest walkway, and the cost: totalEur (TTC prices of the unlocked items; locked existing furniture counts 0) and overBudget when budgetEur is given. Call it after placing and before you finish.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "budgetEur": {
+          "description": "Budget in EUR (TTC prices only). With roomId it is compared with that room's items, else with the whole flat.",
+          "minimum": 0,
+          "type": "number",
+        },
+        "roomId": {
+          "description": "Room to check (list_rooms). Default: every room.",
+          "type": "string",
+        },
+      },
+      "required": [],
+      "type": "object",
+    },
+    "name": "validate_layout",
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true,
+    },
+    "description": "Shopping list of the placed items, grouped by product: productId, name, link, quantity, unit price, what is left to buy (toBuy) and the amount. totalEur counts the TTC prices of unlocked items only (locked existing furniture is listed at 0; delivery, assembly and discounts are not included), byRoom has the subtotals, stale lists price snapshots older than 7 days. Prices are indicative.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "roomId": {
+          "description": "Only the items of this room (list_rooms). Default: the whole flat.",
+          "type": "string",
+        },
+      },
+      "required": [],
+      "type": "object",
+    },
+    "name": "get_bill_of_materials",
   },
   {
     "annotations": {

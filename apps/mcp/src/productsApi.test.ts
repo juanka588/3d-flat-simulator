@@ -87,4 +87,21 @@ describe('HttpFlatApi product routes', () => {
     expect(api.assetUrl({ kind: 'product-model', productId: 'ikea-fr:80275887' })).toBe('http://127.0.0.1:8787/api/assets/products/ikea-fr/80275887.glb');
     expect(api.assetUrl({ kind: 'mesh', assetId: 'param:bed' })).toBe('http://127.0.0.1:8787/api/assets/meshes/param%3Abed.glb');
   });
+
+  it('fetchAsset reads only the server\'s own /api/assets/ routes, with the token', async () => {
+    const seen: { url: string; auth: string | null }[] = [];
+    const impl: typeof fetch = async (input, init) => {
+      seen.push({ url: String(input), auth: new Headers(init?.headers).get('authorization') });
+      return new Response(new Uint8Array([7, 8]), { status: 200, headers: { 'content-type': 'model/gltf-binary' } });
+    };
+    const api = new HttpFlatApi({ serverUrl: 'http://127.0.0.1:8787', token: 'tok', requestTimeoutMs: 1000 }, impl);
+    const ok = await api.fetchAsset('http://127.0.0.1:8787/api/assets/products/mock/A.glb');
+    expect(ok.ok && [ok.data.status, ok.data.contentType, [...ok.data.body]]).toEqual([200, 'model/gltf-binary', [7, 8]]);
+    expect(seen).toEqual([{ url: 'http://127.0.0.1:8787/api/assets/products/mock/A.glb', auth: 'Bearer tok' }]);
+    for (const url of ['http://127.0.0.1:8787/api/scene', 'http://evil.example/api/assets/x.glb', 'http://127.0.0.1:8787/api/assets/../scene']) {
+      const r = await api.fetchAsset(url);
+      expect(r.ok, url).toBe(false);
+    }
+    expect(seen).toHaveLength(1);
+  });
 });

@@ -72,6 +72,9 @@ const failure = (e: unknown): CallToolResult => {
   return toolError(code, e instanceof Error ? e.message : String(e));
 };
 
+/** The attribution line as a text item next to the image(s), when the meta carries one. */
+export const captionContent = (meta: { caption?: string | undefined }): CallToolResult['content'] => (meta.caption ? [{ type: 'text', text: meta.caption }] : []);
+
 function assemble(r: ServiceResult): { structured: RenderViewResult; content: CallToolResult['content'] } {
   const meta = r.meta;
   const images: RenderViewResult['images'] = r.before
@@ -81,7 +84,7 @@ function assemble(r: ServiceResult): { structured: RenderViewResult; content: Ca
       ]
     : [{ label: 'image', rev: meta.rev }];
   const structured: RenderViewResult = { ok: true, ...meta, images };
-  const content: CallToolResult['content'] = [{ type: 'image', data: r.image, mimeType: r.mimeType }, ...(r.before ? [{ type: 'image' as const, data: r.before.image, mimeType: r.before.mimeType }] : [])];
+  const content: CallToolResult['content'] = [{ type: 'image', data: r.image, mimeType: r.mimeType }, ...(r.before ? [{ type: 'image' as const, data: r.before.image, mimeType: r.before.mimeType }] : []), ...captionContent(meta)];
   return { structured, content };
 }
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { DragEvent } from 'react';
 import { MAX_SCENE_BYTES } from '@flat/scene';
 import { beginLoad, isLatestLoad, useSceneStore } from './state/sceneStore';
@@ -13,9 +13,11 @@ import { noteFrame, registerCanvas, testHookEnabled } from './testHook';
 import { BootBanner } from './ui/BootBanner';
 import { DocumentMenu } from './ui/DocumentMenu';
 import { ErrorPanel } from './ui/ErrorPanel';
+import { GhostTip } from './ui/GhostTip';
 import { LightingPanel } from './ui/LightingPanel';
 import { ModeToolbar } from './ui/ModeToolbar';
 import { PropertiesPanel } from './ui/PropertiesPanel';
+import { RoomItems } from './ui/RoomItems';
 import { SceneLoader } from './ui/SceneLoader';
 import { SitePanel } from './ui/SitePanel';
 import { SyncConflictDialog } from './ui/SyncConflictDialog';
@@ -23,6 +25,7 @@ import { SyncNotices } from './ui/SyncNotices';
 import { SyncStatus } from './ui/SyncStatus';
 import { useSyncStore } from './sync/sync-store';
 import { useMobileLayout } from './ui/useMobileLayout';
+import { useItemKeys } from './ui/useItemKeys';
 import { useUndoRedoKeys } from './ui/useUndoRedoKeys';
 import { ViewSettings } from './ui/ViewSettings';
 import { ViewerErrorBanner } from './ui/ViewerErrorBanner';
@@ -30,6 +33,9 @@ import { WarningsList } from './ui/WarningsList';
 import { FlatCanvas } from './viewer/FlatCanvas';
 import { sceneKey } from './viewer/scene-identity';
 import { selectionForId } from './viewer/selection';
+
+/** The catalog (cards, search, parameter forms) is its own chunk: it loads when the sidebar first renders it. */
+const CatalogPanel = lazy(() => import('./ui/CatalogPanel'));
 
 /** Credit required by the Licence Ouverte 2.0 for the IGN BD TOPO buildings. */
 export const CONTEXT_ATTRIBUTION = '© IGN – BD TOPO, Licence Ouverte 2.0';
@@ -55,6 +61,7 @@ function confirmReplace(): boolean {
 
 export function App() {
   useUndoRedoKeys();
+  useItemKeys();
   const { scene, source, warnings, errors, loadText } = useSceneStore();
   const { mode, selection, lighting, personHeightCm, walkLightsOn, translucentDoors, buildingMode, camera, setMode, select } = useViewStore();
   const viewport = useViewportStore((s) => s.forced);
@@ -206,6 +213,12 @@ export function App() {
         <SceneLoader fixtureId={fixtureId} onPickFixture={pickFixture} onFile={(f) => void loadFile(f)} />
         <DocumentMenu confirmReplace={confirmReplace} onImportFile={(f) => void loadFile(f, true)} onReset={resetToSample} />
         <ErrorPanel errors={errors} onDismiss={() => useSceneStore.setState({ errors: [] })} />
+        {scene && (
+          <Suspense fallback={null}>
+            <CatalogPanel onDragStart={mobile ? () => setDrawerOpen(false) : undefined} />
+          </Suspense>
+        )}
+        {scene && <RoomItems scene={scene} />}
         {scene && <LightingPanel scene={scene} hasContext={rawContext !== null} />}
         {scene && <SitePanel key={sceneKey(scene)} scene={scene} />}
         {scene && (
@@ -218,6 +231,7 @@ export function App() {
       <main className="stage">
         <BootBanner />
         <ViewerErrorBanner />
+        <GhostTip />
         {scene && (
           <>
             <FlatCanvas

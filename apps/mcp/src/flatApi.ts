@@ -97,6 +97,18 @@ export interface FlatApi {
    * `GET /api/assets/meshes/:assetId.glb` (a library mesh).
    */
   assetUrl(ref: AssetRef): string;
+  /**
+   * `GET` of an `assetUrl` (a provider GLB or a library mesh) with the server token. The render service
+   * serves it to the headless viewer: the render page has its own origin, which the server's provider
+   * routes (origin-checked, retailer data) rightly refuse, so the browser never talks to them itself.
+   */
+  fetchAsset(url: string): Promise<FlatResult<FetchedAsset>>;
+}
+
+export interface FetchedAsset {
+  status: number;
+  contentType: string;
+  body: Uint8Array;
 }
 
 /** What `FlatApi.assetUrl` addresses. */
@@ -222,6 +234,27 @@ export class HttpFlatApi implements FlatApi {
   }
   isProductSeen(session: string, productId: string) {
     return this.call<IsSeenResponse>('GET', `/api/products/seen?${new URLSearchParams({ session, id: productId })}`);
+  }
+  async fetchAsset(url: string): Promise<FlatResult<FetchedAsset>> {
+    // The URL is normalised first (`..` segments resolved) so the prefix test below is about where the request really goes.
+    let target: URL | undefined;
+    try {
+      target = new URL(url);
+    } catch {
+      target = undefined;
+    }
+    if (!target || target.origin !== new URL(this.config.serverUrl).origin || !target.pathname.startsWith('/api/assets/')) {
+      return { ok: false, kind: 'http', status: 403, errors: [{ code: 'forbidden', path: '', message: "only the scene server's /api/assets/ can be fetched" }] };
+    }
+    try {
+      const res = await this.fetchImpl(target.href, {
+        headers: this.config.token ? { authorization: `Bearer ${this.config.token}` } : {},
+        signal: AbortSignal.timeout(Math.max(this.config.requestTimeoutMs, 30_000)),
+      });
+      return { ok: true, data: { status: res.status, contentType: res.headers.get('content-type') ?? 'application/octet-stream', body: new Uint8Array(await res.arrayBuffer()) } };
+    } catch (e) {
+      return { ok: false, kind: 'unreachable', message: `${url}: ${e instanceof Error ? e.message : String(e)}` };
+    }
   }
   assetUrl(ref: AssetRef): string {
     if (ref.kind === 'mesh') return `${this.config.serverUrl}/api/assets/meshes/${encodeURIComponent(ref.assetId)}.glb`;

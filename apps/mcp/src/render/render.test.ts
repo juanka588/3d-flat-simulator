@@ -1,4 +1,6 @@
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { Client } from '@modelcontextprotocol/client';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import { PNG } from 'pngjs';
 import type { Browser, Page } from 'playwright';
@@ -8,6 +10,11 @@ import { BrowserRenderer, DEFAULT_DIST } from './browserRenderer';
 import { McpRenderer } from './service';
 import { apply, startFlatServer, toolContext, type RunningServer } from './harness';
 import { startStaticServer, type StaticServer } from './staticServer';
+import { InMemoryTransport } from '@modelcontextprotocol/server';
+import { makeEnvelope } from '@flat/scene';
+import { loadConfig } from '../config';
+import { createFlatMcpServer } from '../server';
+import { fakeClock } from '../testing/inproc';
 import { renderTools } from '../tools/render';
 import type { ToolContext } from '../tools/registry';
 
@@ -190,7 +197,7 @@ describe.runIf(process.env.MCP_RENDER)('render service (slow: real browser, real
     await call({ view: 'room', roomId: 'ch1' });
     const revBefore = data(await call({ view: 'top' })).rev;
     await apply(srv.flat, { type: 'room.setWallFinish', roomId: 'ch1', materialId: 'paint-sage' });
-    const r = await call({ view: 'walk', roomId: 'ch1', facing: 'w-ch2-ch1', compare: 'before_after' });
+    const r = await call({ view: 'walk', roomId: 'ch1', facing: 'w-east', compare: 'before_after' });
     expect(r.isError, JSON.stringify(r.content[0])).toBeFalsy();
     expect(images(r)).toHaveLength(2);
     expect(data(r).compare).toEqual({ beforeRev: revBefore });
@@ -295,4 +302,116 @@ describe.runIf(process.env.MCP_RENDER)('render service (slow: real browser, real
       await cold.close();
     }
   }, 90_000);
+});
+
+
+describe.runIf(process.env.MCP_RENDER)('furnishing flow with renders (slow: real browser, real server with FLAT_PROVIDERS=mock)', () => {
+  let user: StaticServer;
+  let srv: RunningServer;
+  let browser: BrowserRenderer;
+  let client: Client;
+  let flat: RunningServer['flat'];
+  const served: string[] = [];
+  const EAST = { kind: 'against_wall', wallId: 'w-east' } as const;
+  const bedGlb = readFileSync(fileURLToPath(new URL('../../../web/public/models/kenney_bed_double.glb', import.meta.url)));
+  const call = async (name: string, args: Record<string, unknown> = {}) => (await client.callTool({ name, arguments: args })) as CallToolResult;
+
+  beforeAll(async () => {
+    user = await startStaticServer(DEFAULT_DIST);
+    srv = await startFlatServer(new URL(user.url).origin, { FLAT_PROVIDERS: 'mock' });
+    // The mock provider has no 3D model: the test serves one (a CC0 bed) for its product URL, as a provider with a model would.
+    const modelUrl = srv.flat.assetUrl({ kind: 'product-model', productId: 'mock:MOCK-BED-160' });
+    flat = Object.create(srv.flat, {
+      fetchAsset: {
+        value: async (url: string) => {
+          served.push(url);
+          return url === modelUrl ? { ok: true, data: { status: 200, contentType: 'model/gltf-binary', body: new Uint8Array(bedGlb) } } : srv.flat.fetchAsset(url);
+        },
+      },
+    }) as RunningServer['flat'];
+    browser = new BrowserRenderer();
+    const config = loadConfig({}, { serverUrl: srv.url, log: () => undefined });
+    const server = createFlatMcpServer({ config, flat, clock: fakeClock(), renderer: new McpRenderer(flat, browser) });
+    const [a, b] = InMemoryTransport.createLinkedPair();
+    client = new Client({ name: 'render-flow', version: '1.0.0' });
+    await Promise.all([server.connect(a), client.connect(b)]);
+  }, 90_000);
+
+  afterAll(async () => {
+    await browser?.close();
+    await srv?.stop();
+    await user?.close();
+  });
+
+  it('search -> options -> batch place (preview with a render, then commit) -> validate -> bill -> room and walk renders', async () => {
+    const found = data(await call('search_products', { query: '', limit: 12 }));
+    expect(found.count).toBeGreaterThan(5);
+    const options = data(await call('get_placement_options', { productId: 'mock:MOCK-BED-160', roomId: 'ch1', relation: EAST }));
+    expect(options.valid).toBe(true);
+
+    const items = [
+      { productId: 'mock:MOCK-BED-160', roomId: 'ch1', relation: EAST },
+      { productId: 'mock:MOCK-DESK-120', roomId: 'ch1', relation: { kind: 'against_wall', wallId: 'w-ch2-ch1' } },
+    ];
+    const empty = await call('render_view', { view: 'room', roomId: 'ch1' });
+    expect(empty.isError, JSON.stringify(empty.content[0])).toBeFalsy();
+    const preview = await call('place_item', { items, preview: true, render: { view: 'room', roomId: 'ch1' }, label: 'Furnish Chambre 1' });
+    expect(preview.isError, JSON.stringify(preview.content[0])).toBeFalsy();
+    expect(data(preview)).toMatchObject({ committed: false, render: { ok: true, view: 'room', roomId: 'ch1' } });
+    expect(images(preview)).toHaveLength(1);
+    save('furnish-preview', preview);
+
+    const commit = await call('place_item', { items, ifRev: data(preview).baseRev, render: { view: 'room', roomId: 'ch1' }, label: 'Furnish Chambre 1' });
+    expect(data(commit)).toMatchObject({ committed: true, addedEur: 378, render: { ok: true } });
+    expect(images(commit)).toHaveLength(1);
+    // the pictures show the furniture: they differ from the empty room, and the preview is what was then committed
+    expect(bytes(images(commit)[0]!).equals(bytes(images(empty)[0]!))).toBe(false);
+    expect(bytes(images(preview)[0]!).equals(bytes(images(empty)[0]!))).toBe(false);
+    save('furnish-empty', empty);
+
+    expect(data(await call('validate_layout', { roomId: 'ch1', budgetEur: 500 }))).toMatchObject({ ok: true, totalEur: 378, overBudget: false });
+    expect(data(await call('get_bill_of_materials', { roomId: 'ch1' }))).toMatchObject({ totalEur: 378 });
+
+    const room = await call('render_view', { view: 'room', roomId: 'ch1' });
+    expect(room.isError, JSON.stringify(room.content[0])).toBeFalsy();
+    const walk = await call('render_view', { view: 'walk', roomId: 'ch1', facing: 'door-ch1' });
+    expect(walk.isError, JSON.stringify(walk.content[0])).toBeFalsy();
+    save('furnish-room', room);
+    save('furnish-walk', walk);
+    expect(data(room).caption).toBeUndefined(); // the mock provider is not personal-use-only
+  }, 120_000);
+
+  it('the headless viewer loads a provider GLB through the server (Node-side route), and the caption appears for personal-use providers', async () => {
+    const p = srv.flat.assetUrl({ kind: 'product-model', productId: 'mock:MOCK-BED-160' });
+    expect((await call('undo')).isError).toBeFalsy(); // one step reverts the whole furnishing batch
+    // A user-placed bed that asks for the provider model of its product.
+    const rec = data(await call('get_product', { productId: 'mock:MOCK-BED-160' }));
+    const placed = await flat.postCommand(
+      makeEnvelope(
+        {
+          type: 'item.place',
+          item: {
+            id: 'bed-glb',
+            assetId: 'product:mock',
+            position: [9.05, 2.21],
+            rotation: 270,
+            roomId: 'ch1',
+            dims: rec.dims,
+            productRef: { provider: 'mock', sku: 'MOCK-BED-160' },
+            product: { provider: 'mock', sku: 'MOCK-BED-160', name: rec.name, url: rec.url, price: rec.price, currency: 'EUR', dims: rec.dims, category: 'bed', snapshotAt: rec.fetchedAt },
+            mesh: { kind: 'provider' },
+          },
+        } as never,
+        { id: `glb-${Date.now()}`, ts: Date.now(), author: { kind: 'user' } },
+      ),
+    );
+    expect(placed.ok, JSON.stringify(placed)).toBe(true);
+    const r = await call('render_view', { view: 'room', roomId: 'ch1' });
+    expect(r.isError, JSON.stringify(r.content[0])).toBeFalsy();
+    expect(served).toContain(p);
+    const stats = (await browser.session.page!.evaluate('window.__flat.modelStats()')) as { sources: Record<string, string>; requests: string[]; failed: number };
+    expect(stats.requests.some((u) => u === p)).toBe(true);
+    expect(stats.sources['bed-glb']).toBe('provider');
+    save('furnish-provider-glb', r);
+  }, 120_000);
 });

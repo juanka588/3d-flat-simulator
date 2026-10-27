@@ -304,6 +304,9 @@ export const MCP_ONLY_ERROR_CODES = [
   'unauthorized',
   'not_implemented',
   'internal_error',
+  // Added by M5.11 (lane E): `place_item` refusals.
+  'unknown_product',
+  'dims_mismatch',
   // Added by M5.0: product providers (hints in `PROVIDER_ERROR_HINTS`).
   ...PROVIDER_ERROR_CODES,
 ] as const;
@@ -337,6 +340,8 @@ export const MCP_ERROR_HINTS: Readonly<Record<McpErrorCode, string>> = {
   unauthorized: 'The scene server needs a token; set FLAT_TOKEN to the server token.',
   not_implemented: 'This tool is not implemented yet in this build.',
   internal_error: 'Unexpected failure; retry once, then report it with the message.',
+  unknown_product: 'Only products returned by search_products or get_product in this session can be placed; call search_products first and use a productId it returned.',
+  dims_mismatch: 'A parametric mesh must match the product dimensions within 2%; use the dims in the hint, omit mesh to get the default shape, or call search_assets for generator parameters.',
   ...PROVIDER_ERROR_HINTS,
 };
 

@@ -1,7 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import { RENDER_LIMITS, type CameraPose, type LightingView, type SceneResponse } from '@flat/scene';
 import type { RenderChannel } from './browser';
-import { PageSession, SessionError, type PageOutput } from './pageSession';
+import { PageSession, SessionError, type ModelSource, type PageOutput } from './pageSession';
 import { QueueBusyError, SerialQueue } from './queue';
 import { hasBuild } from './staticServer';
 
@@ -28,6 +28,8 @@ export interface RenderRequest {
   lighting: LightingView;
   size: { width: number; height: number };
   format?: 'png' | 'jpeg';
+  /** Where the viewer gets provider models from (see `ModelSource`). */
+  models?: ModelSource | undefined;
 }
 
 export interface RenderOutput extends Omit<PageOutput, 'sceneLoaded' | 'contextLost'> {
@@ -125,6 +127,7 @@ export class BrowserRenderer {
               lighting: req.lighting,
               size: req.size,
               format: req.format ?? 'png',
+              ...(req.models ? { models: req.models } : {}),
             }),
             remaining,
           );

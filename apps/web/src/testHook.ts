@@ -16,6 +16,7 @@ import type { FlatStats, FlatTestHook, HistoryInfo } from './test-hook-types';
 import { textureStats, texturesSettled } from './viewer/texture-cache';
 import { modelStats, modelsSettled, setMeshResolverOverride, setProviderFrontOverride } from './viewer/model-runtime';
 import { setModelOriginOverride } from './viewer/model-env';
+import { dragState } from './catalog/placement';
 import { transformBox } from './viewer/model-math';
 import type { Box } from './viewer/model-math';
 import { stepWalker } from './viewer/walk-input';
@@ -499,6 +500,7 @@ export function installTestHook(): void {
     },
     flushAutosave: () => flushAutosave(),
     modelStats: () => modelStats(),
+    placement: () => dragState(),
     itemBounds: (id) => {
       if (!canvas) throw new Error('canvas not ready');
       return itemWorldBox(canvas().scene, id);

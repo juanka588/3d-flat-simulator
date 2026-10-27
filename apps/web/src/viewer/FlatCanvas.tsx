@@ -12,6 +12,7 @@ import { SelectionHighlight } from './SelectionHighlight';
 import { StructuralOverlay } from './StructuralOverlay';
 import { ShellMesh, CLICK_DRAG_TOLERANCE_PX } from './ShellMesh';
 import { ItemsMesh, useItemModels } from './ItemsMesh';
+import { PlacementLayer } from './PlacementLayer';
 import { VIEWER_ELEMENT_ID, WalkControls } from './WalkControls';
 import { WalkOverlay } from './WalkOverlay';
 import { DOOR_WALK_MATERIAL, createMaterialLibrary } from './materials';
@@ -93,6 +94,7 @@ export function FlatCanvas({ scene, view, context = null, onSelect, onExitWalk, 
           {(sc) => <Shell scene={sc} view={view} onSelect={onSelect} />}
         </ViewerGuard>
         {view.mode === 'top' && <StructuralOverlay scene={scene} />}
+        {view.mode !== 'walk' && <PlacementLayer scene={scene} selectedId={view.selection?.kind === 'item' ? view.selection.entityId : undefined} />}
         {view.mode === 'walk' ? (
           <WalkControls key={`walk:${sceneKey(scene)}`} scene={scene} personHeightCm={view.personHeightCm} onExit={onExitWalk ?? noop} pose={view.camera?.mode === 'walk' ? view.camera : undefined} onUserCamera={onUserCamera} />
         ) : (

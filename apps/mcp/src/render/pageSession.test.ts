@@ -14,7 +14,7 @@ vi.mock('./browser', () => ({
       evaluate: async () => undefined,
       close: async () => undefined,
     };
-    const context = { addInitScript: async () => undefined, newPage: async () => page };
+    const context = { addInitScript: async () => undefined, route: async () => undefined, newPage: async () => page };
     const browser = {
       closed: false,
       on: () => undefined,

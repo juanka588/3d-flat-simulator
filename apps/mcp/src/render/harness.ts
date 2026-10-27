@@ -32,12 +32,12 @@ export interface RunningServer {
 }
 
 /** Boots apps/server (Charme fixture, fresh data dir) accepting browser tabs served from `allowedOrigin`. */
-export async function startFlatServer(allowedOrigin: string): Promise<RunningServer> {
+export async function startFlatServer(allowedOrigin: string, env: Record<string, string> = {}): Promise<RunningServer> {
   const port = await freePort();
   const dataDir = mkdtempSync(join(tmpdir(), 'flat-render-'));
   const child: ChildProcess = spawn(process.execPath, ['--import', 'tsx', 'src/main.ts'], {
     cwd: SERVER_CWD,
-    env: { ...process.env, PORT: String(port), HOST: '127.0.0.1', DATA_DIR: dataDir, ALLOWED_ORIGINS: allowedOrigin },
+    env: { ...process.env, PORT: String(port), HOST: '127.0.0.1', DATA_DIR: dataDir, ALLOWED_ORIGINS: allowedOrigin, ...env },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let log = '';

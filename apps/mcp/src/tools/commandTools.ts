@@ -29,7 +29,7 @@ const NO_RENDERER = 'rendering is not wired in this server; the change itself wa
 const renderFailure = (code: 'render_unavailable' | 'render_timeout' | 'rate_limited', message: string, extra: Record<string, unknown> = {}) => ({ render: { ok: false, code, message, hint: MCP_ERROR_HINTS[code === 'rate_limited' ? 'rate_limited' : code], ...extra } });
 
 /** A validated `render` argument, before the changed rooms are known. */
-interface RenderPlan {
+export interface RenderPlan {
   /** What the caller asked for; absent for `render: true`. */
   spec?: RenderSpecInput;
   /** The caller named a view (otherwise it follows the `render: true` default). */
@@ -41,7 +41,7 @@ interface RenderPlan {
  * Validates the `render` argument with the SAME schema as `render_view` (so a bad value fails before a
  * write or a rate-limit token is spent). `previewOf` is set by the server, never by the model.
  */
-function planRender(render: true | Record<string, unknown> | undefined): { ok: true; plan: RenderPlan | undefined } | { ok: false; result: CallToolResult } {
+export function planRender(render: true | Record<string, unknown> | undefined): { ok: true; plan: RenderPlan | undefined } | { ok: false; result: CallToolResult } {
   if (render === undefined) return { ok: true, plan: undefined };
   if (render === true) return { ok: true, plan: { hadView: false } };
   const fail = (path: string, message: string) => ({ ok: false as const, result: toolError('invalid_command', `render/${path}: ${message}`, 'Pass render: true, or the arguments of render_view (view, roomId, facing, preset, ...).', { errors: [{ code: 'invalid_command', path: `render/${path}`, message }] }) });
@@ -84,7 +84,7 @@ async function renderPart(ctx: ToolContext, plan: RenderPlan | undefined, change
   const spec = renderSpecFor(plan, changed);
   try {
     const r = await ctx.renderer.render(spec, { session: ctx.session, ...(plan.format ? { format: plan.format } : {}), ...(preview ? { scene: preview } : {}) });
-    const content: CallToolResult['content'] = [{ type: 'image', data: r.image, mimeType: r.mimeType }, ...(r.before ? [{ type: 'image' as const, data: r.before.image, mimeType: r.before.mimeType }] : [])];
+    const content: CallToolResult['content'] = [{ type: 'image', data: r.image, mimeType: r.mimeType }, ...(r.before ? [{ type: 'image' as const, data: r.before.image, mimeType: r.before.mimeType }] : []), ...(r.meta.caption ? [{ type: 'text' as const, text: r.meta.caption }] : [])];
     return { content, fields: { render: { ok: true, ...r.meta } } };
   } catch (e) {
     const code = (e as { code?: string }).code === 'render_timeout' ? 'render_timeout' : 'render_unavailable';
@@ -112,12 +112,21 @@ export async function runCommandTool(ctx: ToolContext, toolName: string, args: R
   }
   // A labelled single command is recorded as a one-command batch: same effect, the label in the history.
   if (extras.label !== undefined) cmd = { type: 'batch', label: extras.label, commands: [cmd] };
+  return executeCommand(ctx, cmd as unknown as Command, { ifRev: extras.ifRev, preview: extras.preview, plan });
+}
 
-  const envelope = makeEnvelope(cmd as unknown as Command, { id: ctx.clock.newId(), ts: ctx.clock.now(), author: ctx.author, ...(extras.ifRev !== undefined ? { ifRev: extras.ifRev } : {}) });
+/**
+ * The shared tail of every write tool (generated command tools and `place_item`): envelope with a fresh
+ * ULID, `parseCommand`, then preview (pure reducer on a fresh scene) or commit (write guard, `postCommand`),
+ * with the optional render. `plan` comes from `planRender`.
+ */
+export async function executeCommand(ctx: ToolContext, cmd: Command, opts: { ifRev: number | undefined; preview: boolean; plan: RenderPlan | undefined }): Promise<CallToolResult> {
+  const { plan } = opts;
+  const envelope = makeEnvelope(cmd, { id: ctx.clock.newId(), ts: ctx.clock.now(), author: ctx.author, ...(opts.ifRev !== undefined ? { ifRev: opts.ifRev } : {}) });
   const parsed = parseCommand(envelope);
   if (!parsed.ok) return commandErrors(parsed.errors);
 
-  if (extras.preview) return previewCommand(ctx, parsed.envelope, plan);
+  if (opts.preview) return previewCommand(ctx, parsed.envelope, plan);
 
   const blocked = guardWrite(ctx);
   if (blocked) return blocked;
@@ -182,10 +191,21 @@ function withBatchLimit(t: { name: string; description: string; inputSchema: Rec
   };
 }
 
+/**
+ * What the scene package's descriptions could not say because the M5.11 tools did not exist when they were written.
+ * Appended to the advertised description of the `item_*` tools (the tools stay for fine edits).
+ */
+export const DESCRIPTION_NOTES: Record<string, string> = {
+  item_place: ' Prefer place_item: it checks the product against search_products and fills in price, dims and link itself. To see valid spots first, call get_placement_options; get_product lists variants and weight.',
+  item_move: ' To find a valid spot first, call get_placement_options.',
+  item_set_variant: ' get_product lists the variants (variants[].sku) of a product.',
+  item_remove: ' To find which item to remove, read items[] with describe_room; get_bill_of_materials shows the cost.',
+};
+
 export function commandTools(limits: { maxBatch: number } = DEFAULT_LIMITS): ToolDef[] {
   return commandToolSchemas().map((raw) => withBatchLimit(raw, limits.maxBatch) as typeof raw).map((t) => ({
     name: t.name,
-    description: t.description,
+    description: t.description + (DESCRIPTION_NOTES[t.name] ?? ''),
     inputSchema: withMcpExtras(t.inputSchema),
     group: 'write' as const,
     mutatesScene: true,

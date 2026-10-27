@@ -57,7 +57,7 @@ describe('streamable HTTP (M4.2)', () => {
     const inproc = await connect();
     const strip = (tools: { name: string; description?: string; annotations?: unknown; inputSchema: unknown }[]) => tools.map((t) => ({ name: t.name, description: t.description, annotations: t.annotations, inputSchema: t.inputSchema }));
     expect(strip((await over.listTools()).tools)).toEqual(strip((await inproc.client.listTools()).tools));
-    expect((await over.listTools()).tools.length).toBe(29);
+    expect((await over.listTools()).tools.length).toBe(37);
     expect((await over.listPrompts()).prompts.map((p) => p.name)).toEqual(['apply_style', 'furnish_room']);
     expect((await over.listResources()).resources).toHaveLength(5);
     await over.close();
@@ -77,7 +77,7 @@ describe('streamable HTTP (M4.2)', () => {
   });
 
   it('is stateless but the lighting and the limits are shared by the requests of one client (same User-Agent)', async () => {
-    const { http } = await serve({ limits: { maxBatch: 50, writesPerMinute: 2, rendersPerMinute: 10, maxArgBytes: 262144, sessionWriteCap: 500 } });
+    const { http } = await serve({ limits: { maxBatch: 50, writesPerMinute: 2, rendersPerMinute: 10, maxArgBytes: 262144, sessionWriteCap: 500, searchesPerMinute: 20, productGetsPerMinute: 60 } });
     const a = await mcpClient(http.url);
     await a.callTool({ name: 'set_sun_time', arguments: { date: '2026-12-21' } });
     await a.close();
@@ -109,7 +109,7 @@ describe('streamable HTTP (M4.2)', () => {
     });
 
     it('two clients do not share lighting, the allowance or the author name', async () => {
-      const { http, flat } = await serve({ limits: { maxBatch: 50, writesPerMinute: 1, rendersPerMinute: 10, maxArgBytes: 262144, sessionWriteCap: 500 } });
+      const { http, flat } = await serve({ limits: { maxBatch: 50, writesPerMinute: 1, rendersPerMinute: 10, maxArgBytes: 262144, sessionWriteCap: 500, searchesPerMinute: 20, productGetsPerMinute: 60 } });
       const a = { 'user-agent': 'agent-a/1.0' };
       const b = { 'user-agent': 'agent-b/2.0' };
       await call(http.port, a, 'set_sun_time', { date: '2026-12-21' });
@@ -140,7 +140,7 @@ describe('streamable HTTP (M4.2)', () => {
     });
 
     it('the write-cap hint does not tell an HTTP client to "reconnect"', async () => {
-      const { http } = await serve({ limits: { maxBatch: 50, writesPerMinute: 30, rendersPerMinute: 10, maxArgBytes: 262144, sessionWriteCap: 1 } });
+      const { http } = await serve({ limits: { maxBatch: 50, writesPerMinute: 30, rendersPerMinute: 10, maxArgBytes: 262144, sessionWriteCap: 1, searchesPerMinute: 20, productGetsPerMinute: 60 } });
       const h = { 'user-agent': 'agent-a/1.0' };
       await call(http.port, h, 'room_set_floor', { roomId: 'sejour', materialId: 'floor-oak' });
       const r = result(await call(http.port, h, 'room_set_floor', { roomId: 'sejour', materialId: 'floor-tile' }));
@@ -212,7 +212,7 @@ describe('streamable HTTP (M4.2)', () => {
     it('passes with the right token (any scheme casing) and healthz stays open', async () => {
       const { http, base } = await serve({ token: TOKEN });
       const client = await mcpClient(http.url, { authorization: `Bearer ${TOKEN}` });
-      expect((await client.listTools()).tools.length).toBe(29);
+      expect((await client.listTools()).tools.length).toBe(37);
       await client.close();
       expect((await fetch(`${base}/mcp`, { method: 'POST', headers: { ...MCP_HEADERS, authorization: `bearer ${TOKEN}` }, body: INIT })).status).toBe(200);
       expect((await fetch(`${base}/healthz`)).status).toBe(200);
