@@ -87,7 +87,7 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 64,
-          "description": "Id of the material to delete. Fails with precondition_failed while any wall, room or default uses it."
+          "description": "Id of the material to delete (sceneMaterials[].id from list_materials). Fails with precondition_failed while any wall, room or default uses it."
         }
       },
       "required": [
@@ -108,7 +108,7 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 64,
-          "description": "Id of the wall (walls[].id from get_scene_summary)."
+          "description": "Id of the wall (walls[].wallId from describe_room)."
         },
         "side": {
           "type": "string",
@@ -117,7 +117,7 @@
             "right",
             "both"
           ],
-          "description": "Which face of the wall. \"left\" is the left of someone walking from the wall start to its end on the plan (plan y grows down; see wallLeftNormal), \"right\" the other face, \"both\" both faces. With roomId, \"both\" means every face of this wall that the room adjoins."
+          "description": "Which face of the wall. \"left\" is the left of someone walking from the wall start to its end on the plan (plan y grows down; describe_room gives the side that faces each room), \"right\" the other face, \"both\" both faces. With roomId, \"both\" means every face of this wall that the room adjoins."
         },
         "materialId": {
           "anyOf": [
@@ -130,13 +130,13 @@
               "type": "null"
             }
           ],
-          "description": "Id of a defined material (materials[].id in get_scene_summary), or null to clear back to the default. To use a library texture first call material.define with textureUrl \"lib:<slug>\" (slugs: materials://list)."
+          "description": "Id of a defined material (sceneMaterials[].id from list_materials, or materials[].id from get_scene_summary with detail \"full\"), or null to clear back to the default. To use a library texture first call material_define with textureUrl \"lib:<slug>\" (library[].slug from list_materials)."
         },
         "roomId": {
           "type": "string",
           "minLength": 1,
           "maxLength": 64,
-          "description": "The room whose stretch of this wall side to paint (from list_rooms or describe_room). Strongly recommended: a wall side can be shared by several rooms (e.g. the alcove and the sejour) and without roomId the whole side is painted for all of them. Fails with precondition_failed if the room does not border that side. A room-scoped finish beats the whole-side finish and room.setWallFinish."
+          "description": "The room whose stretch of this wall side to paint (rooms[].id from list_rooms). Strongly recommended: a wall side can be shared by several rooms (e.g. the alcove and the sejour) and without roomId the whole side is painted for all of them. Fails with precondition_failed if the room does not border that side. A room-scoped finish beats the whole-side finish and room_set_wall_finish."
         }
       },
       "required": [
@@ -159,7 +159,7 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 64,
-          "description": "Id of the wall (walls[].id from get_scene_summary)."
+          "description": "Id of the wall (walls[].wallId from describe_room)."
         },
         "structural": {
           "description": "true marks the wall structural (cannot be removed); false marks it removable; null clears the explicit mark so it is derived (exterior or at least 15 cm thick means structural). Only a user may set false on a wall that is structural by default.",
@@ -188,7 +188,7 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 64,
-          "description": "Id of the room (from list_rooms or get_scene_summary)."
+          "description": "Id of the room (rooms[].id from list_rooms)."
         },
         "materialId": {
           "anyOf": [
@@ -201,7 +201,7 @@
               "type": "null"
             }
           ],
-          "description": "Id of a defined material (materials[].id in get_scene_summary), or null to clear back to the default. To use a library texture first call material.define with textureUrl \"lib:<slug>\" (slugs: materials://list)."
+          "description": "Id of a defined material (sceneMaterials[].id from list_materials, or materials[].id from get_scene_summary with detail \"full\"), or null to clear back to the default. To use a library texture first call material_define with textureUrl \"lib:<slug>\" (library[].slug from list_materials)."
         }
       },
       "required": [
@@ -223,7 +223,7 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 64,
-          "description": "Id of the room (from list_rooms or get_scene_summary)."
+          "description": "Id of the room (rooms[].id from list_rooms)."
         },
         "materialId": {
           "anyOf": [
@@ -236,7 +236,7 @@
               "type": "null"
             }
           ],
-          "description": "Id of a defined material (materials[].id in get_scene_summary), or null to clear back to the default. To use a library texture first call material.define with textureUrl \"lib:<slug>\" (slugs: materials://list)."
+          "description": "Id of a defined material (sceneMaterials[].id from list_materials, or materials[].id from get_scene_summary with detail \"full\"), or null to clear back to the default. To use a library texture first call material_define with textureUrl \"lib:<slug>\" (library[].slug from list_materials)."
         }
       },
       "required": [
@@ -258,7 +258,7 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 64,
-          "description": "Id of the room (from list_rooms or get_scene_summary)."
+          "description": "Id of the room (rooms[].id from list_rooms)."
         },
         "materialId": {
           "anyOf": [
@@ -271,7 +271,7 @@
               "type": "null"
             }
           ],
-          "description": "Id of a defined material (materials[].id in get_scene_summary), or null to clear back to the default. To use a library texture first call material.define with textureUrl \"lib:<slug>\" (slugs: materials://list)."
+          "description": "Id of a defined material (sceneMaterials[].id from list_materials, or materials[].id from get_scene_summary with detail \"full\"), or null to clear back to the default. To use a library texture first call material_define with textureUrl \"lib:<slug>\" (library[].slug from list_materials)."
         }
       },
       "required": [
@@ -420,7 +420,7 @@
                   "type": "string",
                   "minLength": 1,
                   "maxLength": 64,
-                  "description": "Room the light belongs to (from list_rooms). Optional."
+                  "description": "Room the light belongs to (rooms[].id from list_rooms). Optional."
                 },
                 "position": {
                   "type": "array",
@@ -491,7 +491,7 @@
                   "type": "string",
                   "minLength": 1,
                   "maxLength": 64,
-                  "description": "Room the light belongs to (from list_rooms). Optional."
+                  "description": "Room the light belongs to (rooms[].id from list_rooms). Optional."
                 },
                 "position": {
                   "type": "array",
@@ -569,7 +569,7 @@
                   "type": "string",
                   "minLength": 1,
                   "maxLength": 64,
-                  "description": "Room the light belongs to (from list_rooms). Optional."
+                  "description": "Room the light belongs to (rooms[].id from list_rooms). Optional."
                 },
                 "position": {
                   "type": "array",
@@ -667,7 +667,7 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 64,
-          "description": "Id of the light (lights[].id from get_scene_summary)."
+          "description": "Id of the light (lights[].id from describe_room, or lights[].id from get_scene_summary with detail \"full\")."
         },
         "patch": {
           "type": "object",
@@ -695,7 +695,7 @@
                   "type": "null"
                 }
               ],
-              "description": "Room the light belongs to (from list_rooms); null clears it."
+              "description": "Room the light belongs to (rooms[].id from list_rooms); null clears it."
             },
             "position": {
               "type": "array",
@@ -776,7 +776,7 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 64,
-          "description": "Id of the light to remove."
+          "description": "Id of the light to remove (lights[].id from describe_room, or lights[].id from get_scene_summary with detail \"full\")."
         }
       },
       "required": [
@@ -890,7 +890,7 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 64,
-                    "description": "Id of the material to delete. Fails with precondition_failed while any wall, room or default uses it."
+                    "description": "Id of the material to delete (sceneMaterials[].id from list_materials). Fails with precondition_failed while any wall, room or default uses it."
                   }
                 },
                 "required": [
@@ -911,7 +911,7 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 64,
-                    "description": "Id of the wall (walls[].id from get_scene_summary)."
+                    "description": "Id of the wall (walls[].wallId from describe_room)."
                   },
                   "side": {
                     "type": "string",
@@ -920,7 +920,7 @@
                       "right",
                       "both"
                     ],
-                    "description": "Which face of the wall. \"left\" is the left of someone walking from the wall start to its end on the plan (plan y grows down; see wallLeftNormal), \"right\" the other face, \"both\" both faces. With roomId, \"both\" means every face of this wall that the room adjoins."
+                    "description": "Which face of the wall. \"left\" is the left of someone walking from the wall start to its end on the plan (plan y grows down; describe_room gives the side that faces each room), \"right\" the other face, \"both\" both faces. With roomId, \"both\" means every face of this wall that the room adjoins."
                   },
                   "materialId": {
                     "anyOf": [
@@ -933,13 +933,13 @@
                         "type": "null"
                       }
                     ],
-                    "description": "Id of a defined material (materials[].id in get_scene_summary), or null to clear back to the default. To use a library texture first call material.define with textureUrl \"lib:<slug>\" (slugs: materials://list)."
+                    "description": "Id of a defined material (sceneMaterials[].id from list_materials, or materials[].id from get_scene_summary with detail \"full\"), or null to clear back to the default. To use a library texture first call material_define with textureUrl \"lib:<slug>\" (library[].slug from list_materials)."
                   },
                   "roomId": {
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 64,
-                    "description": "The room whose stretch of this wall side to paint (from list_rooms or describe_room). Strongly recommended: a wall side can be shared by several rooms (e.g. the alcove and the sejour) and without roomId the whole side is painted for all of them. Fails with precondition_failed if the room does not border that side. A room-scoped finish beats the whole-side finish and room.setWallFinish."
+                    "description": "The room whose stretch of this wall side to paint (rooms[].id from list_rooms). Strongly recommended: a wall side can be shared by several rooms (e.g. the alcove and the sejour) and without roomId the whole side is painted for all of them. Fails with precondition_failed if the room does not border that side. A room-scoped finish beats the whole-side finish and room_set_wall_finish."
                   }
                 },
                 "required": [
@@ -962,7 +962,7 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 64,
-                    "description": "Id of the wall (walls[].id from get_scene_summary)."
+                    "description": "Id of the wall (walls[].wallId from describe_room)."
                   },
                   "structural": {
                     "description": "true marks the wall structural (cannot be removed); false marks it removable; null clears the explicit mark so it is derived (exterior or at least 15 cm thick means structural). Only a user may set false on a wall that is structural by default.",
@@ -991,7 +991,7 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 64,
-                    "description": "Id of the room (from list_rooms or get_scene_summary)."
+                    "description": "Id of the room (rooms[].id from list_rooms)."
                   },
                   "materialId": {
                     "anyOf": [
@@ -1004,7 +1004,7 @@
                         "type": "null"
                       }
                     ],
-                    "description": "Id of a defined material (materials[].id in get_scene_summary), or null to clear back to the default. To use a library texture first call material.define with textureUrl \"lib:<slug>\" (slugs: materials://list)."
+                    "description": "Id of a defined material (sceneMaterials[].id from list_materials, or materials[].id from get_scene_summary with detail \"full\"), or null to clear back to the default. To use a library texture first call material_define with textureUrl \"lib:<slug>\" (library[].slug from list_materials)."
                   }
                 },
                 "required": [
@@ -1026,7 +1026,7 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 64,
-                    "description": "Id of the room (from list_rooms or get_scene_summary)."
+                    "description": "Id of the room (rooms[].id from list_rooms)."
                   },
                   "materialId": {
                     "anyOf": [
@@ -1039,7 +1039,7 @@
                         "type": "null"
                       }
                     ],
-                    "description": "Id of a defined material (materials[].id in get_scene_summary), or null to clear back to the default. To use a library texture first call material.define with textureUrl \"lib:<slug>\" (slugs: materials://list)."
+                    "description": "Id of a defined material (sceneMaterials[].id from list_materials, or materials[].id from get_scene_summary with detail \"full\"), or null to clear back to the default. To use a library texture first call material_define with textureUrl \"lib:<slug>\" (library[].slug from list_materials)."
                   }
                 },
                 "required": [
@@ -1061,7 +1061,7 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 64,
-                    "description": "Id of the room (from list_rooms or get_scene_summary)."
+                    "description": "Id of the room (rooms[].id from list_rooms)."
                   },
                   "materialId": {
                     "anyOf": [
@@ -1074,7 +1074,7 @@
                         "type": "null"
                       }
                     ],
-                    "description": "Id of a defined material (materials[].id in get_scene_summary), or null to clear back to the default. To use a library texture first call material.define with textureUrl \"lib:<slug>\" (slugs: materials://list)."
+                    "description": "Id of a defined material (sceneMaterials[].id from list_materials, or materials[].id from get_scene_summary with detail \"full\"), or null to clear back to the default. To use a library texture first call material_define with textureUrl \"lib:<slug>\" (library[].slug from list_materials)."
                   }
                 },
                 "required": [
@@ -1223,7 +1223,7 @@
                             "type": "string",
                             "minLength": 1,
                             "maxLength": 64,
-                            "description": "Room the light belongs to (from list_rooms). Optional."
+                            "description": "Room the light belongs to (rooms[].id from list_rooms). Optional."
                           },
                           "position": {
                             "type": "array",
@@ -1294,7 +1294,7 @@
                             "type": "string",
                             "minLength": 1,
                             "maxLength": 64,
-                            "description": "Room the light belongs to (from list_rooms). Optional."
+                            "description": "Room the light belongs to (rooms[].id from list_rooms). Optional."
                           },
                           "position": {
                             "type": "array",
@@ -1372,7 +1372,7 @@
                             "type": "string",
                             "minLength": 1,
                             "maxLength": 64,
-                            "description": "Room the light belongs to (from list_rooms). Optional."
+                            "description": "Room the light belongs to (rooms[].id from list_rooms). Optional."
                           },
                           "position": {
                             "type": "array",
@@ -1470,7 +1470,7 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 64,
-                    "description": "Id of the light (lights[].id from get_scene_summary)."
+                    "description": "Id of the light (lights[].id from describe_room, or lights[].id from get_scene_summary with detail \"full\")."
                   },
                   "patch": {
                     "type": "object",
@@ -1498,7 +1498,7 @@
                             "type": "null"
                           }
                         ],
-                        "description": "Room the light belongs to (from list_rooms); null clears it."
+                        "description": "Room the light belongs to (rooms[].id from list_rooms); null clears it."
                       },
                       "position": {
                         "type": "array",
@@ -1579,7 +1579,7 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 64,
-                    "description": "Id of the light to remove."
+                    "description": "Id of the light to remove (lights[].id from describe_room, or lights[].id from get_scene_summary with detail \"full\")."
                   }
                 },
                 "required": [
@@ -1590,7 +1590,7 @@
               }
             ]
           },
-          "description": "Commands applied in order and atomically: all succeed or none apply. At most 500; batches cannot nest."
+          "description": "Commands applied in order and atomically: all succeed or none apply. Batches cannot nest."
         }
       },
       "required": [

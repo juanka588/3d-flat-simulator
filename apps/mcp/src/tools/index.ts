@@ -6,8 +6,8 @@ import { renderTools } from './render';
 import { viewTools } from './view';
 
 /** Every tool, in the order they are listed: write tools (from `commandToolSchemas()`), read, view, render, history. */
-export function allTools(): ToolDef[] {
-  const tools = [...commandTools(), ...readTools(), ...viewTools(), ...renderTools(), ...historyTools()];
+export function allTools(limits?: { maxBatch: number }): ToolDef[] {
+  const tools = [...commandTools(limits), ...readTools(), ...viewTools(), ...renderTools(), ...historyTools()];
   assertValidRegistry(tools);
   return tools;
 }

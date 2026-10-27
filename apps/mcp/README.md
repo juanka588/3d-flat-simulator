@@ -39,13 +39,16 @@ name is read from `ctx.mcpReq.envelope` (new era) or `getClientVersion()` (2025 
 ### Prerequisites
 
 ```sh
-npx pnpm@10 install
-BASE_PATH=/ npx pnpm@10 --filter @flat/web build   # the viewer that render_view draws (read from apps/web/dist)
-npx playwright install chromium                     # the headless browser for render_view (first time only)
-npx pnpm@10 dev:all                                 # scene server (8787) + web app (5173); open http://127.0.0.1:5173/?server=http://127.0.0.1:8787
+pnpm install
+pnpm mcp:setup      # builds the viewer render_view draws (BASE_PATH=/ -> apps/web/dist), installs Chromium, then
+                    # proves it: starts the MCP server like Claude Code does and renders the séjour (fails loudly if blank)
+pnpm dev:all        # scene server (8787) + web app (5173); open http://127.0.0.1:5173/?server=http://127.0.0.1:8787
 ```
 
-Without the build or Chromium everything works except images (`render_unavailable`, with the fix in the hint).
+`pnpm mcp:setup` is the one command; its steps, if you prefer them by hand: `BASE_PATH=/ pnpm --filter @flat/web build` and
+`npx playwright install chromium` (flags: `--skip-build`, `--skip-browser`, `--no-check`).
+Without the build or Chromium everything works except images: `render_view` answers `render_unavailable` with the fix in the hint
+(it never returns an empty picture). A build made with another base path (the GitHub Pages one, `/3d-flat-simulator/`) also works.
 In the open tab, switch on "Follow assistant view" to see the assistant's `set_sun_time {sync_to_user_tab: true}` and camera.
 
 ### Claude Code
@@ -103,9 +106,12 @@ npx @modelcontextprotocol/inspector --transport http --server-url http://127.0.0
 |---|---|
 | The client reports invalid JSON / "unexpected token >" / connection closed at start | Something wrote to stdout, which is the JSON-RPC channel. Always run `pnpm --silent` (pnpm's `> script` banner is the usual culprit); never `console.log` in `src/`; logs go to stderr. |
 | `server_unreachable` | The scene server is not running or `FLAT_SERVER_URL` is wrong. `pnpm dev:all` or `pnpm server`; the MCP process itself stays up. |
-| `render_unavailable`: web build not found | Run `BASE_PATH=/ pnpm --filter @flat/web build` (or set `FLAT_WEB_URL` to a running web app). |
-| `render_unavailable`: cannot launch the headless browser | `npx playwright install chromium` (or `FLAT_RENDER_CHANNEL=chrome` to use installed Chrome). |
-| `render_timeout` / "busy" | First render starts a browser (several seconds); renders are serialised, 20 s limit. Retry. |
+| `render_unavailable`: web build not found | Run `pnpm mcp:setup` (or `BASE_PATH=/ pnpm --filter @flat/web build`; or set `FLAT_WEB_URL` to a running web app). |
+| `render_unavailable`: cannot launch the headless browser | `pnpm mcp:setup` (or `npx playwright install chromium`; or `FLAT_RENDER_CHANNEL=chrome` to use installed Chrome). |
+| `render_unavailable`: the viewer test hook did not appear | `FLAT_WEB_URL` points at something that is not this app (or an old build). Unset it, then `pnpm mcp:setup`. The hint carries the page's console errors and failed requests. |
+| `render_failed`: the render came out blank | The browser drew one flat colour or no geometry (a 128x96 sample of every capture is checked; the retry is automatic). Nothing is returned instead of an empty image. The hint has the page log: rebuild with `pnpm mcp:setup`, or try `FLAT_RENDER_CHANNEL=chrome` (GPU) when SwiftShader misbehaves. |
+| `render_timeout` / "busy" | The first render starts a browser (launch + viewer load + shader compile: 8 to 20 s on a cold machine) and has a 60 s budget; later renders have 20 s. Renders are serialised (queue depth 3, then "busy"). Retry; the phases are logged on stderr (`render: browser launched (..ms)`). |
+| The user's tab shows only the sky / nothing | If drawing the flat throws, the tab keeps the last scene that drew and shows a red banner ("The 3D view could not draw ...") with Export / Copy details. Reload the page and report the message. The scene itself is safe on the server (undo works). |
 | HTTP 403 `Host` / `Origin` not allowed | DNS-rebinding guard: only loopback names are accepted. Behind a proxy or on a LAN address set `FLAT_MCP_ALLOWED_HOSTS=name1,name2`. |
 | HTTP 401 | The endpoint requires `Authorization: Bearer $FLAT_TOKEN` (the same token the scene server uses). |
 | Refuses to start with `--host 0.0.0.0` | Non-loopback binds require `FLAT_TOKEN`. |
@@ -121,7 +127,7 @@ npx @modelcontextprotocol/inspector --transport http --server-url http://127.0.0
 - Everything stored in the scene (room names, labels) is treated as untrusted data, never as instructions.
 - Every change is attributed (`author: llm`, the client's name) and undoable; undo is shared with the user.
 - `render_view` runs a headless browser against files served on a loopback ephemeral port; it never touches your tab.
-- The LLM demo (`pnpm mcp:demo`) spends real tokens only with `ANTHROPIC_API_KEY` set and aborts above `FLAT_DEMO_MAX_USD` (default 2).
+- The LLM demo (`pnpm mcp:demo`) spends real tokens only with `ANTHROPIC_API_KEY` set and aborts above `FLAT_DEMO_MAX_USD` (default 2). The key is never passed to the scene or MCP processes. `pnpm mcp:demo:cli` uses your local `claude` login instead (no key).
 
 ## Run
 
@@ -183,14 +189,11 @@ checkpoints, undo-to).
 
 ## Rendering (`render_view`)
 
-`render_view` draws the flat with a warm headless Chromium showing the built viewer (`apps/web/dist`), served on a loopback ephemeral port. Build it once with the root base path:
+`render_view` draws the flat with a warm headless Chromium showing the built viewer (`apps/web/dist`), served on a loopback ephemeral port. Set it up once with `pnpm mcp:setup` (builds the viewer with `BASE_PATH=/`, installs Chromium and checks a render end to end; any base path works, it is read from `dist/index.html`).
 
-```sh
-BASE_PATH=/ pnpm --filter @flat/web build     # any base path works; it is read from dist/index.html
-npx playwright install chromium               # first time only
-```
+Env: `FLAT_WEB_URL` (a directory to serve, or a running web app such as `http://127.0.0.1:5173/`), `FLAT_RENDER_CHANNEL=chrome` (installed Chrome with GPU instead of bundled Chromium + SwiftShader). Without a build or browser, tools answer `render_unavailable` with the command to run. Renders are serialised (queue depth 3, then "busy"), have a 20 s budget (60 s when the browser has to start first), recover from browser crashes on the next call, and the browser closes after 10 idle minutes. A start that timed out tears itself down (no orphan Chromium). Every capture is checked: a blank or geometry-less image is retried once and then returned as `render_failed` with the page's console errors, never as an empty picture. Slow tests: `MCP_RENDER=1 pnpm test:render` (nightly CI; includes a fresh `pnpm --silent --dir <repo> mcp` process over stdio, from another directory, asserting a non-blank PNG).
 
-Env: `FLAT_WEB_URL` (a directory to serve, or a running web app such as `http://127.0.0.1:5173/`), `FLAT_RENDER_CHANNEL=chrome` (installed Chrome with GPU instead of bundled Chromium + SwiftShader). Without a build, tools answer `render_unavailable`. Renders are serialised (queue depth 3, then "busy"), time out at 20 s, recover from browser crashes on the next call, and the browser closes after 10 idle minutes. Slow tests: `MCP_RENDER=1 pnpm test:render` (nightly CI).
+stdio safety: in stdio mode `console.log/info/debug` are redirected to stderr so a dependency cannot corrupt the JSON-RPC stream.
 
 ## Tests
 
@@ -200,3 +203,4 @@ Env: `FLAT_WEB_URL` (a directory to serve, or a running web app such as `http://
 | 3 | `MCP_RENDER=1 pnpm test:render` | render service and `render_view` with a real Chromium and a real `apps/server`; pixel probes; needs the web build. Nightly. |
 | 4 | `pnpm e2e` (`e2e/mcp-live.e2e.ts`) | a real tab on `?server=` with "Follow assistant view", an MCP client over stdio: write reaches the tab within 1 s (author llm), `set_sun_time {sync_to_user_tab}` changes the tab's time, not its lamps. Nightly. |
 | 5 | `ANTHROPIC_API_KEY=... pnpm mcp:demo [-- --negative]` | a real model drives the tools; assertions on state. `-- --dry` runs a scripted fake model (no key, no cost). Nightly only when the secret exists. |
+| 5b | `pnpm mcp:demo:cli [-- --negative]` | the same assertions, driven by your local `claude -p` (Claude Code login, `--mcp-config`, `--allowedTools "mcp__flat__*"`, stream-json); saves the picture Claude received to `/tmp/cli-demo-render.png` and prints its final message. |

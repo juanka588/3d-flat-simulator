@@ -10,9 +10,21 @@ describe('SDK spike: schemas are advertised unchanged (a)', () => {
     for (const t of commandToolSchemas()) {
       const listed = tools.find((x) => x.name === t.name);
       expect(listed, t.name).toBeDefined();
+      if (t.name === 'batch') continue; // the MCP layer states ITS command limit (config) on batch: see below
       expect(listed!.inputSchema).toEqual(withMcpExtras(t.inputSchema));
       expect(listed!.description).toBe(t.description);
     }
+    // batch: identical except for the command limit, which is the server's (50), not the reducer's (500)
+    const rawBatch = commandToolSchemas().find((t) => t.name === 'batch')!;
+    const listedBatch = tools.find((t) => t.name === 'batch')!;
+    const normalize = (schema: unknown) => {
+      const c = structuredClone(schema) as { properties: { commands: { maxItems?: number; description?: string } } };
+      delete c.properties.commands.maxItems;
+      delete c.properties.commands.description;
+      return c;
+    };
+    expect(normalize(listedBatch.inputSchema)).toEqual(normalize(withMcpExtras(rawBatch.inputSchema)));
+    expect((listedBatch.inputSchema as unknown as { properties: { commands: { maxItems: number } } }).properties.commands.maxItems).toBe(50);
     const batch = tools.find((t) => t.name === 'batch')!.inputSchema as unknown as { $defs: Record<string, unknown> };
     expect(Object.keys(batch.$defs)).toContain('wall_set_finish');
     const setFinish = commandToolSchemas().find((t) => t.name === 'wall_set_finish')!.inputSchema as { properties: Record<string, { type?: unknown }> };

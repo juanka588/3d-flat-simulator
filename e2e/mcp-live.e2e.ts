@@ -118,3 +118,53 @@ test('MCP write reaches the followed tab within 1 s (author llm); set_sun_time s
     rmSync(dataDir, { recursive: true, force: true });
   }
 });
+
+test('after an assistant session (paint, warm lights, synced evening, render_view) the followed tab still draws the flat', async ({ page }) => {
+  const dataDir = mkdtempSync(join(tmpdir(), 'flat-live-'));
+  const srv = await startServer(dataDir);
+  const transport = new StdioClientTransport({
+    command: process.execPath,
+    args: ['--import', 'tsx', 'src/main.ts'],
+    cwd: MCP_CWD,
+    env: { ...(process.env as Record<string, string>), FLAT_SERVER_URL: srv.url },
+    stderr: 'pipe',
+  });
+  const client = new Client({ name: 'claude-code', version: '2.1.308' });
+  const pageErrors: string[] = [];
+  page.on('pageerror', (e) => pageErrors.push(e.message));
+  try {
+    await page.goto(`/?server=${encodeURIComponent(srv.url)}`);
+    await page.evaluate(() => window.__flat!.ready);
+    await expect.poll(async () => (await page.evaluate(() => window.__flat!.connection())).status, { timeout: 15_000 }).toBe('connected');
+    await page.getByTestId('follow-assistant').check();
+    const baseline = await page.evaluate(() => window.__flat!.stats().triangles);
+    await client.connect(transport);
+    const ok = async (name: string, args: Record<string, unknown>) => {
+      const r = await client.callTool({ name, arguments: args }, { timeout: 90_000 });
+      expect(r.isError, `${name}: ${JSON.stringify(r.content).slice(0, 300)}`).toBeFalsy();
+    };
+    await ok('get_scene_summary', {});
+    await ok('describe_room', { roomId: 'sejour' });
+    await ok('batch', {
+      label: 'Sage séjour, warm lights',
+      commands: [
+        { type: 'material.define', material: SAGE },
+        { type: 'room.setWallFinish', roomId: 'sejour', materialId: SAGE.id },
+        { type: 'light.update', id: 'l-sejour', patch: { kelvin: 2700, on: true } },
+      ],
+    });
+    await ok('set_sun_time', { preset: 'evening', sync_to_user_tab: true });
+    await expect.poll(async () => (await page.evaluate(() => window.__flat!.sunInfo() as { time?: string })).time, { timeout: 3000 }).toBe('20:00');
+    await ok('render_view', { view: 'room', roomId: 'sejour', preset: 'evening' });
+    await page.evaluate(() => window.__flat!.whenRendered());
+    const after = await page.evaluate(() => window.__flat!.stats());
+    expect(after.triangles, 'geometry is still drawn').toBeGreaterThan(Math.min(1000, baseline / 2));
+    expect(after.meshes).toContain('walls');
+    await expect(page.getByTestId('viewer-error')).toBeHidden();
+    expect(pageErrors).toEqual([]);
+  } finally {
+    await client.close().catch(() => undefined);
+    await srv.stop();
+    rmSync(dataDir, { recursive: true, force: true });
+  }
+});

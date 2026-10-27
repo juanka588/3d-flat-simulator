@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import WebSocket from 'ws';
-import { makeEnvelope, serializeScene, type Command, type LeafCommand, type ServerMsg } from '@flat/scene';
+import { HISTORY_CAP, makeEnvelope, serializeScene, type Command, type LeafCommand, type ServerMsg } from '@flat/scene';
 import { createApp } from './app';
 import { loadConfig, type ServerConfig } from './config';
 import { startServer } from './server';
@@ -150,6 +150,61 @@ describe('undo-to', () => {
 
     expect((await b.call('POST', '/api/undo-to', { checkpoint: 'nope' })).status).toBe(404);
     expect((await b.call('POST', '/api/undo-to', {})).status).toBe(422);
+  });
+
+  it('a depth-0 checkpoint that fell out of the capped history is checkpoint_unreachable; one taken later still works', async () => {
+    const b = await boot();
+    await b.call('POST', '/api/checkpoints', { name: 'origin' }); // depth 0, absolute index 0
+    for (let i = 0; i < HISTORY_CAP; i++) await post(b, 10 + i);
+    expect(b.store.history.past).toHaveLength(HISTORY_CAP); // exactly at the cap: nothing trimmed yet, origin is still reachable
+
+    await post(b, 999); // the 201st change drops the oldest entry
+    expect(b.store.history.past).toHaveLength(HISTORY_CAP);
+    const before = scene(b.store);
+    const gone = await b.call('POST', '/api/undo-to', { checkpoint: 'origin' });
+    expect(gone.status).toBe(409);
+    const err = (await gone.json()).errors[0];
+    expect(err.code).toBe('checkpoint_unreachable');
+    expect(err.message).toMatch(/capped history/);
+    expect(scene(b.store)).toBe(before); // nothing was undone
+
+    // a checkpoint taken now has an absolute index past the trimmed entries and works
+    await b.call('POST', '/api/checkpoints', { name: 'late' });
+    const atCp = scene(b.store);
+    await post(b, 500);
+    await post(b, 501);
+    const ok = await b.call('POST', '/api/undo-to', { checkpoint: 'late' });
+    expect(ok.status).toBe(200);
+    expect((await ok.json()).steps).toBe(2);
+    expect(scene(b.store)).toBe(atCp);
+
+    // the absolute index and the trimmed count survive a restart
+    await shutdown(b.store);
+    const again = await boot();
+    expect((await again.call('POST', '/api/undo-to', { checkpoint: 'origin' })).status).toBe(409);
+    expect((await again.call('POST', '/api/undo-to', { checkpoint: 'late' })).status).toBe(200); // already there: noop
+  }, 60_000);
+
+  it('taking a checkpoint closes the coalescing window: later edits with the same key do not merge into the entry under the checkpoint', async () => {
+    const b = await boot();
+    const drag = (deg: number) => makeEnvelope(north(deg), { id: `d-${++n}`, ts: 5000 + n, author: { kind: 'user', name: 't' }, coalesceKey: 'drag' });
+    expect((await b.call('POST', '/api/commands', drag(10))).status).toBe(200);
+    await b.call('POST', '/api/checkpoints', { name: 'mid' });
+    const atCp = scene(b.store);
+    expect((await b.call('POST', '/api/commands', drag(20))).status).toBe(200); // within the 1 s window and same key
+    expect(b.store.history.past).toHaveLength(2); // not merged
+    const r = await b.call('POST', '/api/undo-to', { checkpoint: 'mid' });
+    expect(r.status).toBe(200);
+    expect(scene(b.store)).toBe(atCp);
+    expect(b.store.scene.site.northAngle).toBe(10);
+  });
+
+  it('without a checkpoint in between the same two edits do coalesce (the control)', async () => {
+    const b = await boot();
+    const drag = (deg: number) => makeEnvelope(north(deg), { id: `d-${++n}`, ts: 7000 + n, author: { kind: 'user', name: 't' }, coalesceKey: 'drag' });
+    await b.call('POST', '/api/commands', drag(10));
+    await b.call('POST', '/api/commands', drag(20));
+    expect(b.store.history.past).toHaveLength(1);
   });
 
   it('stale ifRev -> precondition_failed and nothing changes', async () => {

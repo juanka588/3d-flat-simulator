@@ -1,7 +1,7 @@
 import { LightingView, describeRoom, listRooms, nearestIds } from '@flat/scene';
 import { z } from 'zod';
 import { toolError, toolOk } from '../errors';
-import { buildMaterialListing, buildSummary, sessionLighting } from '../readModel';
+import { buildMaterialListing, buildSummary, effectiveSessionLighting } from '../readModel';
 import { READ, fetchScene, obj, parseArgs } from './common';
 import type { ToolDef } from './registry';
 
@@ -57,7 +57,7 @@ export function readTools(): ToolDef[] {
     {
       name: 'describe_room',
       description:
-        'Describe one room: area, ceiling height, the wall faces that border it (structural flag, finish and where it comes from, compass facing, left/right side), openings with compass direction, lights, daylight factor and hours of direct sun for a date (default: the session date, see set_sun_time).',
+        'Describe one room: area, ceiling height, the wall faces that border it (structural flag, finish and where it comes from, wallOn = which side of the room the wall is on, left/right side, wallId), openings with compass = the direction you look through them, lights, daylight factor and hours of direct sun for a date (default: the session date, see set_sun_time).',
       inputSchema: obj(
         {
           roomId: { type: 'string', description: 'Room id (see list_rooms).' },
@@ -74,14 +74,14 @@ export function readTools(): ToolDef[] {
         const sc = await fetchScene(ctx);
         if (!sc.ok) return sc.result;
         const { scene, rev } = sc.data;
-        const lighting = sessionLighting(ctx.session);
+        const lighting = effectiveSessionLighting(ctx.session, scene);
         const d = describeRoom(scene, a.data.roomId, a.data.date ? { ...lighting, date: a.data.date } : lighting);
         if (!d) {
           const ids = scene.rooms.map((r) => r.id);
           const near = nearestIds(a.data.roomId, ids);
           return toolError('unknown_room', `no room "${a.data.roomId}"`, `Did you mean ${near.map((x) => `"${x}"`).join(', ')}? Rooms: ${ids.join(', ')}.`);
         }
-        return toolOk({ ok: true, ...d, rev });
+        return toolOk({ ok: true, ...d, rev, ...(ctx.session.lampMode !== 'scene' ? { lampMode: ctx.session.lampMode, note: `lights[].on is forced ${ctx.session.lampMode === 'allOn' ? 'on' : 'off'} by the session lamp mode (set_sun_time lamps "scene" to follow the flat)` } : {}) });
       },
     },
     {

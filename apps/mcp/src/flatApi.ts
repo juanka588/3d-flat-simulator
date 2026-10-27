@@ -13,6 +13,7 @@ import {
   type UndoToResponse,
 } from '@flat/scene';
 import type { McpConfig } from './config';
+import { ulid } from './ulid';
 
 /**
  * The only door from the MCP tools to the scene server. Tools depend on this interface, never on
@@ -24,7 +25,15 @@ type ApiErrorItem = { code: string; path: string; message: string; hint?: string
 
 /** The scene server did not answer (down, refused, timed out) or answered with an error. */
 export type FlatApiFailure =
-  | { ok: false; kind: 'unreachable'; message: string }
+  | {
+      ok: false;
+      kind: 'unreachable';
+      message: string;
+      /** The request timed out. */
+      timedOut?: boolean;
+      /** A write whose outcome is unknown (timeout or connection reset after sending): the server may have committed it. */
+      mayHaveApplied?: boolean;
+    }
   | { ok: false; kind: 'http'; status: number; errors: ApiErrorItem[]; /** Current revision for 409 `precondition_failed`. */ rev?: number; epoch?: string };
 export type FlatResult<T> = { ok: true; data: T } | FlatApiFailure;
 
@@ -63,11 +72,42 @@ export interface FlatApi {
   materials(): Promise<FlatResult<unknown>>;
 }
 
-/** HTTP implementation. Paths for checkpoints / undo-to / view are the planned lane-C routes (404 until they exist). */
-export class HttpFlatApi implements FlatApi {
-  constructor(private readonly config: Pick<McpConfig, 'serverUrl' | 'token' | 'requestTimeoutMs'>, private readonly fetchImpl: typeof fetch = fetch) {}
+/** Errors that prove the request never reached the server (so a write cannot have been applied). */
+const NEVER_SENT = new Set(['ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN', 'EHOSTUNREACH', 'ENETUNREACH']);
+const isTimeout = (e: unknown) => e instanceof Error && (e.name === 'TimeoutError' || e.name === 'AbortError');
 
-  private async call<T>(method: 'GET' | 'POST', path: string, body?: unknown): Promise<FlatResult<T>> {
+export interface HttpFlatApiOptions {
+  /** Pause before the single retry of an idempotent write (default 150 ms). */
+  retryDelayMs?: number;
+}
+
+/**
+ * HTTP implementation. Writes (`postCommand`, `undo`, `redo`, `undoTo`) are retried ONCE on a network
+ * error or timeout, with the same envelope / id: the scene server answers a repeated id with the first
+ * result, so a change that was committed but whose answer was lost is applied exactly once. If the
+ * retry also fails with a timeout or reset, the failure says the write `mayHaveApplied`.
+ */
+export class HttpFlatApi implements FlatApi {
+  private readonly retryDelayMs: number;
+  constructor(
+    private readonly config: Pick<McpConfig, 'serverUrl' | 'token' | 'requestTimeoutMs'>,
+    private readonly fetchImpl: typeof fetch = fetch,
+    options: HttpFlatApiOptions = {},
+  ) {
+    this.retryDelayMs = options.retryDelayMs ?? 150;
+  }
+
+  /** One attempt (retry only for idempotent writes: `retry`). */
+  private async call<T>(method: 'GET' | 'POST', path: string, body?: unknown, retry = false): Promise<FlatResult<T>> {
+    let r = await this.attempt<T>(method, path, body);
+    if (retry && !r.ok && r.kind === 'unreachable') {
+      if (this.retryDelayMs > 0) await new Promise((resolve) => setTimeout(resolve, this.retryDelayMs));
+      r = await this.attempt<T>(method, path, body);
+    }
+    return r;
+  }
+
+  private async attempt<T>(method: 'GET' | 'POST', path: string, body?: unknown): Promise<FlatResult<T>> {
     const headers: Record<string, string> = { accept: 'application/json' };
     if (body !== undefined) headers['content-type'] = 'application/json';
     if (this.config.token) headers.authorization = `Bearer ${this.config.token}`;
@@ -81,7 +121,15 @@ export class HttpFlatApi implements FlatApi {
       });
     } catch (e) {
       const cause = (e as { cause?: { code?: string; message?: string } }).cause;
-      return { ok: false, kind: 'unreachable', message: `${this.config.serverUrl}${path}: ${cause?.code ?? cause?.message ?? (e instanceof Error ? e.message : String(e))}` };
+      const timedOut = isTimeout(e);
+      const neverSent = !timedOut && ((cause?.code !== undefined && NEVER_SENT.has(cause.code)) || cause?.message === 'bad port');
+      return {
+        ok: false,
+        kind: 'unreachable',
+        message: `${this.config.serverUrl}${path}: ${timedOut ? `timed out after ${this.config.requestTimeoutMs} ms` : (cause?.code ?? cause?.message ?? (e instanceof Error ? e.message : String(e)))}`,
+        ...(timedOut ? { timedOut: true } : {}),
+        mayHaveApplied: method === 'POST' && !neverSent,
+      };
     }
     let json: unknown = null;
     try {
@@ -99,16 +147,16 @@ export class HttpFlatApi implements FlatApi {
     return this.call<SceneResponse>('GET', '/api/scene');
   }
   postCommand(envelope: CommandEnvelope, opts: WriteOptions = {}) {
-    return this.call<PostCommandResponse>('POST', '/api/commands', opts.ifRev !== undefined ? { ...envelope, ifRev: opts.ifRev } : envelope);
+    return this.call<PostCommandResponse>('POST', '/api/commands', opts.ifRev !== undefined ? { ...envelope, ifRev: opts.ifRev } : envelope, true);
   }
   history() {
     return this.call<HistoryResponse>('GET', '/api/history');
   }
   undo(body: StepBody = {}) {
-    return this.call<PostCommandResponse>('POST', '/api/undo', body);
+    return this.call<PostCommandResponse>('POST', '/api/undo', { ...body, id: body.id ?? ulid() }, true);
   }
   redo(body: StepBody = {}) {
-    return this.call<PostCommandResponse>('POST', '/api/redo', body);
+    return this.call<PostCommandResponse>('POST', '/api/redo', { ...body, id: body.id ?? ulid() }, true);
   }
   checkpoint(body: PostCheckpointBody) {
     return this.call<PostCheckpointResponse>('POST', '/api/checkpoints', body);
@@ -117,7 +165,7 @@ export class HttpFlatApi implements FlatApi {
     return this.call<CheckpointsResponse>('GET', '/api/checkpoints');
   }
   undoTo(body: UndoToBody) {
-    return this.call<UndoToResponse>('POST', '/api/undo-to', body);
+    return this.call<UndoToResponse>('POST', '/api/undo-to', { ...body, id: body.id ?? ulid() }, true);
   }
   postView(body: PostViewBody) {
     return this.call<PostViewResponse>('POST', '/api/view', body);

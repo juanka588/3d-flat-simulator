@@ -7,6 +7,12 @@ on:
     - cron: '17 5 * * 1' # weekly: the licence job below
     - cron: '0 3 * * *' # nightly: the full browser suite (e2e)
   workflow_dispatch:
+    inputs:
+      demo_backend:
+        description: 'mcp-nightly LLM demo backend. Only "api" (ANTHROPIC_API_KEY secret) is wired; a local claude CLI backend is planned (see the comment on the demo steps).'
+        type: choice
+        options: [api]
+        default: api
 
 jobs:
   check:
@@ -51,9 +57,6 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: true
     timeout-minutes: 20
-    env:
-      # Secrets cannot be tested in a step `if` directly; this flag can.
-      HAS_ANTHROPIC_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
     strategy:
       fail-fast: false
       matrix:
@@ -70,21 +73,6 @@ jobs:
       - run: pnpm e2e --shard=${{ matrix.shard }}
         env:
           E2E_STATIC: skip
-      # M4 render service (headless Chromium + real apps/server): one shard is enough, it is not sharded work.
-      - name: MCP render tests
-        if: matrix.shard == '1/3'
-        run: |
-          BASE_PATH=/ pnpm --filter @flat/web build
-          pnpm test:render
-      # M4.14 automated LLM demo: only when the repository has the secret (it spends real tokens; capped at $2 by default).
-      - name: MCP LLM demo (positive and negative)
-        if: matrix.shard == '1/3' && env.HAS_ANTHROPIC_KEY == 'true'
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          FLAT_DEMO_MODEL: claude-sonnet-5-5
-        run: |
-          pnpm mcp:demo
-          pnpm mcp:demo -- --negative
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
@@ -93,6 +81,68 @@ jobs:
             playwright-report/
             test-results/
           retention-days: 7
+
+  # M4 MCP tier: the render service (headless Chromium + the real apps/server) and the automated LLM demo.
+  # Its own job, on purpose: it does not depend on `check` or on any `e2e` shard (`needs` is absent and the
+  # steps use `!cancelled()`), so a flaky browser shard cannot hide it and it cannot hide them; it shows up
+  # as its own check ("mcp-nightly"), non-blocking like `e2e`. Nightly and on demand only.
+  mcp-nightly:
+    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '0 3 * * *'
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    timeout-minutes: 25
+    env:
+      # Secrets cannot be tested in a step `if` directly; this flag can.
+      HAS_ANTHROPIC_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: npx playwright install --with-deps chromium
+      - name: Build the web app the renderer serves
+        run: BASE_PATH=/ pnpm --filter @flat/web build
+      - name: MCP render tests
+        id: render
+        run: pnpm test:render
+      # M4.14 automated LLM demo (positive and negative). Spends real tokens (capped at $2 by default), so it only
+      # runs where the repository has the secret, and a failed render step does not skip it.
+      # Backend: the Messages API with the ANTHROPIC_API_KEY secret. A local `claude` CLI backend (the maintainer's
+      # own login, for runs on a self-hosted/dev machine) is to be added here as another step gated on
+      # `inputs.demo_backend == 'claude-cli'`; until then `demo_backend` offers only `api`.
+      - name: MCP LLM demo (positive)
+        id: demo
+        if: ${{ !cancelled() && env.HAS_ANTHROPIC_KEY == 'true' && (inputs.demo_backend == 'api' || inputs.demo_backend == '') }}
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          FLAT_DEMO_MODEL: claude-sonnet-5-5
+        run: pnpm mcp:demo
+      - name: 'MCP LLM demo (negative - "remove a wall" must be refused)'
+        if: ${{ !cancelled() && steps.demo.conclusion != 'skipped' }}
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          FLAT_DEMO_MODEL: claude-sonnet-5-5
+        run: pnpm mcp:demo -- --negative
+      - name: Summary
+        if: ${{ !cancelled() }}
+        run: |
+          {
+            echo "### mcp-nightly"
+            echo "- render tier: ${{ steps.render.outcome }}"
+            echo "- LLM demo: ${{ steps.demo.outcome }} (skipped without the ANTHROPIC_API_KEY secret)"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: mcp-nightly-artifacts
+          path: |
+            test-results/
+            apps/mcp/test-results/
+          retention-days: 7
+          if-no-files-found: ignore
 
   # The production build under the GitHub Pages base path (vite preview): catalog and textures load,
   # autosave restores, the ?test hook is gated. Runs in parallel with `e2e` (chromium only, 4 tests).

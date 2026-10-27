@@ -38,6 +38,9 @@ async function main(): Promise<void> {
     config.log('info', `http ready at ${running.url}; scene server ${config.serverUrl}${config.token ? '; bearer token required' : ''}${config.readOnly ? '; READ-ONLY' : ''}`);
     close = () => running.close();
   } else {
+    // stdout is the JSON-RPC channel: anything a dependency prints with console.log/info/debug (Playwright
+    // download progress, framework banners) would corrupt the protocol, so it goes to stderr instead.
+    for (const method of ['log', 'info', 'debug'] as const) console[method] = (...a: unknown[]) => console.error(...a); // eslint-disable-line no-console
     const handle = serveStdio(() => createFlatMcpServer({ config, flat, renderer }), { onerror: (e) => config.log('error', e.message) });
     config.log('info', `stdio ready; scene server ${config.serverUrl}${config.readOnly ? '; READ-ONLY' : ''}`);
     close = () => handle.close();

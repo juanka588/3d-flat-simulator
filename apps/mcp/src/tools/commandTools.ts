@@ -1,8 +1,10 @@
 import { MCP_ERROR_HINTS, applyCommand, commandToolSchemas, diffScenes, makeEnvelope, parseCommand, toolCallToCommand, type Changed, type Command, type RenderSpecInput, type SceneResponse } from '@flat/scene';
 import type { CallToolResult } from '@modelcontextprotocol/server';
+import { DEFAULT_LIMITS } from '../config';
 import { apiFailure, commandErrors, toolError, toolOk } from '../errors';
 import { guardWrite, fetchScene } from './common';
-import { splitExtras, withMcpExtras, type Extras } from './extras';
+import { splitExtras, withMcpExtras } from './extras';
+import { RenderViewArgs } from './render';
 import type { ToolContext, ToolDef } from './registry';
 
 /**
@@ -11,7 +13,7 @@ import type { ToolContext, ToolDef } from './registry';
  * extras); `toolCallToCommand` + `parseCommand` (and then the server's reducer) are the only source
  * of validation errors. Flow of a call:
  *
- *   args -> size limit -> split extras -> toolCallToCommand (+ label wrapper) -> batch limit
+ *   args -> size limit -> split extras -> validate `render` -> toolCallToCommand (+ label wrapper) -> batch limit
  *        -> makeEnvelope(ULID id, author llm) -> parseCommand -> write guard (read-only, cap, rate)
  *        -> preview ? applyCommand on a fresh scene + diffScenes : FlatApi.postCommand
  *        -> structured result | tool error
@@ -26,20 +28,62 @@ const NO_RENDERER = 'rendering is not wired in this server; the change itself wa
 
 const renderFailure = (code: 'render_unavailable' | 'render_timeout' | 'rate_limited', message: string, extra: Record<string, unknown> = {}) => ({ render: { ok: false, code, message, hint: MCP_ERROR_HINTS[code === 'rate_limited' ? 'rate_limited' : code], ...extra } });
 
+/** A validated `render` argument, before the changed rooms are known. */
+interface RenderPlan {
+  /** What the caller asked for; absent for `render: true`. */
+  spec?: RenderSpecInput;
+  /** The caller named a view (otherwise it follows the `render: true` default). */
+  hadView: boolean;
+  format?: 'jpeg';
+}
+
 /**
- * The `render` argument: an image after the change (committed) or of the previewed state. `true`
- * renders the first changed room (else the whole flat). The write itself is never undone by a render
- * problem: the failure is reported next to the result under `render`.
+ * Validates the `render` argument with the SAME schema as `render_view` (so a bad value fails before a
+ * write or a rate-limit token is spent). `previewOf` is set by the server, never by the model.
  */
-async function renderPart(ctx: ToolContext, extras: Extras, changed: Changed, preview?: SceneResponse): Promise<{ content: CallToolResult['content']; fields: Record<string, unknown> }> {
-  if (extras.render === undefined) return { content: [], fields: {} };
+function planRender(render: true | Record<string, unknown> | undefined): { ok: true; plan: RenderPlan | undefined } | { ok: false; result: CallToolResult } {
+  if (render === undefined) return { ok: true, plan: undefined };
+  if (render === true) return { ok: true, plan: { hadView: false } };
+  const fail = (path: string, message: string) => ({ ok: false as const, result: toolError('invalid_command', `render/${path}: ${message}`, 'Pass render: true, or the arguments of render_view (view, roomId, facing, preset, ...).', { errors: [{ code: 'invalid_command', path: `render/${path}`, message }] }) });
+  if ('previewOf' in render) return fail('previewOf', 'is set by the server for previews; do not pass it (use preview: true on the tool instead)');
+  const r = RenderViewArgs.safeParse(render);
+  if (!r.success) {
+    const i = r.error.issues[0]!;
+    return fail(i.path.map(String).join('/'), `${i.message}${r.error.issues.length > 1 ? ` (and ${r.error.issues.length - 1} more)` : ''}`);
+  }
+  // Only what the caller sent (schema defaults such as lamps {} or exposureEV 0 must not override the session's lighting).
+  const { format, view, ...parsed } = r.data;
+  const given = Object.fromEntries(Object.entries(parsed).filter(([k]) => k in render));
+  const spec = { ...given, ...('view' in render ? { view: view === 'flat' ? 'orbit' : view } : {}) } as RenderSpecInput;
+  return { ok: true, plan: { spec, hadView: 'view' in render, ...(format === 'jpeg' ? { format: 'jpeg' as const } : {}) } };
+}
+
+/**
+ * THE meaning of `render: true`, defined once: the overview of the first changed room, else the whole
+ * flat from above. An object without a `view` follows the same default; with a room/walk view and no
+ * `roomId` it fills in the first changed room.
+ */
+export function renderSpecFor(plan: RenderPlan, changed: Pick<Changed, 'rooms'>): RenderSpecInput {
+  const room = changed.rooms[0];
+  if (!plan.spec) return room ? { view: 'room', roomId: room } : { view: 'orbit' };
+  const spec = { ...plan.spec };
+  if (!plan.hadView && spec.roomId === undefined) return { ...spec, ...(room ? { view: 'room', roomId: room } : { view: 'orbit' }) } as RenderSpecInput;
+  if ((spec.view === 'room' || spec.view === 'walk') && spec.roomId === undefined && room) spec.roomId = room;
+  return spec;
+}
+
+/**
+ * The `render` argument: an image after the change (committed) or of the previewed state. The write
+ * itself is never undone by a render problem: the failure is reported next to the result under `render`.
+ */
+async function renderPart(ctx: ToolContext, plan: RenderPlan | undefined, changed: Changed, preview?: SceneResponse): Promise<{ content: CallToolResult['content']; fields: Record<string, unknown> }> {
+  if (!plan) return { content: [], fields: {} };
   if (!ctx.renderer) return { content: [], fields: renderFailure('render_unavailable', NO_RENDERER) };
   const t = ctx.session.renders.take();
   if (!t.ok) return { content: [], fields: renderFailure('rate_limited', `more than ${ctx.limits.rendersPerMinute} renders per minute`, { retryAfterMs: t.retryAfterMs }) };
-  const room = changed.rooms[0];
-  const spec: RenderSpecInput = extras.render === true ? (room ? { view: 'room', roomId: room } : { view: 'orbit' }) : (extras.render as RenderSpecInput);
+  const spec = renderSpecFor(plan, changed);
   try {
-    const r = await ctx.renderer.render(spec, { session: ctx.session, ...(preview ? { scene: preview } : {}) });
+    const r = await ctx.renderer.render(spec, { session: ctx.session, ...(plan.format ? { format: plan.format } : {}), ...(preview ? { scene: preview } : {}) });
     const content: CallToolResult['content'] = [{ type: 'image', data: r.image, mimeType: r.mimeType }, ...(r.before ? [{ type: 'image' as const, data: r.before.image, mimeType: r.before.mimeType }] : [])];
     return { content, fields: { render: { ok: true, ...r.meta } } };
   } catch (e) {
@@ -56,6 +100,10 @@ export async function runCommandTool(ctx: ToolContext, toolName: string, args: R
   const split = splitExtras(args, { labelIsExtra: !isBatch });
   if (!split.ok) return split.result;
   const { extras, rest } = split;
+  // The render argument is validated before anything is spent or sent.
+  const planned = planRender(extras.render);
+  if (!planned.ok) return planned.result;
+  const plan = planned.plan;
 
   let cmd = toolCallToCommand(toolName, rest);
   if (!cmd) return toolError('invalid_command', `tool "${toolName}" needs an object of arguments`);
@@ -65,11 +113,11 @@ export async function runCommandTool(ctx: ToolContext, toolName: string, args: R
   // A labelled single command is recorded as a one-command batch: same effect, the label in the history.
   if (extras.label !== undefined) cmd = { type: 'batch', label: extras.label, commands: [cmd] };
 
-  const envelope = makeEnvelope(cmd as unknown as Command, { id: ctx.clock.newId(), ts: ctx.clock.now(), author: ctx.author });
+  const envelope = makeEnvelope(cmd as unknown as Command, { id: ctx.clock.newId(), ts: ctx.clock.now(), author: ctx.author, ...(extras.ifRev !== undefined ? { ifRev: extras.ifRev } : {}) });
   const parsed = parseCommand(envelope);
   if (!parsed.ok) return commandErrors(parsed.errors);
 
-  if (extras.preview) return previewCommand(ctx, parsed.envelope, extras);
+  if (extras.preview) return previewCommand(ctx, parsed.envelope, plan);
 
   const blocked = guardWrite(ctx);
   if (blocked) return blocked;
@@ -77,7 +125,7 @@ export async function runCommandTool(ctx: ToolContext, toolName: string, args: R
   const res = await ctx.flat.postCommand(parsed.envelope);
   if (!res.ok) return apiFailure(res);
   const { rev, seq, epoch, result } = res.data;
-  const render = await renderPart(ctx, extras, result.changed);
+  const render = await renderPart(ctx, plan, result.changed);
   return toolOk(
     {
       ok: true,
@@ -96,7 +144,7 @@ export async function runCommandTool(ctx: ToolContext, toolName: string, args: R
 }
 
 /** `preview: true`: the pure reducer on a freshly fetched scene; nothing is posted, nothing is counted as a write. */
-async function previewCommand(ctx: ToolContext, envelope: Parameters<typeof applyCommand>[1], extras: Extras): Promise<CallToolResult> {
+async function previewCommand(ctx: ToolContext, envelope: Parameters<typeof applyCommand>[1], plan: RenderPlan | undefined): Promise<CallToolResult> {
   if (ctx.config.readOnly) return toolError('read_only', 'this MCP server is read-only (FLAT_MCP_READONLY)');
   const sc = await fetchScene(ctx);
   if (!sc.ok) return sc.result;
@@ -104,7 +152,7 @@ async function previewCommand(ctx: ToolContext, envelope: Parameters<typeof appl
   const applied = applyCommand(scene, envelope, { rev });
   if (!applied.ok) return commandErrors(applied.errors, rev);
   const diff = diffScenes(scene, applied.scene);
-  const render = await renderPart(ctx, extras, applied.changed, { epoch, rev, scene: applied.scene });
+  const render = await renderPart(ctx, plan, applied.changed, { epoch, rev, scene: applied.scene });
   return toolOk(
     {
       ok: true,
@@ -122,8 +170,20 @@ async function previewCommand(ctx: ToolContext, envelope: Parameters<typeof appl
   );
 }
 
-export function commandTools(): ToolDef[] {
-  return commandToolSchemas().map((t) => ({
+/** The batch tool with THIS server's command limit (`FLAT_MCP_MAX_BATCH`) in its description and schema; the reducer's own cap (500) is not what the model should plan around. */
+function withBatchLimit(t: { name: string; description: string; inputSchema: Record<string, unknown> }, maxBatch: number) {
+  if (t.name !== 'batch') return t;
+  const props = t.inputSchema.properties as Record<string, Record<string, unknown>>;
+  const commands = { ...props.commands, maxItems: maxBatch, description: `Commands applied in order and atomically: all succeed or none apply. At most ${maxBatch} per batch (split larger edits); batches cannot nest.` };
+  return {
+    ...t,
+    description: t.description.replace('The server limits the number of commands per batch.', `At most ${maxBatch} commands per batch.`),
+    inputSchema: { ...t.inputSchema, properties: { ...props, commands } },
+  };
+}
+
+export function commandTools(limits: { maxBatch: number } = DEFAULT_LIMITS): ToolDef[] {
+  return commandToolSchemas().map((raw) => withBatchLimit(raw, limits.maxBatch) as typeof raw).map((t) => ({
     name: t.name,
     description: t.description,
     inputSchema: withMcpExtras(t.inputSchema),

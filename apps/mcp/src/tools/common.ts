@@ -38,7 +38,11 @@ export function guardWrite(ctx: ToolContext): CallToolResult | undefined {
   if (ctx.config.readOnly) return toolError('read_only', 'this MCP server is read-only (FLAT_MCP_READONLY)');
   const s = ctx.session;
   if (s.writeCount >= ctx.limits.sessionWriteCap) {
-    return toolError('rate_limited', `this session reached its write cap of ${ctx.limits.sessionWriteCap} calls`, 'Stop editing; ask the user to reconnect the MCP server (new session) or raise FLAT_MCP_SESSION_WRITES.');
+    const how =
+      s.transport === 'http'
+        ? 'ask the user to restart the MCP server (`--http`; its sessions are per client, not per connection, so reconnecting does not reset the cap) or raise FLAT_MCP_SESSION_WRITES.'
+        : 'ask the user to reconnect the MCP server (new session) or raise FLAT_MCP_SESSION_WRITES.';
+    return toolError('rate_limited', `this session reached its write cap of ${ctx.limits.sessionWriteCap} calls`, `Stop editing; ${how}`);
   }
   const t = s.writes.take();
   if (!t.ok) {

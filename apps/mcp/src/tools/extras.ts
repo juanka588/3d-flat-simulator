@@ -4,7 +4,9 @@ import { toolError } from '../errors';
 /**
  * The arguments every WRITE tool accepts besides its command fields (M4.5 / M4.6):
  *  - `preview`: compute the change against a fresh scene and return the diff; nothing is committed;
- *  - `render`: also return an image after the change (lane E; `render_unavailable` until it lands);
+ *  - `render`: also return an image after the change: `true` = the overview of the first changed room
+ *    (else the whole flat from above), or `render_view` arguments (validated against the same schema);
+ *  - `ifRev`: optimistic concurrency, apply only if the flat is still at that revision (`stale_scene` otherwise);
  *  - `label`: short description shown in the undo history. Leaf tools only; `batch` already has a
  *    required `label`, which is left untouched.
  * They are injected into the advertised schema by `withMcpExtras` and stripped by `splitExtras`
@@ -14,7 +16,12 @@ import { toolError } from '../errors';
 const PREVIEW = { type: 'boolean', description: 'true: do NOT change the flat; return what the change would do (diff, warnings, would-be changed ids). Use it to show the user before applying.' };
 const RENDER = {
   anyOf: [{ type: 'boolean' }, { type: 'object', additionalProperties: true }],
-  description: 'true or render_view arguments (view, roomId, ...): also return an image of the result (after the change, or of the previewed state). Without the render service the result carries render_unavailable.',
+  description: 'true or render_view arguments (view, roomId, ...): also return an image of the result (after the change, or of the previewed state). true = the overview of the first changed room, else the whole flat from above. Without the render service the result carries render_unavailable.',
+};
+const IFREV = {
+  type: 'integer',
+  minimum: 0,
+  description: 'Optional. Apply only if the flat is still at this revision, else stale_scene and nothing changes. Pass baseRev from a preview of the same change to apply only if nothing changed since; or rev from a previous result.',
 };
 const LABEL = { type: 'string', minLength: 1, maxLength: 200, description: 'Short description of this change, shown in the undo history (at most 200 characters).' };
 
@@ -23,8 +30,8 @@ type Json = Record<string, unknown>;
 /** Pure: a copy of a tool input schema with `preview`, `render` (and `label` when absent) added. */
 export function withMcpExtras<T extends Json>(schema: T): T {
   const props = (schema.properties ?? {}) as Json;
-  for (const k of ['preview', 'render']) if (k in props) throw new Error(`schema already has a "${k}" property`);
-  const extra: Json = { preview: PREVIEW, render: RENDER };
+  for (const k of ['preview', 'render', 'ifRev']) if (k in props) throw new Error(`schema already has a "${k}" property`);
+  const extra: Json = { preview: PREVIEW, render: RENDER, ifRev: IFREV };
   if (!('label' in props)) extra.label = LABEL;
   return { ...schema, properties: { ...props, ...extra } };
 }
@@ -32,13 +39,14 @@ export function withMcpExtras<T extends Json>(schema: T): T {
 export interface Extras {
   preview: boolean;
   render: true | Json | undefined;
+  ifRev: number | undefined;
   /** Present only for leaf tools. */
   label: string | undefined;
 }
 
 /** Separates the extras from the command fields; a malformed extra is an `invalid_command`. */
 export function splitExtras(args: Json, opts: { labelIsExtra: boolean }): { ok: true; extras: Extras; rest: Json } | { ok: false; result: CallToolResult } {
-  const { preview, render, ...others } = args;
+  const { preview, render, ifRev, ...others } = args;
   const bad = (path: string, message: string) => ({ ok: false as const, result: toolError('invalid_command', `${path}: ${message}`, undefined, { errors: [{ code: 'invalid_command', path, message }] }) });
   if (preview !== undefined && typeof preview !== 'boolean') return bad('preview', 'expected true or false');
   let renderSpec: true | Json | undefined;
@@ -47,6 +55,7 @@ export function splitExtras(args: Json, opts: { labelIsExtra: boolean }): { ok: 
     if (typeof render !== 'object' || render === null || Array.isArray(render)) return bad('render', 'expected true, false or an object of render_view arguments');
     renderSpec = render as Json;
   }
+  if (ifRev !== undefined && (typeof ifRev !== 'number' || !Number.isInteger(ifRev) || ifRev < 0)) return bad('ifRev', 'expected a non-negative integer revision (baseRev of a preview)');
   let label: string | undefined;
   let rest = others;
   if (opts.labelIsExtra && 'label' in others) {
@@ -55,5 +64,5 @@ export function splitExtras(args: Json, opts: { labelIsExtra: boolean }): { ok: 
     label = l.trim();
     rest = r;
   }
-  return { ok: true, extras: { preview: preview === true, render: renderSpec, label }, rest };
+  return { ok: true, extras: { preview: preview === true, render: renderSpec, ifRev: ifRev as number | undefined, label }, rest };
 }

@@ -1,6 +1,9 @@
 import { commandToolSchemas, diffScenes, makeEnvelope, type Command, type Scene } from '@flat/scene';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { withMcpExtras } from './tools';
+import { loadConfig } from './config';
+import { HttpFlatApi } from './flatApi';
+import { startRealServer, type RealServer } from './testing/harness';
 import { connect, json } from './testing/inproc';
 import { MockFlatApi, charmeScene } from './testing/mockFlatApi';
 
@@ -12,7 +15,7 @@ describe('withMcpExtras (pure)', () => {
     const frozen = structuredClone(input);
     const out = withMcpExtras(input);
     expect(input).toEqual(frozen);
-    expect(Object.keys(out.properties)).toEqual(['roomId', 'preview', 'render', 'label']);
+    expect(Object.keys(out.properties)).toEqual(['roomId', 'preview', 'render', 'ifRev', 'label']);
     expect(out.required).toEqual(['roomId']);
     expect(out.additionalProperties).toBe(false);
   });
@@ -115,6 +118,63 @@ describe('preview (M4.6)', () => {
       expect(p.baseRev).toBe(2);
     });
   }
+
+  describe('against the real apps/server (in process)', () => {
+    let real: RealServer | undefined;
+    afterEach(async () => {
+      await real?.close();
+      real = undefined;
+    });
+
+    it('every write tool: the preview diff equals the diff the real server commits, and the preview commits nothing', async () => {
+      real = await startRealServer();
+      const config = loadConfig({}, { serverUrl: real.url, log: () => {}, requestTimeoutMs: 10_000 });
+      const flat = new HttpFlatApi(config);
+      for (const [i, cmd] of [
+        { type: 'material.define', material: { id: 'paint-sage', name: 'Sage', kind: 'paint', color: '#9caf88', roughness: 0.9 } },
+        { type: 'material.define', material: { id: 'paint-spare', name: 'Spare', kind: 'paint', color: '#aaaaaa', roughness: 0.9 } },
+      ].entries()) {
+        expect((await flat.postCommand(makeEnvelope(cmd as Command, { id: `seed-${i}`, ts: 1, author: { kind: 'user' } }))).ok).toBe(true);
+      }
+      const { client } = await connect({ serverUrl: real.url }, flat as unknown as MockFlatApi);
+      const sceneOf = async () => {
+        const r = await flat.getScene();
+        if (!r.ok) throw new Error('getScene failed');
+        return r.data;
+      };
+
+      for (const tool of Object.keys(CASES)) {
+        const before = await sceneOf();
+        const preview = await client.callTool({ name: tool, arguments: { ...CASES[tool], preview: true } });
+        expect(preview.isError, `${tool}: ${JSON.stringify(preview.content)}`).toBeFalsy();
+        const p = json(preview);
+        expect(p, tool).toMatchObject({ committed: false, baseRev: before.rev });
+        const untouched = await sceneOf();
+        expect(untouched.rev, `${tool}: the preview committed something`).toBe(before.rev);
+        expect(untouched.scene).toEqual(before.scene);
+
+        const committed = json(await client.callTool({ name: tool, arguments: { ...CASES[tool], ifRev: p.baseRev } }));
+        expect(committed, tool).toMatchObject({ ok: true, committed: true, rev: before.rev + 1 });
+        const after = await sceneOf();
+        expect(p.diff, tool).toEqual(diffScenes(before.scene, after.scene));
+        expect(p.wouldChange, tool).toEqual(committed.changed);
+        expect(p.warnings, tool).toEqual(committed.warnings);
+      }
+    }, 60_000);
+
+    it('baseRev of a preview guards the real commit: a change in between is stale_scene and applies nothing', async () => {
+      real = await startRealServer();
+      const flat = new HttpFlatApi(loadConfig({}, { serverUrl: real.url, log: () => {} }));
+      const { client } = await connect({ serverUrl: real.url }, flat as unknown as MockFlatApi);
+      const args = { roomId: 'sejour', materialId: 'floor-oak' };
+      const preview = json(await client.callTool({ name: 'room_set_floor', arguments: { ...args, preview: true } }));
+      await flat.postCommand(makeEnvelope({ type: 'site.set', site: { northAngle: 12 } }, { id: 'user-edit', ts: 5, author: { kind: 'user' } }));
+      const stale = await client.callTool({ name: 'room_set_floor', arguments: { ...args, ifRev: preview.baseRev } });
+      expect(json(stale)).toMatchObject({ code: 'stale_scene', rev: 1 });
+      const scene = (await flat.getScene()) as { data: { scene: { rooms: { id: string; floorMaterial?: string }[] } } };
+      expect(scene.data.scene.rooms.find((r) => r.id === 'sejour')!.floorMaterial).not.toBe('floor-oak');
+    });
+  });
 
   it('posts nothing at all (no postCommand reached the FlatApi)', async () => {
     const flat = await seededMock();
@@ -266,6 +326,42 @@ describe('rate limits and session cap (M4.6)', () => {
   });
 });
 
+describe('ifRev (optimistic concurrency)', () => {
+  const floorArgs = { roomId: 'sejour', materialId: 'floor-oak' };
+
+  it('baseRev of a preview applies only if nothing changed; otherwise stale_scene and nothing is applied', async () => {
+    const { client, flat } = await connect();
+    const preview = json(await client.callTool({ name: 'room_set_floor', arguments: { ...floorArgs, preview: true } }));
+    const ok = json(await client.callTool({ name: 'room_set_floor', arguments: { ...floorArgs, ifRev: preview.baseRev } }));
+    expect(ok).toMatchObject({ ok: true, committed: true, rev: 1 });
+
+    const stale = await client.callTool({ name: 'room_set_floor', arguments: { roomId: 'sejour', materialId: 'floor-tile', ifRev: preview.baseRev } });
+    expect(stale.isError).toBe(true);
+    expect(json(stale)).toMatchObject({ code: 'stale_scene', rev: 1 });
+    expect(flat.rev).toBe(1);
+  });
+
+  it('applies to batches too, to previews, and a bad value is invalid_command', async () => {
+    const { client, flat } = await connect();
+    await client.callTool({ name: 'room_set_floor', arguments: floorArgs });
+    const batch = await client.callTool({ name: 'batch', arguments: { label: 'x', ifRev: 0, commands: [{ type: 'room.setFloor', roomId: 'sejour', materialId: 'floor-tile' }] } });
+    expect(json(batch).code).toBe('stale_scene');
+    const prev = await client.callTool({ name: 'room_set_floor', arguments: { roomId: 'sejour', materialId: 'floor-tile', ifRev: 0, preview: true } });
+    expect(json(prev).code).toBe('stale_scene');
+    const bad = await client.callTool({ name: 'room_set_floor', arguments: { ...floorArgs, ifRev: -1 } });
+    expect(json(bad)).toMatchObject({ code: 'invalid_command', errors: [{ path: 'ifRev' }] });
+    expect(flat.rev).toBe(1);
+  });
+
+  it('is documented on every write tool', async () => {
+    const { client } = await connect();
+    for (const t of (await client.listTools()).tools.filter((x) => toolSchemas.some((s) => s.name === x.name))) {
+      const p = (t.inputSchema as { properties: Record<string, { description?: string }> }).properties.ifRev;
+      expect(p?.description, t.name).toContain('baseRev');
+    }
+  });
+});
+
 describe('render argument', () => {
   it('is accepted; the change still applies and the result says render_unavailable (no renderer wired)', async () => {
     const { client, flat } = await connect();
@@ -331,6 +427,67 @@ describe('render argument', () => {
     const second = json(await client.callTool({ name: 'room_set_floor', arguments: { roomId: 'sejour', materialId: 'floor-tile', render: true } }));
     expect(second.render).toMatchObject({ ok: false, code: 'rate_limited' });
     expect(second.render.retryAfterMs).toBeGreaterThan(0);
+  });
+});
+
+describe('render argument validation (same schema as render_view)', () => {
+  const fake = (calls: unknown[] = []) => ({
+    async render(spec: unknown) {
+      calls.push(spec);
+      return { image: 'AAAA', mimeType: 'image/png' as const, meta: { rev: 0 } as never };
+    },
+  });
+  const write = (client: Awaited<ReturnType<typeof connect>>['client'], render: unknown, extra: Record<string, unknown> = {}) =>
+    client.callTool({ name: 'room_set_floor', arguments: { roomId: 'sejour', materialId: 'floor-oak', render, ...extra } });
+
+  it('a bad render object fails BEFORE the write and before any token is spent', async () => {
+    const calls: unknown[] = [];
+    const { client, flat } = await connect({}, undefined, { renderer: fake(calls) });
+    for (const bad of [{ view: 'sideways' }, { size: { width: 10, height: 10 } }, { bogus: 1 }, { exposureEV: 99 }]) {
+      const r = await write(client, bad);
+      expect(r.isError, JSON.stringify(bad)).toBe(true);
+      expect(json(r)).toMatchObject({ code: 'invalid_command', errors: [{ path: expect.stringMatching(/^render\//) }] });
+    }
+    expect(flat.rev).toBe(0);
+    expect(calls).toHaveLength(0);
+  });
+
+  it('rejects a model-supplied previewOf (server-set only)', async () => {
+    const { client, flat } = await connect({}, undefined, { renderer: fake() });
+    const r = await write(client, { view: 'top', previewOf: 3 });
+    expect(json(r)).toMatchObject({ code: 'invalid_command', errors: [{ path: 'render/previewOf' }] });
+    expect(flat.rev).toBe(0);
+  });
+
+  it('render: true is the first changed room overview, else an orbit view; objects without a view follow it', async () => {
+    const calls: unknown[] = [];
+    const { client } = await connect({}, undefined, { renderer: fake(calls) });
+    await write(client, true);
+    await client.callTool({ name: 'scene_set_defaults', arguments: { floor: null, render: true } });
+    await write(client, { preset: 'evening' }, { materialId: 'floor-tile' });
+    await client.callTool({ name: 'site_set', arguments: { site: { northAngle: 10 }, render: { preset: 'night' } } });
+    await write(client, { view: 'walk', facing: 'N' }, { materialId: 'floor-deck' });
+    expect(calls).toEqual([
+      { view: 'room', roomId: 'sejour' },
+      { view: 'orbit' }, // scene_set_defaults changes no room
+      { preset: 'evening', view: 'room', roomId: 'sejour' },
+      { preset: 'night', view: 'orbit' },
+      { view: 'walk', facing: 'N', roomId: 'sejour' },
+    ]);
+  });
+
+  it('flat is orbit, and jpeg is passed on', async () => {
+    const seen: { spec: unknown; opts: unknown }[] = [];
+    const renderer = {
+      async render(spec: unknown, opts: unknown) {
+        seen.push({ spec, opts });
+        return { image: 'AAAA', mimeType: 'image/jpeg' as const, meta: { rev: 0 } as never };
+      },
+    };
+    const { client } = await connect({}, undefined, { renderer });
+    await write(client, { view: 'flat', format: 'jpeg' });
+    expect(seen[0]!.spec).toEqual({ view: 'orbit' });
+    expect(seen[0]!.opts).toMatchObject({ format: 'jpeg' });
   });
 });
 

@@ -12,6 +12,9 @@ export const CONVENTIONS_MD = `# Flat conventions
 - A wall runs from \`start\` to \`end\`. **Left** and **right** are what you see walking that way on the plan
   (with y down, standing at start looking at end, right is the clockwise side). \`describe_room\` tells which
   side of each wall faces the room: use that instead of guessing.
+- In \`describe_room\`, \`wallOn: 'W'\` means the west wall of the room (the side of the room the wall is on);
+  an opening's \`compass\` is the direction you look through it from inside, so a door in the west wall has
+  \`compass: 'W'\`. Both use true compass directions.
 
 ## Finishes and their precedence
 On a stretch of wall face, the most specific wins:

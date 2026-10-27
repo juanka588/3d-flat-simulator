@@ -11,8 +11,15 @@ export interface IdempotencyRecord {
 }
 
 /** Authoritative snapshot (scene + history + counters). `scene.flat.json` is a human-readable copy. */
-/** A checkpoint plus the id of the history entry on top of the undo stack when it was taken. */
-export type StoredCheckpoint = Checkpoint & { topId?: string };
+/**
+ * A checkpoint plus what the server needs to find it again in the capped history:
+ * - `topId`: the id of the entry on top of the undo stack when it was taken (detects divergence);
+ * - `abs`: ABSOLUTE index of the checkpoint in the history, i.e. the number of entries trimmed off the
+ *   bottom of the capped history so far (`Snapshot.trimmed`) plus its depth then. The depth now is
+ *   `abs - trimmed`; below 0 the checkpoint has fallen out of the history (older snapshots have no
+ *   `abs`: their `depth` is used).
+ */
+export type StoredCheckpoint = Checkpoint & { topId?: string; abs?: number };
 
 export interface Snapshot {
   format: 1;
@@ -25,6 +32,8 @@ export interface Snapshot {
   idempotency?: IdempotencyRecord[];
   /** Named checkpoints of the shared history (additive field; absent in older snapshots). */
   checkpoints?: StoredCheckpoint[];
+  /** Entries dropped off the bottom of the capped undo history since the epoch began (additive field; absent = 0). */
+  trimmed?: number;
 }
 
 export interface LoadedLog {
@@ -61,10 +70,11 @@ function parseSnapshot(text: string): SnapshotRead {
     if (Array.isArray(raw.checkpoints)) {
       snapshot.checkpoints = raw.checkpoints.flatMap((c) => {
         const ok = Checkpoint.safeParse(c);
-        const topId = (c as { topId?: unknown }).topId;
-        return ok.success ? [{ ...ok.data, ...(typeof topId === 'string' ? { topId } : {}) }] : [];
+        const { topId, abs } = c as { topId?: unknown; abs?: unknown };
+        return ok.success ? [{ ...ok.data, ...(typeof topId === 'string' ? { topId } : {}), ...(typeof abs === 'number' && Number.isInteger(abs) && abs >= 0 ? { abs } : {}) }] : [];
       });
     } else delete snapshot.checkpoints;
+    if (!(typeof raw.trimmed === 'number' && Number.isInteger(raw.trimmed) && raw.trimmed >= 0)) delete snapshot.trimmed;
     return { kind: 'ok', snapshot };
   } catch (e) {
     return { kind: 'corrupt', problem: e instanceof Error ? e.message : String(e) };

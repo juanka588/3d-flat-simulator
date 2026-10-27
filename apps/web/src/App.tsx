@@ -25,6 +25,7 @@ import { useSyncStore } from './sync/sync-store';
 import { useMobileLayout } from './ui/useMobileLayout';
 import { useUndoRedoKeys } from './ui/useUndoRedoKeys';
 import { ViewSettings } from './ui/ViewSettings';
+import { ViewerErrorBanner } from './ui/ViewerErrorBanner';
 import { WarningsList } from './ui/WarningsList';
 import { FlatCanvas } from './viewer/FlatCanvas';
 import { sceneKey } from './viewer/scene-identity';
@@ -216,6 +217,7 @@ export function App() {
       </header>
       <main className="stage">
         <BootBanner />
+        <ViewerErrorBanner />
         {scene && (
           <>
             <FlatCanvas

@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { connect, json } from './testing/inproc';
+import { effectiveSessionLighting } from './tools/view';
+
+import { connect, fakeClock, json } from './testing/inproc';
+import { newSession } from './tools';
+import { loadConfig } from './config';
 
 const sun = (client: Awaited<ReturnType<typeof connect>>['client'], args: Record<string, unknown>) => client.callTool({ name: 'set_sun_time', arguments: args });
 
@@ -36,6 +40,52 @@ describe('set_sun_time (M4.11)', () => {
     const day = json(await sun(client, { preset: 'day' }));
     expect(day.lighting).toMatchObject({ time: '12:00', sunEnabled: true });
     expect(Object.values(day.lighting.lamps).every((l) => (l as { on: boolean }).on === false)).toBe(true);
+  });
+
+  describe('lamp mode (presets set a mode, light_update stays visible)', () => {
+    const lampOf = async (client: Awaited<ReturnType<typeof connect>>['client'], id: string) => json(await client.callTool({ name: 'describe_room', arguments: { roomId: 'sejour' } })).lights.find((l: { id: string }) => l.id === id);
+
+    it('a preset sets the mode; lights added or updated afterwards follow it, and lumens/kelvin changes always show', async () => {
+      const { client } = await connect();
+      expect(json(await sun(client, { preset: 'evening' })).lampMode).toBe('allOn');
+      await client.callTool({ name: 'light_update', arguments: { id: 'l-sejour', patch: { lumens: 321, kelvin: 2700 } } });
+      expect(await lampOf(client, 'l-sejour')).toMatchObject({ on: true, lumens: 321, kelvin: 2700 });
+      // a lamp added after the preset is lit too (the old per-lamp snapshot missed it)
+      await client.callTool({ name: 'light_add', arguments: { light: { id: 'l-new', type: 'point', position: [2, 2], roomId: 'sejour', elevation: 2.4, lumens: 500, kelvin: 3000, on: false } } });
+      expect(await lampOf(client, 'l-new')).toMatchObject({ on: true });
+      const d = json(await client.callTool({ name: 'describe_room', arguments: { roomId: 'sejour' } }));
+      expect(d.lampMode).toBe('allOn');
+      expect(d.note).toContain('lamps "scene"');
+    });
+
+    it('lamps: "scene" resets: the flat\'s own on/off shows again', async () => {
+      const { client } = await connect();
+      await sun(client, { preset: 'evening' });
+      await client.callTool({ name: 'light_update', arguments: { id: 'l-sejour', patch: { on: false } } });
+      expect(await lampOf(client, 'l-sejour')).toMatchObject({ on: true }); // hidden by the mode, and said so
+      const r = json(await sun(client, { lamps: 'scene' }));
+      expect(r).toMatchObject({ ok: true, lampMode: 'scene', lighting: { lamps: {} } });
+      expect(await lampOf(client, 'l-sejour')).toMatchObject({ on: false });
+      expect(json(await client.callTool({ name: 'describe_room', arguments: { roomId: 'sejour' } })).lampMode).toBeUndefined();
+      // day = allOff, and an explicit lamps wins over the preset's mode
+      expect(json(await sun(client, { preset: 'day' })).lampMode).toBe('allOff');
+      expect(json(await sun(client, { preset: 'day', lamps: 'allOn' })).lampMode).toBe('allOn');
+      expect((await sun(client, { lamps: 'dim' })).isError).toBe(true);
+    });
+
+    it('effectiveSessionLighting (for the render service) applies the mode to the scene\'s current lights', async () => {
+      const { flat } = await connect();
+      const clock = fakeClock();
+      const session = newSession(loadConfig({}, { log: () => {} }).limits, clock);
+      const lights = flat.scene.lights;
+      expect(effectiveSessionLighting(session, flat.scene).lamps).toEqual({});
+      session.lampMode = 'allOn';
+      const on = effectiveSessionLighting(session, flat.scene).lamps;
+      expect(Object.keys(on).sort()).toEqual(lights.map((l) => l.id).sort());
+      expect(Object.values(on).every((l) => l.on === true)).toBe(true);
+      session.lampMode = 'allOff';
+      expect(Object.values(effectiveSessionLighting(session, flat.scene).lamps).every((l) => l.on === false)).toBe(true);
+    });
   });
 
   it('explicit date and time override the preset', async () => {

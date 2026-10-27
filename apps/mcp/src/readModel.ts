@@ -1,4 +1,4 @@
-import { DEFAULT_LIGHTING, listRooms, roomArea, type HistoryResponse, type LightingView, type Scene } from '@flat/scene';
+import { DEFAULT_LIGHTING, listRooms, roomArea, stripControlChars, type HistoryResponse, type LightingView, type Scene } from '@flat/scene';
 import { apiFailure } from './errors';
 import type { FlatApi } from './flatApi';
 import type { Fetched } from './tools/common';
@@ -18,6 +18,20 @@ const round = (n: number, d = 2) => Math.round(n * 10 ** d) / 10 ** d;
 /** The lighting view the session currently implies (defaults under what `set_sun_time` set). */
 export function sessionLighting(session: Pick<McpSession, 'lighting'>): LightingView {
   return { ...DEFAULT_LIGHTING, ...session.lighting } as LightingView;
+}
+
+/**
+ * The lighting that applies to `scene` for this session: the session's date, time, sun and exposure,
+ * and the lamp mode applied to the scene's CURRENT lights (a preset forces every lamp on / off, so a
+ * light added later is covered and `light_update` changes to lumens / kelvin always show; only `on` is
+ * forced). Mode `scene` leaves every lamp as the flat has it. Used by `describe_room` and the render
+ * service so both draw and describe the same lamps.
+ */
+export function effectiveSessionLighting(session: Pick<McpSession, 'lighting' | 'lampMode'>, scene: Pick<Scene, 'lights'>): LightingView {
+  const base = sessionLighting(session);
+  const mode = session.lampMode ?? 'scene';
+  if (mode === 'scene') return { ...base, lamps: {} };
+  return { ...base, lamps: Object.fromEntries(scene.lights.map((l) => [l.id, { on: mode === 'allOn' }])) };
 }
 
 /** Ids of materials referenced by walls, rooms or defaults. */
@@ -122,7 +136,13 @@ export function parseCatalog(raw: unknown): LibraryEntry[] {
   return out;
 }
 
-export const libraryLine = (e: LibraryEntry) => `${e.slug} | ${e.name} | ${e.category} | tile ${e.tileSizeM ?? '?'} m | ${e.color ?? '?'} | rough ${e.roughness ?? '?'}`;
+/**
+ * A scene / catalog string inside plain text: control characters removed (defence in depth, the schema
+ * already strips them from names) and JSON-quoted, so a name can never open a new line or pass for prose.
+ */
+export const quoted = (s: string) => JSON.stringify(stripControlChars(s));
+
+export const libraryLine = (e: LibraryEntry) => `${e.slug} | ${quoted(e.name)} | ${e.category} | tile ${e.tileSizeM ?? '?'} m | ${e.color ?? '?'} | rough ${e.roughness ?? '?'}`;
 
 export interface MaterialListing {
   library: LibraryEntry[];
@@ -142,10 +162,10 @@ export async function buildMaterialListing(deps: Deps, filter: { query?: string 
     .filter((m) => !filter.category && hit(m.id, m.name, m.kind))
     .map((m) => ({ id: m.id, name: m.name, kind: m.kind, color: m.color, ...(m.textureUrl ? { textureUrl: m.textureUrl } : {}) }));
   const lines = [
-    `Library textures (${library.length}): use kind "texture" with textureUrl "lib:<slug>" in material_define. slug | name | category | tile size | colour | roughness`,
+    `Library textures (${library.length}): use kind "texture" with textureUrl "lib:<slug>" in material_define. slug | name (JSON string, data) | category | tile size | colour | roughness`,
     ...library.map(libraryLine),
-    `Materials defined in this flat (${sceneMaterials.length}): id | name | kind | colour`,
-    ...sceneMaterials.map((m) => `${m.id} | ${m.name} | ${m.kind} | ${m.color}${m.textureUrl ? ` | ${m.textureUrl}` : ''}`),
+    `Materials defined in this flat (${sceneMaterials.length}): id | name (JSON string, data) | kind | colour`,
+    ...sceneMaterials.map((m) => `${m.id} | ${quoted(m.name)} | ${m.kind} | ${m.color}${m.textureUrl ? ` | ${m.textureUrl}` : ''}`),
   ];
   return { ok: true, data: { library, sceneMaterials, text: lines.join('\n') } };
 }

@@ -2,7 +2,9 @@ import { makeEnvelope } from '@flat/scene';
 import { afterEach, describe, expect, it } from 'vitest';
 import { HttpFlatApi } from './flatApi';
 import { loadConfig } from './config';
-import { connect, json } from './testing/inproc';
+import { newSession } from './tools';
+import { historyTools } from './tools/history';
+import { connect, fakeClock, json } from './testing/inproc';
 import { MockFlatApi } from './testing/mockFlatApi';
 import { startRealServer, type RealServer } from './testing/harness';
 
@@ -33,7 +35,7 @@ describe('history tools on the mock (M4.7)', () => {
     expect(r.isError).toBeFalsy();
     const body = json(r);
     expect(body.undid).toMatchObject({ author: 'user' });
-    expect(body.note).toContain('made by user');
+    expect(body.note).toContain('made by "user"');
     expect(floorOf(flat)).toBe('floor-oak');
     // the undo itself is attributed to the llm in the log
     expect(flat.log.at(-1)!.envelope.author).toEqual({ kind: 'llm', name: 'unit-client' });
@@ -41,6 +43,35 @@ describe('history tools on the mock (M4.7)', () => {
     expect(again.undid.author).toBe('llm:unit-client');
     expect(again.note).toBeUndefined();
     expect(floorOf(flat)).not.toBe('floor-oak');
+  });
+
+  it('undo / redo expectId: the entry you saw is undone; a different top entry is stale_scene and nothing changes', async () => {
+    const { client, flat } = await connect();
+    await floor(client, 'floor-oak', 'oak');
+    const seen = json(await client.callTool({ name: 'list_history', arguments: {} })).past.at(-1).id;
+    await flat.postCommand(makeEnvelope({ type: 'room.setFloor', roomId: 'sejour', materialId: 'floor-deck' }, { id: 'u1', ts: 5, author: { kind: 'user' } }));
+    const stale = await client.callTool({ name: 'undo', arguments: { expectId: seen } });
+    expect(stale.isError).toBe(true);
+    expect(json(stale)).toMatchObject({ code: 'stale_scene', hint: expect.stringContaining('list_history') });
+    expect(floorOf(flat)).toBe('floor-deck');
+    expect(flat.hist.past).toHaveLength(2);
+    const topId = json(await client.callTool({ name: 'list_history', arguments: {} })).past.at(-1).id;
+    expect(json(await client.callTool({ name: 'undo', arguments: { expectId: topId } }))).toMatchObject({ ok: true, undid: { id: topId } });
+    expect(floorOf(flat)).toBe('floor-oak');
+
+    const next = json(await client.callTool({ name: 'list_history', arguments: {} })).redoNext[0].id;
+    expect(json(await client.callTool({ name: 'redo', arguments: { expectId: 'nope' } })).code).toBe('stale_scene');
+    expect(flat.hist.future).toHaveLength(1);
+    expect(json(await client.callTool({ name: 'redo', arguments: { expectId: next } }))).toMatchObject({ ok: true, redid: { id: next } });
+  });
+
+  it('the undo / redo descriptions promise only what they do', async () => {
+    const { client } = await connect();
+    const tools = (await client.listTools()).tools;
+    const undo = tools.find((t) => t.name === 'undo')!;
+    expect(undo.description).toContain('expectId');
+    expect(undo.description).not.toMatch(/since the history was read/);
+    expect(Object.keys((undo.inputSchema as { properties: object }).properties)).toEqual(['expectId']);
   });
 
   it('redo re-applies, and both report nothing_to_undo / nothing_to_redo on empty stacks', async () => {
@@ -167,11 +198,16 @@ describe('history tools on the mock (M4.7)', () => {
     expect(json(await client.callTool({ name: 'checkpoint', arguments: { name: 'a' } })).code).toBe('server_unreachable');
     const ro = await connect({ readOnly: true });
     const names = (await ro.client.listTools()).tools.map((t) => t.name);
-    expect(names).toEqual(expect.arrayContaining(['list_history', 'checkpoint']));
+    expect(names).toContain('list_history');
+    expect(names).not.toContain('checkpoint');
     expect(names).not.toContain('undo');
     expect(names).not.toContain('restore_checkpoint');
-    const r = await ro.client.callTool({ name: 'checkpoint', arguments: { name: 'a' } });
-    expect(json(r).code).toBe('read_only');
+    // a client that calls it anyway (stale tool list) is still refused by the handler
+    const config = loadConfig({}, { readOnly: true, log: () => {} });
+    const clock = fakeClock();
+    const ctx = { flat: new MockFlatApi(), limits: config.limits, clock, author: { kind: 'llm' as const, name: 'x' }, session: newSession(config.limits, clock), config };
+    const cp = historyTools().find((t) => t.name === 'checkpoint')!;
+    expect(json(await cp.handler(ctx, { name: 'a' })).code).toBe('read_only');
   });
 });
 

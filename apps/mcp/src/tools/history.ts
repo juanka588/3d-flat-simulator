@@ -9,12 +9,13 @@ import type { ToolContext, ToolDef } from './registry';
 /**
  * History tools (M4.7). The undo stack is SHARED with the user: `undo` reverts the latest change
  * whoever made it (plain server undo/redo, no LLM-only scoping). Each call names the entry it is
- * about to revert and sends `ifRev`, so a change made in between turns into `stale_scene` instead of
- * silently reverting something the model never saw.
+ * about to revert and sends `ifRev` (a change racing the call becomes `stale_scene`). To undo only
+ * what the model has SEEN, pass `expectId` (an entry id from `list_history`): if the entry on top is
+ * a different one (someone changed the flat since), the call fails with `stale_scene` and nothing is undone.
  */
 
 const HistoryArgs = z.strictObject({ limit: z.number().int().min(1).max(100).optional() });
-const Empty = z.strictObject({});
+const StepArgs = z.strictObject({ expectId: z.string().min(1).max(64).optional() });
 const CheckpointArgs = z.strictObject({ name: z.string().trim().min(1).max(80), replace: z.boolean().optional() });
 const RestoreArgs = z.strictObject({ name: z.string().trim().min(1).max(80) });
 
@@ -41,13 +42,16 @@ async function checkpointNames(ctx: ToolContext): Promise<string[]> {
   return r.ok ? r.data.checkpoints.map((c) => c.name) : [];
 }
 
-async function step(ctx: ToolContext, kind: 'undo' | 'redo'): Promise<CallToolResult> {
-  const blocked = guardWrite(ctx);
-  if (blocked) return blocked;
+async function step(ctx: ToolContext, kind: 'undo' | 'redo', expectId?: string): Promise<CallToolResult> {
   const h = await ctx.flat.history();
   if (!h.ok) return apiFailure(h);
   const target = kind === 'undo' ? h.data.past.at(-1) : h.data.future.at(-1);
   if (!target) return toolError(kind === 'undo' ? 'nothing_to_undo' : 'nothing_to_redo', kind === 'undo' ? 'the history is empty' : 'nothing was undone');
+  if (expectId !== undefined && target.id !== expectId) {
+    return toolError('stale_scene', `the ${kind === 'undo' ? 'newest entry to undo' : 'next entry to redo'} is "${target.label}" (${target.id}) by ${authorText(target.author)}, not ${expectId}`, `The history changed since you read it. Call list_history, check what ${kind} would ${kind === 'undo' ? 'revert' : 're-apply'}, and pass that entry's id as expectId (or omit expectId).`, { rev: h.data.rev });
+  }
+  const blocked = guardWrite(ctx);
+  if (blocked) return blocked;
   const body = { id: ctx.clock.newId(), author: ctx.author, ifRev: h.data.rev };
   const res = await (kind === 'undo' ? ctx.flat.undo(body) : ctx.flat.redo(body));
   if (!res.ok) return historyFailure(res, kind);
@@ -64,7 +68,7 @@ async function step(ctx: ToolContext, kind: 'undo' | 'redo'): Promise<CallToolRe
     warnings: result.warnings,
     canUndo: kind === 'undo' ? h.data.past.length > 1 : true,
     canRedo: kind === 'undo' ? true : h.data.future.length > 1,
-    ...(foreign ? { note: `the ${kind === 'undo' ? 'reverted' : 're-applied'} change was made by ${authorText(target.author)} (the history is shared with the user)` } : {}),
+    ...(foreign ? { note: `the ${kind === 'undo' ? 'reverted' : 're-applied'} change was made by ${JSON.stringify(authorText(target.author))} (the history is shared with the user)` } : {}),
   });
 }
 
@@ -106,26 +110,27 @@ export function historyTools(): ToolDef[] {
     },
     {
       name: 'undo',
-      description: 'Undo the latest change in the shared history, whoever made it (the result names the entry). Fails with stale_scene if the flat changed since the history was read; call list_history and retry.',
-      inputSchema: obj({}),
+      description:
+        'Undo the newest entry of the shared history, whoever made it (the user\'s edits included); the result names the entry it reverted. To undo only what you have seen, pass expectId (the id of the last entry of list_history\'s past): if the newest entry is a different one, it fails with stale_scene and changes nothing. Without expectId it reverts whatever is on top at that moment.',
+      inputSchema: obj({ expectId: { type: 'string', maxLength: 64, description: 'Optional. Id of the entry you mean to undo (the last item of past in list_history). Mismatch: stale_scene, nothing undone.' } }),
       annotations: HISTORY_WRITE,
       group: 'history',
       mutatesScene: true,
       async handler(ctx, args) {
-        const a = parseArgs(Empty, args);
-        return a.ok ? step(ctx, 'undo') : a.result;
+        const a = parseArgs(StepArgs, args);
+        return a.ok ? step(ctx, 'undo', a.data.expectId) : a.result;
       },
     },
     {
       name: 'redo',
-      description: 'Redo the most recently undone change.',
-      inputSchema: obj({}),
+      description: 'Redo the most recently undone change (the user\'s too). Pass expectId (redoNext[0].id of list_history) to redo only that entry: if the next one differs, it fails with stale_scene and changes nothing.',
+      inputSchema: obj({ expectId: { type: 'string', maxLength: 64, description: 'Optional. Id of the entry you mean to redo (redoNext[0] in list_history). Mismatch: stale_scene, nothing redone.' } }),
       annotations: HISTORY_WRITE,
       group: 'history',
       mutatesScene: true,
       async handler(ctx, args) {
-        const a = parseArgs(Empty, args);
-        return a.ok ? step(ctx, 'redo') : a.result;
+        const a = parseArgs(StepArgs, args);
+        return a.ok ? step(ctx, 'redo', a.data.expectId) : a.result;
       },
     },
     {
@@ -140,7 +145,8 @@ export function historyTools(): ToolDef[] {
       ),
       annotations: HISTORY_WRITE,
       group: 'history',
-      mutatesScene: false,
+      // Not a scene change, but it writes server state: hidden in read-only mode (the handler also refuses).
+      mutatesScene: true,
       async handler(ctx, args) {
         const a = parseArgs(CheckpointArgs, args);
         if (!a.ok) return a.result;
@@ -148,7 +154,7 @@ export function historyTools(): ToolDef[] {
         const res = await ctx.flat.checkpoint({ name: a.data.name, author: ctx.author, ...(a.data.replace ? { replace: true } : {}) });
         if (!res.ok) return historyFailure(res, 'checkpoint');
         const cp = res.data.checkpoint;
-        return toolOk({ ok: true, checkpoint: { name: cp.name, rev: cp.rev, depth: cp.depth }, epoch: res.data.epoch, note: `restore with restore_checkpoint {"name":"${cp.name}"}` });
+        return toolOk({ ok: true, checkpoint: { name: cp.name, rev: cp.rev, depth: cp.depth }, epoch: res.data.epoch, note: `restore with restore_checkpoint ${JSON.stringify({ name: cp.name })}` });
       },
     },
     {
@@ -168,7 +174,7 @@ export function historyTools(): ToolDef[] {
           if (res.kind === 'http' && res.status === 404 && res.errors[0]?.code === 'not_found') {
             const names = await checkpointNames(ctx);
             const near = nearestIds(a.data.name, names);
-            return toolError('unknown_checkpoint', `no checkpoint named "${a.data.name}"`, names.length ? `Did you mean ${near.map((n) => `"${n}"`).join(', ')}? Checkpoints: ${names.join(', ')}.` : 'There are no checkpoints; create one with checkpoint.');
+            return toolError('unknown_checkpoint', `no checkpoint named ${JSON.stringify(a.data.name)}`, names.length ? `Did you mean ${near.map((n) => JSON.stringify(n)).join(', ')}? Checkpoints: ${names.map((n) => JSON.stringify(n)).join(', ')}.` : 'There are no checkpoints; create one with checkpoint.');
           }
           return historyFailure(res, 'undo');
         }

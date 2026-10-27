@@ -40,7 +40,8 @@ describe('stdio server', () => {
     send({ jsonrpc: '2.0', id: 4, method: 'prompts/list' });
     send({ jsonrpc: '2.0', id: 5, method: 'nope/unknown' });
     const deadline = Date.now() + 15_000;
-    while (!/"id":5/.test(out) && Date.now() < deadline) await new Promise((r) => setTimeout(r, 50));
+    // every request is answered (the write retries once against the dead server, so id 3 can arrive after id 5)
+    while (![1, 2, 3, 4, 5].every((id) => new RegExp(`"id":${id}[,}]`).test(out)) && Date.now() < deadline) await new Promise((r) => setTimeout(r, 50));
     child.stdin.end();
     await new Promise((r) => child.once('exit', r));
     const lines = out.split('\n').filter((l) => l.trim() !== '');

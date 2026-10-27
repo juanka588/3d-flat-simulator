@@ -32,6 +32,12 @@ export interface ServerDeps {
    * and `set_sun_time` survive across requests.
    */
   session?: McpSession;
+  /**
+   * Whether a request without client info inherits the name the session saw before (stdio: one client
+   * for the whole process, so yes). The shared HTTP endpoint serves several clients: never borrow
+   * another client's name there.
+   */
+  stickyClientName?: boolean;
   /** Lane E: the render service (`render_view`, and the `render` argument of write tools). */
   renderer?: Renderer;
 }
@@ -43,10 +49,10 @@ function userAgentName(ctx: ServerContext): string | undefined {
   return token || undefined;
 }
 
-/** Client name for the history's author: the request envelope, then `initialize`'s clientInfo, then the User-Agent (stateless HTTP), then what the session saw before. */
-function clientNameOf(server: McpServer, ctx: ServerContext, previous: string): string {
+/** Client name for the history's author: the request envelope, then `initialize`'s clientInfo, then the User-Agent (stateless HTTP), then (stdio only) what the session saw before. */
+function clientNameOf(server: McpServer, ctx: ServerContext, previous: string, sticky: boolean): string {
   const fromEnvelope = (ctx.mcpReq.envelope as Record<string, { name?: string } | undefined> | undefined)?.[CLIENT_INFO_META_KEY];
-  return fromEnvelope?.name ?? server.server.getClientVersion()?.name ?? userAgentName(ctx) ?? (previous !== 'unknown' ? previous : 'unknown');
+  return fromEnvelope?.name ?? server.server.getClientVersion()?.name ?? userAgentName(ctx) ?? (sticky && previous !== 'unknown' ? previous : 'unknown');
 }
 
 /** Builds one MCP server (one per connection). Registers the visible tools, prompts and instructions. */
@@ -56,7 +62,7 @@ export function createFlatMcpServer(deps: ServerDeps): McpServer {
   const session = deps.session ?? newSession(config.limits, clock);
   const server = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION }, { instructions: INSTRUCTIONS });
 
-  for (const tool of visibleTools(deps.tools ?? allTools(), config)) {
+  for (const tool of visibleTools(deps.tools ?? allTools(config.limits), config)) {
     server.registerTool(
       tool.name,
       {
@@ -66,7 +72,7 @@ export function createFlatMcpServer(deps: ServerDeps): McpServer {
         annotations: { ...tool.annotations },
       },
       async (args, ctx): Promise<CallToolResult> => {
-        session.clientName = clientNameOf(server, ctx, session.clientName);
+        session.clientName = clientNameOf(server, ctx, session.clientName, deps.stickyClientName ?? true);
         const author: Author = { kind: 'llm', name: session.clientName.slice(0, 200) };
         const toolCtx: ToolContext = { flat, limits: config.limits, clock, author, session, config, ...(deps.renderer ? { renderer: deps.renderer } : {}) };
         try {

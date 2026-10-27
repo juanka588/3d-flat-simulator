@@ -117,7 +117,20 @@ function stepErrors(s: { ok: false; reason: string } & Partial<{ errors: ErrorRe
   return [{ code: 'invalid_command', path: '', message: s.reason === 'nothing_to_undo' ? 'nothing to undo' : 'nothing to redo' }];
 }
 
-const publicCheckpoint = ({ topId: _topId, ...cp }: StoredCheckpoint): Checkpoint => cp;
+const publicCheckpoint = ({ topId: _topId, abs: _abs, ...cp }: StoredCheckpoint): Checkpoint => cp;
+
+/**
+ * How many entries `advance` dropped off the bottom of the capped undo history. Undo / redo never
+ * trim; a coalesced command replaces the top entry (it keeps the OLDEST inverse by reference) and
+ * adds nothing; any other recorded command adds one and trims what exceeds the cap.
+ */
+function trimmedBy(before: History, after: History, env: CommandEnvelope): number {
+  if (env.undoOf !== undefined || env.redoOf !== undefined) return 0;
+  const top = before.past.at(-1);
+  if (top && after.past.at(-1)?.inverse === top.inverse) return 0; // merged
+  if (after.past === before.past) return 0; // nothing recorded (a no-op)
+  return Math.max(0, before.past.length + 1 - after.past.length);
+}
 
 export class SceneStore {
   epoch = '';
@@ -127,6 +140,8 @@ export class SceneStore {
   history: History = createHistory();
 
   checkpoints: StoredCheckpoint[] = [];
+  /** Entries dropped off the bottom of the capped history since this epoch began (see `StoredCheckpoint.abs`). */
+  trimmed = 0;
   private viewSeq = 0;
   private readonly listeners = new Set<(msg: ServerMsg) => void>();
   private readonly viewSinks = new Set<(msg: ViewMsg, exceptClient?: string) => number>();
@@ -188,6 +203,7 @@ export class SceneStore {
       this.scene = await this.loadInitialScene();
       this.history = createHistory();
       this.checkpoints = [];
+      this.trimmed = 0;
       this.logEntries = [];
       await this.disk.writeSnapshot(this.snapshot());
       await this.disk.rewriteLog([]);
@@ -203,6 +219,7 @@ export class SceneStore {
     this.scene = base.scene;
     this.history = base.history;
     this.checkpoints = base.checkpoints ?? [];
+    this.trimmed = base.trimmed ?? 0;
     for (const r of base.idempotency ?? []) this.remember(r.key, r.hash, r.response);
     if (log.dropped > 0) this.config.log('warn', `ignored ${log.dropped} unreadable trailing log line (torn write after a crash?)`);
 
@@ -237,6 +254,7 @@ export class SceneStore {
         leftover.push(entry);
         continue;
       }
+      this.trimmed += trimmedBy(this.history, r.history, entry.envelope);
       this.scene = r.scene;
       this.history = r.history;
       this.seq = entry.seq;
@@ -414,6 +432,7 @@ export class SceneStore {
     }
     const durable = this.disk.durable();
     durable.catch(() => {}); // surfaced through `after`
+    this.trimmed += trimmedBy(this.history, r.history, env);
     this.scene = r.scene;
     this.history = r.history;
     this.seq = entry.seq;
@@ -456,6 +475,9 @@ export class SceneStore {
       if (exists && !body.replace) {
         return fail(409, 'checkpoint_exists', `checkpoint "${body.name}" already exists; pick another name or send replace: true`, { rev: this.rev, epoch: this.epoch }, 'name');
       }
+      // Close the coalescing window: a later edit with the same key must not merge into the entry
+      // the checkpoint sits on (that would change the state the checkpoint stands for).
+      const closed = this.history.open === null ? this.history : { ...this.history, open: null };
       const top = this.history.past.at(-1);
       const cp: StoredCheckpoint = {
         name: body.name,
@@ -464,8 +486,11 @@ export class SceneStore {
         depth: this.history.past.length,
         ts: Date.now(),
         author: body.author ?? SERVER_AUTHOR,
+        abs: this.trimmed + this.history.past.length,
         ...(top ? { topId: top.envelope.id } : {}),
       };
+      const prevHistory = this.history;
+      this.history = closed;
       const before = this.checkpoints;
       const next = [...before.filter((c) => c.name !== body.name), cp];
       this.checkpoints = next.slice(-MAX_CHECKPOINTS);
@@ -473,6 +498,7 @@ export class SceneStore {
         await this.snapshotNow(false);
       } catch (e) {
         this.checkpoints = before;
+        this.history = prevHistory;
         this.config.log('error', `could not persist checkpoint: ${String(e)}`);
         return fail(500, 'internal_error', 'could not persist the checkpoint');
       }
@@ -499,12 +525,15 @@ export class SceneStore {
         }
         const past = this.history.past;
         const gone = (why: string) => ({ outcome: fail(409, 'checkpoint_unreachable', `checkpoint "${cp.name}" ${why}`, { rev: this.rev, epoch: this.epoch }, 'checkpoint') });
-        if (past.length < cp.depth) return gone(`is at undo depth ${cp.depth} but the history is only ${past.length} deep (it was undone past the checkpoint)`);
-        if (cp.depth > 0 && cp.topId !== undefined && past[cp.depth - 1]?.envelope.id !== cp.topId) {
+        // Depth of the checkpoint in the history as it is NOW: its absolute index minus what the cap has trimmed since.
+        const depth = (cp.abs ?? cp.depth) - this.trimmed;
+        if (depth < 0) return gone(`fell out of the capped history (only the last ${this.history.cap} changes are kept, and ${-depth} of the changes made since it was taken pushed it out)`);
+        if (past.length < depth) return gone(`is at undo depth ${depth} but the history is only ${past.length} deep (it was undone past the checkpoint)`);
+        if (depth > 0 && cp.topId !== undefined && past[depth - 1]?.envelope.id !== cp.topId) {
           return gone('is no longer on the undo stack (the history diverged after it was taken)');
         }
         if (this.failed) return { outcome: fail(500, 'internal_error', 'storage failed earlier; restart the server') };
-        const steps = past.length - cp.depth;
+        const steps = past.length - depth;
         if (steps === 0) {
           const response: UndoToResponse = {
             ok: true,
@@ -578,6 +607,7 @@ export class SceneStore {
       this.history = history;
       this.idempotent.clear();
       this.checkpoints = [];
+      this.trimmed = 0;
       this.logEntries = [];
       this.dirty = false;
       this.broadcast({ type: 'reset', epoch: this.epoch, rev: 0, scene });
@@ -588,7 +618,7 @@ export class SceneStore {
   // ---- persistence ----------------------------------------------------------------------------
 
   private snapshot(): Snapshot {
-    return { format: 1, epoch: this.epoch, rev: this.rev, seq: this.seq, scene: this.scene, history: this.history, idempotency: this.idempotencyRecords(), checkpoints: this.checkpoints };
+    return { format: 1, epoch: this.epoch, rev: this.rev, seq: this.seq, scene: this.scene, history: this.history, idempotency: this.idempotencyRecords(), checkpoints: this.checkpoints, trimmed: this.trimmed };
   }
 
   private idempotencyRecords(): IdempotencyRecord[] {

@@ -52,11 +52,23 @@ export interface Clock {
 }
 
 /** Per-connection mutable state (the MCP "session"). */
+/** How the session treats lamps: follow the flat (`scene`), or force every lamp on / off (set by presets). */
+export type LampMode = 'scene' | 'allOn' | 'allOff';
+export const LAMP_MODES = ['scene', 'allOn', 'allOff'] as const;
+
 export interface McpSession {
   /** `clientInfo.name` of the connected client (`unknown` before initialize). */
   clientName: string;
+  /** How the client is connected; only changes the wording of hints (an HTTP client cannot "reconnect"). */
+  transport: 'stdio' | 'http';
   /** Lighting set by `set_sun_time`; merged under per-call render options. Not part of the scene. */
   lighting: Partial<LightingView>;
+  /**
+   * Authoritative lamp state of the session (a preset sets it: day = allOff, evening / night = allOn;
+   * `set_sun_time {lamps:'scene'}` resets it). `lighting.lamps` only mirrors it for older readers: use
+   * `effectiveSessionLighting(session, scene)` (tools/view.ts) to get the lighting that applies to a scene.
+   */
+  lampMode: LampMode;
   /** When true, view changes are also relayed to the user's tab via `FlatApi.postView`. */
   syncToUserTab: boolean;
   /** Revision of the scene at the previous render, for `compare`. Lane E. */
@@ -69,11 +81,13 @@ export interface McpSession {
   writeCount: number;
 }
 
-/** A fresh session. In stateless HTTP mode one session is shared by all requests of the process. */
-export function newSession(limits: Pick<McpLimits, 'writesPerMinute' | 'rendersPerMinute'>, clock: Pick<Clock, 'now'>): McpSession {
+/** A fresh session. Stdio: one per process. Stateless HTTP: one per client key (see `http.ts`). */
+export function newSession(limits: Pick<McpLimits, 'writesPerMinute' | 'rendersPerMinute'>, clock: Pick<Clock, 'now'>, transport: 'stdio' | 'http' = 'stdio'): McpSession {
   return {
     clientName: 'unknown',
+    transport,
     lighting: {},
+    lampMode: 'scene',
     syncToUserTab: false,
     writes: new TokenBucket(limits.writesPerMinute, () => clock.now()),
     renders: new TokenBucket(limits.rendersPerMinute, () => clock.now()),

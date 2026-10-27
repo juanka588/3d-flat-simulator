@@ -113,9 +113,9 @@ describe('commandToolSchemas', () => {
   it('documents wall_set_finish roomId, sides and null', () => {
     const props = (tools.find((x) => x.name === 'wall_set_finish')!.inputSchema as { properties: Record<string, { description: string }> }).properties;
     expect(props.roomId!.description).toContain('list_rooms');
-    expect(props.side!.description).toContain('wallLeftNormal');
+    expect(props.side!.description).toContain('describe_room');
     expect(props.materialId!.description).toContain('null');
-    expect(props.materialId!.description).toContain('materials://list');
+    expect(props.materialId!.description).toContain('library[].slug from list_materials');
   });
 
   it('an example payload per tool validates against the zod command schema', () => {

@@ -1,6 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
+import { RootGuard } from './ui/RootGuard';
 import { installDayClock } from './state/dayClock';
 import { bootDocument, createBrowserAdapter, installAutosave } from './state/persistence';
 import { startSync } from './sync/client';
@@ -19,6 +20,8 @@ void startSync();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <RootGuard>
+      <App />
+    </RootGuard>
   </StrictMode>,
 );

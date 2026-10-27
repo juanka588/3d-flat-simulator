@@ -267,15 +267,32 @@ describe.runIf(process.env.MCP_RENDER)('render service (slow: real browser, real
     expect(results.filter((x) => !x.isError)).toHaveLength(3);
   });
 
-  it('a hard timeout becomes render_timeout and the next call recovers', async () => {
-    const slow = new BrowserRenderer({ timeoutMs: 1 });
+  it('a hard timeout becomes render_timeout, leaves no browser behind, and the next call recovers', async () => {
+    const slow = new BrowserRenderer({ timeoutMs: 1, coldTimeoutMs: 1 });
     const c = toolContext(srv.flat, { renderer: new McpRenderer(srv.flat, slow) });
     try {
       const r = await tool.handler(c, { view: 'top' });
       expect(r.isError).toBe(true);
       expect(data(r).code).toBe('render_timeout');
+      expect(data(r).message).toMatch(/start the browser/);
+      // The abandoned cold start finishes in the background and must tear itself down (no orphan Chromium).
+      await new Promise((ok) => setTimeout(ok, 6000));
+      expect(slow.session.isWarm).toBe(false);
+      expect(slow.session.browser).toBeUndefined();
     } finally {
       await slow.close();
     }
-  });
+  }, 30_000);
+
+  it('a cold start gets the longer cold budget: a 1 ms warm timeout does not fail the first render', async () => {
+    const cold = new BrowserRenderer({ timeoutMs: 1 });
+    const c = toolContext(srv.flat, { renderer: new McpRenderer(srv.flat, cold) });
+    try {
+      const r = await tool.handler(c, { view: 'top', size: { width: 320, height: 240 } });
+      expect(r.isError, JSON.stringify(r.content[0])).toBeFalsy();
+      expect(images(r)).toHaveLength(1);
+    } finally {
+      await cold.close();
+    }
+  }, 90_000);
 });

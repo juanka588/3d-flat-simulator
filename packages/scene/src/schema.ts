@@ -39,6 +39,22 @@ export const EntityId = z.string().min(1).max(64);
 const Id = EntityId;
 /** Maximum length of human-readable names. */
 export const NAME_MAX = 120;
+/**
+ * Control characters (newlines, tabs, C0/C1 controls, line and paragraph separators) never survive in
+ * a name or address: names reach an LLM as text, so a name must not be able to start a new line of
+ * "instructions". Each run becomes one space.
+ */
+// eslint-disable-next-line no-control-regex -- matching control characters is the point
+const CONTROL_CHARS = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]+/g;
+export function stripControlChars(s: string): string {
+  const out = s.replace(CONTROL_CHARS, ' ');
+  return out === s ? s : out.trim();
+}
+/** A human-readable name: at most `NAME_MAX` characters (counted before stripping), control characters removed. */
+const NameString = (description?: string) => {
+  const base = z.string().max(NAME_MAX);
+  return (description ? base.describe(description) : base).transform(stripControlChars);
+};
 /** Maximum length of the postal address. */
 export const ADDRESS_MAX = 300;
 const HexColor = z.string().regex(/^#[0-9a-fA-F]{6}$/, 'expected a hex colour like #a1b2c3');
@@ -47,7 +63,7 @@ const TimeZone = z.string().refine(isTimeZone, 'unknown IANA time zone');
 export const Material = z
   .strictObject({
     id: Id.describe('Material id (1-64 characters), unique across all entities. Reference it from finishes and defaults.'),
-    name: z.string().max(NAME_MAX).describe('Human-readable name, at most 120 characters.'),
+    name: NameString('Human-readable name, at most 120 characters.'),
     kind: z.enum(['paint', 'texture']).describe('"paint" is a flat colour; "texture" adds a PBR texture set (needs textureUrl). Cannot change once defined.'),
     color: HexColor.describe('Base colour as #rrggbb. For textures it is the fallback and tint colour.'),
     roughness: z.number().min(0).max(1).default(0.9).describe('Surface roughness from 0 (mirror) to 1 (matte). Defaults to 0.9.'),
@@ -127,7 +143,7 @@ export type RoomType = z.infer<typeof RoomType>;
 
 export const Room = z.strictObject({
   id: Id,
-  name: z.string().max(NAME_MAX),
+  name: NameString(),
   type: RoomType,
   polygon: z.array(Vec2).min(3).max(LIMITS.polygonVertices, `too many polygon vertices (max ${LIMITS.polygonVertices})`),
   /**
@@ -155,8 +171,8 @@ export type Item = z.infer<typeof Item>;
 
 const lightBase = {
   id: Id.describe('Light id (1-64 characters), unique across all entities.'),
-  name: z.string().max(NAME_MAX).describe('Optional label, at most 120 characters.').optional(),
-  roomId: Id.describe('Room the light belongs to (from list_rooms). Optional.').optional(),
+  name: NameString('Optional label, at most 120 characters.').optional(),
+  roomId: Id.describe('Room the light belongs to (rooms[].id from list_rooms). Optional.').optional(),
   position: Vec2.describe('Plan position [x, y] in metres; plan y grows down the page.'),
   /** Height of the light source above the floor. */
   elevation: z.number().nonnegative().describe('Height of the light source above the floor, in metres.'),
@@ -193,13 +209,13 @@ export const Site = z.strictObject({
   /** Height of the flat's floor above street level, in metres (e.g. 2nd floor ≈ 5.8). */
   floorElevation: z.number().default(0),
   /** Postal address, used to fetch site context such as neighbouring buildings. */
-  address: z.string().max(ADDRESS_MAX).optional(),
+  address: z.string().max(ADDRESS_MAX).transform(stripControlChars).optional(),
 });
 export type Site = z.infer<typeof Site>;
 
 export const SceneBase = z.strictObject({
   version: z.literal(1),
-  name: z.string().max(NAME_MAX),
+  name: NameString(),
   units: z.literal('m').default('m'),
   site: Site,
   materials: z.array(Material).max(LIMITS.materials, `too many materials (max ${LIMITS.materials})`).default([]),

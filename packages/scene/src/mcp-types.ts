@@ -117,8 +117,12 @@ export const RoomWallDescription = z.strictObject({
   wallId: z.string(),
   /** Which face of the wall borders this room, per the wall's walking direction (start to end, plan y down). */
   side: z.enum(['left', 'right']),
-  /** Compass direction the face looks towards (the outward normal of the face, into the room). */
-  facing: CompassPoint,
+  /**
+   * Where the wall is relative to the room: the compass direction from the room's inside towards this
+   * wall (the outward normal). `W` is the room's west wall. It agrees with `compass` of the openings
+   * on that wall, which is the direction you look through them.
+   */
+  wallOn: CompassPoint,
   lengthM: z.number(),
   thicknessM: z.number(),
   /** Never removable. */
@@ -136,7 +140,7 @@ export const RoomOpeningDescription = z.strictObject({
   id: z.string(),
   type: z.enum(['door', 'window', 'passage']),
   wallId: z.string(),
-  /** Compass direction the opening faces from inside the room (towards the outside / next room). */
+  /** Compass direction you look through the opening from inside the room (towards the outside / next room); equals `wallOn` of its wall. */
   compass: CompassPoint,
   widthM: z.number(),
   heightM: z.number(),
@@ -261,6 +265,7 @@ export const MCP_ONLY_ERROR_CODES = [
   'read_only',
   'render_unavailable',
   'render_timeout',
+  'render_failed',
   'unknown_room',
   'unknown_checkpoint',
   'nothing_to_undo',
@@ -288,8 +293,9 @@ export const MCP_ERROR_HINTS: Readonly<Record<McpErrorCode, string>> = {
   rate_limited: 'Too many calls; wait retryAfterMs and retry.',
   batch_too_large: 'Split the batch into smaller batches (limit in the message).',
   read_only: 'This MCP server is read-only (FLAT_MCP_READONLY); only read and view tools work.',
-  render_unavailable: 'Rendering is not available (no web build or no browser); build the web app with pnpm build, or use describe_room.',
+  render_unavailable: 'Rendering is not available (no web build or no browser); run pnpm mcp:setup in the repo, or use describe_room.',
   render_timeout: 'The render timed out; retry with a smaller size.',
+  render_failed: 'The viewer drew nothing readable (a blank image was not returned); the hint carries the page log. Retry once, or rebuild the viewer with pnpm mcp:setup.',
   unknown_room: 'No such room; call list_rooms for the ids.',
   unknown_checkpoint: 'No such checkpoint; call list_history to see the checkpoint names.',
   nothing_to_undo: 'The history is empty; nothing to undo.',

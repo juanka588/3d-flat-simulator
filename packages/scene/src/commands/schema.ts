@@ -1,12 +1,12 @@
 import { z } from 'zod';
-import { ADDRESS_MAX, EntityId, Light, Material, NAME_MAX, Site } from '../schema';
+import { ADDRESS_MAX, EntityId, Light, Material, NAME_MAX, Site, stripControlChars } from '../schema';
 
 const Id = EntityId;
-const WallId = Id.describe('Id of the wall (walls[].id from get_scene_summary).');
-const RoomId = Id.describe('Id of the room (from list_rooms or get_scene_summary).');
+const WallId = Id.describe('Id of the wall (walls[].wallId from describe_room).');
+const RoomId = Id.describe('Id of the room (rooms[].id from list_rooms).');
 const MaterialRef = Id.nullable().describe(
-  'Id of a defined material (materials[].id in get_scene_summary), or null to clear back to the default. ' +
-    'To use a library texture first call material.define with textureUrl "lib:<slug>" (slugs: materials://list).',
+  'Id of a defined material (sceneMaterials[].id from list_materials, or materials[].id from get_scene_summary with detail "full"), or null to clear back to the default. ' +
+    'To use a library texture first call material_define with textureUrl "lib:<slug>" (library[].slug from list_materials).',
 );
 
 /** Light as sent to `light.add`: the id is optional and derived (`light-N`) when absent. */
@@ -24,13 +24,13 @@ const SitePatch = z.strictObject({
   timezone: Site.shape.timezone.unwrap().describe('IANA time zone such as "Europe/Paris".').optional(),
   floorElevation: z.number().describe('Height of the flat floor above street level, in metres.').optional(),
   /** `null` clears the address. */
-  address: z.string().max(ADDRESS_MAX).nullable().describe('Postal address (at most 300 characters); null clears it.').optional(),
+  address: z.string().max(ADDRESS_MAX).transform(stripControlChars).nullable().describe('Postal address (at most 300 characters); null clears it.').optional(),
 });
 
 /** Light fields that can change; `null` clears the optional ones (`name`, `roomId`). */
 const LightPatch = z.strictObject({
-  name: z.string().max(NAME_MAX).nullable().describe('Label (at most 120 characters); null clears it.').optional(),
-  roomId: Id.nullable().describe('Room the light belongs to (from list_rooms); null clears it.').optional(),
+  name: z.string().max(NAME_MAX).transform(stripControlChars).nullable().describe('Label (at most 120 characters); null clears it.').optional(),
+  roomId: Id.nullable().describe('Room the light belongs to (rooms[].id from list_rooms); null clears it.').optional(),
   position: Light.options[0].shape.position.optional(),
   elevation: z.number().nonnegative().describe('Height of the light source above the floor, in metres.').optional(),
   lumens: z.number().nonnegative().describe('Luminous flux in lumens.').optional(),
@@ -60,7 +60,7 @@ export const MaterialDefine = z.strictObject({
 });
 export const MaterialRemove = z.strictObject({
   type: t('material.remove'),
-  id: Id.describe('Id of the material to delete. Fails with precondition_failed while any wall, room or default uses it.'),
+  id: Id.describe('Id of the material to delete (sceneMaterials[].id from list_materials). Fails with precondition_failed while any wall, room or default uses it.'),
 });
 export const WallSetFinish = z.strictObject({
   type: t('wall.setFinish'),
@@ -68,13 +68,13 @@ export const WallSetFinish = z.strictObject({
   side: z
     .enum(['left', 'right', 'both'])
     .describe(
-      'Which face of the wall. "left" is the left of someone walking from the wall start to its end on the plan (plan y grows down; see wallLeftNormal), "right" the other face, "both" both faces. ' +
+      'Which face of the wall. "left" is the left of someone walking from the wall start to its end on the plan (plan y grows down; describe_room gives the side that faces each room), "right" the other face, "both" both faces. ' +
         'With roomId, "both" means every face of this wall that the room adjoins.',
     ),
   materialId: MaterialRef,
   roomId: RoomId.describe(
-    'The room whose stretch of this wall side to paint (from list_rooms or describe_room). Strongly recommended: a wall side can be shared by several rooms (e.g. the alcove and the sejour) and without roomId the whole side is painted for all of them. ' +
-      'Fails with precondition_failed if the room does not border that side. A room-scoped finish beats the whole-side finish and room.setWallFinish.',
+    'The room whose stretch of this wall side to paint (rooms[].id from list_rooms). Strongly recommended: a wall side can be shared by several rooms (e.g. the alcove and the sejour) and without roomId the whole side is painted for all of them. ' +
+      'Fails with precondition_failed if the room does not border that side. A room-scoped finish beats the whole-side finish and room_set_wall_finish.',
   ).optional(),
 });
 export const WallSetStructural = z.strictObject({
@@ -115,10 +115,10 @@ export const LightAdd = z.strictObject({
 });
 export const LightUpdate = z.strictObject({
   type: t('light.update'),
-  id: Id.describe('Id of the light (lights[].id from get_scene_summary).'),
+  id: Id.describe('Id of the light (lights[].id from describe_room, or lights[].id from get_scene_summary with detail "full").'),
   patch: LightPatch.describe('Fields to change; omitted fields stay as they are, null clears name and roomId. A light cannot take fields of another light type.'),
 });
-export const LightRemove = z.strictObject({ type: t('light.remove'), id: Id.describe('Id of the light to remove.') });
+export const LightRemove = z.strictObject({ type: t('light.remove'), id: Id.describe('Id of the light to remove (lights[].id from describe_room, or lights[].id from get_scene_summary with detail "full").') });
 
 /** Leaf (non-batch) command schemas. M5 appends item commands here or via `createCommandSchema`. */
 export const LEAF_COMMAND_SCHEMAS = [
@@ -146,7 +146,7 @@ export function createCommandSchema<const L extends readonly [LeafSchema, ...Lea
     type: t('batch'),
     label,
     /** Depth 1: batches cannot nest. An empty batch is a valid no-op. */
-    commands: z.array(leaf).max(500).describe('Commands applied in order and atomically: all succeed or none apply. At most 500; batches cannot nest.'),
+    commands: z.array(leaf).max(500).describe('Commands applied in order and atomically: all succeed or none apply. Batches cannot nest.'),
   });
   /** Same shape without the size cap; only for history-generated inverses (see `applyCommand` `trusted`). */
   const trustedBatch = z.strictObject({ type: t('batch'), label, commands: z.array(leaf) });

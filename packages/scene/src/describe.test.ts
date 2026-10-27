@@ -60,7 +60,8 @@ describe('describeRoom', () => {
     expect(ids).toEqual([...ids].sort());
     const north = d.walls.find((w) => w.wallId === 'w-north')!;
     expect(north.lengthM).toBeCloseTo(10.05 - 6.91, 0);
-    expect(north.facing).toBe('S');
+    expect(north.wallOn).toBe('N');
+    expect(north).not.toHaveProperty('facing');
     expect(north.finish).toEqual({ materialId: 'paint-white', source: 'scene_default' });
   });
 
@@ -91,6 +92,24 @@ describe('describeRoom', () => {
     const doors = desc('sejour').openings.filter((o) => o.id.startsWith('door-balcony'));
     expect(doors.map((d) => d.compass)).toEqual(['W', 'W']);
     expect(doors.every((d) => d.leadsTo === 'balcon' && d.glazed)).toBe(true);
+  });
+
+  it('wallOn (the side of the room a wall is on) equals the compass of every opening on that wall, in every room of both fixtures', () => {
+    for (const scene of Object.values(FIXTURES)) {
+      for (const room of scene.rooms) {
+        const d = describeRoom(scene, room.id, light)!;
+        for (const o of d.openings) {
+          const sides = d.walls.filter((w) => w.wallId === o.wallId).map((w) => w.wallOn);
+          expect(sides, `${room.id}/${o.id}`).toContain(o.compass);
+        }
+      }
+    }
+  });
+
+  it('the sejour west wall (with the balcony doors) is on the W side; the ch1/ch2/alcove window walls are on the N side', () => {
+    const west = desc('sejour').walls.find((w) => w.wallId === 'w-west')!;
+    expect(west.wallOn).toBe('W');
+    for (const id of ['ch1', 'ch2', 'alcove']) expect(desc(id).walls.find((w) => w.wallId === 'w-north')!.wallOn, id).toBe('N');
   });
 
   it('door swings are relative to the described room', () => {

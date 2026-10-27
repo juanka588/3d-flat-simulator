@@ -1,18 +1,14 @@
 import { useRef } from 'react';
 import type { ChangeEvent } from 'react';
-import { exportSceneText, useDocumentStatus } from '../state/persistence';
+import { useDocumentStatus } from '../state/persistence';
 import { useSceneStore } from '../state/sceneStore';
+import { downloadFlat } from './export-file';
 
 interface DocumentMenuProps {
   /** Asks before replacing a document that has edits; resolves false to cancel. */
   confirmReplace: () => boolean;
   onImportFile: (file: File) => void;
   onReset: () => void;
-}
-
-function fileNameFor(name: string): string {
-  const slug = name.trim().replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-+|-+$/g, '').toLowerCase();
-  return `${slug || 'flat'}.flat.json`;
 }
 
 function statusText(state: ReturnType<typeof useDocumentStatus.getState>): string {
@@ -38,16 +34,7 @@ export function DocumentMenu({ confirmReplace, onImportFile, onReset }: Document
   const hasScene = useSceneStore((s) => s.scene !== null);
 
   const exportFile = () => {
-    const text = exportSceneText();
-    if (text === null) return;
-    const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = fileNameFor(name);
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    downloadFlat(name);
   };
 
   const handleFile = (e: ChangeEvent<HTMLInputElement>) => {

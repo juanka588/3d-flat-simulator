@@ -120,7 +120,7 @@ function sunSpan(scene: Scene, date: string, roomId: string, context: SiteContex
 
 /**
  * `describe_room`: area, the wall faces that border the room (structural flag, effective finish and
- * where it comes from, compass facing, shared faces), openings with compass direction, lights,
+ * where it comes from, `wallOn` = the side of the room the wall is on, shared faces), openings with compass direction, lights,
  * daylight factor and sunlight hours for `lighting.date`, items (always `[]` until M5).
  * Returns `undefined` for an unknown room (the tool maps that to `unknown_room` with
  * `nearestIds` in the hint). `opts.context` makes neighbouring buildings obstruct the sun.
@@ -149,7 +149,7 @@ export function describeRoom(
       return {
         wallId: wall.id,
         side: s.side,
-        facing: planDirectionToCompass(into, north),
+        wallOn: planDirectionToCompass([-into[0], -into[1]], north),
         lengthM: r2(lengthM),
         thicknessM: r2(wall.thickness),
         structural: info.structural,

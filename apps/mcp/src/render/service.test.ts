@@ -75,6 +75,40 @@ describe('render_view without a browser', () => {
   });
 });
 
+describe('render lighting follows the session lamp mode', () => {
+  /** A browser stand-in that records what it was asked to draw. */
+  function recording() {
+    const drawn: Array<{ lamps: Record<string, { on?: boolean }> }> = [];
+    const browser = {
+      render: async (req: { lighting: { lamps: Record<string, { on?: boolean }> } }) => {
+        drawn.push(req.lighting);
+        return { data: Buffer.from('x'), mimeType: 'image/png' as const, width: 64, height: 64, renderMs: 1, warm: true, sceneLoaded: true, sun: { available: false }, lampsLit: [], appliedPose: null, pixels: { stddev: 50, mean: 100, colors: 100, topShare: 0.2, pixels: 1 } };
+      },
+    } as unknown as BrowserRenderer;
+    return { browser, drawn };
+  }
+  const setSun = allTools().find((t) => t.name === 'set_sun_time')!;
+  const addLight = allTools().find((t) => t.name === 'light_add')!;
+
+  it('after an evening preset (allOn) a light added later is drawn on; set_sun_time lamps "scene" follows the flat again', async () => {
+    const flat = new MockFlatApi();
+    const { browser, drawn } = recording();
+    const ctx = toolContext(flat, { renderer: new McpRenderer(flat, browser) });
+    expect((await setSun.handler(ctx, { preset: 'evening' })).isError).toBeFalsy();
+    expect(ctx.session.lampMode).toBe('allOn');
+    const added = await addLight.handler(ctx, { light: { type: 'point', position: [2.5, 1.8], elevation: 2.4, lumens: 800, kelvin: 2700, on: false } });
+    expect(added.isError, JSON.stringify(added.content)).toBeFalsy();
+    const ids = ((await flat.getScene()) as { data: { scene: { lights: { id: string }[] } } }).data.scene.lights.map((l) => l.id);
+
+    expect((await tool.handler(ctx, { view: 'top' })).isError).toBeFalsy();
+    for (const id of ids) expect(drawn[0]!.lamps[id], id).toMatchObject({ on: true });
+
+    await setSun.handler(ctx, { lamps: 'scene' });
+    expect((await tool.handler(ctx, { view: 'top' })).isError).toBeFalsy();
+    expect(drawn[1]!.lamps).toEqual({});
+  });
+});
+
 describe('helpers', () => {
   it('clamps the long edge to 1568 keeping the aspect', () => {
     expect(clampSize({ width: 1024, height: 768 })).toMatchObject({ width: 1024, height: 768, clamped: false });

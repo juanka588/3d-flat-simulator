@@ -1,10 +1,13 @@
 import { LightingView, PresetName, applyPreset, localToInstant, sunAtInstant } from '@flat/scene';
 import { z } from 'zod';
 import { apiFailure, toolError, toolOk } from '../errors';
-import { sessionLighting } from '../readModel';
+import { effectiveSessionLighting, sessionLighting } from '../readModel';
 import { READ, fetchScene, obj, parseArgs } from './common';
 import { RealDate } from './read';
-import type { ToolDef } from './registry';
+import { LAMP_MODES, type LampMode, type ToolDef } from './registry';
+
+/** For the render service: the lighting of a session over a scene, with the lamp mode applied to the scene's current lights. */
+export { effectiveSessionLighting } from '../readModel';
 
 /**
  * View tools. `set_sun_time` (M4.11) changes the MCP SESSION's lighting view only (date, time,
@@ -24,6 +27,7 @@ const SunArgs = z.strictObject({
   date: RealDate.optional(),
   time: LightingView.shape.time.optional(),
   preset: PresetName.optional(),
+  lamps: z.enum(LAMP_MODES).optional(),
   sync_to_user_tab: z.boolean().optional(),
 });
 
@@ -44,6 +48,7 @@ export function viewTools(): ToolDef[] {
         date: { type: 'string', description: 'Local date YYYY-MM-DD at the flat.' },
         time: { type: 'string', description: 'Local time HH:mm at the flat.' },
         preset: { type: 'string', enum: ['day', 'evening', 'night'], description: 'day: 12:00 sun, lamps off. evening: 20:00 on 21 Dec, lamps on. night: 23:00, no sun, lamps on. Applied first; date and time then override it.' },
+        lamps: { type: 'string', enum: [...LAMP_MODES], description: 'scene: lamps follow the flat (light_update changes show). allOn / allOff: force every lamp on / off. A preset sets this (day: allOff; evening and night: allOn) and it stays until you change it: pass "scene" to go back to the flat\'s own lamp states.' },
         sync_to_user_tab: { type: 'boolean', description: 'true: also relay this lighting to the user\'s open tab (shown only if they follow the assistant view).' },
       }),
       annotations: { ...READ, idempotentHint: true },
@@ -52,7 +57,7 @@ export function viewTools(): ToolDef[] {
       async handler(ctx, args) {
         const a = parseArgs(SunArgs, args);
         if (!a.ok) return a.result;
-        const { date, time, preset, sync_to_user_tab: sync } = a.data;
+        const { date, time, preset, lamps: lampsArg, sync_to_user_tab: sync } = a.data;
         const sc = await fetchScene(ctx);
         if (!sc.ok) return sc.result;
         const { site, lights } = sc.data.scene;
@@ -65,6 +70,14 @@ export function viewTools(): ToolDef[] {
           next = applyPreset(next, preset, site, lights);
           for (const k of PRESET_KEYS[preset]) touched.add(k);
         }
+        let mode: LampMode = ctx.session.lampMode;
+        if (preset) mode = preset === 'day' ? 'allOff' : 'allOn';
+        if (lampsArg) {
+          mode = lampsArg;
+          touched.add('lamps');
+        }
+        // The mode is the truth; `lamps` mirrors it for the current lights (and is what the tab receives).
+        next = effectiveSessionLighting({ lighting: next, lampMode: mode }, { lights });
         if (date) {
           next = { ...next, date };
           touched.add('date');
@@ -91,6 +104,7 @@ export function viewTools(): ToolDef[] {
         }
 
         ctx.session.lighting = next;
+        ctx.session.lampMode = mode;
         if (sync !== undefined) ctx.session.syncToUserTab = sync;
         const sun = sunAtInstant(site, instant);
 
@@ -107,6 +121,8 @@ export function viewTools(): ToolDef[] {
         return toolOk({
           ok: true,
           lighting: { date: next.date, time: next.time, sunEnabled: next.sunEnabled, exposureEV: next.exposureEV, lamps: next.lamps },
+          lampMode: mode,
+          ...(mode === 'scene' ? {} : { note: `lamps are forced ${mode === 'allOn' ? 'on' : 'off'} for describe_room and render_view (light_update on/off is hidden until you call set_sun_time with lamps "scene")` }),
           timezone: site.timezone,
           utc: instant.toISOString(),
           sun: { isUp: sun.isUp, altitudeDeg: Math.round(sun.altitudeDeg * 10) / 10, azimuthDeg: Math.round(sun.azimuthDeg) },

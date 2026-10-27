@@ -22,6 +22,8 @@ import { LightingRig } from './LightingRig';
 import { sceneKey } from './scene-identity';
 import { contextReach } from './sun-bounds';
 import type { Selection, ViewState } from './view-types';
+import { ViewerGuard } from './ViewerGuard';
+import { shouldInjectFault, useViewerHealth } from './viewer-health';
 
 export interface FlatCanvasProps {
   scene: Scene;
@@ -53,6 +55,9 @@ export function FlatCanvas({ scene, view, context = null, onSelect, onExitWalk, 
     el.dataset.angle = degrees.toFixed(1);
   }, []);
 
+  // One object per (scene, lighting, context) so the guard can keep the last combination that drew fine.
+  const lightingInput = useMemo(() => ({ scene, lighting: view.lighting, context }), [scene, view.lighting, context]);
+
   const rememberPointerDown = (e: ReactPointerEvent) => {
     downAt.current = [e.clientX, e.clientY];
   };
@@ -76,12 +81,12 @@ export function FlatCanvas({ scene, view, context = null, onSelect, onExitWalk, 
         }}
       >
         <color attach="background" args={['#e8ebf0']} />
-        <LightingRig
-          scene={scene}
-          lighting={view.lighting}
-          context={context}
-        />
-        <Shell scene={scene} view={view} onSelect={onSelect} />
+        <ViewerGuard value={lightingInput} source="lighting">
+          {(l) => <LightingRig scene={l.scene} lighting={l.lighting} context={l.context} />}
+        </ViewerGuard>
+        <ViewerGuard value={scene} source="shell">
+          {(sc) => <Shell scene={sc} view={view} onSelect={onSelect} />}
+        </ViewerGuard>
         {view.mode === 'top' && <StructuralOverlay scene={scene} />}
         {view.mode === 'walk' ? (
           <WalkControls key={`walk:${sceneKey(scene)}`} scene={scene} personHeightCm={view.personHeightCm} onExit={onExitWalk ?? noop} pose={view.camera?.mode === 'walk' ? view.camera : undefined} onUserCamera={onUserCamera} />
@@ -110,6 +115,7 @@ function FrameReporter({ scene, view, onFrame }: { scene: Scene; view: ViewState
 const WALK_SWAP = { [BUILTIN_MATERIALS.door]: DOOR_WALK_MATERIAL } as const;
 
 function Shell({ scene, view, onSelect }: { scene: Scene; view: ViewState; onSelect: (s: Selection) => void }) {
+  if (shouldInjectFault(scene.name)) throw new Error('injected viewer fault (test)');
   const shell = useMemo(() => shellFor(scene), [scene]);
   // Per-room sky ambient (windowless rooms get less): an aoMap on the shell materials, see room-ambient.ts.
   const ambient = useMemo(() => createRoomAmbient(scene), [scene]);
@@ -140,9 +146,17 @@ function Shell({ scene, view, onSelect }: { scene: Scene; view: ViewState; onSel
   // After a lost WebGL context everything is re-uploaded: drop the cached sets and reload the used ones.
   useEffect(() => {
     const canvas = gl.domElement;
-    const restored = () => textureCache.reset();
+    const restored = () => {
+      textureCache.reset();
+      useViewerHealth.getState().clear('webgl');
+    };
+    const lost = () => useViewerHealth.getState().report({ source: 'webgl', message: 'the graphics context was lost (GPU reset or too many tabs); it will be restored if the browser allows', keptLastGood: false });
     canvas.addEventListener('webglcontextrestored', restored);
-    return () => canvas.removeEventListener('webglcontextrestored', restored);
+    canvas.addEventListener('webglcontextlost', lost);
+    return () => {
+      canvas.removeEventListener('webglcontextrestored', restored);
+      canvas.removeEventListener('webglcontextlost', lost);
+    };
   }, [gl]);
   const roomMeshes = useMemo(
     () => ({

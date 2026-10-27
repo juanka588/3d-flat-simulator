@@ -2,6 +2,7 @@
 export const INSTRUCTIONS = `You edit a 3D model of a flat (apartment) through tools. Conventions:
 - Units are metres. The plan's y axis grows DOWN the page (north is up when site.northAngle is 0).
 - Left and right of a wall follow its walking direction, start to end, on the plan.
+- describe_room: wallOn 'W' means the west wall of the room; an opening's compass is the direction you look through it (a door in the west wall has compass 'W').
 - Start with get_scene_summary, then list_rooms / describe_room. Ids are exact; unknown ids come back with the nearest ones.
 - Prefer roomId on finishes (wall_set_finish, room_set_wall_finish) so neighbouring rooms keep their look.
 - Use batch for multi-step edits (one undo step, all or nothing); define materials before using them.

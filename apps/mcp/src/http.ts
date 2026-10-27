@@ -6,7 +6,7 @@ import { createMcpHandler } from '@modelcontextprotocol/server';
 import type { McpConfig } from './config';
 import type { FlatApi } from './flatApi';
 import { SERVER_NAME, SERVER_VERSION, createFlatMcpServer } from './server';
-import { newSession, systemClock, type Clock, type Renderer } from './tools';
+import { newSession, systemClock, type Clock, type McpSession, type Renderer } from './tools';
 
 /**
  * Streamable HTTP transport (M4.2): `POST /mcp` (stateless: a fresh MCP server per request, serving
@@ -14,13 +14,28 @@ import { newSession, systemClock, type Clock, type Renderer } from './tools';
  * Origin header, then the bearer token when `FLAT_TOKEN` is set. Violations answer 403 / 401 and never
  * reach the tools. The process refuses to bind to a non-loopback host without a token.
  *
- * Statelessness and the session: tool state that must outlive one request (the `set_sun_time`
- * lighting, rate limits, the write cap) lives in ONE session shared by every request of the process,
- * so it is the state of "the connected assistant" rather than of one HTTP call. Run one `--http`
- * process per assistant if you need them separated.
+ * Statelessness and sessions: the transport keeps no connection state, but tool state that must
+ * outlive one request (the `set_sun_time` lighting and lamp mode, rate limits, the write cap, the
+ * author name) lives in a session keyed by CLIENT: the `Mcp-Session-Id` header when the client sends
+ * one, else the product token of its `User-Agent` (`claude-code/2.1` -> `claude-code`), else one
+ * shared `anonymous` session. So two different assistants on one endpoint do not share lighting,
+ * allowance or author, and a request without client info is never attributed to the previous
+ * client. Two clients with the same User-Agent and no session id still share a session: give them
+ * `Mcp-Session-Id`s, or run one `--http` process each. A session lives as long as the process (at
+ * most `MAX_SESSIONS` are kept, least recently used first), so the write cap does not reset on
+ * reconnect: restart `--http` or raise FLAT_MCP_SESSION_WRITES.
  */
 
 export const DEFAULT_HTTP_PORT = 8788;
+const MAX_SESSIONS = 64;
+
+/** The key a request's session is filed under (see the file comment). Pure; exported for tests. */
+export function sessionKeyOf(headers: { get(name: string): string | null } | undefined): string {
+  const id = headers?.get('mcp-session-id')?.trim();
+  if (id) return `id:${id.slice(0, 128)}`;
+  const product = /^[\w.-]{1,60}/.exec(headers?.get('user-agent') ?? '')?.[0];
+  return product ? `ua:${product}` : 'anonymous';
+}
 export const DEFAULT_HTTP_HOST = '127.0.0.1';
 const LOOPBACK_NAMES = ['localhost', '127.0.0.1', '[::1]'];
 
@@ -74,13 +89,24 @@ export async function startHttp(opts: HttpOptions): Promise<RunningHttp> {
   const host = opts.host ?? DEFAULT_HTTP_HOST;
   assertSafeBind(host, config.token);
   const clock = opts.clock ?? systemClock();
-  const session = newSession(config.limits, clock);
+  const sessions = new Map<string, McpSession>();
+  const sessionFor = (headers: { get(name: string): string | null } | undefined): McpSession => {
+    const key = sessionKeyOf(headers);
+    let s = sessions.get(key);
+    if (s) sessions.delete(key); // re-insert: most recently used last
+    else {
+      s = newSession(config.limits, clock, 'http');
+      if (sessions.size >= MAX_SESSIONS) sessions.delete(sessions.keys().next().value!);
+    }
+    sessions.set(key, s);
+    return s;
+  };
   const bound = ['0.0.0.0', '::', ''].includes(host) ? [] : [host.includes(':') && !host.startsWith('[') ? `[${host}]` : host];
   const allowed = [...new Set([...LOOPBACK_NAMES, ...bound, ...(opts.allowedHosts ?? [])])];
   const checkHost = hostHeaderValidation(allowed);
   const checkOrigin = originValidation(allowed);
 
-  const handler = createMcpHandler(() => createFlatMcpServer({ config, flat, clock, session, ...(opts.renderer ? { renderer: opts.renderer } : {}) }), {
+  const handler = createMcpHandler((rc) => createFlatMcpServer({ config, flat, clock, session: sessionFor(rc?.requestInfo?.headers), stickyClientName: false, ...(opts.renderer ? { renderer: opts.renderer } : {}) }), {
     legacy: 'stateless',
     responseMode: 'json',
     onerror: (e) => config.log('error', `http: ${e.message}`),

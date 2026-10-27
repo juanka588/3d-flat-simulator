@@ -5,6 +5,7 @@ import type { FlatApi } from '../flatApi';
 import type { McpSession, RenderMeta, Renderer } from '../tools/registry';
 import { RenderError } from './errors';
 import { BrowserRenderer, clampSize, sharedRenderer, type RendererOptions } from './browserRenderer';
+import { effectiveSessionLighting } from '../readModel';
 import { resolveLighting, resolvePose } from './resolve';
 
 /**
@@ -32,7 +33,7 @@ export interface McpRenderResult {
   before?: { image: string; mimeType: 'image/png' | 'image/jpeg' };
 }
 
-type Opts = { scene?: SceneResponse; format?: 'png' | 'jpeg'; session?: Pick<McpSession, 'lighting' | 'lastRenderedRev'> };
+type Opts = { scene?: SceneResponse; format?: 'png' | 'jpeg'; session?: Pick<McpSession, 'lighting' | 'lampMode' | 'lastRenderedRev'> };
 
 export class McpRenderer implements Renderer {
   private readonly lastScene = new WeakMap<object, SceneResponse>();
@@ -41,7 +42,7 @@ export class McpRenderer implements Renderer {
   constructor(
     private readonly flat: FlatApi,
     readonly browser: BrowserRenderer,
-    private readonly defaultSession?: Pick<McpSession, 'lighting' | 'lastRenderedRev'>,
+    private readonly defaultSession?: Pick<McpSession, 'lighting' | 'lampMode' | 'lastRenderedRev'>,
   ) {}
 
   async render(specInput: RenderSpecInput, opts: Opts = {}): Promise<McpRenderResult> {
@@ -72,7 +73,8 @@ export class McpRenderer implements Renderer {
     const size = clampSize(asked);
     if (size.clamped) warnings.push(`size clamped from ${asked.width}x${asked.height} to ${size.width}x${size.height} (long edge at most ${RENDER_LIMITS.maxEdgePx})`);
     const { pose, view } = resolvePose(scene, spec, size.width / size.height);
-    const base: LightingView = { ...DEFAULT_LIGHTING, ...(session?.lighting ?? {}) } as LightingView;
+    // The session's lighting under the call's own: date, time, sun, exposure, and the lamp mode applied to the scene's CURRENT lights.
+    const base: LightingView = session ? effectiveSessionLighting(session, scene) : ({ ...DEFAULT_LIGHTING } as LightingView);
     const lighting = resolveLighting(scene, base, spec);
     for (const id of Object.keys(lighting.lamps)) if (!scene.lights.some((l) => l.id === id)) warnings.push(`unknown lamp id "${id}" ignored (lights: ${scene.lights.map((l) => l.id).join(', ')})`);
 

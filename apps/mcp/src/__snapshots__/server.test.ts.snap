@@ -52,6 +52,7 @@ exports[`snapshots (the contract) > server instructions 1`] = `
 "You edit a 3D model of a flat (apartment) through tools. Conventions:
 - Units are metres. The plan's y axis grows DOWN the page (north is up when site.northAngle is 0).
 - Left and right of a wall follow its walking direction, start to end, on the plan.
+- describe_room: wallOn 'W' means the west wall of the room; an opening's compass is the direction you look through it (a door in the west wall has compass 'W').
 - Start with get_scene_summary, then list_rooms / describe_room. Ids are exact; unknown ids come back with the nearest ones.
 - Prefer roomId on finishes (wall_set_finish, room_set_wall_finish) so neighbouring rooms keep their look.
 - Use batch for multi-step edits (one undo step, all or nothing); define materials before using them.
@@ -70,10 +71,15 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "openWorldHint": false,
       "readOnlyHint": false,
     },
-    "description": "Create a material, or fully replace an existing one with the same id (upsert, FULL REPLACE: omitted optional fields are cleared and roughness resets to 0.9, so send every field you want to keep). A material kind ("paint" or "texture") can never change; use a new id for a different kind. For a library texture use kind "texture" with textureUrl "lib:<slug>" (slugs: materials://list). Define a material before using it in a finish.",
+    "description": "Create a material, or fully replace an existing one with the same id (upsert, FULL REPLACE: omitted optional fields are cleared and roughness resets to 0.9, so send every field you want to keep). A material kind ("paint" or "texture") can never change; use a new id for a different kind. For a library texture use kind "texture" with textureUrl "lib:<slug>" (slugs: library[].slug from list_materials). Define a material before using it in a finish.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
+        "ifRev": {
+          "description": "Optional. Apply only if the flat is still at this revision, else stale_scene and nothing changes. Pass baseRev from a preview of the same change to apply only if nothing changed since; or rev from a previous result.",
+          "minimum": 0,
+          "type": "integer",
+        },
         "label": {
           "description": "Short description of this change, shown in the undo history (at most 200 characters).",
           "maxLength": 200,
@@ -147,7 +153,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "type": "object",
             },
           ],
-          "description": "true or render_view arguments (view, roomId, ...): also return an image of the result (after the change, or of the previewed state). Without the render service the result carries render_unavailable.",
+          "description": "true or render_view arguments (view, roomId, ...): also return an image of the result (after the change, or of the previewed state). true = the overview of the first changed room, else the whole flat from above. Without the render service the result carries render_unavailable.",
         },
       },
       "required": [
@@ -169,10 +175,15 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "additionalProperties": false,
       "properties": {
         "id": {
-          "description": "Id of the material to delete. Fails with precondition_failed while any wall, room or default uses it.",
+          "description": "Id of the material to delete (sceneMaterials[].id from list_materials). Fails with precondition_failed while any wall, room or default uses it.",
           "maxLength": 64,
           "minLength": 1,
           "type": "string",
+        },
+        "ifRev": {
+          "description": "Optional. Apply only if the flat is still at this revision, else stale_scene and nothing changes. Pass baseRev from a preview of the same change to apply only if nothing changed since; or rev from a previous result.",
+          "minimum": 0,
+          "type": "integer",
         },
         "label": {
           "description": "Short description of this change, shown in the undo history (at most 200 characters).",
@@ -194,7 +205,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "type": "object",
             },
           ],
-          "description": "true or render_view arguments (view, roomId, ...): also return an image of the result (after the change, or of the previewed state). Without the render service the result carries render_unavailable.",
+          "description": "true or render_view arguments (view, roomId, ...): also return an image of the result (after the change, or of the previewed state). true = the overview of the first changed room, else the whole flat from above. Without the render service the result carries render_unavailable.",
         },
       },
       "required": [
@@ -211,10 +222,15 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "openWorldHint": false,
       "readOnlyHint": false,
     },
-    "description": "Paint one or both faces of a wall. Pass roomId (strongly recommended) to paint only that room's stretch of the face: the alcove and the sejour can share a wall and get different colours. Without roomId the whole face is painted for every room on it. Precedence on a stretch of face, most specific first: the room-scoped finish (roomId), the whole-face finish, the room's paint-all-walls (room_set_wall_finish), the scene default. Left and right follow the walking direction from wall start to end on the plan (plan y grows down). materialId null clears the finish.",
+    "description": "Paint one or both faces of a wall (wall ids: walls[].wallId from describe_room, which also says which side faces the room). Pass roomId (strongly recommended) to paint only that room's stretch of the face: the alcove and the sejour can share a wall and get different colours. Without roomId the whole face is painted for every room on it. Precedence on a stretch of face, most specific first: the room-scoped finish (roomId), the whole-face finish, the room's paint-all-walls (room_set_wall_finish), the scene default. Left and right follow the walking direction from wall start to end on the plan (plan y grows down). materialId null clears the finish.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
+        "ifRev": {
+          "description": "Optional. Apply only if the flat is still at this revision, else stale_scene and nothing changes. Pass baseRev from a preview of the same change to apply only if nothing changed since; or rev from a previous result.",
+          "minimum": 0,
+          "type": "integer",
+        },
         "label": {
           "description": "Short description of this change, shown in the undo history (at most 200 characters).",
           "maxLength": 200,
@@ -222,7 +238,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "type": "string",
         },
         "materialId": {
-          "description": "Id of a defined material (materials[].id in get_scene_summary), or null to clear back to the default. To use a library texture first call material.define with textureUrl "lib:<slug>" (slugs: materials://list).",
+          "description": "Id of a defined material (sceneMaterials[].id from list_materials, or materials[].id from get_scene_summary with detail "full"), or null to clear back to the default. To use a library texture first call material_define with textureUrl "lib:<slug>" (library[].slug from list_materials).",
           "maxLength": 64,
           "minLength": 1,
           "type": [
@@ -244,16 +260,16 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "type": "object",
             },
           ],
-          "description": "true or render_view arguments (view, roomId, ...): also return an image of the result (after the change, or of the previewed state). Without the render service the result carries render_unavailable.",
+          "description": "true or render_view arguments (view, roomId, ...): also return an image of the result (after the change, or of the previewed state). true = the overview of the first changed room, else the whole flat from above. Without the render service the result carries render_unavailable.",
         },
         "roomId": {
-          "description": "The room whose stretch of this wall side to paint (from list_rooms or describe_room). Strongly recommended: a wall side can be shared by several rooms (e.g. the alcove and the sejour) and without roomId the whole side is painted for all of them. Fails with precondition_failed if the room does not border that side. A room-scoped finish beats the whole-side finish and room.setWallFinish.",
+          "description": "The room whose stretch of this wall side to paint (rooms[].id from list_rooms). Strongly recommended: a wall side can be shared by several rooms (e.g. the alcove and the sejour) and without roomId the whole side is painted for all of them. Fails with precondition_failed if the room does not border that side. A room-scoped finish beats the whole-side finish and room_set_wall_finish.",
           "maxLength": 64,
           "minLength": 1,
           "type": "string",
         },
         "side": {
-          "description": "Which face of the wall. "left" is the left of someone walking from the wall start to its end on the plan (plan y grows down; see wallLeftNormal), "right" the other face, "both" both faces. With roomId, "both" means every face of this wall that the room adjoins.",
+          "description": "Which face of the wall. "left" is the left of someone walking from the wall start to its end on the plan (plan y grows down; describe_room gives the side that faces each room), "right" the other face, "both" both faces. With roomId, "both" means every face of this wall that the room adjoins.",
           "enum": [
             "left",
             "right",
@@ -262,7 +278,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "type": "string",
         },
         "wallId": {
-          "description": "Id of the wall (walls[].id from get_scene_summary).",
+          "description": "Id of the wall (walls[].wallId from describe_room).",
           "maxLength": 64,
           "minLength": 1,
           "type": "string",
@@ -288,6 +304,11 @@ exports[`snapshots (the contract) > tools/list 1`] = `
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
+        "ifRev": {
+          "description": "Optional. Apply only if the flat is still at this revision, else stale_scene and nothing changes. Pass baseRev from a preview of the same change to apply only if nothing changed since; or rev from a previous result.",
+          "minimum": 0,
+          "type": "integer",
+        },
         "label": {
           "description": "Short description of this change, shown in the undo history (at most 200 characters).",
           "maxLength": 200,
@@ -308,7 +329,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "type": "object",
             },
           ],
-          "description": "true or render_view arguments (view, roomId, ...): also return an image of the result (after the change, or of the previewed state). Without the render service the result carries render_unavailable.",
+          "description": "true or render_view arguments (view, roomId, ...): also return an image of the result (after the change, or of the previewed state). true = the overview of the first changed room, else the whole flat from above. Without the render service the result carries render_unavailable.",
         },
         "structural": {
           "description": "true marks the wall structural (cannot be removed); false marks it removable; null clears the explicit mark so it is derived (exterior or at least 15 cm thick means structural). Only a user may set false on a wall that is structural by default.",
@@ -318,7 +339,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           ],
         },
         "wallId": {
-          "description": "Id of the wall (walls[].id from get_scene_summary).",
+          "description": "Id of the wall (walls[].wallId from describe_room).",
           "maxLength": 64,
           "minLength": 1,
           "type": "string",
@@ -343,6 +364,11 @@ exports[`snapshots (the contract) > tools/list 1`] = `
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
+        "ifRev": {
+          "description": "Optional. Apply only if the flat is still at this revision, else stale_scene and nothing changes. Pass baseRev from a preview of the same change to apply only if nothing changed since; or rev from a previous result.",
+          "minimum": 0,
+          "type": "integer",
+        },
         "label": {
           "description": "Short description of this change, shown in the undo history (at most 200 characters).",
           "maxLength": 200,
@@ -350,7 +376,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "type": "string",
         },
         "materialId": {
-          "description": "Id of a defined material (materials[].id in get_scene_summary), or null to clear back to the default. To use a library texture first call material.define with textureUrl "lib:<slug>" (slugs: materials://list).",
+          "description": "Id of a defined material (sceneMaterials[].id from list_materials, or materials[].id from get_scene_summary with detail "full"), or null to clear back to the default. To use a library texture first call material_define with textureUrl "lib:<slug>" (library[].slug from list_materials).",
           "maxLength": 64,
           "minLength": 1,
           "type": [
@@ -372,10 +398,10 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "type": "object",
             },
           ],
-          "description": "true or render_view arguments (view, roomId, ...): also return an image of the result (after the change, or of the previewed state). Without the render service the result carries render_unavailable.",
+          "description": "true or render_view arguments (view, roomId, ...): also return an image of the result (after the change, or of the previewed state). true = the overview of the first changed room, else the whole flat from above. Without the render service the result carries render_unavailable.",
         },
         "roomId": {
-          "description": "Id of the room (from list_rooms or get_scene_summary).",
+          "description": "Id of the room (rooms[].id from list_rooms).",
           "maxLength": 64,
           "minLength": 1,
           "type": "string",
@@ -400,6 +426,11 @@ exports[`snapshots (the contract) > tools/list 1`] = `
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
+        "ifRev": {
+          "description": "Optional. Apply only if the flat is still at this revision, else stale_scene and nothing changes. Pass baseRev from a preview of the same change to apply only if nothing changed since; or rev from a previous result.",
+          "minimum": 0,
+          "type": "integer",
+        },
         "label": {
           "description": "Short description of this change, shown in the undo history (at most 200 characters).",
           "maxLength": 200,
@@ -407,7 +438,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "type": "string",
         },
         "materialId": {
-          "description": "Id of a defined material (materials[].id in get_scene_summary), or null to clear back to the default. To use a library texture first call material.define with textureUrl "lib:<slug>" (slugs: materials://list).",
+          "description": "Id of a defined material (sceneMaterials[].id from list_materials, or materials[].id from get_scene_summary with detail "full"), or null to clear back to the default. To use a library texture first call material_define with textureUrl "lib:<slug>" (library[].slug from list_materials).",
           "maxLength": 64,
           "minLength": 1,
           "type": [
@@ -429,10 +460,10 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "type": "object",
             },
           ],
-          "description": "true or render_view arguments (view, roomId, ...): also return an image of the result (after the change, or of the previewed state). Without the render service the result carries render_unavailable.",
+          "description": "true or render_view arguments (view, roomId, ...): also return an image of the result (after the change, or of the previewed state). true = the overview of the first changed room, else the whole flat from above. Without the render service the result carries render_unavailable.",
         },
         "roomId": {
-          "description": "Id of the room (from list_rooms or get_scene_summary).",
+          "description": "Id of the room (rooms[].id from list_rooms).",
           "maxLength": 64,
           "minLength": 1,
           "type": "string",
@@ -457,6 +488,11 @@ exports[`snapshots (the contract) > tools/list 1`] = `
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
+        "ifRev": {
+          "description": "Optional. Apply only if the flat is still at this revision, else stale_scene and nothing changes. Pass baseRev from a preview of the same change to apply only if nothing changed since; or rev from a previous result.",
+          "minimum": 0,
+          "type": "integer",
+        },
         "label": {
           "description": "Short description of this change, shown in the undo history (at most 200 characters).",
           "maxLength": 200,
@@ -464,7 +500,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "type": "string",
         },
         "materialId": {
-          "description": "Id of a defined material (materials[].id in get_scene_summary), or null to clear back to the default. To use a library texture first call material.define with textureUrl "lib:<slug>" (slugs: materials://list).",
+          "description": "Id of a defined material (sceneMaterials[].id from list_materials, or materials[].id from get_scene_summary with detail "full"), or null to clear back to the default. To use a library texture first call material_define with textureUrl "lib:<slug>" (library[].slug from list_materials).",
           "maxLength": 64,
           "minLength": 1,
           "type": [
@@ -486,10 +522,10 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "type": "object",
             },
           ],
-          "description": "true or render_view arguments (view, roomId, ...): also return an image of the result (after the change, or of the previewed state). Without the render service the result carries render_unavailable.",
+          "description": "true or render_view arguments (view, roomId, ...): also return an image of the result (after the change, or of the previewed state). true = the overview of the first changed room, else the whole flat from above. Without the render service the result carries render_unavailable.",
         },
         "roomId": {
-          "description": "Id of the room (from list_rooms or get_scene_summary).",
+          "description": "Id of the room (rooms[].id from list_rooms).",
           "maxLength": 64,
           "minLength": 1,
           "type": "string",
@@ -532,6 +568,11 @@ exports[`snapshots (the contract) > tools/list 1`] = `
             "null",
           ],
         },
+        "ifRev": {
+          "description": "Optional. Apply only if the flat is still at this revision, else stale_scene and nothing changes. Pass baseRev from a preview of the same change to apply only if nothing changed since; or rev from a previous result.",
+          "minimum": 0,
+          "type": "integer",
+        },
         "label": {
           "description": "Short description of this change, shown in the undo history (at most 200 characters).",
           "maxLength": 200,
@@ -552,7 +593,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "type": "object",
             },
           ],
-          "description": "true or render_view arguments (view, roomId, ...): also return an image of the result (after the change, or of the previewed state). Without the render service the result carries render_unavailable.",
+          "description": "true or render_view arguments (view, roomId, ...): also return an image of the result (after the change, or of the previewed state). true = the overview of the first changed room, else the whole flat from above. Without the render service the result carries render_unavailable.",
         },
         "wall": {
           "description": "Default wall material for faces without a finish. Omit to leave unchanged, null to clear.",
@@ -580,6 +621,11 @@ exports[`snapshots (the contract) > tools/list 1`] = `
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
+        "ifRev": {
+          "description": "Optional. Apply only if the flat is still at this revision, else stale_scene and nothing changes. Pass baseRev from a preview of the same change to apply only if nothing changed since; or rev from a previous result.",
+          "minimum": 0,
+          "type": "integer",
+        },
         "label": {
           "description": "Short description of this change, shown in the undo history (at most 200 characters).",
           "maxLength": 200,
@@ -600,7 +646,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "type": "object",
             },
           ],
-          "description": "true or render_view arguments (view, roomId, ...): also return an image of the result (after the change, or of the previewed state). Without the render service the result carries render_unavailable.",
+          "description": "true or render_view arguments (view, roomId, ...): also return an image of the result (after the change, or of the previewed state). true = the overview of the first changed room, else the whole flat from above. Without the render service the result carries render_unavailable.",
         },
         "site": {
           "additionalProperties": false,
@@ -660,6 +706,11 @@ exports[`snapshots (the contract) > tools/list 1`] = `
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
+        "ifRev": {
+          "description": "Optional. Apply only if the flat is still at this revision, else stale_scene and nothing changes. Pass baseRev from a preview of the same change to apply only if nothing changed since; or rev from a previous result.",
+          "minimum": 0,
+          "type": "integer",
+        },
         "label": {
           "description": "Short description of this change, shown in the undo history (at most 200 characters).",
           "maxLength": 200,
@@ -714,7 +765,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
                   "type": "array",
                 },
                 "roomId": {
-                  "description": "Room the light belongs to (from list_rooms). Optional.",
+                  "description": "Room the light belongs to (rooms[].id from list_rooms). Optional.",
                   "maxLength": 64,
                   "minLength": 1,
                   "type": "string",
@@ -786,7 +837,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
                   "type": "array",
                 },
                 "roomId": {
-                  "description": "Room the light belongs to (from list_rooms). Optional.",
+                  "description": "Room the light belongs to (rooms[].id from list_rooms). Optional.",
                   "maxLength": 64,
                   "minLength": 1,
                   "type": "string",
@@ -856,7 +907,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
                   "type": "array",
                 },
                 "roomId": {
-                  "description": "Room the light belongs to (from list_rooms). Optional.",
+                  "description": "Room the light belongs to (rooms[].id from list_rooms). Optional.",
                   "maxLength": 64,
                   "minLength": 1,
                   "type": "string",
@@ -904,7 +955,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "type": "object",
             },
           ],
-          "description": "true or render_view arguments (view, roomId, ...): also return an image of the result (after the change, or of the previewed state). Without the render service the result carries render_unavailable.",
+          "description": "true or render_view arguments (view, roomId, ...): also return an image of the result (after the change, or of the previewed state). true = the overview of the first changed room, else the whole flat from above. Without the render service the result carries render_unavailable.",
         },
       },
       "required": [
@@ -926,10 +977,15 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "additionalProperties": false,
       "properties": {
         "id": {
-          "description": "Id of the light (lights[].id from get_scene_summary).",
+          "description": "Id of the light (lights[].id from describe_room, or lights[].id from get_scene_summary with detail "full").",
           "maxLength": 64,
           "minLength": 1,
           "type": "string",
+        },
+        "ifRev": {
+          "description": "Optional. Apply only if the flat is still at this revision, else stale_scene and nothing changes. Pass baseRev from a preview of the same change to apply only if nothing changed since; or rev from a previous result.",
+          "minimum": 0,
+          "type": "integer",
         },
         "label": {
           "description": "Short description of this change, shown in the undo history (at most 200 characters).",
@@ -990,7 +1046,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "type": "array",
             },
             "roomId": {
-              "description": "Room the light belongs to (from list_rooms); null clears it.",
+              "description": "Room the light belongs to (rooms[].id from list_rooms); null clears it.",
               "maxLength": 64,
               "minLength": 1,
               "type": [
@@ -1024,7 +1080,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "type": "object",
             },
           ],
-          "description": "true or render_view arguments (view, roomId, ...): also return an image of the result (after the change, or of the previewed state). Without the render service the result carries render_unavailable.",
+          "description": "true or render_view arguments (view, roomId, ...): also return an image of the result (after the change, or of the previewed state). true = the overview of the first changed room, else the whole flat from above. Without the render service the result carries render_unavailable.",
         },
       },
       "required": [
@@ -1047,10 +1103,15 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "additionalProperties": false,
       "properties": {
         "id": {
-          "description": "Id of the light to remove.",
+          "description": "Id of the light to remove (lights[].id from describe_room, or lights[].id from get_scene_summary with detail "full").",
           "maxLength": 64,
           "minLength": 1,
           "type": "string",
+        },
+        "ifRev": {
+          "description": "Optional. Apply only if the flat is still at this revision, else stale_scene and nothing changes. Pass baseRev from a preview of the same change to apply only if nothing changed since; or rev from a previous result.",
+          "minimum": 0,
+          "type": "integer",
         },
         "label": {
           "description": "Short description of this change, shown in the undo history (at most 200 characters).",
@@ -1072,7 +1133,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "type": "object",
             },
           ],
-          "description": "true or render_view arguments (view, roomId, ...): also return an image of the result (after the change, or of the previewed state). Without the render service the result carries render_unavailable.",
+          "description": "true or render_view arguments (view, roomId, ...): also return an image of the result (after the change, or of the previewed state). true = the overview of the first changed room, else the whole flat from above. Without the render service the result carries render_unavailable.",
         },
       },
       "required": [
@@ -1089,7 +1150,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "openWorldHint": false,
       "readOnlyHint": false,
     },
-    "description": "Apply several commands atomically as one undo step: if any fails nothing is applied and the error path says which (commands/N/...). Prefer it for multi-step edits. At most 500 commands; batches cannot nest.",
+    "description": "Apply several commands atomically as one undo step: if any fails nothing is applied and the error path says which (commands/N/...). Prefer it for multi-step edits. Batches cannot nest. Each item is a tool's arguments plus its "type" (the command type of that tool, e.g. "room.setFloor" for room_set_floor). At most 50 commands per batch.",
     "inputSchema": {
       "$defs": {
         "light_add": {
@@ -1143,7 +1204,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
                       "type": "array",
                     },
                     "roomId": {
-                      "description": "Room the light belongs to (from list_rooms). Optional.",
+                      "description": "Room the light belongs to (rooms[].id from list_rooms). Optional.",
                       "maxLength": 64,
                       "minLength": 1,
                       "type": "string",
@@ -1215,7 +1276,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
                       "type": "array",
                     },
                     "roomId": {
-                      "description": "Room the light belongs to (from list_rooms). Optional.",
+                      "description": "Room the light belongs to (rooms[].id from list_rooms). Optional.",
                       "maxLength": 64,
                       "minLength": 1,
                       "type": "string",
@@ -1285,7 +1346,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
                       "type": "array",
                     },
                     "roomId": {
-                      "description": "Room the light belongs to (from list_rooms). Optional.",
+                      "description": "Room the light belongs to (rooms[].id from list_rooms). Optional.",
                       "maxLength": 64,
                       "minLength": 1,
                       "type": "string",
@@ -1335,7 +1396,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "additionalProperties": false,
           "properties": {
             "id": {
-              "description": "Id of the light to remove.",
+              "description": "Id of the light to remove (lights[].id from describe_room, or lights[].id from get_scene_summary with detail "full").",
               "maxLength": 64,
               "minLength": 1,
               "type": "string",
@@ -1356,7 +1417,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "additionalProperties": false,
           "properties": {
             "id": {
-              "description": "Id of the light (lights[].id from get_scene_summary).",
+              "description": "Id of the light (lights[].id from describe_room, or lights[].id from get_scene_summary with detail "full").",
               "maxLength": 64,
               "minLength": 1,
               "type": "string",
@@ -1414,7 +1475,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
                   "type": "array",
                 },
                 "roomId": {
-                  "description": "Room the light belongs to (from list_rooms); null clears it.",
+                  "description": "Room the light belongs to (rooms[].id from list_rooms); null clears it.",
                   "maxLength": 64,
                   "minLength": 1,
                   "type": [
@@ -1519,7 +1580,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "additionalProperties": false,
           "properties": {
             "id": {
-              "description": "Id of the material to delete. Fails with precondition_failed while any wall, room or default uses it.",
+              "description": "Id of the material to delete (sceneMaterials[].id from list_materials). Fails with precondition_failed while any wall, room or default uses it.",
               "maxLength": 64,
               "minLength": 1,
               "type": "string",
@@ -1540,7 +1601,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "additionalProperties": false,
           "properties": {
             "materialId": {
-              "description": "Id of a defined material (materials[].id in get_scene_summary), or null to clear back to the default. To use a library texture first call material.define with textureUrl "lib:<slug>" (slugs: materials://list).",
+              "description": "Id of a defined material (sceneMaterials[].id from list_materials, or materials[].id from get_scene_summary with detail "full"), or null to clear back to the default. To use a library texture first call material_define with textureUrl "lib:<slug>" (library[].slug from list_materials).",
               "maxLength": 64,
               "minLength": 1,
               "type": [
@@ -1549,7 +1610,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               ],
             },
             "roomId": {
-              "description": "Id of the room (from list_rooms or get_scene_summary).",
+              "description": "Id of the room (rooms[].id from list_rooms).",
               "maxLength": 64,
               "minLength": 1,
               "type": "string",
@@ -1571,7 +1632,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "additionalProperties": false,
           "properties": {
             "materialId": {
-              "description": "Id of a defined material (materials[].id in get_scene_summary), or null to clear back to the default. To use a library texture first call material.define with textureUrl "lib:<slug>" (slugs: materials://list).",
+              "description": "Id of a defined material (sceneMaterials[].id from list_materials, or materials[].id from get_scene_summary with detail "full"), or null to clear back to the default. To use a library texture first call material_define with textureUrl "lib:<slug>" (library[].slug from list_materials).",
               "maxLength": 64,
               "minLength": 1,
               "type": [
@@ -1580,7 +1641,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               ],
             },
             "roomId": {
-              "description": "Id of the room (from list_rooms or get_scene_summary).",
+              "description": "Id of the room (rooms[].id from list_rooms).",
               "maxLength": 64,
               "minLength": 1,
               "type": "string",
@@ -1602,7 +1663,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "additionalProperties": false,
           "properties": {
             "materialId": {
-              "description": "Id of a defined material (materials[].id in get_scene_summary), or null to clear back to the default. To use a library texture first call material.define with textureUrl "lib:<slug>" (slugs: materials://list).",
+              "description": "Id of a defined material (sceneMaterials[].id from list_materials, or materials[].id from get_scene_summary with detail "full"), or null to clear back to the default. To use a library texture first call material_define with textureUrl "lib:<slug>" (library[].slug from list_materials).",
               "maxLength": 64,
               "minLength": 1,
               "type": [
@@ -1611,7 +1672,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               ],
             },
             "roomId": {
-              "description": "Id of the room (from list_rooms or get_scene_summary).",
+              "description": "Id of the room (rooms[].id from list_rooms).",
               "maxLength": 64,
               "minLength": 1,
               "type": "string",
@@ -1728,7 +1789,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "additionalProperties": false,
           "properties": {
             "materialId": {
-              "description": "Id of a defined material (materials[].id in get_scene_summary), or null to clear back to the default. To use a library texture first call material.define with textureUrl "lib:<slug>" (slugs: materials://list).",
+              "description": "Id of a defined material (sceneMaterials[].id from list_materials, or materials[].id from get_scene_summary with detail "full"), or null to clear back to the default. To use a library texture first call material_define with textureUrl "lib:<slug>" (library[].slug from list_materials).",
               "maxLength": 64,
               "minLength": 1,
               "type": [
@@ -1737,13 +1798,13 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               ],
             },
             "roomId": {
-              "description": "The room whose stretch of this wall side to paint (from list_rooms or describe_room). Strongly recommended: a wall side can be shared by several rooms (e.g. the alcove and the sejour) and without roomId the whole side is painted for all of them. Fails with precondition_failed if the room does not border that side. A room-scoped finish beats the whole-side finish and room.setWallFinish.",
+              "description": "The room whose stretch of this wall side to paint (rooms[].id from list_rooms). Strongly recommended: a wall side can be shared by several rooms (e.g. the alcove and the sejour) and without roomId the whole side is painted for all of them. Fails with precondition_failed if the room does not border that side. A room-scoped finish beats the whole-side finish and room_set_wall_finish.",
               "maxLength": 64,
               "minLength": 1,
               "type": "string",
             },
             "side": {
-              "description": "Which face of the wall. "left" is the left of someone walking from the wall start to its end on the plan (plan y grows down; see wallLeftNormal), "right" the other face, "both" both faces. With roomId, "both" means every face of this wall that the room adjoins.",
+              "description": "Which face of the wall. "left" is the left of someone walking from the wall start to its end on the plan (plan y grows down; describe_room gives the side that faces each room), "right" the other face, "both" both faces. With roomId, "both" means every face of this wall that the room adjoins.",
               "enum": [
                 "left",
                 "right",
@@ -1757,7 +1818,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "type": "string",
             },
             "wallId": {
-              "description": "Id of the wall (walls[].id from get_scene_summary).",
+              "description": "Id of the wall (walls[].wallId from describe_room).",
               "maxLength": 64,
               "minLength": 1,
               "type": "string",
@@ -1787,7 +1848,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "type": "string",
             },
             "wallId": {
-              "description": "Id of the wall (walls[].id from get_scene_summary).",
+              "description": "Id of the wall (walls[].wallId from describe_room).",
               "maxLength": 64,
               "minLength": 1,
               "type": "string",
@@ -1804,7 +1865,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "additionalProperties": false,
       "properties": {
         "commands": {
-          "description": "Commands applied in order and atomically: all succeed or none apply. At most 500; batches cannot nest.",
+          "description": "Commands applied in order and atomically: all succeed or none apply. At most 50 per batch (split larger edits); batches cannot nest.",
           "items": {
             "anyOf": [
               {
@@ -1845,8 +1906,13 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               },
             ],
           },
-          "maxItems": 500,
+          "maxItems": 50,
           "type": "array",
+        },
+        "ifRev": {
+          "description": "Optional. Apply only if the flat is still at this revision, else stale_scene and nothing changes. Pass baseRev from a preview of the same change to apply only if nothing changed since; or rev from a previous result.",
+          "minimum": 0,
+          "type": "integer",
         },
         "label": {
           "description": "Short description of the whole change, shown in the undo history (at most 200 characters).",
@@ -1868,7 +1934,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "type": "object",
             },
           ],
-          "description": "true or render_view arguments (view, roomId, ...): also return an image of the result (after the change, or of the previewed state). Without the render service the result carries render_unavailable.",
+          "description": "true or render_view arguments (view, roomId, ...): also return an image of the result (after the change, or of the previewed state). true = the overview of the first changed room, else the whole flat from above. Without the render service the result carries render_unavailable.",
         },
       },
       "required": [
@@ -1927,7 +1993,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "openWorldHint": false,
       "readOnlyHint": true,
     },
-    "description": "Describe one room: area, ceiling height, the wall faces that border it (structural flag, finish and where it comes from, compass facing, left/right side), openings with compass direction, lights, daylight factor and hours of direct sun for a date (default: the session date, see set_sun_time).",
+    "description": "Describe one room: area, ceiling height, the wall faces that border it (structural flag, finish and where it comes from, wallOn = which side of the room the wall is on, left/right side, wallId), openings with compass = the direction you look through them, lights, daylight factor and hours of direct sun for a date (default: the session date, see set_sun_time).",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -1994,6 +2060,15 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "properties": {
         "date": {
           "description": "Local date YYYY-MM-DD at the flat.",
+          "type": "string",
+        },
+        "lamps": {
+          "description": "scene: lamps follow the flat (light_update changes show). allOn / allOff: force every lamp on / off. A preset sets this (day: allOff; evening and night: allOn) and it stays until you change it: pass "scene" to go back to the flat's own lamp states.",
+          "enum": [
+            "scene",
+            "allOn",
+            "allOff",
+          ],
           "type": "string",
         },
         "preset": {
@@ -2340,10 +2415,16 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "openWorldHint": false,
       "readOnlyHint": false,
     },
-    "description": "Undo the latest change in the shared history, whoever made it (the result names the entry). Fails with stale_scene if the flat changed since the history was read; call list_history and retry.",
+    "description": "Undo the newest entry of the shared history, whoever made it (the user's edits included); the result names the entry it reverted. To undo only what you have seen, pass expectId (the id of the last entry of list_history's past): if the newest entry is a different one, it fails with stale_scene and changes nothing. Without expectId it reverts whatever is on top at that moment.",
     "inputSchema": {
       "additionalProperties": false,
-      "properties": {},
+      "properties": {
+        "expectId": {
+          "description": "Optional. Id of the entry you mean to undo (the last item of past in list_history). Mismatch: stale_scene, nothing undone.",
+          "maxLength": 64,
+          "type": "string",
+        },
+      },
       "required": [],
       "type": "object",
     },
@@ -2356,10 +2437,16 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "openWorldHint": false,
       "readOnlyHint": false,
     },
-    "description": "Redo the most recently undone change.",
+    "description": "Redo the most recently undone change (the user's too). Pass expectId (redoNext[0].id of list_history) to redo only that entry: if the next one differs, it fails with stale_scene and changes nothing.",
     "inputSchema": {
       "additionalProperties": false,
-      "properties": {},
+      "properties": {
+        "expectId": {
+          "description": "Optional. Id of the entry you mean to redo (redoNext[0] in list_history). Mismatch: stale_scene, nothing redone.",
+          "maxLength": 64,
+          "type": "string",
+        },
+      },
       "required": [],
       "type": "object",
     },

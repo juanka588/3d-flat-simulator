@@ -16,7 +16,7 @@ import { hasBuild } from './staticServer';
  */
 
 export const DEFAULT_DIST = fileURLToPath(new URL('../../../web/dist', import.meta.url));
-export const BUILD_HINT = 'Build the viewer with `BASE_PATH=/ pnpm --filter @flat/web build` (or set FLAT_WEB_URL to a running web app), then retry.';
+export const BUILD_HINT = 'Run `pnpm mcp:setup` in the repo (it runs `BASE_PATH=/ pnpm --filter @flat/web build` and installs Chromium), or set FLAT_WEB_URL to a running web app, then retry.';
 
 import { RenderError } from './errors';
 
@@ -44,6 +44,8 @@ export interface RendererOptions {
   channel?: RenderChannel;
   log?: (level: 'info' | 'warn' | 'error', message: string) => void;
   timeoutMs?: number;
+  /** Budget of a render that has to start the browser first (launch + viewer load + shader compile can take 15 s or more on a cold machine). */
+  coldTimeoutMs?: number;
   /** Idle time after which the browser is closed. */
   idleMs?: number;
   /** Renders in flight (running + waiting) before `render_unavailable` "busy". */
@@ -51,6 +53,8 @@ export interface RendererOptions {
 }
 
 export const IDLE_MS = 10 * 60_000;
+/** Default budget of a cold render. */
+export const COLD_TIMEOUT_MS = 60_000;
 
 /** The long edge clamped to `RENDER_LIMITS.maxEdgePx`, aspect kept; `clamped` tells whether it changed. */
 export function clampSize(size: { width: number; height: number }): { width: number; height: number; clamped: boolean } {
@@ -64,6 +68,7 @@ export class BrowserRenderer {
   readonly session: PageSession;
   private readonly queue: SerialQueue;
   private readonly timeoutMs: number;
+  private readonly coldTimeoutMs: number;
   private readonly idleMs: number;
   private readonly distDir: string;
   private readonly webUrl: string | undefined;
@@ -73,6 +78,7 @@ export class BrowserRenderer {
     this.distDir = opts.distDir ?? DEFAULT_DIST;
     this.webUrl = opts.webUrl;
     this.timeoutMs = opts.timeoutMs ?? RENDER_LIMITS.timeoutMs;
+    this.coldTimeoutMs = Math.max(this.timeoutMs, opts.coldTimeoutMs ?? COLD_TIMEOUT_MS);
     this.idleMs = opts.idleMs ?? IDLE_MS;
     this.queue = new SerialQueue(opts.maxQueue ?? 3);
     this.session = new PageSession({ distDir: this.distDir, webUrl: this.webUrl, channel: opts.channel, log: opts.log ?? (() => undefined) });
@@ -103,7 +109,9 @@ export class BrowserRenderer {
   private async run(req: RenderRequest): Promise<RenderOutput> {
     clearTimeout(this.idle);
     const started = performance.now();
-    const deadline = started + this.timeoutMs;
+    const cold = !this.session.isWarm;
+    const budget = cold ? this.coldTimeoutMs : this.timeoutMs;
+    const deadline = started + budget;
     try {
       for (let attempt = 0; ; attempt++) {
         const remaining = deadline - performance.now();
@@ -131,8 +139,17 @@ export class BrowserRenderer {
     } catch (e) {
       if (e instanceof SessionError) {
         if (e.kind === 'timeout') {
+          const diag = this.session.diagnostics.slice(-4);
           await this.session.discard();
-          throw new RenderError('render_timeout', `the render took longer than ${Math.round(this.timeoutMs / 1000)} s`);
+          throw new RenderError(
+            'render_timeout',
+            `the render took longer than ${Math.round(budget / 1000)} s${cold ? ' (it had to start the browser first)' : ''}`,
+            `${cold ? 'Retry: the first render starts Chromium and loads the viewer, which can be slow on a cold machine (the phases are logged on stderr). ' : 'Retry with a smaller size. '}${diag.length ? `Page log: ${diag.join(' | ')}` : ''}`.trim(),
+          );
+        }
+        if (e.kind === 'blank') {
+          await this.session.discard(); // the next render starts from a fresh page
+          throw new RenderError('render_failed', e.message, e.hint);
         }
         throw new RenderError('render_unavailable', e.message, e.hint ?? BUILD_HINT);
       }

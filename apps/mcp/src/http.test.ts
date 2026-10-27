@@ -3,7 +3,7 @@ import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/cli
 import { afterEach, describe, expect, it } from 'vitest';
 import { parseArgs } from './cli';
 import { loadConfig } from './config';
-import { assertSafeBind, bearerMatches, isLoopbackHost, startHttp, type RunningHttp } from './http';
+import { assertSafeBind, bearerMatches, isLoopbackHost, sessionKeyOf, startHttp, type RunningHttp } from './http';
 import { connect, json, realCatalog } from './testing/inproc';
 import { MockFlatApi } from './testing/mockFlatApi';
 
@@ -76,7 +76,7 @@ describe('streamable HTTP (M4.2)', () => {
     await client.close();
   });
 
-  it('is stateless but the lighting and the limits are shared by all requests of the process', async () => {
+  it('is stateless but the lighting and the limits are shared by the requests of one client (same User-Agent)', async () => {
     const { http } = await serve({ limits: { maxBatch: 50, writesPerMinute: 2, rendersPerMinute: 10, maxArgBytes: 262144, sessionWriteCap: 500 } });
     const a = await mcpClient(http.url);
     await a.callTool({ name: 'set_sun_time', arguments: { date: '2026-12-21' } });
@@ -89,6 +89,65 @@ describe('streamable HTTP (M4.2)', () => {
     await c.callTool({ name: 'room_set_floor', arguments: { roomId: 'sejour', materialId: 'floor-oak' } });
     expect(json(await c.callTool({ name: 'room_set_floor', arguments: { roomId: 'sejour', materialId: 'floor-deck' } })).code).toBe('rate_limited');
     await c.close();
+  });
+
+  describe('sessions are per client, not per process', () => {
+    const call = (port: number, headers: Record<string, string>, name: string, args: Record<string, unknown>, id = 7) =>
+      raw(port, { method: 'POST', path: '/mcp', headers: { ...MCP_HEADERS, ...headers }, body: JSON.stringify({ jsonrpc: '2.0', id, method: 'tools/call', params: { name, arguments: args } }) });
+    const result = (r: { body: string }) => {
+      const data = r.body.startsWith('{') ? r.body : r.body.split('\n').find((l) => l.startsWith('data:'))!.slice(5);
+      const m = JSON.parse(data).result as { content: { text: string }[] };
+      return JSON.parse(m.content[0]!.text);
+    };
+
+    it('sessionKeyOf: Mcp-Session-Id, else the User-Agent product, else anonymous', () => {
+      const h = (o: Record<string, string>) => ({ get: (k: string) => o[k.toLowerCase()] ?? null });
+      expect(sessionKeyOf(h({ 'mcp-session-id': 'abc', 'user-agent': 'x/1' }))).toBe('id:abc');
+      expect(sessionKeyOf(h({ 'user-agent': 'claude-code/2.1 (cli)' }))).toBe('ua:claude-code');
+      expect(sessionKeyOf(h({}))).toBe('anonymous');
+      expect(sessionKeyOf(undefined)).toBe('anonymous');
+    });
+
+    it('two clients do not share lighting, the allowance or the author name', async () => {
+      const { http, flat } = await serve({ limits: { maxBatch: 50, writesPerMinute: 1, rendersPerMinute: 10, maxArgBytes: 262144, sessionWriteCap: 500 } });
+      const a = { 'user-agent': 'agent-a/1.0' };
+      const b = { 'user-agent': 'agent-b/2.0' };
+      await call(http.port, a, 'set_sun_time', { date: '2026-12-21' });
+      expect(result(await call(http.port, a, 'describe_room', { roomId: 'sejour' })).daylight.date).toBe('2026-12-21');
+      expect(result(await call(http.port, b, 'describe_room', { roomId: 'sejour' })).daylight.date).toBe('2026-06-21'); // B did not inherit A's date
+
+      expect(result(await call(http.port, a, 'room_set_floor', { roomId: 'sejour', materialId: 'floor-oak' })).committed).toBe(true);
+      expect(result(await call(http.port, a, 'room_set_floor', { roomId: 'sejour', materialId: 'floor-tile' })).code).toBe('rate_limited');
+      // B still has its own allowance, and is named after itself
+      expect(result(await call(http.port, b, 'room_set_floor', { roomId: 'sejour', materialId: 'floor-deck' })).committed).toBe(true);
+      expect(flat.log.map((e) => e.envelope.author.name)).toEqual(['agent-a', 'agent-b']);
+    });
+
+    it('Mcp-Session-Id separates two clients with the same User-Agent', async () => {
+      const { http } = await serve();
+      const ua = { 'user-agent': 'same/1' };
+      await call(http.port, { ...ua, 'mcp-session-id': 's1' }, 'set_sun_time', { date: '2026-12-21' });
+      expect(result(await call(http.port, { ...ua, 'mcp-session-id': 's1' }, 'describe_room', { roomId: 'sejour' })).daylight.date).toBe('2026-12-21');
+      expect(result(await call(http.port, { ...ua, 'mcp-session-id': 's2' }, 'describe_room', { roomId: 'sejour' })).daylight.date).toBe('2026-06-21');
+    });
+
+    it('a request that says nothing about itself is never attributed to the previous client', async () => {
+      const { http, flat } = await serve();
+      await call(http.port, { 'user-agent': 'agent-a/1.0' }, 'room_set_floor', { roomId: 'sejour', materialId: 'floor-oak' });
+      // no User-Agent, no client info
+      await call(http.port, {}, 'room_set_floor', { roomId: 'sejour', materialId: 'floor-tile' });
+      expect(flat.log.map((e) => e.envelope.author.name)).toEqual(['agent-a', 'unknown']);
+    });
+
+    it('the write-cap hint does not tell an HTTP client to "reconnect"', async () => {
+      const { http } = await serve({ limits: { maxBatch: 50, writesPerMinute: 30, rendersPerMinute: 10, maxArgBytes: 262144, sessionWriteCap: 1 } });
+      const h = { 'user-agent': 'agent-a/1.0' };
+      await call(http.port, h, 'room_set_floor', { roomId: 'sejour', materialId: 'floor-oak' });
+      const r = result(await call(http.port, h, 'room_set_floor', { roomId: 'sejour', materialId: 'floor-tile' }));
+      expect(r.code).toBe('rate_limited');
+      expect(r.hint).toMatch(/restart the MCP server/);
+      expect(r.hint).toMatch(/not per connection/);
+    });
   });
 
   it('names the author from the client info when the transport carries it, else the User-Agent', async () => {

@@ -35,7 +35,7 @@ const DESCRIPTIONS: Record<string, { description: string; example: Record<string
   'material.define': {
     description:
       'Create a material, or fully replace an existing one with the same id (upsert, FULL REPLACE: omitted optional fields are cleared and roughness resets to 0.9, so send every field you want to keep). ' +
-      'A material kind ("paint" or "texture") can never change; use a new id for a different kind. For a library texture use kind "texture" with textureUrl "lib:<slug>" (slugs: materials://list). Define a material before using it in a finish.',
+      'A material kind ("paint" or "texture") can never change; use a new id for a different kind. For a library texture use kind "texture" with textureUrl "lib:<slug>" (slugs: library[].slug from list_materials). Define a material before using it in a finish.',
     example: { material: { id: 'paint-sage', name: 'Sage green', kind: 'paint', color: '#9caf88', roughness: 0.9 } },
   },
   'material.remove': {
@@ -44,7 +44,7 @@ const DESCRIPTIONS: Record<string, { description: string; example: Record<string
   },
   'wall.setFinish': {
     description:
-      'Paint one or both faces of a wall. Pass roomId (strongly recommended) to paint only that room\'s stretch of the face: the alcove and the sejour can share a wall and get different colours. ' +
+      'Paint one or both faces of a wall (wall ids: walls[].wallId from describe_room, which also says which side faces the room). Pass roomId (strongly recommended) to paint only that room\'s stretch of the face: the alcove and the sejour can share a wall and get different colours. ' +
       'Without roomId the whole face is painted for every room on it. Precedence on a stretch of face, most specific first: the room-scoped finish (roomId), the whole-face finish, the room\'s paint-all-walls (room_set_wall_finish), the scene default. ' +
       'Left and right follow the walking direction from wall start to end on the plan (plan y grows down). materialId null clears the finish.',
     example: { wallId: 'w-west', side: 'right', materialId: 'paint-sage', roomId: 'sejour' },
@@ -81,7 +81,7 @@ const DESCRIPTIONS: Record<string, { description: string; example: Record<string
   'light.remove': { description: 'Remove a light by id. Undo restores it at the same position in the list.', example: { id: 'light-1' } },
   batch: {
     description:
-      'Apply several commands atomically as one undo step: if any fails nothing is applied and the error path says which (commands/N/...). Prefer it for multi-step edits. At most 500 commands; batches cannot nest.',
+      'Apply several commands atomically as one undo step: if any fails nothing is applied and the error path says which (commands/N/...). Prefer it for multi-step edits. Batches cannot nest. Each item is a tool\'s arguments plus its "type" (the command type of that tool, e.g. "room.setFloor" for room_set_floor). The server limits the number of commands per batch.',
     example: {
       label: 'Paint the sejour sage',
       commands: [

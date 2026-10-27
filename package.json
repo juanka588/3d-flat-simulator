@@ -14,8 +14,10 @@
     "test": "vitest run",
     "check": "pnpm lint && pnpm typecheck && pnpm test",
     "e2e": "playwright test",
-    "test:render": "MCP_RENDER=1 vitest run --project mcp src/render/render.test.ts src/render/latency.test.ts",
+    "test:render": "MCP_RENDER=1 vitest run --project mcp src/render/render.test.ts src/render/latency.test.ts src/render/stdioRender.test.ts",
     "mcp:demo": "node scripts/mcp-demo/llm-demo.mjs",
+    "mcp:demo:cli": "node scripts/mcp-demo/claude-cli-demo.mjs",
+    "mcp:setup": "node scripts/mcp-setup.mjs",
     "materials:build": "node scripts/materials/build.mjs",
     "materials:credits": "node scripts/materials/credits.mjs"
   },
