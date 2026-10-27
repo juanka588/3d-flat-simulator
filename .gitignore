@@ -29,3 +29,4 @@ apps/server/local-assets/
 
 # Claude Code agent worktrees
 .claude/worktrees/
+.claude/settings.local.json
