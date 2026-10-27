@@ -13,6 +13,7 @@
  * | `FLAT_MCP_WRITES_PER_MIN` | `30` | write calls per minute |
  * | `FLAT_MCP_RENDERS_PER_MIN` | `10` | renders per minute |
  * | `FLAT_MCP_MAX_ARG_BYTES` | `262144` | JSON size of one call's arguments |
+ * | `FLAT_MCP_SESSION_WRITES` | `500` | write calls allowed per MCP session (a hard cap, not a rate) |
  * | `FLAT_MCP_TIMEOUT_MS` | `10000` | per request to the scene server |
  */
 
@@ -23,6 +24,8 @@ export interface McpLimits {
   rendersPerMinute: number;
   /** Maximum size of a call's JSON arguments, in bytes. */
   maxArgBytes: number;
+  /** Write calls (scene-mutating tool calls past validation) allowed in one MCP session. */
+  sessionWriteCap: number;
 }
 
 export interface McpConfig {
@@ -46,7 +49,7 @@ const num = (v: string | undefined, fallback: number) => {
   return Number.isFinite(n) && n > 0 ? n : fallback;
 };
 
-export const DEFAULT_LIMITS: McpLimits = { maxBatch: 50, writesPerMinute: 30, rendersPerMinute: 10, maxArgBytes: 256 * 1024 };
+export const DEFAULT_LIMITS: McpLimits = { maxBatch: 50, writesPerMinute: 30, rendersPerMinute: 10, maxArgBytes: 256 * 1024, sessionWriteCap: 500 };
 
 /** Logs to stderr: stdout must carry JSON-RPC only (ESLint forbids `console.log` here). */
 export function stderrLog(level: 'info' | 'warn' | 'error', message: string): void {
@@ -71,6 +74,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
       writesPerMinute: num(env.FLAT_MCP_WRITES_PER_MIN, DEFAULT_LIMITS.writesPerMinute),
       rendersPerMinute: num(env.FLAT_MCP_RENDERS_PER_MIN, DEFAULT_LIMITS.rendersPerMinute),
       maxArgBytes: num(env.FLAT_MCP_MAX_ARG_BYTES, DEFAULT_LIMITS.maxArgBytes),
+      sessionWriteCap: num(env.FLAT_MCP_SESSION_WRITES, DEFAULT_LIMITS.sessionWriteCap),
     },
     requestTimeoutMs: num(env.FLAT_MCP_TIMEOUT_MS, 10_000),
     log: stderrLog,

@@ -63,6 +63,8 @@ export class MockFlatApi implements FlatApi {
   readonly views: PostViewBody[] = [];
   readonly calls: string[] = [];
   checkpoints: Checkpoint[] = [];
+  /** Id of the history top when each checkpoint was taken (mirrors the server's divergence check). */
+  private readonly cpTop = new Map<string, string | undefined>();
   /** When true every call resolves `unreachable`. */
   down = false;
   private nextFailure: FlatApiFailure | undefined;
@@ -183,8 +185,13 @@ export class MockFlatApi implements FlatApi {
   async checkpoint(body: PostCheckpointBody): Promise<FlatResult<PostCheckpointResponse>> {
     const g = this.gate<PostCheckpointResponse>('checkpoint');
     if (g) return g;
+    const exists = this.checkpoints.some((c) => c.name === body.name);
+    if (exists && !body.replace) {
+      return this.http(409, 'checkpoint_exists', `checkpoint "${body.name}" already exists; pick another name or send replace: true`, 'name', { rev: this.rev, epoch: this.epoch });
+    }
     const cp: Checkpoint = { name: body.name, rev: this.rev, seq: this.seq, depth: this.hist.past.length, ts: this.now(), author: body.author ?? { kind: 'user' } };
-    this.checkpoints = [...this.checkpoints.filter((c) => c.name !== body.name), cp];
+    this.checkpoints = [...this.checkpoints.filter((c) => c.name !== body.name), cp].slice(-20);
+    this.cpTop.set(cp.name, this.hist.past.at(-1)?.envelope.id);
     return { ok: true, data: { ok: true, epoch: this.epoch, checkpoint: cp } };
   }
 
@@ -200,14 +207,21 @@ export class MockFlatApi implements FlatApi {
     if (body.ifRev !== undefined && body.ifRev !== this.rev) {
       return this.http(409, 'precondition_failed', `scene is at revision ${this.rev}, request expected ${body.ifRev}`, 'ifRev', { rev: this.rev, epoch: this.epoch });
     }
-    if (this.hist.past.length <= cp.depth) return this.http(409, 'invalid_command', 'nothing to undo back to this checkpoint', '', { rev: this.rev, epoch: this.epoch });
-    let steps = 0;
+    const past = this.hist.past;
+    const gone = (why: string) => this.http(409, 'checkpoint_unreachable', `checkpoint "${cp.name}" ${why}`, 'checkpoint', { rev: this.rev, epoch: this.epoch });
+    if (past.length < cp.depth) return gone(`is at undo depth ${cp.depth} but the history is only ${past.length} deep (it was undone past the checkpoint)`);
+    const top = this.cpTop.get(cp.name);
+    if (cp.depth > 0 && top !== undefined && past[cp.depth - 1]?.envelope.id !== top) return gone('is no longer on the undo stack (the history diverged after it was taken)');
+    const steps = past.length - cp.depth;
+    if (steps === 0) {
+      const result = { changed: { materials: [], walls: [], rooms: [], lights: [], site: false, defaults: false }, warnings: [], noop: true as const };
+      return { ok: true, data: { ok: true, epoch: this.epoch, rev: this.rev, seq: this.seq, result, steps: 0 } };
+    }
     let last: PostCommandResponse | undefined;
-    while (this.hist.past.length > cp.depth) {
-      const r = this.step('undo', { ...(body.id ? { id: `${body.id}:${steps}` } : {}), ...(body.author ? { author: body.author } : {}) });
+    for (let i = 0; i < steps; i++) {
+      const r = this.step('undo', { ...(body.id ? { id: `${body.id}~${i}` } : {}), ...(body.author ? { author: body.author } : {}) });
       if (!r.ok) return r;
       last = r.data;
-      steps++;
     }
     return { ok: true, data: { ...last!, steps } };
   }

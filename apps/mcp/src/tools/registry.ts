@@ -1,7 +1,8 @@
-import type { Author, LightingView } from '@flat/scene';
+import type { Author, LightingView, RenderResult, RenderSpecInput, SceneResponse } from '@flat/scene';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { McpConfig, McpLimits } from '../config';
 import type { FlatApi } from '../flatApi';
+import { TokenBucket } from '../limits';
 import { ulid } from '../ulid';
 
 /**
@@ -60,6 +61,48 @@ export interface McpSession {
   syncToUserTab: boolean;
   /** Revision of the scene at the previous render, for `compare`. Lane E. */
   lastRenderedRev?: number;
+  /** Rate limit of scene-mutating calls (`FLAT_MCP_WRITES_PER_MIN`). */
+  writes: TokenBucket;
+  /** Rate limit of renders (`FLAT_MCP_RENDERS_PER_MIN`); lane E takes from it. */
+  renders: TokenBucket;
+  /** Scene-mutating calls that passed validation in this session (cap: `limits.sessionWriteCap`). */
+  writeCount: number;
+}
+
+/** A fresh session. In stateless HTTP mode one session is shared by all requests of the process. */
+export function newSession(limits: Pick<McpLimits, 'writesPerMinute' | 'rendersPerMinute'>, clock: Pick<Clock, 'now'>): McpSession {
+  return {
+    clientName: 'unknown',
+    lighting: {},
+    syncToUserTab: false,
+    writes: new TokenBucket(limits.writesPerMinute, () => clock.now()),
+    renders: new TokenBucket(limits.rendersPerMinute, () => clock.now()),
+    writeCount: 0,
+  };
+}
+
+/**
+ * The render service as the MCP core sees it (lane E implements it; `deps.renderer` of
+ * `createFlatMcpServer` installs it into `ToolContext.renderer`). `render_view` and the `render`
+ * argument of write tools both go through it.
+ *
+ * `opts.scene` renders THAT scene state (identified as `{epoch, rev}` plus the scene itself) instead
+ * of the server's current one: the preview of an uncommitted change. Absent: the renderer fetches
+ * the current scene. Errors are thrown as `RenderError`-like objects with a `code` of
+ * `render_unavailable` | `render_timeout` (any other throw is reported as `render_unavailable`).
+ */
+export interface Renderer {
+  render(
+    spec: RenderSpecInput,
+    opts?: { scene?: SceneResponse },
+  ): Promise<{
+    /** Base64 PNG of the requested view (the "after" image with `compare`). */
+    image: string;
+    mimeType: 'image/png';
+    meta: RenderResult;
+    /** With `compare: 'before_after'`: the "before" image (meta.compare.beforeRev). */
+    before?: { image: string; mimeType: 'image/png' };
+  }>;
 }
 
 export interface ToolContext {
@@ -70,6 +113,8 @@ export interface ToolContext {
   author: Author;
   session: McpSession;
   config: McpConfig;
+  /** Absent when rendering is not wired (then `render` reports `render_unavailable`). */
+  renderer?: Renderer;
 }
 
 export function systemClock(): Clock {

@@ -1,11 +1,14 @@
 import { DEFAULT_LIGHTING } from '@flat/scene';
-import type { LightingView } from '@flat/scene';
+import type { CameraPose, LightingView } from '@flat/scene';
 import { create } from 'zustand';
 import type { Selection, ViewMode, ViewState } from '../viewer/view-types';
 import { DEFAULT_PERSON_HEIGHT_CM, clampPersonHeightCm } from '../viewer/walk-camera';
 import { todayIso } from './localTime';
 import { WALK_LIGHTS_KEY } from './effectiveLighting';
 import { readPref, writePref } from './prefs';
+
+/** Preference: apply the assistant's view messages (server mode). Default off. */
+export const FOLLOW_ASSISTANT_KEY = 'flat.followAssistantView';
 
 export const PERSON_HEIGHT_STORAGE_KEY = 'flat.personHeightCm';
 
@@ -18,6 +21,11 @@ interface ViewStore extends ViewState {
   /** Preference: in walk mode all lamps are on and the exposure is raised (a derived overlay, see effectiveLighting). Default on. */
   walkLightsOn: boolean;
   setWalkLightsOn: (on: boolean) => void;
+  /** Preference (persisted, default off): show the camera/lighting the assistant sends over the view channel. */
+  followAssistant: boolean;
+  setFollowAssistant: (on: boolean) => void;
+  /** Follows `pose` exactly and selects its mode; `undefined` hands the camera back to the user. */
+  setCamera: (pose: CameraPose | undefined) => void;
   setView: (partial: Partial<ViewState>) => void;
   setMode: (mode: ViewMode) => void;
   select: (selection: Selection | null) => void;
@@ -33,17 +41,24 @@ export const useViewStore = create<ViewStore>((set) => ({
   lighting: { ...DEFAULT_LIGHTING, date: todayIso(), time: '12:00' },
   personHeightCm: initialPersonHeight(),
   walkLightsOn: readPref(WALK_LIGHTS_KEY) !== '0',
+  followAssistant: readPref(FOLLOW_ASSISTANT_KEY) === '1',
+  setFollowAssistant: (on) => {
+    writePref(FOLLOW_ASSISTANT_KEY, on ? '1' : '0');
+    set({ followAssistant: on });
+  },
+  setCamera: (pose) => set((s) => (pose ? { mode: pose.mode, camera: pose } : s.camera ? { camera: undefined } : s)),
   setWalkLightsOn: (on) => {
     writePref(WALK_LIGHTS_KEY, on ? '1' : '0');
     set({ walkLightsOn: on });
   },
-  setView: (partial) => set(partial),
+  // Choosing a mode directly drops a followed pose (it belongs to its own mode).
+  setView: (partial) => set('mode' in partial && !('camera' in partial) ? { ...partial, camera: undefined } : partial),
   setPersonHeightCm: (cm) => {
     const clamped = clampPersonHeightCm(cm);
     writePref(PERSON_HEIGHT_STORAGE_KEY, String(clamped));
     set({ personHeightCm: clamped });
   },
-  setMode: (mode) => set({ mode }),
+  setMode: (mode) => set({ mode, camera: undefined }),
   select: (selection) => set({ selection }),
   setLighting: (partial) =>
     set((s) => {

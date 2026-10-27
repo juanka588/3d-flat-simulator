@@ -1,7 +1,7 @@
 import { addAfterEffect } from '@react-three/fiber';
 import type { RootState } from '@react-three/fiber';
 import { NeutralToneMapping, Vector3 } from 'three';
-import type { Camera, Light, Mesh, Object3D, PerspectiveCamera } from 'three';
+import type { Camera, Light, Mesh, Object3D, OrthographicCamera, PerspectiveCamera } from 'three';
 import { committedScene, getTransport, useSceneStore } from './state/sceneStore';
 import { connectionInfo } from './sync/sync-store';
 import { exportSceneText, flushAutosave } from './state/persistence';
@@ -9,18 +9,23 @@ import { alignContext, contextFor } from './state/siteContext';
 import { setClockSource, tickClock, useClockStore } from './state/dayClock';
 import { sunInfoFor } from './state/sunInfo';
 import { useViewStore } from './state/viewStore';
+import { MAX_VIEWPORT_DPR, MAX_VIEWPORT_PX, MIN_VIEWPORT_PX, parseViewport, useViewportStore } from './state/viewport';
+import { activeViewRelay } from './sync/view-relay';
+import { appliedPose, yawToHeadingDeg } from './viewer/camera-pose';
 import type { FlatStats, FlatTestHook, HistoryInfo } from './test-hook-types';
 import { textureStats, texturesSettled } from './viewer/texture-cache';
 import { stepWalker } from './viewer/walk-input';
 import { effectiveLighting } from './state/effectiveLighting';
 import { selectionForId, selectionForWallFace } from './viewer/selection';
 import type { ViewState } from './viewer/view-types';
-import { sunPatches } from '@flat/scene';
+import { CameraPose as CameraPoseSchema, sunPatches } from '@flat/scene';
 import type { Command, Scene } from '@flat/scene';
 
 interface FrameInfo {
   scene: Scene;
   view: ViewState;
+  /** The camera pose the rig had put on the camera when the frame was drawn. */
+  pose?: ViewState['camera'];
 }
 
 const FRAME_TIMEOUT_MS = 15_000;
@@ -49,7 +54,7 @@ export function registerCanvas(state: RootState): void {
 
 /** Called by the viewer every frame with the scene/view props it is about to draw. */
 export function noteFrame(frame: FrameInfo): void {
-  pendingFrame = frame;
+  pendingFrame = { ...frame, pose: appliedPose() };
 }
 
 function renderNow(): RootState {
@@ -70,11 +75,21 @@ function nextRenderedFrame(): Promise<void> {
 /** The store revision each Scene object was published at (a frame is stale when its scene is for an older rev). */
 const sceneRevs = new WeakMap<Scene, number>();
 
+/** True when the canvas has the forced viewport's size and pixel ratio (always true when none is forced). */
+function viewportReady(): boolean {
+  const forced = useViewportStore.getState().forced;
+  if (!forced || !canvas) return true;
+  const { size, gl } = canvas();
+  return size.width === forced.width && size.height === forced.height && gl.getPixelRatio() === forced.dpr;
+}
+
 function reflectsStores(): boolean {
   const { scene, rev } = useSceneStore.getState();
-  const { mode, selection, lighting, walkLightsOn } = useViewStore.getState();
+  const { mode, selection, lighting, walkLightsOn, camera } = useViewStore.getState();
   return (
     renderedFrame !== null &&
+    (camera === undefined || renderedFrame.pose === camera) &&
+    viewportReady() &&
     (scene === null || (renderedFrame.scene === scene && sceneRevs.get(scene) === rev)) &&
     renderedFrame.view.mode === mode &&
     renderedFrame.view.selection === selection &&
@@ -158,8 +173,14 @@ function shadowCasterMeshes(root: Object3D): string[] {
 const projected = new Vector3();
 const heading = new Vector3();
 
+/**
+ * Heading of the camera on the plan, three.js yaw convention (`rotation.y`: positive turns left, forward
+ * is `(-sin yaw, -cos yaw)`). A top camera looks straight down, so its screen-up vector stands in for the
+ * look direction (yaw = the plan's clockwise rotation on screen).
+ */
 function cameraYawDeg(camera: Camera): number {
-  camera.getWorldDirection(heading);
+  if ((camera as OrthographicCamera).isOrthographicCamera) heading.copy(camera.up);
+  else camera.getWorldDirection(heading);
   return (Math.atan2(-heading.x, -heading.z) * 180) / Math.PI;
 }
 
@@ -215,7 +236,8 @@ export function installTestHook(): void {
       // Orbit damping keeps coasting for ~100 frames after a drag. Applying the rest of the motion at once lands on the
       // same pose the coasting converges to (the damped steps sum to the whole delta), so tests need not wait frames.
       const controls = canvas?.().controls as { enableDamping?: boolean; update?: () => unknown } | null | undefined;
-      if (controls?.update) {
+      // A followed pose is already exact (no momentum): leave the camera alone.
+      if (controls?.update && useViewStore.getState().camera === undefined) {
         const damping = controls.enableDamping;
         controls.enableDamping = false;
         controls.update();
@@ -237,6 +259,9 @@ export function installTestHook(): void {
         sceneName: useSceneStore.getState().scene?.name ?? '',
         camera: [camera.position.x, camera.position.y, camera.position.z],
         yawDeg: cameraYawDeg(camera),
+        headingDeg: yawToHeadingDeg(cameraYawDeg(camera)),
+        pose: useViewStore.getState().camera ?? null,
+        canvasSize: [gl.domElement.width, gl.domElement.height],
         fov: (camera as PerspectiveCamera).isPerspectiveCamera ? (camera as PerspectiveCamera).fov : 0,
         dpr: gl.getPixelRatio(),
         lights: lightStats(scene),
@@ -287,11 +312,27 @@ export function installTestHook(): void {
       camera.rotation.set(0, (yawDeg * Math.PI) / 180, 0);
       await whenRendered();
     },
-    async setCamera(_pose) {
-      // TODO(M4 lane B, M4.8): apply the pose to the active camera/controls, then `await whenRendered()`.
+    async setCamera(pose) {
+      // Defaults (fov, eye height, ...) are filled in; an invalid pose throws.
+      const parsed = CameraPoseSchema.parse(pose);
+      await canvasReady;
+      useViewStore.getState().setCamera(parsed);
+      await whenRendered();
     },
-    async setViewport(_viewport) {
-      // TODO(M4 lane B, M4.8): resize the canvas (gl.setSize / setPixelRatio) and `await whenRendered()`.
+    async setViewport(viewport) {
+      const parsed = parseViewport(viewport.width, viewport.height, viewport.dpr);
+      if (!parsed) {
+        throw new Error(
+          `invalid viewport: width/height must be ${MIN_VIEWPORT_PX}..${MAX_VIEWPORT_PX} px and dpr in (0, ${MAX_VIEWPORT_DPR}]`,
+        );
+      }
+      await canvasReady;
+      useViewportStore.getState().force(parsed);
+      await whenRendered();
+    },
+    receiveView(message) {
+      const relay = activeViewRelay();
+      return relay ? relay.handle(message) : 'no-server';
     },
     project([x, y, z]) {
       const { camera, gl } = canvas!();

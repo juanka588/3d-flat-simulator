@@ -62,8 +62,12 @@ open 'http://127.0.0.1:5173/?server=http://127.0.0.1:8787&token=<FLAT_TOKEN>'   
 | `GET /api/history` | `{canUndo, canRedo, past[], future[]}` with `{id, label, ts, author}` per step |
 | `GET /api/log?since=<seq>` | log entries after `seq`; `truncated: true` if compaction removed some (resync via `/api/scene`) |
 | `PUT /api/scene` | import a `.flat.json`: new `epoch`, history and log reset. 422 with path-annotated errors, 400 on bad JSON |
+| `POST /api/checkpoints` | body `{name, author?, replace?}`. Records `{name, rev, seq, depth (undo-stack length), ts, author}`. Names are unique: 409 `checkpoint_exists` unless `replace: true`. At most 20: the oldest is evicted. 200 `{ok, epoch, checkpoint}` |
+| `GET /api/checkpoints` | `{epoch, rev, checkpoints[]}`, oldest first |
+| `POST /api/undo-to` | body `{checkpoint, id?, author?, ifRev?}`. Undoes the shared stack back to the checkpoint's depth in one atomic step; 200 `{ok, epoch, rev, seq, result, steps}` (`steps: 0` + `noop` when already there). 404 unknown checkpoint, 409 `precondition_failed` (stale `ifRev`), 409 `checkpoint_unreachable` (history is shallower than the checkpoint, or diverged after it), 422 bad body |
+| `POST /api/view` | body `{pose?, lighting?, from?}` (at least one of pose/lighting). Relays an ephemeral `view` message to WS clients; response `{ok, delivered}`. Not logged, not in history, no rev bump. Limited to 10/s per client (429). Send header `X-Flat-Client: <id>` to skip the WS connection opened with `/ws?client=<id>` |
 | `GET /api/materials` | `apps/web/public/materials/catalog.json` |
-| `WS /ws` | `hello {epoch, rev, scene}` on connect; `applied {seq, rev, envelope, inverse, undoOf?, redoOf?}` after every command/undo/redo; `reset {epoch, rev, scene}` on import; send `{"type":"ping"}` to get `{"type":"pong"}` |
+| `WS /ws` | `hello {epoch, rev, scene}` on connect; `applied {seq, rev, envelope, inverse, undoOf?, redoOf?}` after every command/undo/redo; `reset {epoch, rev, scene}` on import; `view {seq, from?, pose?, lighting?}` (ephemeral, only to connected clients, never replayed); send `{"type":"ping"}` to get `{"type":"pong"}` |
 
 Message types live in `packages/scene/src/protocol.ts`.
 
@@ -71,6 +75,13 @@ Semantics: the server log defines order (last writer wins per command). `seq` is
 `epoch`. Envelope ids are idempotent: re-posting an id returns the original response and writes
 nothing. Undo/redo are appended to the log (`undoOf`/`redoOf`), never truncated. A command that changes
 nothing returns 200 with `result.noop` and no new rev.
+
+Checkpoints (M4.7): a checkpoint stores the undo depth and the id of the top history entry. `undo-to`
+appends one ordinary undo entry per step to the log (never truncated, so redo works) and broadcasts one
+`applied` message per step, in order, after they are fsync'ed; sync clients need nothing new. The whole
+request runs in one queue turn, so no other write interleaves. If a disk failure interrupts it midway, the
+steps already done stay committed and the error is returned. Checkpoints are stored in `state.json`
+(written and fsync'ed before the create call answers), and dropped on import (new epoch).
 
 ## Persistence
 

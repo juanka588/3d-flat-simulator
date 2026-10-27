@@ -1,7 +1,7 @@
 import { mkdir, open, readFile, readdir, rename, rm, type FileHandle } from 'node:fs/promises';
 import { hostname } from 'node:os';
 import { join } from 'node:path';
-import { LogEntry, Scene, serializeScene, type History, type PostCommandResponse } from '@flat/scene';
+import { Checkpoint, LogEntry, Scene, serializeScene, type History, type PostCommandResponse } from '@flat/scene';
 
 /** One remembered command response, persisted so idempotency survives compaction and restarts. */
 export interface IdempotencyRecord {
@@ -11,6 +11,9 @@ export interface IdempotencyRecord {
 }
 
 /** Authoritative snapshot (scene + history + counters). `scene.flat.json` is a human-readable copy. */
+/** A checkpoint plus the id of the history entry on top of the undo stack when it was taken. */
+export type StoredCheckpoint = Checkpoint & { topId?: string };
+
 export interface Snapshot {
   format: 1;
   epoch: string;
@@ -20,6 +23,8 @@ export interface Snapshot {
   history: History;
   /** Most recent idempotency records (additive field; absent in older snapshots). */
   idempotency?: IdempotencyRecord[];
+  /** Named checkpoints of the shared history (additive field; absent in older snapshots). */
+  checkpoints?: StoredCheckpoint[];
 }
 
 export interface LoadedLog {
@@ -53,6 +58,13 @@ function parseSnapshot(text: string): SnapshotRead {
     const snapshot = { ...(raw as Snapshot), scene: scene.data };
     if (idempotency) snapshot.idempotency = idempotency;
     else delete snapshot.idempotency;
+    if (Array.isArray(raw.checkpoints)) {
+      snapshot.checkpoints = raw.checkpoints.flatMap((c) => {
+        const ok = Checkpoint.safeParse(c);
+        const topId = (c as { topId?: unknown }).topId;
+        return ok.success ? [{ ...ok.data, ...(typeof topId === 'string' ? { topId } : {}) }] : [];
+      });
+    } else delete snapshot.checkpoints;
     return { kind: 'ok', snapshot };
   } catch (e) {
     return { kind: 'corrupt', problem: e instanceof Error ? e.message : String(e) };

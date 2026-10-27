@@ -1,21 +1,7 @@
-import { InMemoryTransport } from '@modelcontextprotocol/server';
-import { Client } from '@modelcontextprotocol/client';
 import { commandToolSchemas } from '@flat/scene';
 import { describe, expect, it } from 'vitest';
-import { loadConfig } from './config';
-import { createFlatMcpServer } from './server';
-import { MockFlatApi } from './testing/mockFlatApi';
-
-/** In-process client <-> server over linked transports, with the in-memory FlatApi (no network). */
-async function connect(over: Parameters<typeof loadConfig>[1] = {}, flat = new MockFlatApi()) {
-  const config = loadConfig({}, { log: () => {}, ...over });
-  const server = createFlatMcpServer({ config, flat, clock: { now: () => 1_700_000_000_000, newId: (() => { let n = 0; return () => `01TEST${String(++n).padStart(20, '0')}`; })() } });
-  const [a, b] = InMemoryTransport.createLinkedPair();
-  const client = new Client({ name: 'unit-client', version: '1.0.0' });
-  await Promise.all([server.connect(a), client.connect(b)]);
-  return { client, flat, server };
-}
-const json = (r: { content: unknown }) => JSON.parse((r.content as { text: string }[])[0]!.text);
+import { connect, json } from './testing/inproc';
+import { withMcpExtras } from './tools';
 
 describe('SDK spike: schemas are advertised unchanged (a)', () => {
   it('every commandToolSchemas() inputSchema reaches the client byte-for-byte', async () => {
@@ -24,7 +10,7 @@ describe('SDK spike: schemas are advertised unchanged (a)', () => {
     for (const t of commandToolSchemas()) {
       const listed = tools.find((x) => x.name === t.name);
       expect(listed, t.name).toBeDefined();
-      expect(listed!.inputSchema).toEqual(t.inputSchema);
+      expect(listed!.inputSchema).toEqual(withMcpExtras(t.inputSchema));
       expect(listed!.description).toBe(t.description);
     }
     const batch = tools.find((t) => t.name === 'batch')!.inputSchema as unknown as { $defs: Record<string, unknown> };
@@ -87,7 +73,7 @@ describe('write tools through the mock FlatApi', () => {
   });
 
   it('batch_too_large is enforced by the MCP limit', async () => {
-    const { client } = await connect({ limits: { maxBatch: 2, writesPerMinute: 30, rendersPerMinute: 10, maxArgBytes: 262144 } });
+    const { client } = await connect({ limits: { maxBatch: 2, writesPerMinute: 30, rendersPerMinute: 10, maxArgBytes: 262144, sessionWriteCap: 500 } });
     const cmd = { type: 'room.setFloor', roomId: 'sejour', materialId: 'floor-oak' };
     const r = await client.callTool({ name: 'batch', arguments: { label: 'x', commands: [cmd, cmd, cmd] } });
     expect(json(r).code).toBe('batch_too_large');
@@ -113,13 +99,11 @@ describe('write tools through the mock FlatApi', () => {
 });
 
 describe('stubs and modes', () => {
-  it('read, view, history and render stubs answer not_implemented', async () => {
+  it('render_view is still a stub for lane E', async () => {
     const { client } = await connect();
-    for (const name of ['get_scene_summary', 'list_rooms', 'describe_room', 'list_materials', 'set_sun_time', 'render_view', 'list_history', 'undo', 'redo', 'checkpoint', 'restore_checkpoint']) {
-      const r = await client.callTool({ name, arguments: {} });
-      expect(r.isError, name).toBe(true);
-      expect(json(r).code, name).toBe('not_implemented');
-    }
+    const r = await client.callTool({ name: 'render_view', arguments: {} });
+    expect(r.isError).toBe(true);
+    expect(json(r).code).toBe('not_implemented');
   });
 
   it('FLAT_MCP_READONLY hides the scene-mutating tools', async () => {

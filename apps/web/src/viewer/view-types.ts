@@ -1,4 +1,4 @@
-import type { LightingView, OwnerKind, WallFace } from '@flat/scene';
+import type { CameraPose, LightingView, OwnerKind, WallFace } from '@flat/scene';
 
 export type ViewMode = 'orbit' | 'top' | 'walk';
 
@@ -21,4 +21,9 @@ export interface ViewState {
   lighting: LightingView;
   /** Height of the walking person in cm (sets the walk-mode eye height). A user preference, persisted. */
   personHeightCm: number;
+  /**
+   * When set, the camera follows this pose exactly (no re-fit, no damping drift) until the user
+   * moves the camera. `mode` equals `camera.mode` while it is set.
+   */
+  camera?: CameraPose;
 }

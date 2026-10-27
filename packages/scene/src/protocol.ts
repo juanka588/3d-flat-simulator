@@ -143,10 +143,14 @@ export const Checkpoint = z.object({
 });
 export type Checkpoint = z.infer<typeof Checkpoint>;
 
-/** Body of `POST /api/checkpoints`. An existing name is moved to the current state. */
+/**
+ * Body of `POST /api/checkpoints`. Names are unique: an existing name is a 409 `checkpoint_exists`
+ * unless `replace: true`, which moves it to the current state. At most 20 checkpoints are kept (the oldest is evicted).
+ */
 export const PostCheckpointBody = z.object({
   name: z.string().min(1).max(80),
   author: CommandEnvelope.shape.author.optional(),
+  replace: z.boolean().optional(),
 });
 export type PostCheckpointBody = z.infer<typeof PostCheckpointBody>;
 /** Response of `POST /api/checkpoints`. */

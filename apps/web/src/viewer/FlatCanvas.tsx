@@ -35,10 +35,14 @@ export interface FlatCanvasProps {
   onCreated?: (state: RootState) => void;
   /** Called every frame with the scene/view the frame is drawn from (used by the test hook). */
   onFrame?: (frame: { scene: Scene; view: ViewState }) => void;
+  /** The user started moving the camera by hand: `view.camera`, if set, should be dropped. */
+  onUserCamera?: () => void;
+  /** A forced render surface (CSS px + dpr) instead of filling the stage; used by the test hook and the headless renderer. */
+  viewport?: { width: number; height: number; dpr: number } | null;
 }
 
 /** The 3D viewer: a pure function of `Scene` + `ViewState`. All UI chrome lives outside it. */
-export function FlatCanvas({ scene, view, context = null, onSelect, onExitWalk, onCreated, onFrame }: FlatCanvasProps) {
+export function FlatCanvas({ scene, view, context = null, onSelect, onExitWalk, onCreated, onFrame, onUserCamera, viewport = null }: FlatCanvasProps) {
   const needle = useRef<HTMLDivElement>(null);
   const downAt = useRef<[number, number]>([0, 0]);
 
@@ -55,12 +59,16 @@ export function FlatCanvas({ scene, view, context = null, onSelect, onExitWalk, 
 
   return (
     <>
-    <div id={VIEWER_ELEMENT_ID} className="viewer" onPointerDownCapture={rememberPointerDown}>
+    <div
+      id={VIEWER_ELEMENT_ID}
+      className={viewport ? 'viewer forced' : 'viewer'}
+      style={viewport ? { right: 'auto', bottom: 'auto', width: viewport.width, height: viewport.height } : undefined}
+      onPointerDownCapture={rememberPointerDown}>
       <Canvas
         frameloop="demand"
         shadows="percentage"
         gl={{ antialias: true }}
-        dpr={[1, getPerfProfile().maxDpr]}
+        dpr={viewport ? viewport.dpr : [1, getPerfProfile().maxDpr]}
         onCreated={onCreated}
         onPointerMissed={(e) => {
           const moved = Math.hypot(e.clientX - downAt.current[0], e.clientY - downAt.current[1]);
@@ -76,9 +84,9 @@ export function FlatCanvas({ scene, view, context = null, onSelect, onExitWalk, 
         <Shell scene={scene} view={view} onSelect={onSelect} />
         {view.mode === 'top' && <StructuralOverlay scene={scene} />}
         {view.mode === 'walk' ? (
-          <WalkControls key={`walk:${sceneKey(scene)}`} scene={scene} personHeightCm={view.personHeightCm} onExit={onExitWalk ?? noop} />
+          <WalkControls key={`walk:${sceneKey(scene)}`} scene={scene} personHeightCm={view.personHeightCm} onExit={onExitWalk ?? noop} pose={view.camera?.mode === 'walk' ? view.camera : undefined} onUserCamera={onUserCamera} />
         ) : (
-          <CameraRig key={`${view.mode}:${sceneKey(scene)}`} scene={scene} mode={view.mode} extraReach={contextReach(scene, view.lighting.showContext ? context : null)} />
+          <CameraRig key={`${view.mode}:${sceneKey(scene)}`} scene={scene} mode={view.mode} extraReach={contextReach(scene, view.lighting.showContext ? context : null)} pose={view.camera} onUserCamera={onUserCamera} />
         )}
         {onFrame && <FrameReporter scene={scene} view={view} onFrame={onFrame} />}
         <CompassDriver onAngle={setNeedle} northAngle={scene.site.northAngle} />

@@ -5,7 +5,8 @@ import { toolError } from './errors';
 import type { FlatApi } from './flatApi';
 import { INSTRUCTIONS } from './instructions';
 import { registerPrompts } from './prompts';
-import { allTools, systemClock, visibleTools, type Clock, type McpSession, type ToolContext, type ToolDef } from './tools';
+import { registerResources } from './resources';
+import { allTools, newSession, systemClock, visibleTools, type Clock, type McpSession, type Renderer, type ToolContext, type ToolDef } from './tools';
 
 export const SERVER_NAME = 'flat';
 export const SERVER_VERSION = '0.0.0';
@@ -25,18 +26,34 @@ export interface ServerDeps {
   clock?: Clock;
   /** Override the tool set (tests). Defaults to `allTools()`. */
   tools?: ToolDef[];
+  /**
+   * The session state (lighting, rate limits, write count). Default: a fresh one per server. The
+   * stateless HTTP transport builds a server per request and passes ONE shared session so limits
+   * and `set_sun_time` survive across requests.
+   */
+  session?: McpSession;
+  /** Lane E: the render service (`render_view`, and the `render` argument of write tools). */
+  renderer?: Renderer;
 }
 
-function clientNameOf(server: McpServer, ctx: ServerContext): string {
+/** Product token of a User-Agent (`claude-code/2.1 (cli)` -> `claude-code`), the last resort when the client did not introduce itself. */
+function userAgentName(ctx: ServerContext): string | undefined {
+  const ua = ctx.http?.req?.headers.get('user-agent') ?? '';
+  const token = /^[\w.-]{1,60}/.exec(ua)?.[0];
+  return token || undefined;
+}
+
+/** Client name for the history's author: the request envelope, then `initialize`'s clientInfo, then the User-Agent (stateless HTTP), then what the session saw before. */
+function clientNameOf(server: McpServer, ctx: ServerContext, previous: string): string {
   const fromEnvelope = (ctx.mcpReq.envelope as Record<string, { name?: string } | undefined> | undefined)?.[CLIENT_INFO_META_KEY];
-  return fromEnvelope?.name ?? server.server.getClientVersion()?.name ?? 'unknown';
+  return fromEnvelope?.name ?? server.server.getClientVersion()?.name ?? userAgentName(ctx) ?? (previous !== 'unknown' ? previous : 'unknown');
 }
 
 /** Builds one MCP server (one per connection). Registers the visible tools, prompts and instructions. */
 export function createFlatMcpServer(deps: ServerDeps): McpServer {
   const { config, flat } = deps;
   const clock = deps.clock ?? systemClock();
-  const session: McpSession = { clientName: 'unknown', lighting: {}, syncToUserTab: false };
+  const session = deps.session ?? newSession(config.limits, clock);
   const server = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION }, { instructions: INSTRUCTIONS });
 
   for (const tool of visibleTools(deps.tools ?? allTools(), config)) {
@@ -49,9 +66,9 @@ export function createFlatMcpServer(deps: ServerDeps): McpServer {
         annotations: { ...tool.annotations },
       },
       async (args, ctx): Promise<CallToolResult> => {
-        session.clientName = clientNameOf(server, ctx);
-        const author: Author = { kind: 'llm', name: session.clientName };
-        const toolCtx: ToolContext = { flat, limits: config.limits, clock, author, session, config };
+        session.clientName = clientNameOf(server, ctx, session.clientName);
+        const author: Author = { kind: 'llm', name: session.clientName.slice(0, 200) };
+        const toolCtx: ToolContext = { flat, limits: config.limits, clock, author, session, config, ...(deps.renderer ? { renderer: deps.renderer } : {}) };
         try {
           return await tool.handler(toolCtx, (args ?? {}) as Record<string, unknown>);
         } catch (e) {
@@ -62,5 +79,6 @@ export function createFlatMcpServer(deps: ServerDeps): McpServer {
     );
   }
   registerPrompts(server);
+  registerResources(server, { flat, session });
   return server;
 }

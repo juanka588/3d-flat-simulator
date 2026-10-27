@@ -6,6 +6,8 @@ import { hostAllowed, originAllowed } from './app';
 import type { ServerConfig } from './config';
 import type { SceneStore } from './store';
 
+/** Client ids from `/ws?client=<id>`, so `POST /api/view` (header `X-Flat-Client`) can skip its own sender. */
+const clientIds = new WeakMap<WebSocket, string>();
 const MAX_BUFFERED = 8 * 1024 * 1024;
 
 function reject(socket: Duplex, status: string): void {
@@ -32,7 +34,9 @@ export function attachWebSocket(server: Server, store: SceneStore, config: Serve
     wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req));
   });
 
-  wss.on('connection', (ws) => {
+  wss.on('connection', (ws, req) => {
+    const cid = new URL(req.url ?? '/', 'http://localhost').searchParams.get('client');
+    if (cid) clientIds.set(ws, cid.slice(0, 100));
     alive.add(ws);
     ws.on('pong', () => alive.add(ws));
     send(ws, store.helloMessage());
@@ -50,6 +54,18 @@ export function attachWebSocket(server: Server, store: SceneStore, config: Serve
   const unsubscribe = store.subscribe((msg) => {
     const data = JSON.stringify(msg); // once, not per client
     for (const ws of wss.clients) sendRaw(ws, data);
+  });
+
+  const removeViewSink = store.addViewSink((msg, exceptClient) => {
+    const data = JSON.stringify(msg);
+    let n = 0;
+    for (const ws of wss.clients) {
+      if (ws.readyState !== ws.OPEN) continue;
+      if (exceptClient && clientIds.get(ws) === exceptClient) continue;
+      sendRaw(ws, data);
+      n++;
+    }
+    return n;
   });
 
   // Half-open sockets never error; ping them and drop the ones that stay silent so slots free up.
@@ -72,6 +88,7 @@ export function attachWebSocket(server: Server, store: SceneStore, config: Serve
   return {
     close() {
       unsubscribe();
+      removeViewSink();
       clearInterval(heartbeat);
       for (const ws of wss.clients) ws.terminate();
       wss.close();

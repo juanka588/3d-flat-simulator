@@ -123,6 +123,8 @@ export const RoomWallDescription = z.strictObject({
   thicknessM: z.number(),
   /** Never removable. */
   structural: z.boolean(),
+  /** Why (`structuralInfo().source`): explicit flag, exterior wall, thickness, or plain partition. */
+  structuralSource: z.enum(['explicit', 'exterior', 'thickness', 'partition']).optional(),
   /** Effective material id on this room's stretch (null when none) and why. */
   finish: z.strictObject({ materialId: z.string().nullable(), source: FinishSource }),
   /** Other rooms that see the same face (a whole-face finish would show there too). */
@@ -141,6 +143,10 @@ export const RoomOpeningDescription = z.strictObject({
   sillM: z.number(),
   /** For doors: the room on the other side, when there is one. */
   leadsTo: z.string().nullable(),
+  /** Whether it lets light through. */
+  glazed: z.boolean().optional(),
+  /** Doors only: `into this room`, `into <roomId>` (the other room) or `outward` (out of the flat). */
+  swing: z.string().optional(),
 });
 export type RoomOpeningDescription = z.infer<typeof RoomOpeningDescription>;
 
@@ -160,6 +166,8 @@ export const RoomDescription = z.strictObject({
   /** Scene revision it was computed from. */
   rev: z.number().int().nonnegative().optional(),
   areaM2: z.number(),
+  /** Length of the room outline in metres. */
+  perimeterM: z.number().optional(),
   ceilingHeightM: z.number(),
   /** Bounding box of the polygon, plan metres: [minX, minY, maxX, maxY]. */
   bounds: z.tuple([z.number(), z.number(), z.number(), z.number()]),
@@ -171,6 +179,8 @@ export const RoomDescription = z.strictObject({
   /** Daylight for `date` (default: the session lighting date). Null fields: not computable (e.g. no windows). */
   daylight: z.strictObject({
     date: z.string(),
+    /** `context` when neighbouring buildings (site context) were taken into account for the sun hours. */
+    obstruction: z.enum(['none', 'context']).optional(),
     /** Average daylight factor in percent (indirect sky light), null when unavailable. */
     daylightFactorPct: z.number().nullable(),
     /** Hours of direct sun reaching the floor through the openings on `date`. */
@@ -207,6 +217,9 @@ export const EntityDiff = z.strictObject({
 });
 export type EntityDiff = z.infer<typeof EntityDiff>;
 
+/** Most entries `diffScenes` lists. */
+export const DIFF_MAX_ENTRIES = 50;
+
 /**
  * Structural difference between two scenes: deterministic order (kind, then id), no entry for
  * unchanged entities, and `diffScenes(a, a)` is empty. The preview diff and the committed diff of
@@ -214,6 +227,8 @@ export type EntityDiff = z.infer<typeof EntityDiff>;
  */
 export const SceneDiff = z.strictObject({
   changes: z.array(EntityDiff),
+  /** True when `changes` was cut at `DIFF_MAX_ENTRIES`; `summary` still counts every change. */
+  truncated: z.boolean().optional(),
   /** Totals by change type. */
   summary: z.strictObject({ added: z.number().int(), removed: z.number().int(), modified: z.number().int() }),
   /** One-line text for the model, e.g. "2 rooms repainted, 1 material added". */

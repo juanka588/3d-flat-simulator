@@ -17,8 +17,18 @@ export interface FlatStats {
   sceneName: string;
   /** World position of the active camera. */
   camera: [number, number, number];
-  /** Heading of the active camera on the plan, degrees (three.js `rotation.y` for a walker: 0 looks along -z, positive turns left). */
+  /**
+   * Heading of the active camera on the plan, degrees, in the three.js yaw convention (`rotation.y` of a
+   * walker: 0 looks along -z, positive turns LEFT / counter-clockwise on the plan). For a top camera: the
+   * plan's clockwise rotation on screen. A `WalkPose` with `headingDeg` h reports `yawDeg === -h`.
+   */
   yawDeg: number;
+  /** The same direction as `WalkPose.headingDeg`: degrees CLOCKWISE from plan-up (-y), in [0, 360). `headingDeg === (-yawDeg) mod 360`. */
+  headingDeg: number;
+  /** The pose being followed (set by `setCamera` or the follow-assistant channel), or null while the camera is user-driven. */
+  pose: CameraPose | null;
+  /** Pixel size of the drawing buffer (`capture()` returns a PNG of exactly this size). */
+  canvasSize: [number, number];
   /** Vertical field of view of the active camera in degrees (0 for an orthographic camera). */
   fov: number;
   /** Device pixel ratio the canvas renders at. */
@@ -91,6 +101,12 @@ export interface FlatTestHook {
    * aspect, and resolves after a rendered frame. For the headless renderer, which has no window.
    */
   setViewport: (viewport: { width: number; height: number; dpr: number }) => Promise<void>;
+  /**
+   * Server mode only: feeds a `ViewMsg` (as the WebSocket would deliver it, optionally with an `epoch`) to the
+   * view channel. Returns what happened: `applied`, `not-following` (the sidebar toggle is off), `stale`
+   * (seq not newer), `foreign-epoch`, `invalid`, or `no-server` in Local mode.
+   */
+  receiveView: (message: unknown) => 'applied' | 'not-following' | 'stale' | 'foreign-epoch' | 'invalid' | 'no-server';
   /** Projects a world point through the active camera to viewport CSS pixels (for page.mouse). */
   project: (point: [number, number, number]) => { x: number; y: number };
   /** PNG data URL of the current canvas. */

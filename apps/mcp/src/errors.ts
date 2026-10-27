@@ -48,6 +48,8 @@ const SERVER_CODE_MAP: Record<string, McpErrorCode> = {
   unauthorized: 'unauthorized',
   rate_limited: 'rate_limited',
   not_found: 'not_implemented',
+  checkpoint_exists: 'invalid_command',
+  checkpoint_unreachable: 'precondition_failed',
   internal_error: 'internal_error',
 };
 const KNOWN = new Set<string>(Object.keys(MCP_ERROR_HINTS));
@@ -77,6 +79,9 @@ export function commandErrors(errors: readonly CommandError[], rev?: number): Ca
 export function apiFailure(f: FlatApiFailure): CallToolResult {
   if (f.kind === 'unreachable') {
     return toolError('server_unreachable', `cannot reach the scene server: ${f.message}`, 'Start it with `pnpm server` (or `pnpm dev:all`) and retry; the URL is FLAT_SERVER_URL.');
+  }
+  if (f.status === 404 && f.errors[0]?.code === 'internal_error') {
+    return toolError('not_implemented', 'the scene server has no such endpoint (it is older than this MCP server)', 'Update and restart apps/server, then retry.');
   }
   if (f.status === 429) return toolError('rate_limited', 'the scene server is rate limiting this client', undefined, { retryAfterMs: 1000 });
   return commandErrors(f.errors.map((e) => ({ code: e.code as CommandError['code'], path: e.path, message: e.message, ...(e.hint ? { hint: e.hint } : {}) })), f.rev);

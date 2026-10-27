@@ -5,6 +5,7 @@ import { newId } from '../state/ids';
 import { SyncCore } from './sync-core';
 import type { SyncNotice, SyncState } from './sync-core';
 import { useSyncStore } from './sync-store';
+import { createViewRelay, setActiveViewRelay } from './view-relay';
 
 /** Where a dev server listens by default (`pnpm server`). */
 export const DEV_SERVER = 'http://127.0.0.1:8787';
@@ -108,6 +109,10 @@ function firstError(errors: CommandError[]): string {
 
 export class SyncClient {
   readonly core: SyncCore;
+  /** Ephemeral `view` messages (camera/lighting from the assistant); applied only while "Follow assistant view" is on. */
+  /** Identifies this tab to the server (`/ws?client=`, and `X-Flat-Client` on any view POST). */
+  readonly clientId = `tab-${newId()}`;
+  private readonly views = createViewRelay(() => this.core.epoch);
   private ws: WebSocket | null = null;
   private attempt = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | undefined;
@@ -170,11 +175,13 @@ export class SyncClient {
       replaceScene: (scene) => void this.importScene(scene),
     });
     window.addEventListener('online', this.onOnline);
+    setActiveViewRelay(this.views);
     this.connect();
   }
 
   stop(): void {
     this.stopped = true;
+    setActiveViewRelay(null);
     window.removeEventListener('online', this.onOnline);
     clearTimeout(this.reconnectTimer);
     clearTimeout(this.retryTimer);
@@ -193,7 +200,8 @@ export class SyncClient {
   private connect(): void {
     if (this.stopped) return;
     this.reconnectTimer = undefined;
-    const ws = new WebSocket(`${this.target.url.replace(/^http/, 'ws')}/ws`);
+    // `client` lets the server skip this tab when relaying a view it posted itself (`X-Flat-Client`).
+    const ws = new WebSocket(`${this.target.url.replace(/^http/, 'ws')}/ws?client=${encodeURIComponent(this.clientId)}`);
     this.ws = ws;
     ws.onopen = () => {
       this.lastMessage = Date.now();
@@ -205,9 +213,11 @@ export class SyncClient {
     };
     ws.onmessage = (ev) => {
       this.lastMessage = Date.now();
+      let raw: unknown;
       let parsed;
       try {
-        parsed = ServerMsg.safeParse(JSON.parse(String(ev.data)));
+        raw = JSON.parse(String(ev.data));
+        parsed = ServerMsg.safeParse(raw);
       } catch {
         return;
       }
@@ -215,8 +225,10 @@ export class SyncClient {
       const msg = parsed.data;
       if (msg.type === 'hello') {
         this.attempt = 0;
+        this.views.reset(); // the server's view counter restarts with the server process
         this.core.onHello(msg);
       } else if (msg.type === 'reset') this.core.onReset(msg);
+      else if (msg.type === 'view') this.views.handle(raw);
       else if (msg.type === 'applied') {
         this.types.set(msg.envelope.id, msg.envelope.cmd.type);
         this.core.onApplied(msg);

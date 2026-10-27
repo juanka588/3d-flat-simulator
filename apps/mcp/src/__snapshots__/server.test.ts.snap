@@ -15,8 +15,13 @@ exports[`snapshots (the contract) > prompts/list 1`] = `
         "name": "roomId",
         "required": false,
       },
+      {
+        "description": "Optional colours to use, e.g. "sage, off-white, oak".",
+        "name": "palette",
+        "required": false,
+      },
     ],
-    "description": "Restyle rooms of the flat (colours, floors, lighting) in one reviewed batch.",
+    "description": "Restyle rooms of the flat (colours, floors, lighting) in one reviewed batch: read, plan, preview, commit, render, summarise, offer undo.",
     "icons": undefined,
     "name": "apply_style",
     "title": "Apply a style",
@@ -29,8 +34,13 @@ exports[`snapshots (the contract) > prompts/list 1`] = `
         "name": "roomId",
         "required": true,
       },
+      {
+        "description": "What the room is for and the look the user wants.",
+        "name": "brief",
+        "required": true,
+      },
     ],
-    "description": "Placeholder until furniture items arrive in M5.",
+    "description": "Furniture arrives in M5; meanwhile prepare the room with finishes and lighting.",
     "icons": undefined,
     "name": "furnish_room",
     "title": "Furnish a room",
@@ -64,6 +74,12 @@ exports[`snapshots (the contract) > tools/list 1`] = `
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
+        "label": {
+          "description": "Short description of this change, shown in the undo history (at most 200 characters).",
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string",
+        },
         "material": {
           "additionalProperties": false,
           "description": "The complete material. An existing id is fully replaced (omitted optional fields are cleared); kind cannot change.",
@@ -117,6 +133,22 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           ],
           "type": "object",
         },
+        "preview": {
+          "description": "true: do NOT change the flat; return what the change would do (diff, warnings, would-be changed ids). Use it to show the user before applying.",
+          "type": "boolean",
+        },
+        "render": {
+          "anyOf": [
+            {
+              "type": "boolean",
+            },
+            {
+              "additionalProperties": true,
+              "type": "object",
+            },
+          ],
+          "description": "true or render_view arguments (view, roomId, ...): also return an image of the result (after the change, or of the previewed state). Without the render service the result carries render_unavailable.",
+        },
       },
       "required": [
         "material",
@@ -142,6 +174,28 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "minLength": 1,
           "type": "string",
         },
+        "label": {
+          "description": "Short description of this change, shown in the undo history (at most 200 characters).",
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string",
+        },
+        "preview": {
+          "description": "true: do NOT change the flat; return what the change would do (diff, warnings, would-be changed ids). Use it to show the user before applying.",
+          "type": "boolean",
+        },
+        "render": {
+          "anyOf": [
+            {
+              "type": "boolean",
+            },
+            {
+              "additionalProperties": true,
+              "type": "object",
+            },
+          ],
+          "description": "true or render_view arguments (view, roomId, ...): also return an image of the result (after the change, or of the previewed state). Without the render service the result carries render_unavailable.",
+        },
       },
       "required": [
         "id",
@@ -161,6 +215,12 @@ exports[`snapshots (the contract) > tools/list 1`] = `
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
+        "label": {
+          "description": "Short description of this change, shown in the undo history (at most 200 characters).",
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string",
+        },
         "materialId": {
           "description": "Id of a defined material (materials[].id in get_scene_summary), or null to clear back to the default. To use a library texture first call material.define with textureUrl "lib:<slug>" (slugs: materials://list).",
           "maxLength": 64,
@@ -169,6 +229,22 @@ exports[`snapshots (the contract) > tools/list 1`] = `
             "string",
             "null",
           ],
+        },
+        "preview": {
+          "description": "true: do NOT change the flat; return what the change would do (diff, warnings, would-be changed ids). Use it to show the user before applying.",
+          "type": "boolean",
+        },
+        "render": {
+          "anyOf": [
+            {
+              "type": "boolean",
+            },
+            {
+              "additionalProperties": true,
+              "type": "object",
+            },
+          ],
+          "description": "true or render_view arguments (view, roomId, ...): also return an image of the result (after the change, or of the previewed state). Without the render service the result carries render_unavailable.",
         },
         "roomId": {
           "description": "The room whose stretch of this wall side to paint (from list_rooms or describe_room). Strongly recommended: a wall side can be shared by several rooms (e.g. the alcove and the sejour) and without roomId the whole side is painted for all of them. Fails with precondition_failed if the room does not border that side. A room-scoped finish beats the whole-side finish and room.setWallFinish.",
@@ -212,6 +288,28 @@ exports[`snapshots (the contract) > tools/list 1`] = `
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
+        "label": {
+          "description": "Short description of this change, shown in the undo history (at most 200 characters).",
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string",
+        },
+        "preview": {
+          "description": "true: do NOT change the flat; return what the change would do (diff, warnings, would-be changed ids). Use it to show the user before applying.",
+          "type": "boolean",
+        },
+        "render": {
+          "anyOf": [
+            {
+              "type": "boolean",
+            },
+            {
+              "additionalProperties": true,
+              "type": "object",
+            },
+          ],
+          "description": "true or render_view arguments (view, roomId, ...): also return an image of the result (after the change, or of the previewed state). Without the render service the result carries render_unavailable.",
+        },
         "structural": {
           "description": "true marks the wall structural (cannot be removed); false marks it removable; null clears the explicit mark so it is derived (exterior or at least 15 cm thick means structural). Only a user may set false on a wall that is structural by default.",
           "type": [
@@ -245,6 +343,12 @@ exports[`snapshots (the contract) > tools/list 1`] = `
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
+        "label": {
+          "description": "Short description of this change, shown in the undo history (at most 200 characters).",
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string",
+        },
         "materialId": {
           "description": "Id of a defined material (materials[].id in get_scene_summary), or null to clear back to the default. To use a library texture first call material.define with textureUrl "lib:<slug>" (slugs: materials://list).",
           "maxLength": 64,
@@ -253,6 +357,22 @@ exports[`snapshots (the contract) > tools/list 1`] = `
             "string",
             "null",
           ],
+        },
+        "preview": {
+          "description": "true: do NOT change the flat; return what the change would do (diff, warnings, would-be changed ids). Use it to show the user before applying.",
+          "type": "boolean",
+        },
+        "render": {
+          "anyOf": [
+            {
+              "type": "boolean",
+            },
+            {
+              "additionalProperties": true,
+              "type": "object",
+            },
+          ],
+          "description": "true or render_view arguments (view, roomId, ...): also return an image of the result (after the change, or of the previewed state). Without the render service the result carries render_unavailable.",
         },
         "roomId": {
           "description": "Id of the room (from list_rooms or get_scene_summary).",
@@ -280,6 +400,12 @@ exports[`snapshots (the contract) > tools/list 1`] = `
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
+        "label": {
+          "description": "Short description of this change, shown in the undo history (at most 200 characters).",
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string",
+        },
         "materialId": {
           "description": "Id of a defined material (materials[].id in get_scene_summary), or null to clear back to the default. To use a library texture first call material.define with textureUrl "lib:<slug>" (slugs: materials://list).",
           "maxLength": 64,
@@ -288,6 +414,22 @@ exports[`snapshots (the contract) > tools/list 1`] = `
             "string",
             "null",
           ],
+        },
+        "preview": {
+          "description": "true: do NOT change the flat; return what the change would do (diff, warnings, would-be changed ids). Use it to show the user before applying.",
+          "type": "boolean",
+        },
+        "render": {
+          "anyOf": [
+            {
+              "type": "boolean",
+            },
+            {
+              "additionalProperties": true,
+              "type": "object",
+            },
+          ],
+          "description": "true or render_view arguments (view, roomId, ...): also return an image of the result (after the change, or of the previewed state). Without the render service the result carries render_unavailable.",
         },
         "roomId": {
           "description": "Id of the room (from list_rooms or get_scene_summary).",
@@ -315,6 +457,12 @@ exports[`snapshots (the contract) > tools/list 1`] = `
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
+        "label": {
+          "description": "Short description of this change, shown in the undo history (at most 200 characters).",
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string",
+        },
         "materialId": {
           "description": "Id of a defined material (materials[].id in get_scene_summary), or null to clear back to the default. To use a library texture first call material.define with textureUrl "lib:<slug>" (slugs: materials://list).",
           "maxLength": 64,
@@ -323,6 +471,22 @@ exports[`snapshots (the contract) > tools/list 1`] = `
             "string",
             "null",
           ],
+        },
+        "preview": {
+          "description": "true: do NOT change the flat; return what the change would do (diff, warnings, would-be changed ids). Use it to show the user before applying.",
+          "type": "boolean",
+        },
+        "render": {
+          "anyOf": [
+            {
+              "type": "boolean",
+            },
+            {
+              "additionalProperties": true,
+              "type": "object",
+            },
+          ],
+          "description": "true or render_view arguments (view, roomId, ...): also return an image of the result (after the change, or of the previewed state). Without the render service the result carries render_unavailable.",
         },
         "roomId": {
           "description": "Id of the room (from list_rooms or get_scene_summary).",
@@ -368,6 +532,28 @@ exports[`snapshots (the contract) > tools/list 1`] = `
             "null",
           ],
         },
+        "label": {
+          "description": "Short description of this change, shown in the undo history (at most 200 characters).",
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string",
+        },
+        "preview": {
+          "description": "true: do NOT change the flat; return what the change would do (diff, warnings, would-be changed ids). Use it to show the user before applying.",
+          "type": "boolean",
+        },
+        "render": {
+          "anyOf": [
+            {
+              "type": "boolean",
+            },
+            {
+              "additionalProperties": true,
+              "type": "object",
+            },
+          ],
+          "description": "true or render_view arguments (view, roomId, ...): also return an image of the result (after the change, or of the previewed state). Without the render service the result carries render_unavailable.",
+        },
         "wall": {
           "description": "Default wall material for faces without a finish. Omit to leave unchanged, null to clear.",
           "maxLength": 64,
@@ -394,6 +580,28 @@ exports[`snapshots (the contract) > tools/list 1`] = `
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
+        "label": {
+          "description": "Short description of this change, shown in the undo history (at most 200 characters).",
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string",
+        },
+        "preview": {
+          "description": "true: do NOT change the flat; return what the change would do (diff, warnings, would-be changed ids). Use it to show the user before applying.",
+          "type": "boolean",
+        },
+        "render": {
+          "anyOf": [
+            {
+              "type": "boolean",
+            },
+            {
+              "additionalProperties": true,
+              "type": "object",
+            },
+          ],
+          "description": "true or render_view arguments (view, roomId, ...): also return an image of the result (after the change, or of the previewed state). Without the render service the result carries render_unavailable.",
+        },
         "site": {
           "additionalProperties": false,
           "description": "Fields to change; omitted fields stay as they are.",
@@ -452,6 +660,12 @@ exports[`snapshots (the contract) > tools/list 1`] = `
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
+        "label": {
+          "description": "Short description of this change, shown in the undo history (at most 200 characters).",
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string",
+        },
         "light": {
           "anyOf": [
             {
@@ -676,6 +890,22 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           ],
           "description": "The light to add: point, spot or area, discriminated by its "type".",
         },
+        "preview": {
+          "description": "true: do NOT change the flat; return what the change would do (diff, warnings, would-be changed ids). Use it to show the user before applying.",
+          "type": "boolean",
+        },
+        "render": {
+          "anyOf": [
+            {
+              "type": "boolean",
+            },
+            {
+              "additionalProperties": true,
+              "type": "object",
+            },
+          ],
+          "description": "true or render_view arguments (view, roomId, ...): also return an image of the result (after the change, or of the previewed state). Without the render service the result carries render_unavailable.",
+        },
       },
       "required": [
         "light",
@@ -698,6 +928,12 @@ exports[`snapshots (the contract) > tools/list 1`] = `
         "id": {
           "description": "Id of the light (lights[].id from get_scene_summary).",
           "maxLength": 64,
+          "minLength": 1,
+          "type": "string",
+        },
+        "label": {
+          "description": "Short description of this change, shown in the undo history (at most 200 characters).",
+          "maxLength": 200,
           "minLength": 1,
           "type": "string",
         },
@@ -774,6 +1010,22 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           },
           "type": "object",
         },
+        "preview": {
+          "description": "true: do NOT change the flat; return what the change would do (diff, warnings, would-be changed ids). Use it to show the user before applying.",
+          "type": "boolean",
+        },
+        "render": {
+          "anyOf": [
+            {
+              "type": "boolean",
+            },
+            {
+              "additionalProperties": true,
+              "type": "object",
+            },
+          ],
+          "description": "true or render_view arguments (view, roomId, ...): also return an image of the result (after the change, or of the previewed state). Without the render service the result carries render_unavailable.",
+        },
       },
       "required": [
         "id",
@@ -799,6 +1051,28 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "maxLength": 64,
           "minLength": 1,
           "type": "string",
+        },
+        "label": {
+          "description": "Short description of this change, shown in the undo history (at most 200 characters).",
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string",
+        },
+        "preview": {
+          "description": "true: do NOT change the flat; return what the change would do (diff, warnings, would-be changed ids). Use it to show the user before applying.",
+          "type": "boolean",
+        },
+        "render": {
+          "anyOf": [
+            {
+              "type": "boolean",
+            },
+            {
+              "additionalProperties": true,
+              "type": "object",
+            },
+          ],
+          "description": "true or render_view arguments (view, roomId, ...): also return an image of the result (after the change, or of the previewed state). Without the render service the result carries render_unavailable.",
         },
       },
       "required": [
@@ -1580,6 +1854,22 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "minLength": 1,
           "type": "string",
         },
+        "preview": {
+          "description": "true: do NOT change the flat; return what the change would do (diff, warnings, would-be changed ids). Use it to show the user before applying.",
+          "type": "boolean",
+        },
+        "render": {
+          "anyOf": [
+            {
+              "type": "boolean",
+            },
+            {
+              "additionalProperties": true,
+              "type": "object",
+            },
+          ],
+          "description": "true or render_view arguments (view, roomId, ...): also return an image of the result (after the change, or of the previewed state). Without the render service the result carries render_unavailable.",
+        },
       },
       "required": [
         "label",
@@ -1596,10 +1886,19 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "openWorldHint": false,
       "readOnlyHint": true,
     },
-    "description": "Overview of the flat: name, rev, rooms (id, name, area), materials in use, defaults, site, lights count, history position. Start here.",
+    "description": "Overview of the flat: name, revision, site, counts, rooms (id, name, type, area), materials in use, defaults, session lighting date, history position. Start here. detail "full" adds finishes per room, all materials, lights and opening counts.",
     "inputSchema": {
       "additionalProperties": false,
-      "properties": {},
+      "properties": {
+        "detail": {
+          "description": "brief (default, about 1.5k tokens) or full.",
+          "enum": [
+            "brief",
+            "full",
+          ],
+          "type": "string",
+        },
+      },
       "required": [],
       "type": "object",
     },
@@ -1612,7 +1911,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "openWorldHint": false,
       "readOnlyHint": true,
     },
-    "description": "List the rooms: id, name, type, area, finishes, counts of windows, doors and lights.",
+    "description": "List the rooms: id, name, type, area, wall/floor/ceiling material ids, counts of windows, doors and lights.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {},
@@ -1628,12 +1927,12 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "openWorldHint": false,
       "readOnlyHint": true,
     },
-    "description": "Describe one room: area, walls facing it (structural flag, finish, compass facing), openings with compass direction, lights, daylight factor, sunlight hours for a date.",
+    "description": "Describe one room: area, ceiling height, the wall faces that border it (structural flag, finish and where it comes from, compass facing, left/right side), openings with compass direction, lights, daylight factor and hours of direct sun for a date (default: the session date, see set_sun_time).",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
         "date": {
-          "description": "Local date YYYY-MM-DD at the flat.",
+          "description": "Local date YYYY-MM-DD at the flat; default: the session lighting date.",
           "type": "string",
         },
         "roomId": {
@@ -1655,10 +1954,28 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "openWorldHint": false,
       "readOnlyHint": true,
     },
-    "description": "List the material library and the flat's own materials (ids, names, colours, texture slugs).",
+    "description": "List materials, one line per entry: the library textures you can use with material_define (kind "texture", textureUrl "lib:<slug>") and the materials already defined in this flat. Filter by text and/or library category.",
     "inputSchema": {
       "additionalProperties": false,
-      "properties": {},
+      "properties": {
+        "category": {
+          "description": "Library category.",
+          "enum": [
+            "floor-wood",
+            "floor-tile",
+            "wall-plaster",
+            "wall-paper",
+            "stone",
+            "outdoor",
+          ],
+          "type": "string",
+        },
+        "query": {
+          "description": "Case-insensitive text to look for in slug, name or category.",
+          "maxLength": 80,
+          "type": "string",
+        },
+      },
       "required": [],
       "type": "object",
     },
@@ -1671,7 +1988,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "openWorldHint": false,
       "readOnlyHint": true,
     },
-    "description": "Set the session's date, time or lighting preset used by later renders (does not change the flat).",
+    "description": "Set the session's date, time or lighting preset (day / evening / night) used by later describe_room and render_view calls. It does not change the flat and is not undoable. Times are local at the flat (its time zone, DST aware). sync_to_user_tab also shows it in the user's open tab.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -1680,6 +1997,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "type": "string",
         },
         "preset": {
+          "description": "day: 12:00 sun, lamps off. evening: 20:00 on 21 Dec, lamps on. night: 23:00, no sun, lamps on. Applied first; date and time then override it.",
           "enum": [
             "day",
             "evening",
@@ -1687,8 +2005,12 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           ],
           "type": "string",
         },
+        "sync_to_user_tab": {
+          "description": "true: also relay this lighting to the user's open tab (shown only if they follow the assistant view).",
+          "type": "boolean",
+        },
         "time": {
-          "description": "Local time HH:mm.",
+          "description": "Local time HH:mm at the flat.",
           "type": "string",
         },
       },
@@ -1830,10 +2152,17 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "openWorldHint": false,
       "readOnlyHint": true,
     },
-    "description": "List the undo and redo stacks (who changed what, newest last) and the named checkpoints. The stack is shared with the user.",
+    "description": "List the undo and redo stacks (who changed what, newest last) and the named checkpoints. The stack is shared with the user: undo reverts the latest entry whoever made it.",
     "inputSchema": {
       "additionalProperties": false,
-      "properties": {},
+      "properties": {
+        "limit": {
+          "description": "How many of the newest entries to list (default 20).",
+          "maximum": 100,
+          "minimum": 1,
+          "type": "integer",
+        },
+      },
       "required": [],
       "type": "object",
     },
@@ -1846,7 +2175,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "openWorldHint": false,
       "readOnlyHint": false,
     },
-    "description": "Undo the latest change in the shared history, whoever made it.",
+    "description": "Undo the latest change in the shared history, whoever made it (the result names the entry). Fails with stale_scene if the flat changed since the history was read; call list_history and retry.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {},
@@ -1878,7 +2207,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "openWorldHint": false,
       "readOnlyHint": false,
     },
-    "description": "Name the current state so you can return to it with restore_checkpoint.",
+    "description": "Name the current state so you can return to it with restore_checkpoint. A name that exists is refused unless replace is true (which moves it to now). Take one before big edits.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -1887,6 +2216,10 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "maxLength": 80,
           "minLength": 1,
           "type": "string",
+        },
+        "replace": {
+          "description": "true: move an existing checkpoint of that name to the current state (default false).",
+          "type": "boolean",
         },
       },
       "required": [
@@ -1903,12 +2236,12 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "openWorldHint": false,
       "readOnlyHint": false,
     },
-    "description": "Undo back to a named checkpoint (the undone steps stay redoable).",
+    "description": "Undo back to a named checkpoint, whoever made the changes since (the undone steps stay redoable). Fails with precondition_failed when the history was undone past the checkpoint or diverged from it.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
         "name": {
-          "description": "Checkpoint name.",
+          "description": "Checkpoint name (see list_history).",
           "maxLength": 80,
           "minLength": 1,
           "type": "string",

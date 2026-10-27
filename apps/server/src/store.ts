@@ -13,6 +13,9 @@ import {
   type Author,
   type ApplyOk,
   type CommandEnvelope,
+  type Checkpoint,
+  type CheckpointsResponse,
+  type PostCheckpointResponse,
   type History,
   type HistoryResponse,
   type LogEntry,
@@ -21,9 +24,12 @@ import {
   type ErrorResponse,
   type Scene,
   type ServerMsg,
+  type UndoToResponse,
+  type ViewMsg,
+  type PostViewBody,
 } from '@flat/scene';
 import type { ServerConfig } from './config';
-import { Persistence, type IdempotencyRecord, type Snapshot } from './persistence';
+import { Persistence, type IdempotencyRecord, type Snapshot, type StoredCheckpoint } from './persistence';
 
 /** An outcome that may still be waiting for its log write to reach disk. */
 interface Staged {
@@ -32,9 +38,11 @@ interface Staged {
 }
 
 export type Outcome =
-  | { status: 200; body: PostCommandResponse }
+  | { status: 200; body: PostCommandResponse | UndoToResponse | PostCheckpointResponse }
   | { status: 404 | 409 | 422 | 500; body: ErrorResponse };
 
+/** At most this many checkpoints; creating one more evicts the oldest. */
+export const MAX_CHECKPOINTS = 20;
 const IDEMPOTENCY_CAP = 10_000;
 /** How many recent idempotency records are persisted in the snapshot. */
 const IDEMPOTENCY_PERSISTED = 1000;
@@ -109,6 +117,8 @@ function stepErrors(s: { ok: false; reason: string } & Partial<{ errors: ErrorRe
   return [{ code: 'invalid_command', path: '', message: s.reason === 'nothing_to_undo' ? 'nothing to undo' : 'nothing to redo' }];
 }
 
+const publicCheckpoint = ({ topId: _topId, ...cp }: StoredCheckpoint): Checkpoint => cp;
+
 export class SceneStore {
   epoch = '';
   rev = 0;
@@ -116,7 +126,10 @@ export class SceneStore {
   scene!: Scene;
   history: History = createHistory();
 
+  checkpoints: StoredCheckpoint[] = [];
+  private viewSeq = 0;
   private readonly listeners = new Set<(msg: ServerMsg) => void>();
+  private readonly viewSinks = new Set<(msg: ViewMsg, exceptClient?: string) => number>();
   private readonly idempotent = new Map<string, Remembered>();
   /** Entries currently in log.ndjson, in order. */
   private logEntries: LogEntry[] = [];
@@ -174,6 +187,7 @@ export class SceneStore {
       this.rev = this.seq = 0;
       this.scene = await this.loadInitialScene();
       this.history = createHistory();
+      this.checkpoints = [];
       this.logEntries = [];
       await this.disk.writeSnapshot(this.snapshot());
       await this.disk.rewriteLog([]);
@@ -188,6 +202,7 @@ export class SceneStore {
     this.seq = base.seq;
     this.scene = base.scene;
     this.history = base.history;
+    this.checkpoints = base.checkpoints ?? [];
     for (const r of base.idempotency ?? []) this.remember(r.key, r.hash, r.response);
     if (log.dropped > 0) this.config.log('warn', `ignored ${log.dropped} unreadable trailing log line (torn write after a crash?)`);
 
@@ -424,12 +439,137 @@ export class SceneStore {
     return { outcome: { status: 200, body: response }, after };
   }
 
+  // ---- checkpoints, undo-to, view relay ------------------------------------------------------
+
+  checkpointsView(): CheckpointsResponse {
+    return { epoch: this.epoch, rev: this.rev, checkpoints: this.checkpoints.map(publicCheckpoint) };
+  }
+
+  /**
+   * Names are unique (409 `checkpoint_exists` unless `replace`). At `MAX_CHECKPOINTS` the oldest is
+   * evicted. The snapshot is written (fsync) before answering, so a checkpoint survives a restart.
+   */
+  createCheckpoint(body: { name: string; author?: Author; replace?: boolean }): Promise<Outcome> {
+    return this.enqueue(async (): Promise<Outcome> => {
+      if (this.failed) return fail(500, 'internal_error', 'storage failed earlier; restart the server');
+      const exists = this.checkpoints.some((c) => c.name === body.name);
+      if (exists && !body.replace) {
+        return fail(409, 'checkpoint_exists', `checkpoint "${body.name}" already exists; pick another name or send replace: true`, { rev: this.rev, epoch: this.epoch }, 'name');
+      }
+      const top = this.history.past.at(-1);
+      const cp: StoredCheckpoint = {
+        name: body.name,
+        rev: this.rev,
+        seq: this.seq,
+        depth: this.history.past.length,
+        ts: Date.now(),
+        author: body.author ?? SERVER_AUTHOR,
+        ...(top ? { topId: top.envelope.id } : {}),
+      };
+      const before = this.checkpoints;
+      const next = [...before.filter((c) => c.name !== body.name), cp];
+      this.checkpoints = next.slice(-MAX_CHECKPOINTS);
+      try {
+        await this.snapshotNow(false);
+      } catch (e) {
+        this.checkpoints = before;
+        this.config.log('error', `could not persist checkpoint: ${String(e)}`);
+        return fail(500, 'internal_error', 'could not persist the checkpoint');
+      }
+      return { status: 200, body: { ok: true, epoch: this.epoch, checkpoint: publicCheckpoint(cp) } };
+    });
+  }
+
+  /**
+   * Undoes the shared stack back to the checkpoint's depth in one queue turn (nothing interleaves),
+   * as ordinary undo entries in the log (never truncated; redo works). Every step is broadcast as its
+   * own `applied` message, in order, once durable. Idempotent by `id`.
+   */
+  undoTo(body: { checkpoint: string; id?: string; author?: Author; ifRev?: number }): Promise<Outcome> {
+    return this.settle(
+      this.enqueue(async (): Promise<Staged> => {
+        const id = body.id ?? `srv-${randomUUID()}`;
+        const key = `undoto:${id}`;
+        const dup = this.idempotent.get(key);
+        if (dup) return { outcome: { status: 200, body: dup.response }, after: this.disk.barrier() };
+        const cp = this.checkpoints.find((c) => c.name === body.checkpoint);
+        if (!cp) return { outcome: fail(404, 'not_found', `no checkpoint named "${body.checkpoint}"`, {}, 'checkpoint') };
+        if (body.ifRev !== undefined && body.ifRev !== this.rev) {
+          return { outcome: fail(409, 'precondition_failed', `scene is at revision ${this.rev}, request expected ${body.ifRev}`, { rev: this.rev, epoch: this.epoch }, 'ifRev') };
+        }
+        const past = this.history.past;
+        const gone = (why: string) => ({ outcome: fail(409, 'checkpoint_unreachable', `checkpoint "${cp.name}" ${why}`, { rev: this.rev, epoch: this.epoch }, 'checkpoint') });
+        if (past.length < cp.depth) return gone(`is at undo depth ${cp.depth} but the history is only ${past.length} deep (it was undone past the checkpoint)`);
+        if (cp.depth > 0 && cp.topId !== undefined && past[cp.depth - 1]?.envelope.id !== cp.topId) {
+          return gone('is no longer on the undo stack (the history diverged after it was taken)');
+        }
+        if (this.failed) return { outcome: fail(500, 'internal_error', 'storage failed earlier; restart the server') };
+        const steps = past.length - cp.depth;
+        if (steps === 0) {
+          const response: UndoToResponse = {
+            ok: true,
+            epoch: this.epoch,
+            rev: this.rev,
+            seq: this.seq,
+            result: { changed: { materials: [], walls: [], rooms: [], lights: [], site: false, defaults: false }, warnings: [], noop: true },
+            steps: 0,
+          };
+          this.remember(key, STEP_HASH, response);
+          return { outcome: { status: 200, body: response }, after: this.disk.barrier() };
+        }
+        const author = body.author ?? SERVER_AUTHOR;
+        const base = id.length <= 56 ? id : createHash('sha256').update(id).digest('hex').slice(0, 40);
+        const afters: Promise<void>[] = [];
+        let last: Outcome | undefined;
+        for (let i = 0; i < steps; i++) {
+          const stepId = `${base}~${i}`;
+          const s = undo(this.history, this.scene, { id: stepId, ts: Date.now(), author });
+          if (!s.ok) {
+            last = { status: 422, body: { ok: false, errors: stepErrors(s) } };
+            break;
+          }
+          const staged = await this.commit(s.envelope, { ok: true, scene: s.scene, history: s.history, result: s.result }, stepKey('undo', stepId), STEP_HASH);
+          last = staged.outcome;
+          if (staged.outcome.status !== 200) break;
+          if (staged.after) afters.push(staged.after);
+        }
+        if (!last || last.status !== 200) {
+          // Earlier steps (if any) are already committed and logged; report the failure, `redo` can restore them.
+          return { outcome: last ?? fail(500, 'internal_error', 'undo-to made no progress'), ...(afters.length ? { after: Promise.all(afters).then(() => undefined) } : {}) };
+        }
+        const response: UndoToResponse = { ...(last.body as PostCommandResponse), steps };
+        this.remember(key, STEP_HASH, response);
+        return { outcome: { status: 200, body: response }, after: Promise.all(afters).then(() => undefined) };
+      }),
+    );
+  }
+
+  /** Registers a transport that can deliver ephemeral view messages; returns the number of clients reached. */
+  addViewSink(fn: (msg: ViewMsg, exceptClient?: string) => number): () => void {
+    this.viewSinks.add(fn);
+    return () => this.viewSinks.delete(fn);
+  }
+
+  /** Ephemeral: never logged, no history, no rev bump, not replayed to late joiners. */
+  relayView(body: PostViewBody, exceptClient?: string): number {
+    const msg: ViewMsg = { type: 'view', seq: ++this.viewSeq, ...(body.from !== undefined ? { from: body.from } : {}), ...(body.pose ? { pose: body.pose } : {}), ...(body.lighting ? { lighting: body.lighting } : {}) };
+    let delivered = 0;
+    for (const sink of this.viewSinks) {
+      try {
+        delivered += sink(msg, exceptClient);
+      } catch (e) {
+        this.config.log('warn', `view sink failed: ${String(e)}`);
+      }
+    }
+    return delivered;
+  }
+
   /** Replaces the scene: new epoch, history and log reset. Disk first, then memory. */
   importScene(scene: Scene): Promise<{ epoch: string; rev: number }> {
     return this.enqueue(async () => {
       const epoch = randomUUID();
       const history = createHistory();
-      await this.disk.writeSnapshot({ format: 1, epoch, rev: 0, seq: 0, scene, history, idempotency: [] }, { rotate: false });
+      await this.disk.writeSnapshot({ format: 1, epoch, rev: 0, seq: 0, scene, history, idempotency: [], checkpoints: [] }, { rotate: false });
       await this.disk.discardHistory();
       await this.disk.rewriteLog([]);
       this.epoch = epoch;
@@ -437,6 +577,7 @@ export class SceneStore {
       this.rev = this.seq = 0;
       this.history = history;
       this.idempotent.clear();
+      this.checkpoints = [];
       this.logEntries = [];
       this.dirty = false;
       this.broadcast({ type: 'reset', epoch: this.epoch, rev: 0, scene });
@@ -447,7 +588,7 @@ export class SceneStore {
   // ---- persistence ----------------------------------------------------------------------------
 
   private snapshot(): Snapshot {
-    return { format: 1, epoch: this.epoch, rev: this.rev, seq: this.seq, scene: this.scene, history: this.history, idempotency: this.idempotencyRecords() };
+    return { format: 1, epoch: this.epoch, rev: this.rev, seq: this.seq, scene: this.scene, history: this.history, idempotency: this.idempotencyRecords(), checkpoints: this.checkpoints };
   }
 
   private idempotencyRecords(): IdempotencyRecord[] {

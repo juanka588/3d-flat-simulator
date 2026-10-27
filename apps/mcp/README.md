@@ -2,8 +2,11 @@
 
 MCP server for the flat simulator: read the flat, change it, see it (M4). A thin adapter: every tool
 call becomes a `CommandEnvelope` (`author: {kind: 'llm', name: <clientInfo.name>}`) posted to
-`apps/server` over REST. Status: M4.0 contracts and M4.1 stdio skeleton; read, view, history and
-render tools are `not_implemented` stubs that the lanes fill in (see `docs/backlog/m4.md`).
+`apps/server` over REST. Status: M4.0-M4.2, M4.4-M4.7, M4.11, M4.12 done (24 tools, 5 resources, 2 prompts,
+stdio and streamable HTTP); `render_view` is still a `not_implemented` stub for the render lane (see `docs/backlog/m4.md`).
+
+Tools: the 13 write tools (+ `preview`, `render`, `label`), `get_scene_summary`, `list_rooms`, `describe_room`,
+`list_materials`, `set_sun_time`, `render_view` (stub), `list_history`, `undo`, `redo`, `checkpoint`, `restore_checkpoint`.
 
 ## SDK decision (M4.1 spike): GO on `@modelcontextprotocol/server` v2
 
@@ -41,6 +44,17 @@ claude mcp add flat -- pnpm --silent --dir "$PWD" mcp
 claude mcp add flat -e FLAT_SERVER_URL=http://127.0.0.1:8787 -e FLAT_TOKEN=... -- pnpm --silent --dir /path/to/3d-flat-simulator mcp
 ```
 
+### Streamable HTTP
+
+```sh
+pnpm --silent mcp --http [--port 8788] [--host 127.0.0.1]     # POST http://127.0.0.1:8788/mcp, GET /healthz
+claude mcp add --transport http flat http://127.0.0.1:8788/mcp
+FLAT_TOKEN=... pnpm --silent mcp --http --host 0.0.0.0        # non-loopback needs FLAT_TOKEN; add FLAT_MCP_ALLOWED_HOSTS=name1,name2
+```
+
+Stateless (a server per request); the session (`set_sun_time` lighting, rate limits, write cap) is shared by
+the process. Host and Origin are validated (403), `Authorization: Bearer $FLAT_TOKEN` is required when the token is set (401).
+
 Always pass `--silent` to pnpm: without it pnpm prints a `> script` banner on stdout, which corrupts the protocol.
 stdout is the JSON-RPC channel: logs go to stderr, and ESLint forbids `console.log` in `src/`.
 If the scene server is down the tools answer `server_unreachable` (with a hint) and the process stays up.
@@ -55,7 +69,8 @@ If the scene server is down the tools answer `server_unreachable` (with a hint) 
 | `FLAT_MCP_TOOLS` | all | comma-separated allow-list of tool names |
 | `FLAT_WEB_URL` | unset | web app to render against (else `apps/web/dist`) |
 | `FLAT_RENDER_CHANNEL` | unset | `chrome` for GPU rendering (default: Chromium + SwiftShader) |
-| `FLAT_MCP_MAX_BATCH` / `_WRITES_PER_MIN` / `_RENDERS_PER_MIN` / `_MAX_ARG_BYTES` | 50 / 30 / 10 / 262144 | limits |
+| `FLAT_MCP_MAX_BATCH` / `_WRITES_PER_MIN` / `_RENDERS_PER_MIN` / `_MAX_ARG_BYTES` / `_SESSION_WRITES` | 50 / 30 / 10 / 262144 / 500 | limits |
+| `FLAT_MCP_HTTP_PORT` / `_HTTP_HOST` / `_ALLOWED_HOSTS` | 8788 / 127.0.0.1 / unset | HTTP transport |
 
 ## Layout (for lanes)
 

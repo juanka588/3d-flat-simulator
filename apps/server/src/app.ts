@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { Hono, type Context } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { cors } from 'hono/cors';
-import { MAX_SCENE_BYTES, loadSceneText, type ErrorResponse } from '@flat/scene';
+import { MAX_SCENE_BYTES, PostCheckpointBody, PostViewBody, UndoToBody, loadSceneText, type ErrorResponse } from '@flat/scene';
 import type { ServerConfig } from './config';
 import type { Outcome, SceneStore } from './store';
 
@@ -50,6 +50,7 @@ function rateLimiter(perSec: number) {
 export function createApp(store: SceneStore, config: ServerConfig) {
   const app = new Hono<Env>();
   const allow = rateLimiter(config.rateLimitPerSec);
+  const allowView = rateLimiter(config.viewRatePerSec);
 
   app.use('*', async (c, next) => {
     if (!hostAllowed(c.req.header('host'), config.allowedHosts)) return c.json(err('forbidden', 'host not allowed'), 403);
@@ -59,7 +60,7 @@ export function createApp(store: SceneStore, config: ServerConfig) {
     '/api/*',
     cors({
       origin: (origin) => (config.allowedOrigins.includes(origin) ? origin : null),
-      allowHeaders: ['Content-Type', 'Authorization'],
+      allowHeaders: ['Content-Type', 'Authorization', 'X-Flat-Client'],
       allowMethods: ['GET', 'POST', 'PUT', 'OPTIONS'],
       maxAge: 600,
     }),
@@ -99,6 +100,7 @@ export function createApp(store: SceneStore, config: ServerConfig) {
     if (!Number.isInteger(since) || since < 0) return c.json(err('invalid_command', 'since must be a non-negative integer', 'since'), 400);
     return c.json(store.logSince(since));
   });
+  app.get('/api/checkpoints', (c) => c.json(store.checkpointsView()));
   app.get('/api/materials', async (c) => {
     try {
       return c.body(await readFile(config.materialsFile, 'utf8'), 200, { 'Content-Type': 'application/json; charset=utf-8' });
@@ -127,6 +129,45 @@ export function createApp(store: SceneStore, config: ServerConfig) {
       return send(c, await store[kind](b as Parameters<typeof store.undo>[0]));
     });
   }
+
+  const invalid = (c: Context<Env>, e: { issues: { path: PropertyKey[]; message: string }[] }) =>
+    c.json({ ok: false, errors: e.issues.map((i) => ({ code: 'invalid_command', path: i.path.join('.'), message: i.message })) } satisfies ErrorResponse, 422);
+
+  app.post('/api/checkpoints', limit(config.bodyLimit), async (c) => {
+    const raw = await readJson(c);
+    if (raw === undefined) return malformed(c);
+    const body = PostCheckpointBody.safeParse(raw);
+    if (!body.success) return invalid(c, body.error);
+    return send(c, await store.createCheckpoint(body.data));
+  });
+
+  app.post('/api/undo-to', limit(config.bodyLimit), async (c) => {
+    const raw = await readJson(c);
+    if (raw === undefined) return malformed(c);
+    const body = UndoToBody.safeParse(raw);
+    if (!body.success) return invalid(c, body.error);
+    return send(c, await store.undoTo(body.data));
+  });
+
+  app.post('/api/view', limit(config.bodyLimit), async (c) => {
+    const client = `${c.env?.incoming?.socket?.remoteAddress ?? 'local'}|${c.req.header('origin') ?? ''}`;
+    if (!allowView(client)) return c.json(err('rate_limited', 'too many view updates'), 429);
+    const raw = await readJson(c);
+    if (raw === undefined) return malformed(c);
+    const body = PostViewBody.safeParse(raw);
+    if (!body.success) return invalid(c, body.error);
+    // Zod fills LightingView defaults for absent keys even under .partial(): relay only the keys the
+    // caller sent, otherwise a time-only update would reset the tab's lamps, exposure and sun toggle.
+    const sent = (raw as { lighting?: Record<string, unknown> }).lighting;
+    const view =
+      body.data.lighting && sent
+        ? {
+            ...body.data,
+            lighting: Object.fromEntries(Object.entries(body.data.lighting).filter(([k]) => Object.hasOwn(sent, k))),
+          }
+        : body.data;
+    return c.json({ ok: true as const, delivered: store.relayView(view, c.req.header('x-flat-client') || undefined) });
+  });
 
   app.put('/api/scene', limit(MAX_SCENE_BYTES), async (c) => {
     const text = await c.req.text();

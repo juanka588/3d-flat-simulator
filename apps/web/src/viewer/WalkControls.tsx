@@ -4,10 +4,11 @@ import type { RootState } from '@react-three/fiber';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { PerspectiveCamera as ThreePerspectiveCamera } from 'three';
 import { findSpawn, insideFlat, resolveWalk, sceneBounds3, walkObstacles } from '@flat/scene';
-import type { Scene } from '@flat/scene';
+import type { Scene, WalkPose } from '@flat/scene';
 import { useClockStore } from '../state/dayClock';
 import { clearVirtualKeys, onVirtualWake, onWalkStep, virtualKeysHeld } from './walk-input';
 import { eyeHeightM, walkFovDeg } from './walk-camera';
+import { headingToYaw, noteAppliedPose } from './camera-pose';
 
 const BODY_RADIUS = 0.25;
 const WALK_SPEED = 1.4; // m/s
@@ -52,6 +53,10 @@ interface WalkControlsProps {
   /** Person height in cm; the camera sits `eyeHeightM(personHeightCm)` above the floor. */
   personHeightCm: number;
   onExit: () => void;
+  /** Followed exactly (plan position, eye height, heading, pitch, fov) until the user looks or walks. */
+  pose?: WalkPose;
+  /** The user turned or moved: the pose, if any, no longer applies. */
+  onUserCamera?: () => void;
 }
 
 /** Desktop browsers lock the pointer to look around; phones have no (usable) pointer lock. */
@@ -63,7 +68,7 @@ function pointerLockUsable(): boolean {
  * First-person walk: pointer lock look on desktop, drag-to-look (mouse, touch, pen) otherwise, WASD/arrows
  * and on-screen buttons, wall collision, Esc to leave.
  */
-export function WalkControls({ scene, personHeightCm, onExit }: WalkControlsProps) {
+export function WalkControls({ scene, personHeightCm, onExit, pose, onUserCamera }: WalkControlsProps) {
   const spawn = useMemo(() => spawnPose(scene), [scene]);
   const obstacles = useMemo(() => walkObstacles(scene), [scene]);
   const inside = useMemo(() => insideFlat(scene), [scene]);
@@ -91,9 +96,29 @@ export function WalkControls({ scene, personHeightCm, onExit }: WalkControlsProp
       clearVirtualKeys();
     };
   }, [invalidate]);
+  const userCamera = useRef(onUserCamera);
+  const followed = useRef(pose);
   useEffect(() => {
     exit.current = onExit;
-  }, [onExit]);
+    userCamera.current = onUserCamera;
+    followed.current = pose;
+  }, [onExit, onUserCamera, pose]);
+  const applied = useRef<WalkPose | undefined>(undefined);
+  // Put the followed pose on the camera once per pose, before the walker and the render of this frame.
+  useFrame(() => {
+    const p = followed.current;
+    const cam = rig.current;
+    if (!p || !cam || applied.current === p) return;
+    applied.current = p;
+    eye.current = p.eyeHeight;
+    cam.position.set(p.position[0], p.eyeHeight, p.position[1]);
+    cam.rotation.set((p.pitchDeg * Math.PI) / 180, headingToYaw(p.headingDeg), 0, 'YXZ');
+    cam.fov = p.fovDeg;
+    cam.updateProjectionMatrix();
+    cam.updateMatrixWorld();
+    noteAppliedPose(p);
+    invalidate();
+  }, -2);
   // Changing the person height while walking moves the eyes in place.
   useEffect(() => {
     eye.current = eyeHeight;
@@ -177,6 +202,7 @@ export function WalkControls({ scene, personHeightCm, onExit }: WalkControlsProp
       last = [e.clientX, e.clientY];
       if (document.pointerLockElement || (dx === 0 && dy === 0)) return;
       dragged = true;
+      userCamera.current?.();
       camera.rotation.order = 'YXZ';
       camera.rotation.y -= dx * speed;
       camera.rotation.x = Math.max(-1.4, Math.min(1.4, camera.rotation.x - dy * speed));
@@ -224,12 +250,14 @@ export function WalkControls({ scene, personHeightCm, onExit }: WalkControlsProp
         strafe += (virtual.has('right') ? 1 : 0) - (virtual.has('left') ? 1 : 0);
         const turn = (virtual.has('turnLeft') ? 1 : 0) - (virtual.has('turnRight') ? 1 : 0);
         if (turn !== 0) {
+          userCamera.current?.();
           state.camera.rotation.order = 'YXZ';
           state.camera.rotation.y += turn * TURN_SPEED * Math.min(delta, 0.1);
           invalidate();
         }
       }
       if (strafe === 0 && ahead === 0) return;
+      userCamera.current?.();
       const speed = keys.has('ShiftLeft') || keys.has('ShiftRight') ? RUN_SPEED : WALK_SPEED;
       const yaw = state.camera.rotation.y;
       // three: forward = (-sin yaw, -cos yaw) in (x, z); right = (cos yaw, -sin yaw)
@@ -262,8 +290,8 @@ export function WalkControls({ scene, personHeightCm, onExit }: WalkControlsProp
 
   return (
     <>
-      <PerspectiveCamera ref={rig} makeDefault fov={fov} near={0.05} far={200} position={position} rotation={rotation} />
-      {lockable && <PointerLockControls makeDefault selector={`#${VIEWER_ELEMENT_ID}`} onUnlock={onExit} />}
+      <PerspectiveCamera ref={rig} makeDefault fov={pose?.fovDeg ?? fov} near={0.05} far={200} position={position} rotation={rotation} />
+      {lockable && <PointerLockControls makeDefault selector={`#${VIEWER_ELEMENT_ID}`} onUnlock={onExit} onChange={() => userCamera.current?.()} />}
     </>
   );
 }

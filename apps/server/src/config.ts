@@ -18,6 +18,8 @@ export interface ServerConfig {
   bodyLimit: number;
   /** Write requests allowed per client per second. */
   rateLimitPerSec: number;
+  /** `POST /api/view` requests allowed per client per second. */
+  viewRatePerSec: number;
   maxWsClients: number;
   /** WebSocket ping interval; a client that misses a pong is terminated. */
   wsHeartbeatMs: number;
@@ -47,6 +49,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     token: env.FLAT_TOKEN || undefined,
     bodyLimit: 2 * 1024 * 1024,
     rateLimitPerSec: env.RATE_LIMIT ? Number(env.RATE_LIMIT) : 200,
+    viewRatePerSec: 10,
     maxWsClients: 50,
     wsHeartbeatMs: 30_000,
     snapshotDebounceMs: 500,

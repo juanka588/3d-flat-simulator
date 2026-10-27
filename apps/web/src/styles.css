@@ -1093,3 +1093,8 @@ legend {
   border-color: #a9bfe3;
   color: #1c3558;
 }
+
+/* A forced render surface (test hook / ?test&w=&h=): the canvas keeps its size even when it is larger than the window. */
+.app:has(.viewer.forced) {
+  overflow: hidden;
+}

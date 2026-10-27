@@ -8,6 +8,7 @@ import { effectiveLighting } from './state/effectiveLighting';
 import { alignContext, contextFor } from './state/siteContext';
 import { readPref, writePref } from './state/prefs';
 import { useViewStore } from './state/viewStore';
+import { useViewportStore } from './state/viewport';
 import { noteFrame, registerCanvas, testHookEnabled } from './testHook';
 import { BootBanner } from './ui/BootBanner';
 import { DocumentMenu } from './ui/DocumentMenu';
@@ -54,7 +55,9 @@ function confirmReplace(): boolean {
 export function App() {
   useUndoRedoKeys();
   const { scene, source, warnings, errors, loadText } = useSceneStore();
-  const { mode, selection, lighting, personHeightCm, walkLightsOn, setMode, select } = useViewStore();
+  const { mode, selection, lighting, personHeightCm, walkLightsOn, camera, setMode, select } = useViewStore();
+  const viewport = useViewportStore((s) => s.forced);
+  const clearCamera = useCallback(() => useViewStore.getState().setCamera(undefined), []);
   const [dragging, setDragging] = useState(false);
   const mobile = useMobileLayout();
   // Desktop: a collapsible column (remembered). Mobile: an overlay drawer that always starts closed.
@@ -217,10 +220,12 @@ export function App() {
           <>
             <FlatCanvas
               scene={scene}
-              view={{ mode, selection, lighting: effectiveLighting(lighting, mode, walkLightsOn, scene.lights), personHeightCm }}
+              view={{ mode, selection, lighting: effectiveLighting(lighting, mode, walkLightsOn, scene.lights), personHeightCm, camera }}
               context={context}
               onSelect={select}
               onExitWalk={exitWalk}
+              onUserCamera={clearCamera}
+              viewport={viewport}
               onCreated={registerCanvas}
               onFrame={testHookEnabled() ? noteFrame : undefined}
             />

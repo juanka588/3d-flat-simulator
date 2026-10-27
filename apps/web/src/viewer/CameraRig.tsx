@@ -1,9 +1,11 @@
 import { OrbitControls, OrthographicCamera, PerspectiveCamera } from '@react-three/drei';
-import { useThree } from '@react-three/fiber';
-import { useMemo } from 'react';
-import { TOUCH } from 'three';
+import { useFrame, useThree } from '@react-three/fiber';
+import { useLayoutEffect, useMemo, useRef } from 'react';
+import { TOUCH, Vector3 } from 'three';
+import type { OrthographicCamera as ThreeOrthographicCamera, PerspectiveCamera as ThreePerspectiveCamera, Quaternion } from 'three';
 import { fitCamera, sceneBounds3 } from '@flat/scene';
-import type { Scene } from '@flat/scene';
+import type { CameraPose, Scene } from '@flat/scene';
+import { noteAppliedPose, orbitPosition, topUp, topZoomFor } from './camera-pose';
 import type { ViewMode } from './view-types';
 
 const ORBIT_FOV = 50;
@@ -17,6 +19,20 @@ const MAX_DISTANCE_FACTOR = 3;
 const MIN_ZOOM_FACTOR = 0.4;
 const MAX_ZOOM_FACTOR = 30;
 const TOP_MARGIN = 1.1;
+
+/** The parts of three's OrbitControls the pose follower touches (`_quat` is internal but stable in the pinned version). */
+interface OrbitControlsLike {
+  object: unknown;
+  enableDamping: boolean;
+  update: () => unknown;
+  target: Vector3;
+  minDistance: number;
+  maxDistance: number;
+  minZoom: number;
+  maxZoom: number;
+  _quat?: Quaternion;
+  _quatInverse?: Quaternion;
+}
 
 /**
  * Touch gestures. Orbit: one finger rotates, two fingers pinch-zoom and pan. Top view cannot rotate, so
@@ -33,14 +49,20 @@ export function CameraRig({
   scene,
   mode,
   extraReach = 0,
+  pose,
+  onUserCamera,
 }: {
   scene: Scene;
   mode: Exclude<ViewMode, 'walk'>;
   /** How far site context extends from the flat; only widens the far plane, the framing stays on the flat. */
   extraReach?: number;
+  /** Followed exactly (target, angles, distance, fov / centre, zoom, rotation) until the user moves the camera. */
+  pose?: CameraPose;
+  /** The user started moving the camera (drag, wheel, pinch): the pose, if any, no longer applies. */
+  onUserCamera?: () => void;
 }) {
   const size = useThree((s) => s.size);
-  const { fit, far, maxDistance, topZoom } = useMemo(
+  const { fit, far, reach, maxDistance, topZoom } = useMemo(
     () => {
       const bounds = sceneBounds3(scene);
       const fit = fitCamera(bounds, { mode, aspect: size.width / Math.max(size.height, 1), fovDeg: ORBIT_FOV });
@@ -63,6 +85,7 @@ export function CameraRig({
         fit,
         // The camera can sit `maxDistance` from the target and the box is within `diagonal` of it.
         far: maxDistance + diagonal + extraReach + 10,
+        reach: diagonal + extraReach + 10,
         maxDistance,
         topZoom,
       };
@@ -72,12 +95,73 @@ export function CameraRig({
     [scene, mode],
   );
 
+  const followed = pose && pose.mode === mode ? pose : undefined;
+  const poseRef = useRef(followed);
+  useLayoutEffect(() => {
+    poseRef.current = followed;
+  });
+  const applied = useRef<{ pose?: CameraPose; controls?: unknown; height?: number }>({});
+
+  // Puts the followed pose on the camera and controls once per pose (and after a resize for the top
+  // view, whose zoom depends on the canvas height). Runs before drei's own controls update (priority
+  // -1) with damping off, so nothing coasts: the camera sits exactly at the pose.
+  useFrame((state) => {
+    const p = poseRef.current;
+    if (!p) return;
+    const controls = state.controls as OrbitControlsLike | null;
+    const camera = state.camera;
+    const typeOk = p.mode === 'top' ? (camera as ThreeOrthographicCamera).isOrthographicCamera : (camera as ThreePerspectiveCamera).isPerspectiveCamera;
+    if (!controls || controls.object !== camera || !typeOk) {
+      state.invalidate(); // the rig's camera and controls register just after mount
+      return;
+    }
+    const a = applied.current;
+    if (a.pose === p && a.controls === controls && (p.mode !== 'top' || a.height === state.size.height)) return;
+    const damping = controls.enableDamping;
+    controls.enableDamping = false;
+    controls.update(); // flush leftover drag momentum, then place the camera
+    if (p.mode === 'orbit') {
+      const cam = camera as ThreePerspectiveCamera;
+      cam.up.set(0, 1, 0);
+      cam.fov = p.fovDeg;
+      cam.far = Math.max(far, p.distance + reach);
+      cam.updateProjectionMatrix();
+      controls.minDistance = Math.min(MIN_DISTANCE, p.distance);
+      controls.maxDistance = Math.max(maxDistance, p.distance);
+      controls.target.set(...p.target);
+      cam.position.set(...orbitPosition(p));
+    } else if (p.mode === 'top') {
+      const cam = camera as ThreeOrthographicCamera;
+      const up = topUp(p);
+      cam.up.set(...up);
+      // The controls rotate offsets into "camera-up-is-up" space once at construction; follow the new up.
+      if (controls._quat && controls._quatInverse) {
+        controls._quat.setFromUnitVectors(cam.up, new Vector3(0, 1, 0));
+        controls._quatInverse.copy(controls._quat).invert();
+      }
+      const zoom = topZoomFor(p, state.size.height);
+      cam.zoom = zoom;
+      cam.far = Math.max(far, fit.position[1] + reach);
+      cam.updateProjectionMatrix();
+      controls.minZoom = Math.min(topZoom * MIN_ZOOM_FACTOR, zoom * MIN_ZOOM_FACTOR);
+      controls.maxZoom = Math.max(topZoom * MAX_ZOOM_FACTOR, zoom * MAX_ZOOM_FACTOR);
+      controls.target.set(p.center[0], fit.target[1], p.center[1]);
+      cam.position.set(p.center[0], fit.position[1], p.center[1]);
+    }
+    controls.update();
+    controls.enableDamping = damping;
+    applied.current = { pose: p, controls, height: state.size.height };
+    noteAppliedPose(p);
+    state.invalidate();
+  }, -2);
+
   if (mode === 'top') {
     return (
       <>
         <OrthographicCamera makeDefault position={fit.position} up={fit.up} zoom={topZoom} near={NEAR} far={far} />
         <OrbitControls
           makeDefault
+          onStart={onUserCamera}
           target={fit.target}
           enableRotate={false}
           touches={TOP_TOUCHES}
@@ -90,9 +174,10 @@ export function CameraRig({
   }
   return (
     <>
-      <PerspectiveCamera makeDefault fov={ORBIT_FOV} position={fit.position} up={fit.up} near={NEAR} far={far} />
+      <PerspectiveCamera makeDefault fov={followed?.mode === 'orbit' ? followed.fovDeg : ORBIT_FOV} position={fit.position} up={fit.up} near={NEAR} far={far} />
       <OrbitControls
         makeDefault
+        onStart={onUserCamera}
         target={fit.target}
         touches={ORBIT_TOUCHES}
         minDistance={MIN_DISTANCE}
