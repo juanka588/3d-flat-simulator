@@ -1,0 +1,432 @@
+[
+  {
+    "provider": "mock",
+    "sku": "MOCK-WARD-SL100",
+    "name": "MOCK Sliding wardrobe 100x58x201",
+    "url": "https://shop.mock.example/p/mock-ward-sl100",
+    "price": 149.0,
+    "currency": "EUR",
+    "priceTtc": true,
+    "dims": {
+      "w": 1.0,
+      "d": 0.58,
+      "h": 2.01
+    },
+    "dimsSource": "structured",
+    "category": "wardrobe",
+    "mount": "floor",
+    "styleTags": [
+      "scandinavian",
+      "minimal"
+    ],
+    "colours": [
+      "white",
+      "oak"
+    ],
+    "variants": [
+      {
+        "sku": "MOCK-WARD-SL100-OAK",
+        "name": "MOCK Sliding wardrobe 100 oak",
+        "colour": "oak",
+        "price": 169.0
+      }
+    ],
+    "weightKg": 62.0,
+    "weightKind": "assembled",
+    "photoUrl": "https://shop.mock.example/img/mock-ward-sl100.jpg",
+    "modelRef": "mock-model/MOCK-WARD-SL100",
+    "fetchedAt": "2026-10-27T09:00:00.000Z",
+    "personalUseOnly": false
+  },
+  {
+    "provider": "mock",
+    "sku": "MOCK-BED-160",
+    "name": "MOCK Double bed frame 160x200",
+    "url": "https://shop.mock.example/p/mock-bed-160",
+    "price": 299.0,
+    "currency": "EUR",
+    "priceTtc": true,
+    "dims": {
+      "w": 1.6,
+      "d": 2.0,
+      "h": 0.9
+    },
+    "dimsSource": "structured",
+    "category": "bed",
+    "mount": "floor",
+    "styleTags": [
+      "scandinavian",
+      "cosy"
+    ],
+    "colours": [
+      "oak",
+      "white"
+    ],
+    "variants": [
+      {
+        "sku": "MOCK-BED-160-WHT",
+        "name": "MOCK Double bed frame 160 white",
+        "colour": "white",
+        "price": 279.0
+      }
+    ],
+    "weightKg": 48.5,
+    "weightKind": "assembled",
+    "photoUrl": "https://shop.mock.example/img/mock-bed-160.jpg",
+    "modelRef": "mock-model/MOCK-BED-160",
+    "fetchedAt": "2026-10-27T09:00:00.000Z",
+    "personalUseOnly": false
+  },
+  {
+    "provider": "mock",
+    "sku": "MOCK-NIGHT-WHT",
+    "name": "MOCK Bedside table white",
+    "url": "https://shop.mock.example/p/mock-night-wht",
+    "price": 29.99,
+    "currency": "EUR",
+    "priceTtc": true,
+    "dims": {
+      "w": 0.4,
+      "d": 0.35,
+      "h": 0.5
+    },
+    "dimsSource": "structured",
+    "category": "bedside",
+    "mount": "floor",
+    "styleTags": [
+      "scandinavian",
+      "minimal"
+    ],
+    "colours": [
+      "white"
+    ],
+    "variants": [],
+    "weightKg": 5.2,
+    "weightKind": "assembled",
+    "photoUrl": "https://shop.mock.example/img/mock-night-wht.jpg",
+    "fetchedAt": "2026-10-27T09:00:00.000Z",
+    "personalUseOnly": false
+  },
+  {
+    "provider": "mock",
+    "sku": "MOCK-NIGHT-OAK",
+    "name": "MOCK Bedside table oak",
+    "url": "https://shop.mock.example/p/mock-night-oak",
+    "price": 39.99,
+    "currency": "EUR",
+    "priceTtc": true,
+    "dims": {
+      "w": 0.42,
+      "d": 0.36,
+      "h": 0.52
+    },
+    "dimsSource": "text",
+    "category": "bedside",
+    "mount": "floor",
+    "styleTags": [
+      "scandinavian",
+      "cosy"
+    ],
+    "colours": [
+      "oak"
+    ],
+    "variants": [],
+    "weightKg": 6.0,
+    "weightKind": "assembled",
+    "photoUrl": "https://shop.mock.example/img/mock-night-oak.jpg",
+    "fetchedAt": "2026-10-27T09:00:00.000Z",
+    "personalUseOnly": false
+  },
+  {
+    "provider": "mock",
+    "sku": "MOCK-SHELF-77",
+    "name": "MOCK Cube shelf unit 77x39x147",
+    "url": "https://shop.mock.example/p/mock-shelf-77",
+    "price": 89.0,
+    "currency": "EUR",
+    "priceTtc": true,
+    "dims": {
+      "w": 0.77,
+      "d": 0.39,
+      "h": 1.47
+    },
+    "dimsSource": "structured",
+    "category": "shelf",
+    "mount": "floor",
+    "styleTags": [
+      "scandinavian",
+      "minimal"
+    ],
+    "colours": [
+      "white",
+      "black"
+    ],
+    "variants": [
+      {
+        "sku": "MOCK-SHELF-77-BLK",
+        "name": "MOCK Cube shelf unit black",
+        "colour": "black"
+      }
+    ],
+    "weightKg": 30.5,
+    "weightKind": "assembled",
+    "photoUrl": "https://shop.mock.example/img/mock-shelf-77.jpg",
+    "modelRef": "mock-model/MOCK-SHELF-77",
+    "fetchedAt": "2026-10-27T09:00:00.000Z",
+    "personalUseOnly": false
+  },
+  {
+    "provider": "mock",
+    "sku": "MOCK-CHEST-4",
+    "name": "MOCK Chest of 4 drawers",
+    "url": "https://shop.mock.example/p/mock-chest-4",
+    "price": 129.0,
+    "currency": "EUR",
+    "priceTtc": true,
+    "dims": {
+      "w": 0.8,
+      "d": 0.45,
+      "h": 1.0
+    },
+    "dimsSource": "structured",
+    "category": "drawers",
+    "mount": "floor",
+    "styleTags": [
+      "scandinavian",
+      "cosy"
+    ],
+    "colours": [
+      "white",
+      "oak"
+    ],
+    "variants": [],
+    "weightKg": 36.0,
+    "weightKind": "assembled",
+    "photoUrl": "https://shop.mock.example/img/mock-chest-4.jpg",
+    "fetchedAt": "2026-10-27T09:00:00.000Z",
+    "personalUseOnly": false
+  },
+  {
+    "provider": "mock",
+    "sku": "MOCK-DESK-120",
+    "name": "MOCK Desk 120x60",
+    "url": "https://shop.mock.example/p/mock-desk-120",
+    "price": 79.0,
+    "currency": "EUR",
+    "priceTtc": true,
+    "dims": {
+      "w": 1.2,
+      "d": 0.6,
+      "h": 0.75
+    },
+    "dimsSource": "structured",
+    "category": "desk",
+    "mount": "floor",
+    "styleTags": [
+      "minimal",
+      "industrial"
+    ],
+    "colours": [
+      "white",
+      "black"
+    ],
+    "variants": [],
+    "weightKg": 15.0,
+    "weightKind": "assembled",
+    "photoUrl": "https://shop.mock.example/img/mock-desk-120.jpg",
+    "modelRef": "mock-model/MOCK-DESK-120",
+    "fetchedAt": "2026-10-27T09:00:00.000Z",
+    "personalUseOnly": false
+  },
+  {
+    "provider": "mock",
+    "sku": "MOCK-ARM-01",
+    "name": "MOCK Armchair with cushion",
+    "url": "https://shop.mock.example/p/mock-arm-01",
+    "price": 189.0,
+    "currency": "EUR",
+    "priceTtc": true,
+    "dims": {
+      "w": 0.8,
+      "d": 0.85,
+      "h": 0.85
+    },
+    "dimsSource": "text",
+    "category": "armchair",
+    "mount": "floor",
+    "styleTags": [
+      "cosy",
+      "scandinavian"
+    ],
+    "colours": [
+      "grey",
+      "beige"
+    ],
+    "variants": [],
+    "weightKg": 14.0,
+    "weightKind": "assembled",
+    "photoUrl": "https://shop.mock.example/img/mock-arm-01.jpg",
+    "fetchedAt": "2026-10-27T09:00:00.000Z",
+    "personalUseOnly": false
+  },
+  {
+    "provider": "mock",
+    "sku": "MOCK-SOFA-3",
+    "name": "MOCK 3-seat sofa 200x90",
+    "url": "https://shop.mock.example/p/mock-sofa-3",
+    "price": 499.0,
+    "currency": "EUR",
+    "priceTtc": true,
+    "dims": {
+      "w": 2.0,
+      "d": 0.9,
+      "h": 0.85
+    },
+    "dimsSource": "structured",
+    "category": "sofa",
+    "mount": "floor",
+    "styleTags": [
+      "cosy",
+      "modern"
+    ],
+    "colours": [
+      "grey",
+      "green"
+    ],
+    "variants": [
+      {
+        "sku": "MOCK-SOFA-3-GRN",
+        "name": "MOCK 3-seat sofa green",
+        "colour": "green",
+        "price": 519.0
+      }
+    ],
+    "weightKg": 55.0,
+    "weightKind": "assembled",
+    "photoUrl": "https://shop.mock.example/img/mock-sofa-3.jpg",
+    "modelRef": "mock-model/MOCK-SOFA-3",
+    "fetchedAt": "2026-10-27T09:00:00.000Z",
+    "personalUseOnly": false
+  },
+  {
+    "provider": "mock",
+    "sku": "MOCK-RUG-170",
+    "name": "MOCK Woven rug 170x240",
+    "url": "https://shop.mock.example/p/mock-rug-170",
+    "price": 119.0,
+    "currency": "EUR",
+    "priceTtc": true,
+    "dims": {
+      "w": 1.7,
+      "d": 2.4,
+      "h": 0.01
+    },
+    "dimsSource": "structured",
+    "category": "rug",
+    "mount": "floor",
+    "styleTags": [
+      "cosy",
+      "bohemian"
+    ],
+    "colours": [
+      "beige"
+    ],
+    "variants": [],
+    "weightKg": 7.5,
+    "weightKind": "assembled",
+    "photoUrl": "https://shop.mock.example/img/mock-rug-170.jpg",
+    "fetchedAt": "2026-10-27T09:00:00.000Z",
+    "personalUseOnly": false
+  },
+  {
+    "provider": "mock",
+    "sku": "MOCK-LAMP-F1",
+    "name": "MOCK Floor lamp",
+    "url": "https://shop.mock.example/p/mock-lamp-f1",
+    "price": 39.0,
+    "currency": "EUR",
+    "priceTtc": true,
+    "dims": {
+      "w": 0.35,
+      "d": 0.35,
+      "h": 1.55
+    },
+    "dimsSource": "structured",
+    "category": "lamp",
+    "mount": "floor",
+    "styleTags": [
+      "minimal",
+      "modern"
+    ],
+    "colours": [
+      "black",
+      "white"
+    ],
+    "variants": [],
+    "weightKg": 4.0,
+    "weightKind": "assembled",
+    "photoUrl": "https://shop.mock.example/img/mock-lamp-f1.jpg",
+    "fetchedAt": "2026-10-27T09:00:00.000Z",
+    "personalUseOnly": false
+  },
+  {
+    "provider": "mock",
+    "sku": "MOCK-MIRR-50",
+    "name": "MOCK Wall mirror 50x150",
+    "url": "https://shop.mock.example/p/mock-mirr-50",
+    "price": 49.0,
+    "currency": "EUR",
+    "priceTtc": true,
+    "dims": {
+      "w": 0.5,
+      "d": 0.03,
+      "h": 1.5
+    },
+    "dimsSource": "structured",
+    "category": "mirror",
+    "mount": "wall",
+    "styleTags": [
+      "minimal",
+      "modern"
+    ],
+    "colours": [
+      "black"
+    ],
+    "variants": [],
+    "weightKg": 3.0,
+    "weightKind": "assembled",
+    "photoUrl": "https://shop.mock.example/img/mock-mirr-50.jpg",
+    "fetchedAt": "2026-10-27T09:00:00.000Z",
+    "personalUseOnly": false
+  },
+  {
+    "provider": "mock",
+    "sku": "MOCK-WCAB-80",
+    "name": "MOCK Wall cabinet 80x35x70 (heavy)",
+    "url": "https://shop.mock.example/p/mock-wcab-80",
+    "price": 119.0,
+    "currency": "EUR",
+    "priceTtc": true,
+    "dims": {
+      "w": 0.8,
+      "d": 0.35,
+      "h": 0.7
+    },
+    "dimsSource": "structured",
+    "category": "wall_cabinet",
+    "mount": "wall",
+    "styleTags": [
+      "scandinavian",
+      "minimal"
+    ],
+    "colours": [
+      "white"
+    ],
+    "variants": [],
+    "weightKg": 22.0,
+    "weightKind": "assembled",
+    "photoUrl": "https://shop.mock.example/img/mock-wcab-80.jpg",
+    "fetchedAt": "2026-10-27T09:00:00.000Z",
+    "personalUseOnly": false
+  }
+]

@@ -202,10 +202,13 @@ export const RESERVED_COMMAND_TYPES: Readonly<Record<string, string>> = {
   'room.add': 'room geometry editing is planned for M6',
   'room.remove': 'room geometry editing is planned for M6',
   'room.setPolygon': 'room geometry editing is planned for M6',
-  'item.add': 'item commands are planned for M5',
-  'item.update': 'item commands are planned for M5',
-  'item.remove': 'item commands are planned for M5',
-  'item.move': 'item commands are planned for M5',
+  'item.add': 'M5 lane B',
+  'item.update': 'M5 lane B',
+  'item.remove': 'M5 lane B',
+  'item.move': 'M5 lane B',
+  'item.place': 'M5 lane B',
+  'item.rotate': 'M5 lane B',
+  'item.setVariant': 'M5 lane B',
 };
 
 const Author = z.strictObject({

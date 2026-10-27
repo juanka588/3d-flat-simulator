@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { PROVIDER_ERROR_CODES, PROVIDER_ERROR_HINTS } from './products';
 import { CameraPose, LightingView, PresetName } from './view';
 
 /**
@@ -273,6 +274,8 @@ export const MCP_ONLY_ERROR_CODES = [
   'unauthorized',
   'not_implemented',
   'internal_error',
+  // Added by M5.0: product providers (hints in `PROVIDER_ERROR_HINTS`).
+  ...PROVIDER_ERROR_CODES,
 ] as const;
 
 export const MCP_ERROR_CODES = [...REDUCER_ERROR_CODES, ...MCP_ONLY_ERROR_CODES] as const;
@@ -303,6 +306,7 @@ export const MCP_ERROR_HINTS: Readonly<Record<McpErrorCode, string>> = {
   unauthorized: 'The scene server needs a token; set FLAT_TOKEN to the server token.',
   not_implemented: 'This tool is not implemented yet in this build.',
   internal_error: 'Unexpected failure; retry once, then report it with the message.',
+  ...PROVIDER_ERROR_HINTS,
 };
 
 /** One located problem inside an error (a reducer error or a server error item). */

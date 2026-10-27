@@ -1,0 +1,62 @@
+{
+  "$comment": "D4 local-only guards (M5). Data for scripts/ci/check-no-retailer.mjs (story M5.15). The check fails when any of these hosts appears in the Pages build output (apps/web/dist) or in a git-tracked file outside allowPaths, when a tracked file matches denyFiles, or when a tracked file is under denyDirs. Hosts match case-insensitively as a hostname suffix (www.ikea.com matches ikea.com) and as a plain substring of text files. Retailer data and models are streamed through the local server only, never committed or served from Pages.",
+  "version": 1,
+  "hosts": [
+    "ikea.com",
+    "ikea.fr",
+    "ikea-static.com",
+    "cdtapps.com",
+    "leroymerlin.fr",
+    "leroymerlin.com",
+    "maisonsdumonde.com",
+    "castorama.fr",
+    "conforama.fr",
+    "but.fr",
+    "laredoute.fr",
+    "laredoute.com",
+    "darty.com",
+    "fnac.com",
+    "cdiscount.com",
+    "amazon.fr",
+    "amazon.com",
+    "manomano.fr",
+    "bricodepot.fr",
+    "habitat.fr",
+    "alinea.com",
+    "awin1.com",
+    "awin.com",
+    "archiproducts.com",
+    "bimobject.com",
+    "3dwarehouse.sketchup.com"
+  ],
+  "allowPaths": [
+    "docs/**",
+    "apps/server/src/providers/**",
+    "apps/server/**/*.test.ts",
+    "apps/mcp/**/*.test.ts",
+    "packages/scene/**/*.test.ts",
+    "scripts/ci/**",
+    "scripts/models/**",
+    "README.md",
+    "tools/**"
+  ],
+  "denyFiles": [
+    "**/*.glb",
+    "**/*.gltf",
+    "**/*.usdz",
+    "**/.env",
+    "**/.env.*",
+    "**/*3d-future*",
+    "**/*3D-FUTURE*"
+  ],
+  "allowFiles": [
+    "**/.env.example",
+    "apps/web/public/models/**/*.glb"
+  ],
+  "denyDirs": [
+    "models/local",
+    "3d-future",
+    "3D-FUTURE",
+    "apps/server/data"
+  ]
+}

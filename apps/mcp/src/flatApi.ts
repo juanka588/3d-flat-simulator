@@ -1,13 +1,20 @@
 import {
+  parseProductId,
   type Author,
   type CheckpointsResponse,
   type CommandEnvelope,
+  type GetProductResponse,
   type HistoryResponse,
+  type IsSeenResponse,
+  type MarkSeenResponse,
   type PostCheckpointBody,
   type PostCheckpointResponse,
   type PostCommandResponse,
   type PostViewBody,
   type PostViewResponse,
+  type ProductSearchParamsInput,
+  type ProductSearchResponse,
+  type ProvidersResponse,
   type SceneResponse,
   type UndoToBody,
   type UndoToResponse,
@@ -70,7 +77,30 @@ export interface FlatApi {
   postView(body: PostViewBody): Promise<FlatResult<PostViewResponse>>;
   /** `GET /api/materials`: the material library catalog (raw JSON). */
   materials(): Promise<FlatResult<unknown>>;
+
+  // ---- M5 products (providers live in the scene server; nothing here touches a retailer) ----
+  /** `GET /api/providers` */
+  listProviders(): Promise<FlatResult<ProvidersResponse>>;
+  /** `GET /api/products/search?q=&provider=&category=&minPrice=&maxPrice=&maxW=&maxD=&maxH=&limit=` */
+  searchProducts(params: ProductSearchParamsInput): Promise<FlatResult<ProductSearchResponse>>;
+  /** `GET /api/products/:productId` (the id is `provider:sku`, URL-encoded). 404 -> `product_not_found`. */
+  getProduct(productId: string): Promise<FlatResult<GetProductResponse>>;
+  /** `POST /api/products/resolve` with `{url}`: reads one pasted product page (paste-URL provider). */
+  resolveProductUrl(url: string): Promise<FlatResult<GetProductResponse>>;
+  /** `POST /api/products/seen` with `{session, productIds}`: the ids a search returned to this MCP session. */
+  markProductsSeen(session: string, productIds: readonly string[]): Promise<FlatResult<MarkSeenResponse>>;
+  /** `GET /api/products/seen?session=&id=`: whether a search of this session returned the product (D9: only seen products can be placed). */
+  isProductSeen(session: string, productId: string): Promise<FlatResult<IsSeenResponse>>;
+  /**
+   * URL (no request is made) the viewer / a render uses to fetch a model, same origin as the scene server:
+   * `GET /api/assets/products/:provider/:sku.glb` (a provider model, streamed; personal use) or
+   * `GET /api/assets/meshes/:assetId.glb` (a library mesh).
+   */
+  assetUrl(ref: AssetRef): string;
 }
+
+/** What `FlatApi.assetUrl` addresses. */
+export type AssetRef = { kind: 'product-model'; productId: string } | { kind: 'mesh'; assetId: string };
 
 /** Errors that prove the request never reached the server (so a write cannot have been applied). */
 const NEVER_SENT = new Set(['ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN', 'EHOSTUNREACH', 'ENETUNREACH']);
@@ -172,5 +202,31 @@ export class HttpFlatApi implements FlatApi {
   }
   materials() {
     return this.call<unknown>('GET', '/api/materials');
+  }
+  listProviders() {
+    return this.call<ProvidersResponse>('GET', '/api/providers');
+  }
+  searchProducts(params: ProductSearchParamsInput) {
+    const qs = new URLSearchParams();
+    for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== '') qs.set(k, String(v));
+    return this.call<ProductSearchResponse>('GET', `/api/products/search?${qs}`);
+  }
+  getProduct(productId: string) {
+    return this.call<GetProductResponse>('GET', `/api/products/${encodeURIComponent(productId)}`);
+  }
+  resolveProductUrl(url: string) {
+    return this.call<GetProductResponse>('POST', '/api/products/resolve', { url });
+  }
+  markProductsSeen(session: string, productIds: readonly string[]) {
+    return this.call<MarkSeenResponse>('POST', '/api/products/seen', { session, productIds }, true);
+  }
+  isProductSeen(session: string, productId: string) {
+    return this.call<IsSeenResponse>('GET', `/api/products/seen?${new URLSearchParams({ session, id: productId })}`);
+  }
+  assetUrl(ref: AssetRef): string {
+    if (ref.kind === 'mesh') return `${this.config.serverUrl}/api/assets/meshes/${encodeURIComponent(ref.assetId)}.glb`;
+    const parsed = parseProductId(ref.productId);
+    if (!parsed) throw new RangeError(`invalid product id "${ref.productId}"`);
+    return `${this.config.serverUrl}/api/assets/products/${encodeURIComponent(parsed.provider)}/${encodeURIComponent(parsed.sku)}.glb`;
   }
 }

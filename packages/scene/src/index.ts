@@ -21,3 +21,7 @@ export * from './mcp-types';
 export * from './camera-presets';
 export * from './describe';
 export * from './diff';
+export { Clearance, DIM_MAX_M, Dims, HttpUrl, IsoDateTime, ItemMount, PRODUCT_NAME_MAX, ProviderId, SKU_MAX, Sku } from './primitives';
+export * from './products';
+export * from './placement/types';
+export * from './bill-of-materials';

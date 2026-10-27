@@ -4,6 +4,10 @@ import {
   canUndo,
   createHistory,
   loadSceneText,
+  matchProducts,
+  parseProductId,
+  ProductRecord,
+  summarizeProduct,
   parseCommand,
   recordCommand,
   describeCommand,
@@ -13,21 +17,29 @@ import {
   type Checkpoint,
   type CheckpointsResponse,
   type CommandEnvelope,
+  type GetProductResponse,
   type History,
   type HistoryResponse,
+  type IsSeenResponse,
   type LogEntry,
+  type MarkSeenResponse,
   type PostCheckpointBody,
   type PostCheckpointResponse,
   type PostCommandResponse,
   type PostViewBody,
   type PostViewResponse,
+  type ProductSearchParamsInput,
+  type ProductSearchResponse,
+  type ProviderInfo,
+  type ProvidersResponse,
   type Scene,
   type SceneResponse,
   type UndoToBody,
   type UndoToResponse,
 } from '@flat/scene';
 import charme from '@flat/scene/fixtures/charme-3205.flat.json';
-import type { FlatApi, FlatApiFailure, FlatResult, StepBody, WriteOptions } from '../flatApi';
+import productsFixture from '@flat/scene/fixtures/products.json';
+import type { AssetRef, FlatApi, FlatApiFailure, FlatResult, StepBody, WriteOptions } from '../flatApi';
 
 /** The Charme 3205 fixture, parsed and validated. */
 export function charmeScene(): Scene {
@@ -36,7 +48,14 @@ export function charmeScene(): Scene {
   return loaded.scene;
 }
 
+/** The fixture products (`packages/scene/fixtures/products.json`, provider `mock`), validated. */
+export function mockProductRecords(): ProductRecord[] {
+  return (productsFixture as unknown[]).map((p) => ProductRecord.parse(p));
+}
+
 export interface MockOptions {
+  /** Products of the `mock` provider (default: the fixture products). */
+  products?: ProductRecord[];
   scene?: Scene;
   /** Clock for step envelopes (default `Date.now`). */
   now?: () => number;
@@ -73,12 +92,29 @@ export class MockFlatApi implements FlatApi {
   private readonly now: () => number;
   private readonly catalog: unknown;
   private stepCounter = 0;
+  /** Products served by `searchProducts` / `getProduct` / `resolveProductUrl`. */
+  products: ProductRecord[];
+  /** Provider list returned by `listProviders` (default: one enabled `mock` provider). */
+  providers: ProviderInfo[];
+  /** Per MCP session: ids returned by searches (or marked with `markProductsSeen`). */
+  readonly seenProducts = new Map<string, Set<string>>();
 
   constructor(options: MockOptions = {}) {
     this.scene = options.scene ?? charmeScene();
     this.now = options.now ?? Date.now;
     this.epoch = options.epoch ?? 'mock-epoch';
     this.catalog = options.materials ?? { materials: [] };
+    this.products = options.products ?? mockProductRecords();
+    this.providers = [
+      {
+        id: 'mock',
+        label: 'Mock catalog (offline fixtures)',
+        capabilities: { search: true, model3d: false, dims: 'structured', resolveUrl: true },
+        enabled: true,
+        circuit: 'closed',
+        personalUseOnly: false,
+      },
+    ];
   }
 
   /** Makes the next call fail with `failure`. */
@@ -236,5 +272,58 @@ export class MockFlatApi implements FlatApi {
 
   async materials(): Promise<FlatResult<unknown>> {
     return this.gate<unknown>('materials') ?? { ok: true, data: this.catalog };
+  }
+
+  async listProviders(): Promise<FlatResult<ProvidersResponse>> {
+    return this.gate<ProvidersResponse>('listProviders') ?? { ok: true, data: { providers: this.providers } };
+  }
+
+  /** Like the real server, a search marks nothing as seen by itself: the MCP tool calls `markProductsSeen`. */
+  async searchProducts(params: ProductSearchParamsInput): Promise<FlatResult<ProductSearchResponse>> {
+    const g = this.gate<ProductSearchResponse>('searchProducts');
+    if (g) return g;
+    if (params.provider !== undefined && !this.providers.some((p) => p.id === params.provider)) {
+      return this.http(404, 'unknown_provider', `no provider "${params.provider}"`, 'provider');
+    }
+    const { matches, truncated } = matchProducts(this.products, params);
+    return { ok: true, data: { results: matches.map(summarizeProduct), providers: [{ provider: 'mock', ok: true }], truncated } };
+  }
+
+  async getProduct(productId: string): Promise<FlatResult<GetProductResponse>> {
+    const g = this.gate<GetProductResponse>('getProduct');
+    if (g) return g;
+    const ref = parseProductId(productId);
+    if (!ref) return this.http(422, 'invalid_command', `invalid product id "${productId}"`, 'productId');
+    const product = this.products.find((p) => p.provider === ref.provider && p.sku === ref.sku);
+    return product ? { ok: true, data: { product } } : this.http(404, 'product_not_found', `no product "${productId}"`, 'productId');
+  }
+
+  async resolveProductUrl(url: string): Promise<FlatResult<GetProductResponse>> {
+    const g = this.gate<GetProductResponse>('resolveProductUrl');
+    if (g) return g;
+    const product = this.products.find((p) => p.url === url);
+    return product ? { ok: true, data: { product } } : this.http(422, 'url_not_allowed', `cannot read ${url}`, 'url');
+  }
+
+  async markProductsSeen(session: string, productIds: readonly string[]): Promise<FlatResult<MarkSeenResponse>> {
+    const g = this.gate<MarkSeenResponse>('markProductsSeen');
+    if (g) return g;
+    const set = this.seenProducts.get(session) ?? new Set<string>();
+    for (const id of productIds) set.add(id);
+    this.seenProducts.set(session, set);
+    return { ok: true, data: { ok: true, seen: set.size } };
+  }
+
+  async isProductSeen(session: string, productId: string): Promise<FlatResult<IsSeenResponse>> {
+    const g = this.gate<IsSeenResponse>('isProductSeen');
+    if (g) return g;
+    return { ok: true, data: { seen: this.seenProducts.get(session)?.has(productId) ?? false } };
+  }
+
+  assetUrl(ref: AssetRef): string {
+    if (ref.kind === 'mesh') return `http://mock.flat/api/assets/meshes/${encodeURIComponent(ref.assetId)}.glb`;
+    const parsed = parseProductId(ref.productId);
+    if (!parsed) throw new RangeError(`invalid product id "${ref.productId}"`);
+    return `http://mock.flat/api/assets/products/${encodeURIComponent(parsed.provider)}/${encodeURIComponent(parsed.sku)}.glb`;
   }
 }

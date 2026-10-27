@@ -1,5 +1,11 @@
 import { z } from 'zod';
+import { checkParametricMesh, MeshSource } from './assets/catalog';
 import { isSimplePolygon, polygonArea } from './measure';
+import { Clearance, Dims, EntityId, ItemMount, NAME_MAX, NameString, Sku, stripControlChars, Vec2 } from './primitives';
+import { ProductRef, ProductSnapshot } from './products';
+import { Relation } from './placement/types';
+
+export { EntityId, NAME_MAX, stripControlChars, Vec2 };
 
 /**
  * Scene JSON: the single source of truth for a flat.
@@ -31,30 +37,7 @@ export const LIMITS = {
   materials: 1000,
 } as const;
 
-export const Vec2 = z.tuple([z.number(), z.number()]);
-export type Vec2 = z.infer<typeof Vec2>;
-
-/** Entity id: 1-64 characters. The same bound applies wherever an id is defined or referenced. */
-export const EntityId = z.string().min(1).max(64);
 const Id = EntityId;
-/** Maximum length of human-readable names. */
-export const NAME_MAX = 120;
-/**
- * Control characters (newlines, tabs, C0/C1 controls, line and paragraph separators) never survive in
- * a name or address: names reach an LLM as text, so a name must not be able to start a new line of
- * "instructions". Each run becomes one space.
- */
-// eslint-disable-next-line no-control-regex -- matching control characters is the point
-const CONTROL_CHARS = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]+/g;
-export function stripControlChars(s: string): string {
-  const out = s.replace(CONTROL_CHARS, ' ');
-  return out === s ? s : out.trim();
-}
-/** A human-readable name: at most `NAME_MAX` characters (counted before stripping), control characters removed. */
-const NameString = (description?: string) => {
-  const base = z.string().max(NAME_MAX);
-  return (description ? base.describe(description) : base).transform(stripControlChars);
-};
 /** Maximum length of the postal address. */
 export const ADDRESS_MAX = 300;
 const HexColor = z.string().regex(/^#[0-9a-fA-F]{6}$/, 'expected a hex colour like #a1b2c3');
@@ -158,7 +141,24 @@ export const Room = z.strictObject({
 });
 export type Room = z.infer<typeof Room>;
 
-export const Item = z.strictObject({
+/**
+ * A placed object. Pre-M5 items carry only the first five fields (`builtin:*` assets); M5 adds the
+ * product-grounded fields below, all optional so existing files stay valid and byte-stable.
+ *
+ * `assetId` is the id of the shape: `builtin:*` (legacy), `product:<provider>` (real provider model),
+ * the library asset id (lookalike) or `param:<generator>` (parametric); see `meshAssetId`.
+ *
+ * Cross-field rules enforced when parsing (`checkItemRules` on the item, `Scene.superRefine` for generators):
+ *  - `mount: 'floor'` with `elevation` other than 0 is INVALID (not normalised: a silent fix would hide
+ *    a wrong value); wall and ceiling mounts take any elevation >= 0 (negative is invalid for them too);
+ *  - `product.provider/sku` must equal `productRef` when both are present;
+ *  - a `provider` mesh needs a `productRef` (or `product`);
+ *  - a `parametric` mesh whose generator is REGISTERED (`GENERATORS`) must accept its params, and
+ *    `dims ?? product.dims` must match `describeParams(params).dims` within 2% (min 1 mm); an UNKNOWN
+ *    generator is skipped here and reported as the `unknown_generator` warning by `validateScene`.
+ * Legacy items (`builtin:*`, no product) stay valid; `validateScene` warns `missing_product` for the others.
+ */
+export const ItemBase = z.strictObject({
   id: Id,
   assetId: Id,
   position: Vec2,
@@ -166,7 +166,45 @@ export const Item = z.strictObject({
   /** Rotation around the vertical axis, degrees counter-clockwise seen from above. */
   rotation: z.number().default(0),
   roomId: Id.optional(),
+  /** The real product this item stands for: provider and SKU. */
+  productRef: ProductRef.optional(),
+  /** Facts about the product when it was placed (price TTC, dims, link, date). No photos or 3D. */
+  product: ProductSnapshot.optional(),
+  /** Where the item is fixed. Absent = derived (the builtin asset's mount, else floor). */
+  mount: ItemMount.optional(),
+  /** Exact outer dimensions in metres; absent = `product.dims`, else the builtin asset's. */
+  dims: Dims.optional(),
+  /** Chosen variant: the variant SKU (or colour name) of the product. */
+  variant: Sku.optional(),
+  /** How the shape is obtained (provider model, library lookalike, parametric generator). */
+  mesh: MeshSource.optional(),
+  /** Free space wanted around the item (overrides the generator / category default). */
+  clearance: Clearance.optional(),
+  /** Existing furniture the designer must plan around; only a user may move or remove it. */
+  locked: z.boolean().optional(),
+  /** The placement intent that put the item here (re-solved or validated when the room changes). */
+  relation: Relation.optional(),
 });
+
+type ItemFields = Omit<z.infer<typeof ItemBase>, 'id'>;
+
+/** Cross-field rules shared by `Item` and the `item.place` draft (where the id is optional). */
+export function checkItemRules(item: ItemFields, ctx: z.RefinementCtx): void {
+  const issue = (path: (string | number)[], message: string) => ctx.addIssue({ code: 'custom', path, message });
+  if (item.mount === 'floor' && item.elevation !== 0) {
+    issue(['elevation'], `a floor-mounted item must have elevation 0 (got ${item.elevation}); use mount "wall" or "ceiling" for raised items`);
+  } else if ((item.mount === 'wall' || item.mount === 'ceiling') && item.elevation < 0) {
+    issue(['elevation'], `a ${item.mount}-mounted item cannot have a negative elevation (${item.elevation})`);
+  }
+  if (item.productRef && item.product && (item.productRef.provider !== item.product.provider || item.productRef.sku !== item.product.sku)) {
+    issue(['productRef'], `productRef ${item.productRef.provider}:${item.productRef.sku} does not match product ${item.product.provider}:${item.product.sku}`);
+  }
+  if (item.mesh?.kind === 'provider' && !item.productRef && !item.product) {
+    issue(['mesh'], 'a "provider" mesh needs the productRef whose model to use');
+  }
+}
+
+export const Item = ItemBase.superRefine(checkItemRules);
 export type Item = z.infer<typeof Item>;
 
 const lightBase = {
@@ -321,7 +359,17 @@ export const Scene = SceneBase.superRefine((scene, ctx) => {
     checkMaterial(room.floorMaterial, ['rooms', i, 'floorMaterial']);
     checkMaterial(room.ceilingMaterial, ['rooms', i, 'ceilingMaterial']);
   });
-  scene.items.forEach((item, i) => checkRoom(item.roomId, ['items', i, 'roomId']));
+  scene.items.forEach((item, i) => {
+    checkRoom(item.roomId, ['items', i, 'roomId']);
+    if (item.mesh?.kind === 'parametric') {
+      const check = checkParametricMesh(item.mesh, item.dims ?? item.product?.dims);
+      if (check.status === 'invalid_params') issue(['items', i, 'mesh', 'params'], `generator "${check.generator}" rejects the params: ${check.issues.join('; ')}`);
+      else if (check.status === 'dims_mismatch') {
+        const f = (d: { w: number; d: number; h: number }) => `${d.w} x ${d.d} x ${d.h} m`;
+        issue(['items', i, 'dims'], `dims ${f(check.actual)} differ by more than 2% from generator "${check.generator}" (${f(check.expected)})`);
+      }
+    }
+  });
   scene.lights.forEach((light, i) => checkRoom(light.roomId, ['lights', i, 'roomId']));
 });
 export type Scene = z.infer<typeof Scene>;

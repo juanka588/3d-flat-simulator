@@ -1,6 +1,8 @@
 import { isBuiltinAsset } from './assets/builtin';
+import { checkParametricMesh, GENERATOR_DIMS_TOLERANCE } from './assets/catalog';
 import { edgeCoverage, roomCeilingHeight, triangulatePolygon } from './geometry/floors';
 import { polygonArea } from './measure';
+import type { Dims } from './primitives';
 import type { Scene, Vec2 } from './schema';
 import { wallLength } from './schema';
 
@@ -24,6 +26,11 @@ export const UNWALLED_TOLERANCE = 0.1;
 export const OVERLAP_AREA_THRESHOLD = 1e-4;
 /** Coordinates farther than this from the origin are reported, in metres. */
 export const MAX_COORDINATE = 1000;
+
+function dimsClose(a: Dims, b: Dims): boolean {
+  const ok = (x: number, y: number) => Math.abs(x - y) <= Math.max(GENERATOR_DIMS_TOLERANCE * y, 0.001);
+  return ok(a.w, b.w) && ok(a.d, b.d) && ok(a.h, b.h);
+}
 
 /** True when `p` lies inside the polygon or within `tolerance` of its boundary. */
 export function pointInPolygon(p: Vec2, polygon: readonly Vec2[], tolerance = 1e-6): boolean {
@@ -259,14 +266,51 @@ export function validateScene(scene: Scene): ValidationResult {
     }
   });
 
-  // Items whose asset is unknown are drawn as placeholder boxes.
+  // Items: unknown assets are drawn as placeholder boxes; non-legacy items should be backed by a product;
+  // generator and product dims should agree with the item's dims.
   scene.items.forEach((item, i) => {
-    if (!isBuiltinAsset(item.assetId)) {
+    const builtin = isBuiltinAsset(item.assetId);
+    if (!builtin && !item.mesh) {
       warnings.push({
         code: 'unknown_asset',
         message: `item "${item.id}" uses unknown asset "${item.assetId}" (drawn as a placeholder box)`,
         entityIds: [item.id],
         path: `items[${i}].assetId`,
+      });
+    }
+    // Legacy builtin:* items and locked existing furniture (e.g. built-in placards) have no product by design.
+    if (!builtin && !item.locked && !item.product && !item.productRef) {
+      warnings.push({
+        code: 'missing_product',
+        message: `item "${item.id}" is not backed by a product (no price, link or exact dimensions); place real products from search_products`,
+        entityIds: [item.id],
+        path: `items[${i}]`,
+      });
+    }
+    if (item.mesh?.kind === 'parametric') {
+      const check = checkParametricMesh(item.mesh, item.dims ?? item.product?.dims);
+      if (check.status === 'unknown_generator') {
+        warnings.push({
+          code: 'unknown_generator',
+          message: `item "${item.id}" uses generator "${check.generator}" which is not registered; its dimensions were not checked`,
+          entityIds: [item.id],
+          path: `items[${i}].mesh.generator`,
+        });
+      } else if (check.status === 'dims_mismatch' || check.status === 'invalid_params') {
+        warnings.push({
+          code: 'dims_mismatch',
+          message: `item "${item.id}" does not match generator "${check.generator}"${check.status === 'invalid_params' ? `: ${check.issues.join('; ')}` : ' dimensions (more than 2% apart)'}`,
+          entityIds: [item.id],
+          path: `items[${i}].mesh`,
+        });
+      }
+    }
+    if (item.dims && item.product && !dimsClose(item.dims, item.product.dims)) {
+      warnings.push({
+        code: 'dims_mismatch',
+        message: `item "${item.id}" dims differ by more than 2% from its product "${item.product.provider}:${item.product.sku}"`,
+        entityIds: [item.id],
+        path: `items[${i}].dims`,
       });
     }
   });
