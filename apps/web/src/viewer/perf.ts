@@ -27,11 +27,13 @@ export const FULL_PROFILE: PerfProfile = { low: false, maxDpr: 2, sunMap: 2048, 
 export const LOW_PROFILE: PerfProfile = { low: true, maxDpr: 1.5, sunMap: 1024, pointMap: 256, areaMap: 512, spotMap: 512, maxShadowLamps: 6, gridTiles: 2, environment: false, contactShadows: false, shadowRadius: 1.5 };
 
 /**
- * Texture units a lit material needs besides the lamp shadow maps: the sun's shadow map, the shell material's maps
- * (colour, normal, roughness, room ambient, room bounce) and one spare (the environment map). A fragment shader cannot use more than the
- * GPU's `MAX_TEXTURE_IMAGE_UNITS` (16 on most), so the lamp shadow maps get what is left.
+ * Texture units a lit material needs besides the lamp shadow maps. The heaviest are streamed provider models (glTF
+ * PBR): colour, normal, roughness, metalness, occlusion and emissive maps, plus the environment map and the sun's
+ * shadow map (8), and one spare. A fragment shader cannot use more than the GPU's `MAX_TEXTURE_IMAGE_UNITS` (16 on
+ * most desktops and phones): a material over it fails to compile and is not drawn at all (only its contact shadow
+ * shows), so the lamp shadow maps get what is left (7 on such a GPU).
  */
-export const RESERVED_TEXTURE_UNITS = 7;
+export const RESERVED_TEXTURE_UNITS = 9;
 
 /** Shadow-casting lamp lights the profile allows on a GPU with `maxTextures` fragment texture units (at least 2). */
 export function shadowLampBudget(profile: PerfProfile, maxTextures: number): number {

@@ -24,7 +24,7 @@ describe('perfProfileFor', () => {
 describe('shadowLampBudget', () => {
   it('leaves the texture units the materials and the sun need on a 16-unit GPU', () => {
     expect(shadowLampBudget(FULL_PROFILE, 16)).toBe(16 - RESERVED_TEXTURE_UNITS);
-    expect(shadowLampBudget(FULL_PROFILE, 16)).toBe(9);
+    expect(shadowLampBudget(FULL_PROFILE, 16)).toBe(7); // a streamed glTF material can use 8 units itself (see RESERVED_TEXTURE_UNITS)
   });
   it('is capped by the profile on big GPUs and never below 2', () => {
     expect(shadowLampBudget(FULL_PROFILE, 32)).toBe(FULL_PROFILE.maxShadowLamps);
