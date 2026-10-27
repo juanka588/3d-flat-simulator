@@ -37,13 +37,13 @@ const user = { kind: 'user' as const, name: 'u' };
 const llm = { kind: 'llm' as const, name: 'claude' };
 const env = (cmd: Command) => makeEnvelope(cmd, { id: `u-${++n}`, ts: 1000 + n, author: user });
 const north = (deg: number): Command => ({ type: 'site.set', site: { northAngle: deg } });
-const moveLocked = (x: number): Command => ({ type: 'item.move', id: 'placard-ch2', position: [x, 3.82] }); // a locked item of the Charme scene
+const moveLocked = (x: number): Command => ({ type: 'item.move', id: 'placard-ch1', position: [x, 4.12] }); // a locked item of the Charme scene with room to slide (the placard of Chambre 2 fills its niche exactly)
 
 describe('undo-to is all-or-nothing', () => {
   it('an LLM undo-to that would pass a locked item changes nothing; the user can do it', async () => {
     const b = await boot();
     expect((await b.call('POST', '/api/checkpoints', { name: 'start' })).status).toBe(200);
-    for (const c of [north(11), moveLocked(5.05), north(12)]) { const r = await b.call("POST", "/api/commands", env(c)); if (r.status !== 200) throw new Error(JSON.stringify(await r.json())); }
+    for (const c of [north(11), moveLocked(8.8), north(12)]) { const r = await b.call("POST", "/api/commands", env(c)); if (r.status !== 200) throw new Error(JSON.stringify(await r.json())); }
     const before = { rev: b.store.rev, seq: b.store.seq, scene: serializeScene(b.store.scene), past: b.store.history.past.length, log: await readFile(join(dir, 'log.ndjson'), 'utf8') };
 
     const refused = await b.call('POST', '/api/undo-to', { checkpoint: 'start', author: llm });
@@ -73,7 +73,7 @@ describe('undo-to is all-or-nothing', () => {
 describe('log replay is trusted history', () => {
   it('an old entry where an LLM undid a locked item replays instead of stopping the recovery', async () => {
     const b = await boot();
-    await b.call('POST', '/api/commands', env(moveLocked(5.05)));
+    await b.call('POST', '/api/commands', env(moveLocked(8.8)));
     expect((await b.call('POST', '/api/undo', { author: user })).status).toBe(200);
     await b.call('POST', '/api/commands', env(north(15)));
     const live = { rev: b.store.rev, scene: serializeScene(b.store.scene), epoch: b.store.epoch };

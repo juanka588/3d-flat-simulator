@@ -27,8 +27,8 @@ test('selecting tv-sejour shows its properties', async ({ page }) => {
   expect(await page.evaluate(() => window.__flat!.select('tv-sejour'))).toBe(true);
   await rendered(page);
   const properties = page.getByTestId('properties');
-  await expect(properties.getByRole('heading')).toHaveText('TV 55″ – 1.23 × 0.71 m');
-  await expect(properties).toContainText('sejour');
+  await expect(properties.getByRole('heading')).toHaveText('TV 55″');
+  await expect(properties).toContainText('Séjour / Cuisine');
   if (CAPTURE_DIR) {
     await savePng(page, `${CAPTURE_DIR}/tv-orbit.png`);
   }
@@ -43,7 +43,7 @@ test('clicking the TV in orbit view selects it', async ({ page }) => {
   const hit = await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.tagName, point);
   expect(hit).toBe('CANVAS');
   await page.mouse.click(point.x, point.y);
-  await expect(page.getByTestId('properties').getByRole('heading')).toHaveText('TV 55″ – 1.23 × 0.71 m');
+  await expect(page.getByTestId('properties').getByRole('heading')).toHaveText('TV 55″');
 });
 
 test('walking: the TV is in view 3 m away and does not block the way', async ({ page }) => {

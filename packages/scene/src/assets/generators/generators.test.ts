@@ -72,19 +72,19 @@ function hash(mesh: MeshData): string {
 }
 
 describe('generator registry', () => {
-  it('registers the 14 furniture generators and the TV in the process-wide registry', () => {
+  it('registers the 14 furniture generators, the TV and the fixed bathroom / kitchen ware in the process-wide registry', () => {
     expect(GENERATORS.list().map((g) => g.id)).toEqual(
-      ['bed', 'bookshelf', 'chair', 'desk', 'kitchenBase', 'kitchenWall', 'mirror', 'nightstand', 'rug', 'sideboard', 'sofa', 'table', 'tv', 'tvUnit', 'wardrobe'],
+      ['bathtub', 'bed', 'bookshelf', 'chair', 'cooktop', 'desk', 'fridge', 'kitchenBase', 'kitchenWall', 'mirror', 'nightstand', 'rug', 'sideboard', 'sofa', 'table', 'toilet', 'tv', 'tvUnit', 'wardrobe', 'washbasin'],
     );
-    expect(ALL_GENERATORS).toHaveLength(15);
+    expect(ALL_GENERATORS).toHaveLength(20);
   });
   it('registerGenerators is idempotent and fills any registry', () => {
     const r = createGeneratorRegistry();
     registerGenerators(r);
     registerGenerators(r);
-    expect(r.list()).toHaveLength(15);
+    expect(r.list()).toHaveLength(20);
     registerGenerators();
-    expect(GENERATORS.list()).toHaveLength(15);
+    expect(GENERATORS.list()).toHaveLength(20);
   });
 });
 
@@ -158,10 +158,13 @@ describe('generator geometry snapshot (determinism across versions)', () => {
     const hashes = Object.fromEntries(ALL_GENERATORS.map((g) => [g.id, hash(g.generate(g.params.parse({})))]));
     expect(hashes).toMatchInlineSnapshot(`
       {
+        "bathtub": "f424c97de453",
         "bed": "00cde1ca1ce2",
         "bookshelf": "4243d1409cbb",
         "chair": "a2d00fe62316",
+        "cooktop": "57a960b1d3e9",
         "desk": "e7efc3b244fe",
+        "fridge": "f2ee45bd30ae",
         "kitchenBase": "72a6d4a112e3",
         "kitchenWall": "21e21a334714",
         "mirror": "898316897d11",
@@ -170,9 +173,11 @@ describe('generator geometry snapshot (determinism across versions)', () => {
         "sideboard": "e87e8a013a1d",
         "sofa": "0fbda2f0041f",
         "table": "1525bab61567",
+        "toilet": "ed732cd1c9fb",
         "tv": "88bc8271a375",
         "tvUnit": "f63aaef263b4",
         "wardrobe": "c0a60c430e33",
+        "washbasin": "55469f0f665a",
       }
     `);
   });
@@ -241,6 +246,39 @@ describe('generator specifics', () => {
     const d65 = tv.describeParams(tv.params.parse({ diagonal: 65 })).dims;
     expect(d55).toEqual({ w: 1.23, d: 0.05, h: 0.71 });
     expect(d65.w).toBeGreaterThan(d55.w);
+  });
+
+  it('washbasin: every kind is exact, and a kitchen sink unit keeps its worktop at the full height', () => {
+    const wb = gen('washbasin');
+    for (const raw of [{ kind: 'vanity' }, { kind: 'pedestal', w: 0.55, d: 0.45 }, { kind: 'sink', w: 1.2, d: 0.6, h: 0.9 }, { kind: 'sink', w: 0.3, d: 0.3, h: 0.6 }, { kind: 'sink', w: 1.8, d: 0.8, h: 1 }]) expectSound(wb, raw);
+    const sink = wb.generate(wb.params.parse({ kind: 'sink', w: 1.2, d: 0.6, h: 0.9 }));
+    const top = sink.groups.find((m) => m.materialId === ITEM_MATERIALS.worktop)!;
+    let maxY = 0;
+    for (let i = top.start; i < top.start + top.count; i++) maxY = Math.max(maxY, sink.positions[sink.indices[i]! * 3 + 1]!);
+    expect(maxY).toBeCloseTo(0.9, 6);
+  });
+
+  it('bathtub: the taps are at the chosen end and the long side is the width', () => {
+    const b = gen('bathtub');
+    const metalX = (tapEnd: string) => {
+      const m = b.generate(b.params.parse({ tapEnd }));
+      const g = m.groups.find((x) => x.materialId === ITEM_MATERIALS.metal)!;
+      let max = -Infinity;
+      for (let i = g.start; i < g.start + g.count; i++) if (m.positions[m.indices[i]! * 3 + 1]! > 0.57) max = Math.max(max, m.positions[m.indices[i]! * 3]!);
+      return max;
+    };
+    expect(metalX('right')).toBeGreaterThan(0.5);
+    expect(metalX('left')).toBeLessThan(0);
+    expect(b.describeParams(b.params.parse({})).dims).toEqual({ w: 1.7, d: 0.7, h: 0.58 });
+  });
+
+  it('toilet, cooktop and fridge ask for front clearance and are exact at their extremes', () => {
+    for (const [id, raw] of [['toilet', { w: 0.3, d: 0.5, h: 0.6 }], ['toilet', { w: 0.5, d: 0.8, h: 0.95 }], ['cooktop', { burners: 1 }], ['cooktop', { w: 1, burners: 3 }], ['fridge', { freezer: 'none' }], ['fridge', { freezer: 'top', h: 0.8 }], ['fridge', { h: 2.1, w: 0.9 }]] as const) {
+      expectSound(gen(id), raw);
+    }
+    expect(gen('toilet').describeParams(gen('toilet').params.parse({})).clearance.front).toBeGreaterThanOrEqual(0.6);
+    expect(gen('cooktop').describeParams(gen('cooktop').params.parse({})).clearance.front).toBeGreaterThanOrEqual(0.9);
+    expect(gen('fridge').describeParams(gen('fridge').params.parse({})).dims).toEqual({ w: 0.6, d: 0.65, h: 1.85 });
   });
 
   it('rejects out-of-range and unknown params', () => {

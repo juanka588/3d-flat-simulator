@@ -51,7 +51,7 @@ function roomIdOf(scene: Scene, item: Item): string | undefined {
   return scene.rooms.find((r) => pointInPolygon(item.position, r.polygon, ROOM_TOLERANCE))?.id;
 }
 
-/** Cheap hard checks (inside the room, no overlap, door swings) on an item as it would stand in `scene`. */
+/** Cheap hard checks (inside the room, no overlap, door swings) on an item as it would stand in `scene`; locked items skip the room-containment rule. */
 function placementErrors(scene: Scene, item: Item, path: string): CommandError[] {
   const roomId = roomIdOf(scene, item);
   if (roomId === undefined) {
@@ -71,7 +71,10 @@ function placementErrors(scene: Scene, item: Item, path: string): CommandError[]
     dims: itemDims(item),
     mount: itemMountOf(item),
   };
-  return checkSubject(layoutContext(scene), subject, CHEAP_RULES).violations.map((v) => ({
+  // Existing furniture is built into the plan, not placed in a room: a locked item may stand outside its room's polygon
+  // (the placard of Chambre 2 sits in the wall thickness and opens onto the Entrée), as `validateLayout` does not judge it either.
+  const rules = item.locked === true ? CHEAP_RULES.filter((r) => r !== 'inside') : CHEAP_RULES;
+  return checkSubject(layoutContext(scene), subject, rules).violations.map((v) => ({
     ...err('placement_invalid', path, v.message, v.hint),
     violation: v,
   }));

@@ -14,6 +14,17 @@ const parsed = parseScene(charme);
 if (!parsed.ok) throw new Error(parsed.errors.join('\n'));
 const flat: Scene = parsed.scene;
 
+/**
+ * The placard of Chambre 2 is a closet in the wall thickness: Chambre 2's polygon keeps it (the official 11.13 m2 includes
+ * it) but its doors open onto the Entrée, so neither room has a wall along the closet front. These two `room-edge-unwalled`
+ * warnings are expected and nothing else is.
+ */
+const PLACARD_CH2_WARNINGS = [
+  { code: 'room-edge-unwalled', room: 'ch2' },
+  { code: 'room-edge-unwalled', room: 'entree' },
+];
+const warningsOf = (scene: Scene) => validateScene(scene).warnings.map((w) => ({ code: w.code, room: w.entityIds[0] }));
+
 function bounds(mesh: MeshData, owner?: string) {
   const min = [Infinity, Infinity, Infinity];
   const max = [-Infinity, -Infinity, -Infinity];
@@ -106,7 +117,7 @@ describe('builtin:tv-55', () => {
   });
 
   it('hangs flat against the séjour face of w-alcove, centred at about 1.10 m, clear of walls and the door', () => {
-    expect(validateScene(flat).warnings).toEqual([]);
+    expect(warningsOf(flat)).toEqual(PLACARD_CH2_WARNINGS);
     const item = flat.items.find((i) => i.id === 'tv-sejour')!;
     expect(item).toMatchObject({ assetId: 'builtin:tv-55', roomId: 'sejour', rotation: 0 });
     expect(itemFrontDirection(item)).toEqual([0, 1]);
@@ -247,11 +258,8 @@ describe('buildItems with M5 mesh sources', () => {
   });
 });
 
-describe('built-in placards of Chambre 1 and Chambre 2 (M5.17, transcribed from the plan, locked)', () => {
-  const wardrobes = [
-    { id: 'placard-ch1', room: 'ch1', wall: 'w-ch1-south', door: 'door-ch1' },
-    { id: 'placard-ch2', room: 'ch2', wall: 'w-ch2-south', door: 'door-ch2' },
-  ];
+describe('built-in placard of Chambre 1 (M5.17, transcribed from the plan, locked); the one of Chambre 2 is in charme-fixtures.test.ts', () => {
+  const wardrobes = [{ id: 'placard-ch1', room: 'ch1', wall: 'w-ch1-south', door: 'door-ch1' }];
 
   it.each(wardrobes)('$id is a locked sliding wardrobe flush against the inner face of $wall, opening north into the room', ({ id, room, wall }) => {
     const item = flat.items.find((i) => i.id === id)!;
@@ -293,11 +301,14 @@ describe('built-in placards of Chambre 1 and Chambre 2 (M5.17, transcribed from 
     expect(min[0]! >= to || max[0]! <= from).toBe(true);
   });
 
-  it('the Charme flat has no warnings and the placards cost nothing in the bill of materials', async () => {
-    expect(validateScene(flat).warnings).toEqual([]);
+  it('the Charme flat has only the documented placard warnings and the existing furniture costs nothing in the bill of materials', async () => {
+    expect(warningsOf(flat)).toEqual(PLACARD_CH2_WARNINGS);
     const { billOfMaterials } = await import('../bill-of-materials');
     const bom = billOfMaterials(flat);
-    expect(bom.lines.filter((l) => l.locked).map((l) => [l.itemId, l.roomId, l.amount])).toEqual([['placard-ch1', 'ch1', 0], ['placard-ch2', 'ch2', 0]]);
+    const locked = bom.lines.filter((l) => l.locked);
+    expect(locked.length).toBe(flat.items.filter((i) => i.locked).length);
+    expect(locked.map((l) => [l.itemId, l.roomId, l.amount]).slice(0, 2)).toEqual([['placard-ch1', 'ch1', 0], ['placard-ch2', 'entree', 0]]);
+    expect(locked.every((l) => l.existing && l.amount === 0)).toBe(true);
     expect(bom.missingPrice).toEqual(['tv-sejour']); // the legacy TV is the only unpriced, unlocked item
     expect(bom.totalEur).toBe(0);
   });

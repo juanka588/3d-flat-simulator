@@ -150,11 +150,12 @@ test('item properties, nudge, rotate, delete and the locked placard', async ({ p
 
 test('the gizmo moves and rotates the selected item (one history entry per drag), a wall mount has an elevation handle', async ({ page }) => {
   await prepare(page);
+  const base = (await items(page)).length; // the flat's own fixtures (placards, kitchen, bathroom...) plus the TV
   await search(page, 'bed');
   const card = page.locator('[data-testid=product-card][data-product-id="mock:MOCK-BED-160"]');
   await dragTo(page, card, 5.4, 1.9);
   await page.mouse.up();
-  await expect.poll(async () => (await items(page)).length).toBe(4);
+  await expect.poll(async () => (await items(page)).length).toBe(base + 1);
   const get = () => flat(page, (f) => f.getScene().items.at(-1)!);
   const h0 = await entries(page);
 
@@ -186,7 +187,7 @@ test('the gizmo moves and rotates the selected item (one history entry per drag)
   await dragTo(page, mirror, 4.2, 1.5);
   await expect.poll(async () => (await ghost(page))?.valid).toBe(true);
   await page.mouse.up();
-  await expect.poll(async () => (await items(page)).length).toBe(5);
+  await expect.poll(async () => (await items(page)).length).toBe(base + 2);
   const m = await get();
   expect(m.mount).toBe('wall');
   expect(m.rotation).toBe(90);

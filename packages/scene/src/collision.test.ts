@@ -53,7 +53,7 @@ describe('wallObstacles', () => {
     const total = wallObstacles(scene)
       .filter((o) => o.wallId === 'w-ch2-south')
       .reduce((s, o) => s + Math.hypot(o.b[0] - o.a[0], o.b[1] - o.a[1]), 0);
-    expect(total).toBeCloseTo(2.77 - 0.8, 9);
+    expect(total).toBeCloseTo(1.08 - 0.8, 9); // w-ch2-south is now only the door segment (5.795 to 6.875)
   });
 });
 

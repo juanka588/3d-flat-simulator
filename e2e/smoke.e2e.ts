@@ -44,8 +44,8 @@ test('mode switching updates the view and Esc leaves walk mode', async ({ page }
   const mode = () => flat(page, (f) => f.stats().mode);
   expect(await mode()).toBe('orbit');
 
-  await page.getByRole('button', { name: 'Top' }).click();
-  await expect(page.getByRole('button', { name: 'Top' })).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: 'Top', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Top', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await rendered(page);
   expect(await mode()).toBe('top');
 

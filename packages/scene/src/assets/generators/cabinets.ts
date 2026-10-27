@@ -5,7 +5,7 @@ import { FRONT, HANDLE, Kit, addFronts, boxAnchors, count, finish, finishMateria
 
 /** Cabinet-like generators: wardrobe, kitchen base / wall units, sideboard, TV unit, nightstand. */
 
-interface CabinetSpec {
+export interface CabinetSpec {
   w: number;
   d: number;
   h: number;
@@ -21,7 +21,7 @@ interface CabinetSpec {
   topMat?: string;
 }
 
-function cabinet(kit: Kit, s: CabinetSpec): void {
+export function cabinet(kit: Kit, s: CabinetSpec): void {
   const { w, d, h } = s;
   const zFace = d / 2 - HANDLE;
   // A unit with no doors or drawers is a plain panel: the body itself reaches the front.

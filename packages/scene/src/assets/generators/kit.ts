@@ -43,6 +43,62 @@ export class Kit {
     for (const f of faces) b.quad(f.c, f.n, f.uv, material, OWNER);
   }
 
+  /**
+   * Adds an upright elliptic prism (centre `cx, cz`, radii `rx, rz`, from `y0` to `y1`) with smooth side normals and a
+   * top cap; no bottom cap (it rests on something). `segments` must be a multiple of 4 so the extreme points lie exactly
+   * on the axes and the bounding box is exact.
+   */
+  prism(material: string, cx: number, y0: number, cz: number, rx: number, rz: number, y1: number, segments = 16): void {
+    if (rx < 1e-9 || rz < 1e-9 || y1 - y0 < 1e-9) return;
+    const b = this.b;
+    const n = segments;
+    const ring = (i: number) => {
+      const a = (2 * Math.PI * i) / n;
+      return { c: Math.cos(a), s: Math.sin(a) };
+    };
+    for (let i = 0; i < n; i++) {
+      const p = ring(i);
+      const q = ring(i + 1);
+      const normal = (r: { c: number; s: number }): Vec3 => {
+        const nx = r.c / rx;
+        const nz = r.s / rz;
+        const l = Math.hypot(nx, nz);
+        return [nx / l, 0, nz / l];
+      };
+      const at = (r: { c: number; s: number }, y: number): Vec3 => [cx + rx * r.c, y, cz + rz * r.s];
+      const u0 = i / n;
+      const u1 = (i + 1) / n;
+      const v0 = b.vertex(at(p, y0), normal(p), [u0, 0]);
+      const v1 = b.vertex(at(p, y1), normal(p), [u0, y1 - y0]);
+      const v2 = b.vertex(at(q, y1), normal(q), [u1, y1 - y0]);
+      const v3 = b.vertex(at(q, y0), normal(q), [u1, 0]);
+      b.triangle(v0, v1, v2, material, OWNER);
+      b.triangle(v0, v2, v3, material, OWNER);
+      const top: Vec3 = [0, 1, 0];
+      const c0 = b.vertex([cx, y1, cz], top, [0.5, 0.5]);
+      const t1 = b.vertex(at(q, y1), top, [0.5 + 0.5 * q.c, 0.5 + 0.5 * q.s]);
+      const t0 = b.vertex(at(p, y1), top, [0.5 + 0.5 * p.c, 0.5 + 0.5 * p.s]);
+      b.triangle(c0, t1, t0, material, OWNER);
+    }
+  }
+
+  /**
+   * A horizontal slab `[x0,x1] x [z0,z1]` from `y0` to `y1` with rectangular `holes` (each `[x0, z0, x1, z1]`, inside the
+   * slab and not overlapping each other), built as a grid of boxes around the holes.
+   */
+  slab(material: string, x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, holes: readonly (readonly [number, number, number, number])[] = []): void {
+    const xs = [...new Set([x0, x1, ...holes.flatMap((h) => [h[0], h[2]])])].sort((a, b) => a - b);
+    const zs = [...new Set([z0, z1, ...holes.flatMap((h) => [h[1], h[3]])])].sort((a, b) => a - b);
+    for (let i = 0; i + 1 < xs.length; i++) {
+      for (let k = 0; k + 1 < zs.length; k++) {
+        const cx = (xs[i]! + xs[i + 1]!) / 2;
+        const cz = (zs[k]! + zs[k + 1]!) / 2;
+        if (holes.some((h) => cx > h[0] && cx < h[2] && cz > h[1] && cz < h[3])) continue;
+        this.box(material, xs[i]!, y0, zs[k]!, xs[i + 1]!, y1, zs[k + 1]!);
+      }
+    }
+  }
+
   build(): MeshData {
     return this.b.build();
   }

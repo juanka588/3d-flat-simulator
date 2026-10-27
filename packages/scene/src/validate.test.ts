@@ -31,8 +31,13 @@ function room(extra: Record<string, unknown> = {}) {
 }
 
 describe('validateScene on fixtures', () => {
-  it('Charme 3205 is clean: every room edge is backed, no overlaps, lights inside, no openings near junctions', () => {
-    expect(validateScene(load(charme)).warnings).toEqual([]);
+  it('Charme 3205 is clean: every room edge is backed, no overlaps, lights inside, no openings near junctions (bar the placard of Chambre 2)', () => {
+    // The closet of Chambre 2 is in the wall thickness and opens onto the Entrée: Chambre 2 keeps its polygon (the official
+    // area includes the closet) and neither room has a wall along the closet doors. That is the only thing reported.
+    expect(validateScene(load(charme)).warnings.map((w) => [w.code, ...w.entityIds])).toEqual([
+      ['room-edge-unwalled', 'ch2'],
+      ['room-edge-unwalled', 'entree'],
+    ]);
   });
 
   it('sample flat: doors flush against the bathroom wall T-junction and two open-plan edges', () => {
