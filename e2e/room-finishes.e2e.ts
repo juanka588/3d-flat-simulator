@@ -7,7 +7,7 @@ import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { wallLeftNormal, wallStats } from '../packages/scene/src/index';
 import type { Scene } from '../packages/scene/src/index';
-import { meanLuma, openApp, rendered } from './helpers';
+import { meanLuma, openApp, rendered, southEastOrbit } from './helpers';
 
 const getScene = (page: Page): Promise<Scene> => page.evaluate(() => window.__flat!.getScene());
 const finishPanel = (page: Page) => page.getByTestId('properties').getByRole('region', { name: 'Finish' });
@@ -124,6 +124,7 @@ test.describe('room-scoped wall finishes', () => {
 
   test('a real click on w-north inside chambre 1 paints only chambre 1; the alcove and chambre 2 stretches are unchanged', async ({ page }) => {
     test.slow();
+    await southEastOrbit(page);
     const original = await getScene(page);
     const before = faceMaterials(original);
     // w-north starts at x=-1.6; chambre 1 is x 6.91..10.05 (s 8.51..11.65), away from its window (s 10.44..11.34).

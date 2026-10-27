@@ -100,7 +100,7 @@ const RENDER_SCRIPT = `async (a) => {
     if (!r.ok) sceneError = (r.errors || []).join('; ') || 'the viewer rejected the scene';
   }
   if (sceneError) return { error: sceneError };
-  if (f.setComfort) await f.setComfort({ translucentDoors: false });
+  if (f.setComfort) await f.setComfort({ translucentDoors: false, buildingMode: 'ghost' });
   await f.setLighting(a.lighting);
   await f.setCamera(a.pose);
   await f.whenRendered();

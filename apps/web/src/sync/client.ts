@@ -428,7 +428,7 @@ export class SyncClient {
       this.core.setHistoryFlags(h.data.canUndo, h.data.canRedo);
       const state = this.core.state;
       this.store.getState().setRemoteHistory({
-        past: h.data.past.map((p) => ({ id: p.id, label: p.label, type: this.types.get(p.id) ?? p.label, author: p.author.kind })),
+        past: h.data.past.map((p) => ({ id: p.id, label: p.label, type: this.types.get(p.id) ?? p.label, author: p.author.kind, ts: p.ts })),
         futureCount: h.data.future.length,
         canUndo: state.canUndo,
         canRedo: state.canRedo,

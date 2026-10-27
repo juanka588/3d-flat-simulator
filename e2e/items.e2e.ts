@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { charmeFlat, flat, openApp, rendered, savePng } from './helpers';
+import { charmeFlat, flat, openApp, rendered, savePng, southEastOrbit } from './helpers';
 
 // Set ITEMS_CAPTURE_DIR to also write the reference captures (walk and orbit views of the TV) there.
 const CAPTURE_DIR = process.env.ITEMS_CAPTURE_DIR;
@@ -38,6 +38,7 @@ test('clicking the TV in orbit view selects it', async ({ page }) => {
   // Look at the TV's face (it faces plan +y, the séjour) from the south-west, in orbit.
   const tv = charmeFlat['items'] as { id: string; position: [number, number] }[];
   const item = tv.find((i) => i.id === 'tv-sejour')!;
+  await southEastOrbit(page);
   const point = await page.evaluate(([x, z]) => window.__flat!.project([x!, 1.1, z! + 0.03]), item.position);
   const hit = await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.tagName, point);
   expect(hit).toBe('CANVAS');

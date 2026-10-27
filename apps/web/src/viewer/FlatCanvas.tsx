@@ -5,6 +5,7 @@ import type { PointerEvent as ReactPointerEvent } from 'react';
 import { BUILTIN_MATERIALS } from '@flat/scene';
 import type { Scene, SiteContext } from '@flat/scene';
 import { CameraRig } from './CameraRig';
+import { buildingFraming } from './building-framing';
 import { CompassDriver, CompassOverlay } from './Compass';
 import { SelectionHighlight } from './SelectionHighlight';
 import { StructuralOverlay } from './StructuralOverlay';
@@ -56,7 +57,9 @@ export function FlatCanvas({ scene, view, context = null, onSelect, onExitWalk, 
   }, []);
 
   // One object per (scene, lighting, context) so the guard can keep the last combination that drew fine.
-  const lightingInput = useMemo(() => ({ scene, lighting: view.lighting, context }), [scene, view.lighting, context]);
+  const buildingMode = view.buildingMode ?? 'ghost';
+  const framing = useMemo(() => buildingFraming(scene, view.lighting.showContext ? context : null), [scene, context, view.lighting.showContext]);
+  const lightingInput = useMemo(() => ({ scene, lighting: view.lighting, context, viewMode: view.mode, buildingMode }), [scene, view.lighting, context, view.mode, buildingMode]);
 
   const rememberPointerDown = (e: ReactPointerEvent) => {
     downAt.current = [e.clientX, e.clientY];
@@ -82,7 +85,7 @@ export function FlatCanvas({ scene, view, context = null, onSelect, onExitWalk, 
       >
         <color attach="background" args={['#e8ebf0']} />
         <ViewerGuard value={lightingInput} source="lighting">
-          {(l) => <LightingRig scene={l.scene} lighting={l.lighting} context={l.context} />}
+          {(l) => <LightingRig scene={l.scene} lighting={l.lighting} context={l.context} viewMode={l.viewMode} buildingMode={l.buildingMode} />}
         </ViewerGuard>
         <ViewerGuard value={scene} source="shell">
           {(sc) => <Shell scene={sc} view={view} onSelect={onSelect} />}
@@ -91,7 +94,7 @@ export function FlatCanvas({ scene, view, context = null, onSelect, onExitWalk, 
         {view.mode === 'walk' ? (
           <WalkControls key={`walk:${sceneKey(scene)}`} scene={scene} personHeightCm={view.personHeightCm} onExit={onExitWalk ?? noop} pose={view.camera?.mode === 'walk' ? view.camera : undefined} onUserCamera={onUserCamera} />
         ) : (
-          <CameraRig key={`${view.mode}:${sceneKey(scene)}`} scene={scene} mode={view.mode} extraReach={contextReach(scene, view.lighting.showContext ? context : null)} pose={view.camera} onUserCamera={onUserCamera} />
+          <CameraRig key={`${view.mode}:${sceneKey(scene)}`} scene={scene} mode={view.mode} extraReach={contextReach(scene, view.lighting.showContext ? context : null)} framing={framing} pose={view.camera} onUserCamera={onUserCamera} />
         )}
         {onFrame && <FrameReporter scene={scene} view={view} onFrame={onFrame} />}
         <CompassDriver onAngle={setNeedle} northAngle={scene.site.northAngle} />

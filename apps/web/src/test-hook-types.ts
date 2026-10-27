@@ -120,9 +120,11 @@ export interface FlatTestHook {
   setLighting: (partial: Partial<LightingView>) => Promise<void>;
   /**
    * M4: walk-mode comfort switches, for renders that must show reality. `translucentDoors: false` draws door
-   * leaves opaque in walk mode too. Not persisted; the user's tab never sets it. Resolves after a frame reflecting it.
+   * leaves opaque in walk mode too; `buildingMode` sets the orbit-view host-building envelope (default `ghost`). Not persisted; the user's tab never sets it. Resolves after a frame reflecting it.
    */
-  setComfort: (partial: { translucentDoors?: boolean }) => Promise<void>;
+  setComfort: (partial: { translucentDoors?: boolean; buildingMode?: 'hidden' | 'ghost' | 'solid' }) => Promise<void>;
+  /** The host-building meshes currently in the scene (façade, ghost envelope or solid), with how they are drawn. */
+  hostBuilding: () => { name: string; visible: boolean; castShadow: boolean; pickable: boolean; opacity: number; transparent: boolean; depthWrite: boolean }[];
   /** Sun position and daylight times for the current lighting view (or why they are unavailable). */
   sunInfo: () => SunInfo;
   /** Chooses the day-animation time source: `manual` advances only through `tick`. */

@@ -94,6 +94,15 @@ describe('REST', () => {
     expect(lines).toHaveLength(1);
   });
 
+  it('history labels are descriptive for unlabelled commands (room and material names, not ids)', async () => {
+    const { call } = await boot();
+    await call('POST', '/api/commands', env({ type: 'site.set', site: { latitude: 48.79 } }));
+    await call('POST', '/api/commands', env({ type: 'room.setFloor', roomId: 'sejour', materialId: 'floor-tile' }, { author: { kind: 'llm', name: 'claude' } }));
+    await call('POST', '/api/commands', env({ type: 'light.update', id: 'l-sejour', patch: { on: false } }));
+    const h = await (await call('GET', '/api/history')).json();
+    expect(h.past.map((p: { label: string }) => p.label)).toEqual(['Set latitude to 48.79', 'Floor of Séjour → Light grey tile (satin)', 'Turn off Séjour ceiling']);
+  });
+
   it('stale ifRev -> precondition_failed with the current rev', async () => {
     const { call } = await boot();
     await call('POST', '/api/commands', env(north(1)));

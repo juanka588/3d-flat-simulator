@@ -63,7 +63,7 @@ export function SitePanel({ scene }: { scene: Scene }) {
       const patch: Partial<Scene['site']> = {};
       for (const k of SITE_KEYS) if (result.data[k] !== scene.site[k]) Object.assign(patch, { [k]: result.data[k] });
       if (Object.keys(patch).length > 0) {
-        useSceneStore.getState().dispatch({ type: 'site.set', site: patch }, { coalesceKey: `site.set:${key}`, label: 'Edit site' });
+        useSceneStore.getState().dispatch({ type: 'site.set', site: patch }, { coalesceKey: `site.set:${key}` });
       }
       return;
     }

@@ -2,6 +2,13 @@ import type { CameraPose, LightingView, OwnerKind, WallFace } from '@flat/scene'
 
 export type ViewMode = 'orbit' | 'top' | 'walk';
 
+/**
+ * How the host building around the flat (its own storey and the floors above) is drawn in orbit view:
+ * `hidden` (invisible, shadow only), `ghost` (translucent envelope, the default) or `solid`. Top and walk always hide it.
+ */
+export type BuildingMode = 'hidden' | 'ghost' | 'solid';
+export const BUILDING_MODES: readonly BuildingMode[] = ['hidden', 'ghost', 'solid'];
+
 /** A picked scene entity (and, for walls, which face of it). */
 export interface Selection {
   kind: OwnerKind;
@@ -28,4 +35,6 @@ export interface ViewState {
   camera?: CameraPose;
   /** Walk mode draws door leaves see-through (default; `false` keeps them opaque, as renders for the assistant need). */
   translucentDoors?: boolean;
+  /** Host-building envelope in orbit view (default `ghost`). */
+  buildingMode?: BuildingMode;
 }

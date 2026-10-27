@@ -233,7 +233,7 @@ test('a site panel edit is undoable and the sun moves back', async ({ page }) =>
   await expect.poll(() => flat(page, (f) => f.getScene().site.northAngle)).toBe(75);
   await rendered(page);
   expect(await sunDirection()).not.toEqual(original);
-  expect(await flat(page, (f) => f.history().labels)).toEqual(['Edit site']);
+  expect(await flat(page, (f) => f.history().labels)).toEqual(['Set north angle to 75°']);
 
   await input.blur();
   await page.keyboard.press('ControlOrMeta+z');
@@ -241,6 +241,59 @@ test('a site panel edit is undoable and the sun moves back', async ({ page }) =>
   await rendered(page);
   expect(await sunDirection()).toEqual(original);
   await expect(input).toHaveValue(originalAngle); // the form follows the undo
+});
+
+test('the site panel records nothing until a value changes, then one descriptive entry that survives a reload', async ({ page }) => {
+  const history = () => flat(page, (f) => f.history());
+  const fields = ['latitude', 'longitude', 'northAngle', 'timezone', 'floorElevation'] as const;
+
+  // Focus, Tab through and blur every field, retype the same value, change the date and time and press Now: no entries.
+  await page.getByTestId('site-latitude').focus();
+  for (let i = 0; i < fields.length; i++) await page.keyboard.press('Tab');
+  for (const f of fields) {
+    const input = page.getByTestId(`site-${f}`);
+    await input.focus();
+    await input.blur();
+  }
+  const latitude = page.getByTestId('site-latitude');
+  const original = await latitude.inputValue();
+  await latitude.fill(original);
+  await latitude.fill(String(Number(original))); // "48.7859" formatted differently, same number
+  await latitude.blur();
+  await page.getByLabel('Date').fill('2026-06-21');
+  await page.getByLabel('Exact time').fill('09:30');
+  await page.getByRole('button', { name: 'Now' }).click();
+  await rendered(page);
+  expect((await history()).labels).toEqual([]);
+  expect((await history()).entries).toEqual([]);
+
+  // One edit, one entry.
+  await latitude.fill('48.79');
+  await expect.poll(() => flat(page, (f) => f.getScene().site.latitude)).toBe(48.79);
+  expect((await history()).labels).toEqual(['Set latitude to 48.79']);
+  expect((await history()).entries).toHaveLength(1);
+
+  // The popover shows the label, who and when.
+  await page.getByRole('button', { name: 'History' }).click();
+  const item = page.getByTestId('history-list').locator('li').first();
+  await expect(item).toContainText('Set latitude to 48.79');
+  await expect(item).toContainText('you');
+  await expect(item).toContainText('just now');
+  await page.keyboard.press('Escape');
+
+  // An assistant change is attributed to Claude and labelled with names, not ids.
+  await page.evaluate(() => window.__flat!.applyCommand({ type: 'room.setFloor', roomId: 'sejour', materialId: 'floor-tile' }, 'llm'));
+  await page.getByRole('button', { name: 'History' }).click();
+  const first = page.getByTestId('history-list').locator('li').first();
+  await expect(first).toContainText('Floor of Séjour → Light grey tile');
+  await expect(first).toContainText('Claude');
+  await page.keyboard.press('Escape');
+
+  // After a reload the restored history keeps its labels (it used to fall back to the command type).
+  await page.evaluate(() => window.__flat!.flushAutosave());
+  await page.reload();
+  await page.evaluate(() => window.__flat!.ready);
+  expect((await history()).labels).toEqual(['Set latitude to 48.79', 'Floor of Séjour → Light grey tile (satin)']);
 });
 
 test('keyboard shortcuts undo and redo, but not while typing in a field', async ({ page }) => {

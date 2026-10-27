@@ -20,7 +20,7 @@ describe('history tools on the mock (M4.7)', () => {
     await floor(client, 'floor-tile', 'tile');
     const all = json(await client.callTool({ name: 'list_history', arguments: {} }));
     expect(all).toMatchObject({ ok: true, canUndo: true, canRedo: false, undoDepth: 3, redoDepth: 0 });
-    expect(all.past.map((p: { label: string; author: string }) => [p.label, p.author])).toEqual([['oak', 'llm:unit-client'], ['room.setFloor', 'user'], ['tile', 'llm:unit-client']]);
+    expect(all.past.map((p: { label: string; author: string }) => [p.label, p.author])).toEqual([['oak', 'llm:unit-client'], ['Floor of Séjour → Balcony slab (matt)', 'user'], ['tile', 'llm:unit-client']]);
     const last = json(await client.callTool({ name: 'list_history', arguments: { limit: 1 } }));
     expect(last.past.map((p: { label: string }) => p.label)).toEqual(['tile']);
     expect(json(await client.callTool({ name: 'list_history', arguments: { limit: 0 } })).code).toBe('invalid_command');

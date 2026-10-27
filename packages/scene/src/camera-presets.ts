@@ -81,7 +81,7 @@ function corners(b: Box3): Point3[] {
 }
 
 /** Smallest distance at which every corner of `box` projects inside the frustum with `margin` to spare. */
-function fitOrbit(box: Box3, o: { azimuthDeg: number; elevationDeg: number; fovDeg: number; aspect: number; margin: number }): OrbitPose {
+export function fitOrbit(box: Box3, o: { azimuthDeg: number; elevationDeg: number; fovDeg: number; aspect: number; margin: number }): OrbitPose {
   const target: Point3 = [(box.min[0] + box.max[0]) / 2, (box.min[1] + box.max[1]) / 2, (box.min[2] + box.max[2]) / 2];
   const az = o.azimuthDeg * DEG;
   const el = o.elevationDeg * DEG;

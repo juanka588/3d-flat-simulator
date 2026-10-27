@@ -2,6 +2,8 @@ import { ownerAt } from '@flat/scene';
 import type { MeshData, ShellMeshes, SiteContext } from '@flat/scene';
 import { BufferAttribute, BufferGeometry, Color } from 'three';
 
+const GROUND = 'builtin:ground';
+
 interface Merged {
   positions: Float32Array;
   indices: Uint32Array;
@@ -72,23 +74,35 @@ export function shadowCasterGeometry(shell: ShellMeshes): BufferGeometry {
   return geometry;
 }
 
-/** Neutral greys of the site context, by built-in material id. */
-const CONTEXT_COLORS: Record<string, string> = {
-  'builtin:context-building': '#9c9ca0',
-  'builtin:context-host': '#b2b2b6',
-  'builtin:ground': '#6f6f6c',
-};
-const GROUND = 'builtin:ground';
+/**
+ * Colours of the site context. Neighbours are neutral greys; the host building reads as a warm-grey
+ * building (façade), whose lower-band top (the storey slab the flat stands on) is sand and whose
+ * roof is dark slate; the ground is a green-grey, so none of them blends with another.
+ */
+export const CONTEXT_PALETTE = {
+  neighbourWall: '#9c9ca0',
+  neighbourRoof: '#85858b',
+  facade: '#cbbfae',
+  lowerTop: '#b8a78a',
+  hostRoof: '#6b5b55',
+  ground: '#7f8c6f',
+} as const;
 
 export interface ContextGeometries {
-  /** Extruded buildings: casts and receives shadows. Null when there are none. */
+  /** Neighbouring (non-host) buildings: casts and receives shadows. Null when there are none. */
   buildings: BufferGeometry | null;
+  /**
+   * The host building below the flat's floor (its lower floors): the visible façade, casts and
+   * receives shadows. Null when the context has no such part.
+   */
+  facade: BufferGeometry | null;
   /** Ground plane: receives shadows only. Null when absent. */
   ground: BufferGeometry | null;
   /**
-   * The parts of the host building at or above the flat's floor. They shade the rooms, but would
-   * hide the flat from orbit and top cameras (a cut-away view), so they are drawn with an
-   * invisible material (shadow only). The part below the floor stays visible.
+   * The parts of the host building at or above the flat's floor (the flat's own storey around it,
+   * and the storeys above). They shade the rooms, but would hide the flat from orbit and top
+   * cameras, so by default they are drawn with an invisible material (shadow only), as a ghosted
+   * envelope in orbit view, or solid (see ContextMesh).
    */
   canopy: BufferGeometry | null;
 }
@@ -98,24 +112,45 @@ export function canopyIds(context: SiteContext): Set<string> {
   return new Set(context.buildings.filter((b) => b.host && b.base + b.height > 0.1).map((b) => b.id));
 }
 
+/** Ids of every host-building part. */
+export function hostIds(context: SiteContext): Set<string> {
+  return new Set(context.buildings.filter((b) => b.host).map((b) => b.id));
+}
+
 /**
- * Context MeshData split into buildings, ground and canopy, each a single-group geometry with
- * per-vertex grey colours (one draw call each, and one per shadow pass).
+ * Context MeshData split into neighbours, host façade, ground and canopy, each a single-group
+ * geometry with per-vertex colours (one draw call each, and one per shadow pass). The partition
+ * of triangles only decides which mesh draws them: what casts or receives a shadow is unchanged.
  */
-export function contextGeometries(data: MeshData, canopy: ReadonlySet<string> = new Set()): ContextGeometries {
+export function contextGeometries(data: MeshData, canopy: ReadonlySet<string> = new Set(), host: ReadonlySet<string> = canopy): ContextGeometries {
   const vertexCount = data.positions.length / 3;
-  if (data.indices.length === 0 || vertexCount === 0) return { buildings: null, ground: null, canopy: null };
+  if (data.indices.length === 0 || vertexCount === 0) return { buildings: null, facade: null, ground: null, canopy: null };
   const colors = new Float32Array(vertexCount * 3);
   const color = new Color();
   const groundIndices: number[] = [];
   const buildingIndices: number[] = [];
+  const facadeIndices: number[] = [];
   const canopyIndices: number[] = [];
   for (const group of data.groups) {
-    color.set(CONTEXT_COLORS[group.materialId] ?? CONTEXT_COLORS['builtin:context-building']!);
     const isGround = group.materialId === GROUND;
     for (let i = group.start; i < group.start + group.count; i += 3) {
       const owner = ownerAt(data.owners, i / 3);
-      const target = isGround ? groundIndices : owner && canopy.has(owner.entityId) ? canopyIndices : buildingIndices;
+      const isHost = !isGround && !!owner && host.has(owner.entityId);
+      const isCanopy = isHost && canopy.has(owner!.entityId);
+      const up = data.normals[data.indices[i]! * 3 + 1]! > 0.5;
+      const hex = isGround
+        ? CONTEXT_PALETTE.ground
+        : isHost
+          ? up
+            ? isCanopy
+              ? CONTEXT_PALETTE.hostRoof
+              : CONTEXT_PALETTE.lowerTop
+            : CONTEXT_PALETTE.facade
+          : up
+            ? CONTEXT_PALETTE.neighbourRoof
+            : CONTEXT_PALETTE.neighbourWall;
+      color.set(hex);
+      const target = isGround ? groundIndices : isCanopy ? canopyIndices : isHost ? facadeIndices : buildingIndices;
       for (let k = 0; k < 3; k++) {
         const v = data.indices[i + k]!;
         colors[v * 3] = color.r;
@@ -137,5 +172,37 @@ export function contextGeometries(data: MeshData, canopy: ReadonlySet<string> = 
     g.setIndex(new BufferAttribute(Uint32Array.from(indices), 1));
     return g;
   };
-  return { buildings: build(buildingIndices), ground: build(groundIndices), canopy: build(canopyIndices) };
+  return { buildings: build(buildingIndices), facade: build(facadeIndices), ground: build(groundIndices), canopy: build(canopyIndices) };
+}
+
+/** Height of one storey of the host building, so that the flat's floor sits on a storey line: about 3 m. */
+export function storeyHeight(floorElevation: number): number {
+  const n = Math.max(1, Math.round(floorElevation / 3));
+  return floorElevation > 0.5 ? floorElevation / n : 3;
+}
+
+/**
+ * Line segments (x1 y1 z1 x2 y2 z2 ...) of the floor lines of the host parts selected by `ids`: a
+ * horizontal line along each footprint edge at every multiple of `storey` (flat floor = 0) that lies
+ * strictly inside the part's height. They lie on the walls: the wall material uses a polygon offset so they win the depth test.
+ */
+export function floorLineSegments(context: SiteContext, ids: ReadonlySet<string>, storey: number): Float32Array {
+  const out: number[] = [];
+  for (const b of context.buildings) {
+    if (!ids.has(b.id) || !(storey > 0.1)) continue;
+    const lo = b.base + 0.15;
+    const hi = b.base + b.height - 0.15;
+    for (let k = Math.ceil(lo / storey); k * storey < hi; k++) {
+      const y = k * storey;
+      for (const loop of [b.footprint, ...(b.holes ?? [])]) {
+        for (let j = 0; j < loop.length; j++) {
+          const a = loop[j]!;
+          const c = loop[(j + 1) % loop.length]!;
+          if (Math.hypot(c[0] - a[0], c[1] - a[1]) < 1e-6) continue;
+          out.push(a[0], y, a[1], c[0], y, c[1]);
+        }
+      }
+    }
+  }
+  return Float32Array.from(out);
 }

@@ -6,6 +6,7 @@ import { fromMinutes, instantToLocal, toMinutes } from '../state/localTime';
 import { sunInfoFor } from '../state/sunInfo';
 import { WALK_LIGHTS_EV } from '../state/effectiveLighting';
 import { useViewStore } from '../state/viewStore';
+import type { BuildingMode } from '../viewer/view-types';
 import { NumberField } from './NumberField';
 
 const PRESETS: { id: PresetName; label: string }[] = [
@@ -25,12 +26,14 @@ interface LightingPanelProps {
 export function LightingPanel({ scene, hasContext }: LightingPanelProps) {
   const lighting = useViewStore((s) => s.lighting);
   const setLighting = useViewStore((s) => s.setLighting);
+  const buildingMode = useViewStore((s) => s.buildingMode);
+  const setBuildingMode = useViewStore((s) => s.setBuildingMode);
   const walkLightsOn = useViewStore((s) => s.walkLightsOn);
   const setWalkLightsOn = useViewStore((s) => s.setWalkLightsOn);
   // While walking with the preference on, the viewer lights every lamp (see effectiveLighting): the stored toggles are kept, just not shown as editable.
   const walkOverride = useViewStore((s) => s.mode === 'walk') && walkLightsOn;
   const { playing, speed, setPlaying, setSpeed } = useClockStore();
-  const ids = { date: useId(), time: useId(), clock: useId(), ev: useId() };
+  const ids = { date: useId(), time: useId(), clock: useId(), ev: useId(), building: useId() };
   const info = sunInfoFor(scene, lighting);
 
   const current = toMinutes(lighting.time);
@@ -175,6 +178,21 @@ export function LightingPanel({ scene, hasContext }: LightingPanelProps) {
           />
           Show neighbouring buildings
         </label>
+        <div className="field">
+          <label htmlFor={ids.building}>Building</label>
+          <select
+            id={ids.building}
+            data-testid="building-mode"
+            value={buildingMode}
+            disabled={!hasContext || !lighting.showContext}
+            title="Orbit view: how the building around your flat is drawn. Ghost shows its shape without blocking the view; solid suits exterior views."
+            onChange={(e) => setBuildingMode(e.target.value as BuildingMode)}
+          >
+            <option value="hidden">hidden</option>
+            <option value="ghost">ghost</option>
+            <option value="solid">solid</option>
+          </select>
+        </div>
         {!hasContext && <p className="hint">No site context for this flat.</p>}
       </fieldset>
 

@@ -69,14 +69,14 @@ export function parsePersisted(raw: unknown): ParsedDoc {
   const savedAt = typeof doc.savedAt === 'string' ? doc.savedAt : '';
   const historyTail: HistoryEntry[] = [];
   if (Array.isArray(doc.historyTail)) {
-    for (const e of doc.historyTail as { envelope?: unknown; inverse?: unknown }[]) {
+    for (const e of doc.historyTail as { envelope?: unknown; inverse?: unknown; label?: unknown }[]) {
       const envelope = CommandEnvelope.safeParse(e?.envelope);
       const inverse = Command.safeParse(e?.inverse);
       if (!envelope.success || !inverse.success) {
         historyTail.length = 0; // a partial tail would not undo cleanly
         break;
       }
-      historyTail.push({ envelope: envelope.data, inverse: inverse.data });
+      historyTail.push({ envelope: envelope.data, inverse: inverse.data, ...(typeof e.label === 'string' ? { label: e.label.slice(0, 200) } : {}) });
     }
   }
   return { ok: true, scene: scene.scene, source, historyTail, savedAt };

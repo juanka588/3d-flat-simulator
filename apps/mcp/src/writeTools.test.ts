@@ -246,11 +246,11 @@ describe('label', () => {
     expect(h.ok && h.data.past.at(-1)!.label).toBe('Paint the sejour sage');
   });
 
-  it('without a label the entry keeps the command type', async () => {
+  it('without a label the entry gets a descriptive label', async () => {
     const { client, flat } = await connect();
     await client.callTool({ name: 'room_set_floor', arguments: { roomId: 'sejour', materialId: 'floor-oak' } });
     const h = await flat.history();
-    expect(h.ok && h.data.past.at(-1)!.label).toBe('room.setFloor');
+    expect(h.ok && h.data.past.at(-1)!.label).toBe('Floor of Séjour → Oak parquet (satin)');
   });
 
   it('must be a non-empty string of at most 200 characters', async () => {

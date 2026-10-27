@@ -1,6 +1,6 @@
 import { addAfterEffect } from '@react-three/fiber';
 import type { RootState } from '@react-three/fiber';
-import { NeutralToneMapping, Vector3 } from 'three';
+import { NeutralToneMapping, Raycaster, Vector3 } from 'three';
 import type { Camera, Light, Mesh, Object3D, OrthographicCamera, PerspectiveCamera } from 'three';
 import { committedScene, getTransport, useSceneStore } from './state/sceneStore';
 import { connectionInfo } from './sync/sync-store';
@@ -85,7 +85,7 @@ function viewportReady(): boolean {
 
 function reflectsStores(): boolean {
   const { scene, rev } = useSceneStore.getState();
-  const { mode, selection, lighting, walkLightsOn, translucentDoors, camera } = useViewStore.getState();
+  const { mode, selection, lighting, walkLightsOn, translucentDoors, buildingMode, camera } = useViewStore.getState();
   return (
     renderedFrame !== null &&
     (camera === undefined || renderedFrame.pose === camera) &&
@@ -93,6 +93,7 @@ function reflectsStores(): boolean {
     (scene === null || (renderedFrame.scene === scene && sceneRevs.get(scene) === rev)) &&
     renderedFrame.view.mode === mode &&
     renderedFrame.view.translucentDoors === translucentDoors &&
+    renderedFrame.view.buildingMode === buildingMode &&
     renderedFrame.view.selection === selection &&
     renderedFrame.view.lighting === effectiveLighting(lighting, mode, walkLightsOn, scene?.lights)
   );
@@ -119,6 +120,18 @@ async function whenRendered(): Promise<void> {
     await nextRenderedFrame();
     if (textureStats().pending === 0) return;
   }
+}
+
+/** True when a ray dropped from far above the mesh's bounding-box centre hits it (host-building meshes must never be pickable). */
+function isPickable(mesh: Mesh): boolean {
+  mesh.geometry.computeBoundingBox();
+  const box = mesh.geometry.boundingBox;
+  if (!box) return false;
+  const c = box.getCenter(new Vector3());
+  const ray = new Raycaster(new Vector3(c.x, 1000, c.z), new Vector3(0, -1, 0));
+  const hits: unknown[] = [];
+  mesh.raycast(ray, hits as never);
+  return hits.length > 0;
 }
 
 function meshNames(root: Object3D): string[] {
@@ -229,6 +242,24 @@ export function installTestHook(): void {
         for (const m of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
           if (m.name.startsWith('builtin:door')) out.push({ id: m.name, transparent: m.transparent, opacity: m.opacity, depthWrite: m.depthWrite });
         }
+      });
+      return out;
+    },
+    hostBuilding() {
+      const out: ReturnType<FlatTestHook['hostBuilding']> = [];
+      canvas?.().scene.traverse((o) => {
+        if (!o.name.startsWith('host-')) return;
+        const mesh = o as Mesh;
+        const material = (Array.isArray(mesh.material) ? mesh.material[0] : mesh.material) as { opacity?: number; transparent?: boolean; depthWrite?: boolean } | undefined;
+        out.push({
+          name: o.name,
+          visible: o.visible,
+          castShadow: !!o.castShadow,
+          pickable: isPickable(mesh),
+          opacity: material?.opacity ?? 1,
+          transparent: !!material?.transparent,
+          depthWrite: material?.depthWrite !== false,
+        });
       });
       return out;
     },
@@ -357,6 +388,7 @@ export function installTestHook(): void {
     async setComfort(partial) {
       await canvasReady;
       if (partial.translucentDoors !== undefined) useViewStore.getState().setTranslucentDoors(partial.translucentDoors);
+      if (partial.buildingMode !== undefined) useViewStore.getState().setBuildingMode(partial.buildingMode);
       await whenRendered();
     },
     sunInfo() {

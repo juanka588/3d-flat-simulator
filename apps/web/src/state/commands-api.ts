@@ -31,9 +31,17 @@ export interface CommandTransport {
 /** History as the server reports it (server mode). */
 export interface RemoteHistory {
   /** Oldest first. */
-  past: { id: string; label: string; type: string; author: string }[];
+  past: { id: string; label: string; type: string; author: string; ts: number }[];
   /** Entries available to redo. */
   futureCount: number;
+}
+
+/** One undo-history entry as the UI shows it. */
+export interface HistoryItemView {
+  id: string;
+  label: string;
+  author: string;
+  ts: number;
 }
 
 export interface CommandApi {
@@ -55,6 +63,8 @@ export interface CommandApi {
   canRedo: boolean;
   /** Labels of past entries, newest last (for a history popover). */
   historyLabels: string[];
+  /** Same entries with author and time, for the history popover. */
+  historyItems: HistoryItemView[];
   /** Errors from the last failed dispatch/preview, cleared on the next success. */
   lastErrors: CommandError[];
   /** Monotonic revision, bumped on every scene change (used by whenRendered and sync). */

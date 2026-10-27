@@ -13,6 +13,8 @@ export interface HistoryEntry {
   envelope: CommandEnvelope;
   /** Restores the scene to before the entry. */
   inverse: Command;
+  /** Human-readable label, fixed when the entry was recorded (see `describeCommand`). Older snapshots have none. */
+  label?: string;
 }
 
 /** Plain JSON-serialisable history state. */
@@ -79,9 +81,9 @@ export function coalesceSignature(cmd: Command): string | undefined {
  * target ids and patch keys; see `coalesceSignature`) within the window after the previous one
  * merges into it: the entry keeps the oldest inverse and the newest command, so a colour drag is a
  * single undo step. Anything that differs (another field, another wall) starts a new entry.
- * `now` is injected (defaults to `envelope.ts`).
+ * `now` is injected (defaults to `envelope.ts`); `label` is stored on the entry (a coalesced entry takes the newest).
  */
-export function recordCommand(history: History, envelope: CommandEnvelope, result: ApplyResult, now: number = envelope.ts): History {
+export function recordCommand(history: History, envelope: CommandEnvelope, result: ApplyResult, now: number = envelope.ts, label?: string): History {
   if (!result.ok || result.noop) return history;
   const key = envelope.coalesceKey;
   const sig = coalesceSignature(envelope.cmd);
@@ -93,12 +95,12 @@ export function recordCommand(history: History, envelope: CommandEnvelope, resul
   ) {
     return {
       ...history,
-      past: [...history.past.slice(0, -1), { envelope, inverse: last.inverse }],
+      past: [...history.past.slice(0, -1), { envelope, inverse: last.inverse, ...(label !== undefined ? { label } : {}) }],
       future: [],
       open: { key, author: envelope.author, at: now, sig },
     };
   }
-  const past = [...history.past, { envelope, inverse: result.inverse }];
+  const past = [...history.past, { envelope, inverse: result.inverse, ...(label !== undefined ? { label } : {}) }];
   return {
     ...history,
     past: past.length > history.cap ? past.slice(past.length - history.cap) : past,
@@ -160,7 +162,7 @@ export function redo(history: History, scene: Scene, ctx: StepContext): HistoryS
     result,
     history: {
       ...history,
-      past: [...history.past, { envelope: entry.envelope, inverse: result.inverse }],
+      past: [...history.past, { envelope: entry.envelope, inverse: result.inverse, ...(entry.label !== undefined ? { label: entry.label } : {}) }],
       future: history.future.slice(0, -1),
       open: null,
     },

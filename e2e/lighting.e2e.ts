@@ -471,3 +471,69 @@ test.describe('regression scenes (Charme, orbit)', () => {
     for (let i = 1; i < values.length; i++) expect(values[i]! - values[i - 1]!, 'scenes are distinguishable').toBeGreaterThan(0.01);
   });
 });
+
+test.describe('the flat stands in its building (orbit view)', () => {
+  const host = (page: Page) => flat(page, (f) => f.hostBuilding());
+  const buildingMode = (page: Page) => page.getByTestId('building-mode');
+
+  test('lower floors are a visible facade, the flat storey and above a ghost; sun shadows and the draw budget are unchanged', async ({ page }) => {
+    await rendered(page);
+    await expect(buildingMode(page)).toHaveValue('ghost');
+    const stats = await flat(page, (f) => f.stats());
+    expect(stats.mode).toBe('orbit');
+    expect(stats.meshes).toContain('host-facade');
+    expect(stats.meshes).toContain('host-ghost');
+    expect(stats.meshes).not.toContain('host-solid');
+    expect(stats.calls).toBeLessThanOrEqual(MAX_DRAW_CALLS);
+
+    const parts = await host(page);
+    const facade = parts.find((p) => p.name === 'host-facade')!;
+    expect(facade).toMatchObject({ visible: true, castShadow: true, pickable: false, transparent: false, opacity: 1 });
+    expect(parts.some((p) => p.name === 'host-facade-edges' && p.visible)).toBe(true);
+    const ghost = parts.find((p) => p.name === 'host-ghost')!;
+    expect(ghost.visible).toBe(true);
+    expect(ghost.opacity).toBeLessThan(0.3);
+    expect(ghost.opacity).toBeGreaterThan(0.05);
+    expect(ghost).toMatchObject({ transparent: true, depthWrite: false, pickable: false, castShadow: false });
+    // The invisible caster still shades the rooms (same shadows as without the ghost).
+    await setLighting(page, { ...SUMMER_NOON, sunEnabled: true });
+    await rendered(page);
+    expect((await flat(page, (f) => f.stats())).shadowCasterMeshes).toContain('context-canopy');
+
+    await savePng(page, '/tmp/floating-after.png');
+
+    // Top view keeps the envelope hidden, the facade stays.
+    await top(page);
+    await rendered(page);
+    const topMeshes = (await flat(page, (f) => f.stats())).meshes;
+    expect(topMeshes).not.toContain('host-ghost');
+    expect(topMeshes).toContain('host-facade');
+    expect((await flat(page, (f) => f.stats())).shadowCasterMeshes).toContain('context-canopy');
+  });
+
+  test('Building: hidden / ghost / solid, remembered across reloads', async ({ page }) => {
+    const meshes = async () => (await flat(page, (f) => f.stats())).meshes;
+    await buildingMode(page).selectOption('hidden');
+    await rendered(page);
+    expect(await meshes()).not.toContain('host-ghost');
+    expect(await meshes()).not.toContain('host-solid');
+    expect(await meshes()).toContain('host-facade');
+
+    await buildingMode(page).selectOption('solid');
+    await rendered(page);
+    expect(await meshes()).toContain('host-solid');
+    expect(await meshes()).not.toContain('host-ghost');
+    expect((await host(page)).find((p) => p.name === 'host-solid')).toMatchObject({ visible: true, castShadow: true, pickable: false, opacity: 1 });
+    expect((await flat(page, (f) => f.stats())).calls).toBeLessThanOrEqual(MAX_DRAW_CALLS);
+
+    await page.reload();
+    await page.evaluate(() => window.__flat!.ready);
+    await expect(buildingMode(page)).toHaveValue('solid');
+    expect(await meshes()).toContain('host-solid');
+
+    // Solid is an exterior-view choice: the top view still cuts it away.
+    await top(page);
+    await rendered(page);
+    expect(await meshes()).not.toContain('host-solid');
+  });
+});

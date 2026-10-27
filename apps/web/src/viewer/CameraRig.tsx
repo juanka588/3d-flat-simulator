@@ -3,9 +3,10 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { useLayoutEffect, useMemo, useRef } from 'react';
 import { TOUCH, Vector3 } from 'three';
 import type { OrthographicCamera as ThreeOrthographicCamera, PerspectiveCamera as ThreePerspectiveCamera, Quaternion } from 'three';
-import { fitCamera, sceneBounds3 } from '@flat/scene';
+import { fitCamera, fitOrbit, sceneBounds3 } from '@flat/scene';
 import type { CameraPose, Scene } from '@flat/scene';
 import { noteAppliedPose, orbitPosition, topUp, topZoomFor } from './camera-pose';
+import type { BuildingFraming } from './building-framing';
 import type { ViewMode } from './view-types';
 
 const ORBIT_FOV = 50;
@@ -49,6 +50,7 @@ export function CameraRig({
   scene,
   mode,
   extraReach = 0,
+  framing = null,
   pose,
   onUserCamera,
 }: {
@@ -56,6 +58,8 @@ export function CameraRig({
   mode: Exclude<ViewMode, 'walk'>;
   /** How far site context extends from the flat; only widens the far plane, the framing stays on the flat. */
   extraReach?: number;
+  /** Orbit only: look at the facade nearest to the flat and include a little of the building below (set when the building shows). */
+  framing?: BuildingFraming | null;
   /** Followed exactly (target, angles, distance, fov / centre, zoom, rotation) until the user moves the camera. */
   pose?: CameraPose;
   /** The user started moving the camera (drag, wheel, pinch): the pose, if any, no longer applies. */
@@ -65,7 +69,15 @@ export function CameraRig({
   const { fit, far, reach, maxDistance, topZoom } = useMemo(
     () => {
       const bounds = sceneBounds3(scene);
-      const fit = fitCamera(bounds, { mode, aspect: size.width / Math.max(size.height, 1), fovDeg: ORBIT_FOV });
+      const aspect = size.width / Math.max(size.height, 1);
+      const fit = fitCamera(bounds, { mode, aspect, fovDeg: ORBIT_FOV });
+      if (mode === 'orbit' && framing) {
+        // Same fit, from the facade side, over a box that reaches below the floor: the flat stays the focus.
+        const lowered = { min: [bounds.min[0], -framing.belowReach, bounds.min[2]] as [number, number, number], max: bounds.max };
+        const o = fitOrbit(lowered, { azimuthDeg: framing.azimuthDeg, elevationDeg: framing.elevationDeg, fovDeg: ORBIT_FOV, aspect, margin: 0.1 });
+        fit.target = o.target;
+        fit.position = orbitPosition(o);
+      }
       const diagonal = Math.hypot(
         bounds.max[0] - bounds.min[0],
         bounds.max[1] - bounds.min[1],

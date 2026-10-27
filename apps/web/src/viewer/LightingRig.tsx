@@ -6,6 +6,7 @@ import { ContextMesh } from './ContextMesh';
 import { Lamps } from './Lamps';
 import { SkyDome } from './SkyDome';
 import { SunLight } from './SunLight';
+import type { BuildingMode, ViewMode } from './view-types';
 import { computeLighting, groundDisplay, hemisphereColors } from './lighting';
 
 const FALLBACK_BACKGROUND = '#e8ebf0';
@@ -19,10 +20,14 @@ export function LightingRig({
   scene,
   lighting,
   context,
+  viewMode = 'orbit',
+  buildingMode = 'hidden',
 }: {
   scene: Scene;
   lighting: LightingView;
   context: SiteContext | null;
+  viewMode?: ViewMode;
+  buildingMode?: BuildingMode;
 }) {
   const model = useMemo(() => computeLighting(scene, lighting), [scene, lighting]);
   const get = useThree((s) => s.get);
@@ -55,7 +60,7 @@ export function LightingRig({
   const shownContext = lighting.showContext ? context : null;
   // Changes when the geometry that can occlude lamps changes; lamp shadow maps refresh only then.
   const geometryKey = useMemo(() => ({ scene, context: shownContext }), [scene, shownContext]);
-  const contextMesh = shownContext ? <ContextMesh context={shownContext} castShadow={model.ok && model.sunActive} /> : null;
+  const contextMesh = shownContext ? <ContextMesh context={shownContext} castShadow={model.ok && model.sunActive} viewMode={viewMode} buildingMode={buildingMode} floorElevation={scene.site.floorElevation} /> : null;
 
   if (!model.ok) {
     return (

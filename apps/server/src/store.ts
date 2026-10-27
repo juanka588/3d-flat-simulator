@@ -8,6 +8,7 @@ import {
   loadSceneText,
   parseCommand,
   recordCommand,
+  describeCommand,
   redo,
   undo,
   type Author,
@@ -109,7 +110,7 @@ function advance(
   }
   const r = applyCommand(scene, env, rev === undefined ? {} : { rev });
   if (!r.ok) return { ok: false, errors: r.errors };
-  return { ok: true, scene: r.scene, history: recordCommand(history, env, r), result: r };
+  return { ok: true, scene: r.scene, history: recordCommand(history, env, r, env.ts, describeCommand(env.cmd, scene)), result: r };
 }
 
 function stepErrors(s: { ok: false; reason: string } & Partial<{ errors: ErrorResponse['errors'] }>): ErrorResponse['errors'] {
@@ -297,7 +298,7 @@ export class SceneStore {
   historyView(): HistoryResponse {
     const item = (e: History['past'][number]) => ({
       id: e.envelope.id,
-      label: e.envelope.cmd.type === 'batch' ? e.envelope.cmd.label : e.envelope.cmd.type,
+      label: e.label ?? describeCommand(e.envelope.cmd, this.scene),
       ts: e.envelope.ts,
       author: e.envelope.author,
     });

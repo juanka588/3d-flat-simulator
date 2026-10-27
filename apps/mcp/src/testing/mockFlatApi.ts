@@ -6,6 +6,7 @@ import {
   loadSceneText,
   parseCommand,
   recordCommand,
+  describeCommand,
   redo as redoStep,
   undo as undoStep,
   type Author,
@@ -127,7 +128,7 @@ export class MockFlatApi implements FlatApi {
       this.seen.set(env.id, { hash, response });
       return { ok: true, data: response };
     }
-    this.hist = recordCommand(this.hist, env, r);
+    this.hist = recordCommand(this.hist, env, r, env.ts, describeCommand(env.cmd, this.scene));
     return { ok: true, data: this.commit(env, r.scene, r.inverse, outcome, env.id, hash) };
   }
 
@@ -144,7 +145,7 @@ export class MockFlatApi implements FlatApi {
   private historyView(): HistoryResponse {
     const item = (e: History['past'][number]) => ({
       id: e.envelope.id,
-      label: e.envelope.cmd.type === 'batch' ? e.envelope.cmd.label : e.envelope.cmd.type,
+      label: e.label ?? describeCommand(e.envelope.cmd, this.scene),
       ts: e.envelope.ts,
       author: e.envelope.author,
     });

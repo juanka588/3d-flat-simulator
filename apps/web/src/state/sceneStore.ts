@@ -6,6 +6,7 @@ import {
   canRedo as historyCanRedo,
   canUndo as historyCanUndo,
   createHistory,
+  describeCommand,
   loadSceneText,
   makeEnvelope,
   recordCommand,
@@ -52,6 +53,8 @@ interface SceneStore extends CommandApi {
   previewBase: Scene | null;
   /** Envelope of the active preview. */
   previewEnv: CommandEnvelope | null;
+  /** Options of the active preview (its label is kept for the commit). */
+  previewOpts: DispatchOptions | undefined;
   /** Loads JSON text; on failure keeps the previous scene and records the errors. Resets history. */
   loadText: (text: string, source: string) => LoadResult;
   /** Records load errors (e.g. a file rejected before parsing) without touching the scene. */
@@ -73,7 +76,6 @@ export function committedScene(s: Pick<SceneStore, 'scene' | 'previewBase'>): Sc
 
 const NO_SCENE: ApplyResult = { ok: false, errors: [{ code: 'invalid_command', path: '', message: 'no scene is loaded' }] };
 
-const labels = new Map<string, string>();
 let transport: CommandTransport | null = null;
 
 /** The plugged-in sync transport, if any (server mode). */
@@ -84,16 +86,23 @@ export function getTransport(): CommandTransport | null {
 /** In server mode the server owns the history: nothing is recorded locally. */
 const serverHistory = () => transport?.step !== undefined;
 
-function labelOf(env: CommandEnvelope): string {
-  return labels.get(env.id) ?? (env.cmd.type === 'batch' ? env.cmd.label : env.cmd.type);
-}
-
 function flagsOf(history: History) {
   return {
     canUndo: historyCanUndo(history),
     canRedo: historyCanRedo(history),
-    historyLabels: history.past.map((e) => labelOf(e.envelope)),
+    historyLabels: history.past.map((e) => e.label ?? (e.envelope.cmd.type === 'batch' ? e.envelope.cmd.label : e.envelope.cmd.type)),
+    historyItems: history.past.map((e) => ({
+      id: e.envelope.id,
+      label: e.label ?? (e.envelope.cmd.type === 'batch' ? e.envelope.cmd.label : e.envelope.cmd.type),
+      author: e.envelope.author.kind,
+      ts: e.envelope.ts,
+    })),
   };
+}
+
+/** The label recorded with a history entry: an explicit one, else the description computed against the scene it applied to. */
+function entryLabel(env: CommandEnvelope, base: Scene, opts: DispatchOptions | undefined): string {
+  return opts?.label ?? describeCommand(env.cmd, base);
 }
 
 /** Only a site edit leaves the built shell (walls, rooms, finishes) valid. */
@@ -128,7 +137,6 @@ function stamp(cmd: Command, opts: DispatchOptions | undefined): CommandEnvelope
     author: { kind: opts?.author ?? 'user' },
     ...(opts?.coalesceKey !== undefined ? { coalesceKey: opts.coalesceKey } : {}),
   });
-  if (opts?.label) labels.set(env.id, opts.label);
   return env;
 }
 
@@ -140,9 +148,11 @@ export const useSceneStore = create<SceneStore>((set, get) => ({
   history: createHistory(),
   previewBase: null,
   previewEnv: null,
+  previewOpts: undefined,
   canUndo: false,
   canRedo: false,
   historyLabels: [],
+  historyItems: [],
   lastErrors: [],
   rev: 0,
 
@@ -163,7 +173,7 @@ export const useSceneStore = create<SceneStore>((set, get) => ({
       return result;
     }
     adopt(s.scene, result.scene, result.changed);
-    const history = serverHistory() ? s.history : recordCommand(s.history, env, result);
+    const history = serverHistory() ? s.history : recordCommand(s.history, env, result, env.ts, entryLabel(env, base, opts));
     set({ scene: result.scene, history, ...(serverHistory() ? {} : flagsOf(history)), previewBase: null, previewEnv: null, lastErrors: [], rev: s.rev + 1 });
     keepSelection(result.scene);
     send(env);
@@ -181,7 +191,7 @@ export const useSceneStore = create<SceneStore>((set, get) => ({
       return result;
     }
     adopt(s.scene, result.scene, result.changed);
-    set({ scene: result.scene, previewBase: base, previewEnv: env, lastErrors: [], rev: s.rev + 1 });
+    set({ scene: result.scene, previewBase: base, previewEnv: env, previewOpts: opts, lastErrors: [], rev: s.rev + 1 });
     keepSelection(result.scene);
     return result;
   },
@@ -195,7 +205,7 @@ export const useSceneStore = create<SceneStore>((set, get) => ({
       set({ scene: s.previewBase, previewBase: null, previewEnv: null, rev: s.rev + 1 });
       return;
     }
-    const history = serverHistory() ? s.history : recordCommand(s.history, s.previewEnv, result);
+    const history = serverHistory() ? s.history : recordCommand(s.history, s.previewEnv, result, s.previewEnv.ts, entryLabel(s.previewEnv, s.previewBase, s.previewOpts));
     set({ history, ...(serverHistory() ? {} : flagsOf(history)), previewBase: null, previewEnv: null, lastErrors: [] });
     send(s.previewEnv);
   },
@@ -232,7 +242,13 @@ export const useSceneStore = create<SceneStore>((set, get) => ({
   setRemoteHistory: (h) =>
     set(
       h
-        ? { remoteHistory: { past: h.past, futureCount: h.futureCount }, canUndo: h.canUndo, canRedo: h.canRedo, historyLabels: h.past.map((e) => e.label) }
+        ? {
+            remoteHistory: { past: h.past, futureCount: h.futureCount },
+            canUndo: h.canUndo,
+            canRedo: h.canRedo,
+            historyLabels: h.past.map((e) => e.label),
+            historyItems: h.past.map((e) => ({ id: e.id, label: e.label, author: e.author, ts: e.ts })),
+          }
         : { remoteHistory: null },
     ),
   setHistoryFlags: (canUndo, canRedo) => {
@@ -241,7 +257,9 @@ export const useSceneStore = create<SceneStore>((set, get) => ({
   },
 
   restoreHistory: (past) => {
-    const history = { ...createHistory(), past };
+    // Entries saved before labels existed get one from the current scene (names may have changed since).
+    const scene = committedScene(get());
+    const history = { ...createHistory(), past: past.map((e) => (e.label !== undefined || !scene ? e : { ...e, label: describeCommand(e.envelope.cmd, scene) })) };
     set({ history, ...flagsOf(history) });
   },
 
@@ -250,7 +268,6 @@ export const useSceneStore = create<SceneStore>((set, get) => ({
     const result = loadSceneText(text);
     if (result.ok) {
       const first = get().scene === null;
-      labels.clear();
       // A new Scene object gets a new identity: the camera re-frames on load, as expected.
       set((s) => ({
         scene: result.scene,
@@ -262,6 +279,7 @@ export const useSceneStore = create<SceneStore>((set, get) => ({
         canUndo: false,
         canRedo: false,
         historyLabels: [],
+        historyItems: [],
         previewBase: null,
         previewEnv: null,
         rev: s.rev + 1,

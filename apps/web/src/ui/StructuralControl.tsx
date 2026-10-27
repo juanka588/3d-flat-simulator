@@ -15,8 +15,8 @@ export function StructuralControl({ scene, wallId }: { scene: Scene; wallId: str
   const wall = scene.walls.find((w) => w.id === wallId);
   if (!wall) return null;
   const info = structuralInfo(scene, wall);
-  const set = (structural: boolean | null, label: string) => {
-    dispatch({ type: 'wall.setStructural', wallId, structural }, { label });
+  const set = (structural: boolean | null) => {
+    dispatch({ type: 'wall.setStructural', wallId, structural });
   };
   return (
     <div className="structural-control" data-testid="structural-control">
@@ -28,12 +28,12 @@ export function StructuralControl({ scene, wallId }: { scene: Scene; wallId: str
         <button
           type="button"
           aria-pressed={info.structural}
-          onClick={() => set(!info.structural, `Mark wall ${wallId} ${info.structural ? 'removable' : 'structural'}`)}
+          onClick={() => set(!info.structural)}
         >
           Structural wall
         </button>
         {info.source === 'explicit' && (
-          <button type="button" onClick={() => set(null, `Reset wall ${wallId} structural status to automatic`)}>
+          <button type="button" onClick={() => set(null)}>
             Use automatic
           </button>
         )}

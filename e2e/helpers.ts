@@ -1,6 +1,8 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
+import { orbitPose } from '../packages/scene/src/index';
+import type { Scene } from '../packages/scene/src/index';
 import type { FlatTestHook } from '../apps/web/src/test-hook-types';
 
 /** `E2E_CPU_THROTTLE=6 pnpm e2e` slows the page's main thread 6x to emulate a slow CI runner. */
@@ -163,4 +165,15 @@ export function maxSecondDifference(values: number[]): number {
   let max = 0;
   for (let i = 1; i < values.length - 1; i++) max = Math.max(max, Math.abs(values[i - 1]! - 2 * values[i]! + values[i + 1]!));
   return max;
+}
+
+/**
+ * Puts the orbit camera on the plain south-east framing of the whole flat. The default orbit camera turns
+ * towards the facade of the building under the flat (so the lower floors show), which is not the side the
+ * click-the-wall / click-the-TV tests were written against.
+ */
+export async function southEastOrbit(page: Page): Promise<void> {
+  const scene = await page.evaluate(() => window.__flat!.getScene());
+  const size = page.viewportSize() ?? { width: 1280, height: 800 };
+  await page.evaluate((pose) => window.__flat!.setCamera(pose), orbitPose(scene as Scene, { aspect: size.width / size.height }));
 }

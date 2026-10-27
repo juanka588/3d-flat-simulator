@@ -6,3 +6,4 @@ export * from './history';
 export { nearestIds } from './util';
 export type { CommandError, ErrorCode } from './util';
 export * from './tools';
+export * from './labels';

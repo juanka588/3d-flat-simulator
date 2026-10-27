@@ -917,6 +917,14 @@ legend {
   margin: 0;
   padding-left: 1.2rem;
 }
+.history-popover li {
+  margin: 0.15rem 0;
+}
+.history-meta {
+  display: block;
+  color: #6a6a72;
+  font-size: 0.72rem;
+}
 .structural-legend {
   margin: 0 0 0.75rem;
   font-size: 0.85rem;

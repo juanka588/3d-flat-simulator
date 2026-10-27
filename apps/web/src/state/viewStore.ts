@@ -1,7 +1,8 @@
 import { DEFAULT_LIGHTING } from '@flat/scene';
 import type { CameraPose, LightingView } from '@flat/scene';
 import { create } from 'zustand';
-import type { Selection, ViewMode, ViewState } from '../viewer/view-types';
+import { BUILDING_MODES } from '../viewer/view-types';
+import type { BuildingMode, Selection, ViewMode, ViewState } from '../viewer/view-types';
 import { DEFAULT_PERSON_HEIGHT_CM, clampPersonHeightCm } from '../viewer/walk-camera';
 import { todayIso } from './localTime';
 import { WALK_LIGHTS_KEY } from './effectiveLighting';
@@ -9,6 +10,14 @@ import { readPref, writePref } from './prefs';
 
 /** Preference: apply the assistant's view messages (server mode). Default off. */
 export const FOLLOW_ASSISTANT_KEY = 'flat.followAssistantView';
+
+/** Preference: how the host building is drawn in orbit view (hidden / ghost / solid). Default ghost. */
+export const BUILDING_MODE_KEY = 'flat.buildingMode';
+
+function initialBuildingMode(): BuildingMode {
+  const stored = readPref(BUILDING_MODE_KEY);
+  return BUILDING_MODES.find((m) => m === stored) ?? 'ghost';
+}
 
 export const PERSON_HEIGHT_STORAGE_KEY = 'flat.personHeightCm';
 
@@ -27,6 +36,9 @@ interface ViewStore extends ViewState {
   /** Preference (persisted, default off): show the camera/lighting the assistant sends over the view channel. */
   followAssistant: boolean;
   setFollowAssistant: (on: boolean) => void;
+  /** Preference (persisted, default ghost): the host building around the flat in orbit view. */
+  buildingMode: BuildingMode;
+  setBuildingMode: (mode: BuildingMode) => void;
   /** Follows `pose` exactly and selects its mode; `undefined` hands the camera back to the user. */
   setCamera: (pose: CameraPose | undefined) => void;
   setView: (partial: Partial<ViewState>) => void;
@@ -45,6 +57,11 @@ export const useViewStore = create<ViewStore>((set) => ({
   personHeightCm: initialPersonHeight(),
   walkLightsOn: readPref(WALK_LIGHTS_KEY) !== '0',
   translucentDoors: true,
+  buildingMode: initialBuildingMode(),
+  setBuildingMode: (mode) => {
+    writePref(BUILDING_MODE_KEY, mode);
+    set((s) => (s.buildingMode === mode ? s : { buildingMode: mode }));
+  },
   setTranslucentDoors: (on) => set((s) => (s.translucentDoors === on ? s : { translucentDoors: on })),
   followAssistant: readPref(FOLLOW_ASSISTANT_KEY) === '1',
   setFollowAssistant: (on) => {
