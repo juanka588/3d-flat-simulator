@@ -3,7 +3,7 @@ import { Relation } from '../placement/types';
 import { MeshSource } from '../assets/catalog';
 import { Clearance, Dims, EntityId, ItemMount, Sku, Vec2 } from '../primitives';
 import { ProductRef, ProductSnapshot } from '../products';
-import { ItemBase, checkItemRules } from '../schema';
+import { ItemBase, Light, checkItemRules } from '../schema';
 
 /**
  * Item command schemas (D8), registered in `LEAF_COMMAND_SCHEMAS` (M5.10). Reducer rules (see `items.ts`):
@@ -37,6 +37,7 @@ const ProductSnapshotD = ProductSnapshot.extend({
   category: ProductSnapshot.shape.category.describe('Furniture category of the product.'),
   snapshotAt: ProductSnapshot.shape.snapshotAt.describe('When the facts were read from the provider (ISO 8601 date-time).'),
   colour: ProductSnapshot.shape.colour.describe('Chosen colour when the product has several. Optional.'),
+  lumens: ProductSnapshot.shape.lumens.describe('Bulb lumens from the server (lamps).'),
 });
 
 const ProductRefD = ProductRef.extend({
@@ -89,6 +90,13 @@ export const ItemPlace = z.strictObject({
   item: ItemDraft.describe('The complete item: position, rotation, productRef + product snapshot, dims, mesh source and relation, as resolved by the placement solver.'),
   /** Insert position (used by inverses); defaults to the end. */
   index: z.number().int().nonnegative().describe(INDEX_DESC).optional(),
+  /** `false` places a lamp without its light. */
+  autoLight: z.boolean().describe('Lamps: false places the lamp without its light (default true).').optional(),
+  /** The exact linked light to put back (used by the inverse of item.remove). */
+  restoreLight: z
+    .strictObject({ light: Light, index: z.number().int().nonnegative() })
+    .describe('Internal (undo).')
+    .optional(),
 });
 
 export const ItemMove = z.strictObject({

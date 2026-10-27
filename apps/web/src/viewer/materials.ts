@@ -1,6 +1,6 @@
 import { BUILTIN_MATERIALS, ITEM_MATERIALS, clampAlbedo, relativeLuminance } from '@flat/scene';
 import type { CatalogEntry, Scene } from '@flat/scene';
-import { DoubleSide, MeshStandardMaterial } from 'three';
+import { Color, DoubleSide, MeshStandardMaterial } from 'three';
 import type { Material, Texture } from 'three';
 import { libraryCatalog } from './catalog';
 import type { CatalogSource } from './catalog';
@@ -14,9 +14,10 @@ export interface MaterialLibrary {
    * Brings the library in line with a scene's materials without rebuilding it: changed materials are updated in
    * place (same object, no re-upload when the maps are unchanged), new ones are created, removed ones are queued
    * for disposal (see `commit`). Idempotent for the same input, so it is safe to call while rendering.
-   * `roomAmbient` replaces the per-room ambient `aoMap` of every opaque material.
+   * `roomAmbient` replaces the per-room ambient `aoMap` of every opaque material, `roomBounce` its per-room lamp
+   * bounce `emissiveMap` (see room-ambient.ts).
    */
-  update: (materials: SceneMaterial[], roomAmbient?: Texture) => void;
+  update: (materials: SceneMaterial[], roomAmbient?: Texture, roomBounce?: Texture) => void;
   /** Disposes the materials `update` removed. Call once the render that stopped using them is committed. */
   commit: () => void;
   /** A handle for `get` whose identity changes only when `get` may start returning different objects (a material was created or removed). */
@@ -46,6 +47,22 @@ export interface MaterialLibraryOptions {
 export function textureTint(meanColor: string): number {
   const lum = relativeLuminance(meanColor);
   return lum > 0 ? Math.min(1, relativeLuminance(clampAlbedo(meanColor)) / lum) : 1;
+}
+
+/** The surface's own colour (what a bounce is reflected with); kept apart because `color` of a textured material is only a tint. */
+function setAlbedo(m: MeshStandardMaterial, hex: string): void {
+  m.userData['albedo'] = new Color(hex);
+}
+
+/**
+ * The lamp bounce is the room's inter-reflected light, reflected by the surface: radiance = albedo x E / pi. It rides on
+ * `emissive` (so neither shadows nor the lights' count touch it): emissive colour = albedo, `emissiveMap` = E / pi per
+ * room. Without a bounce map the emissive colour is black, so nothing glows.
+ */
+function syncEmissive(m: MeshStandardMaterial): void {
+  const albedo = m.userData['albedo'] as Color | undefined;
+  if (m.emissiveMap && albedo) m.emissive.copy(albedo);
+  else m.emissive.setRGB(0, 0, 0);
 }
 
 const warned = new Set<string>();
@@ -110,10 +127,13 @@ class TexturedMaterial {
       for (const map of [this.applied.color, this.applied.normal, this.applied.roughness]) map.repeat.set(1 / scale, 1 / scale);
       m.roughness = Math.min(1, this.spec.roughness / Math.max(t.roughness, 1e-6));
       m.color.setScalar(1).multiplyScalar(textureTint(t.meanColor));
+      setAlbedo(m, clampAlbedo(t.meanColor));
     } else {
       m.roughness = this.spec.roughness;
       m.color.set(clampAlbedo(this.spec.color));
+      setAlbedo(m, clampAlbedo(this.spec.color));
     }
+    syncEmissive(m);
     this.opts.onChange?.();
   }
 
@@ -268,6 +288,7 @@ export function createMaterialLibrary(initial: Pick<Scene, 'materials'> | null =
   const removed: { id: string; material: Material; textured?: TexturedMaterial }[] = [];
   const opts = { ...options, anisotropy: options.anisotropy ?? MAX_ANISOTROPY };
   let ambientTexture: Texture | undefined = roomAmbient;
+  let bounceTexture: Texture | undefined;
   let version = 0;
   const handedOut = new Set<string>();
 
@@ -276,6 +297,12 @@ export function createMaterialLibrary(initial: Pick<Scene, 'materials'> | null =
     m.aoMap = ambientTexture ?? null;
     m.aoMapIntensity = 1;
     if (had !== (m.aoMap !== null)) m.needsUpdate = true;
+    const hadBounce = m.emissiveMap !== null;
+    m.emissiveMap = bounceTexture ?? null;
+    m.emissiveIntensity = 1;
+    if (m.userData['albedo'] === undefined) setAlbedo(m, `#${m.color.getHexString()}`);
+    syncEmissive(m);
+    if (hadBounce !== (m.emissiveMap !== null)) m.needsUpdate = true;
     return m;
   };
   const isGlass = (id: string) => id === BUILTIN_MATERIALS.glass;
@@ -283,9 +310,10 @@ export function createMaterialLibrary(initial: Pick<Scene, 'materials'> | null =
   const same = (a: SceneMaterial, b: SceneMaterial) =>
     a.kind === b.kind && a.color === b.color && a.roughness === b.roughness && a.textureUrl === b.textureUrl && a.textureScale === b.textureScale;
 
-  const update = (materials: SceneMaterial[], ambient?: Texture): void => {
-    if (ambient !== ambientTexture) {
+  const update = (materials: SceneMaterial[], ambient?: Texture, bounce?: Texture): void => {
+    if (ambient !== ambientTexture || bounce !== bounceTexture) {
       ambientTexture = ambient;
+      bounceTexture = bounce;
       cache.forEach((m, id) => {
         if (!isGlass(id)) applyAmbient(m as MeshStandardMaterial);
       });
@@ -300,7 +328,9 @@ export function createMaterialLibrary(initial: Pick<Scene, 'materials'> | null =
       if (!material || !prev) {
         // New id (or one that so far only existed as a builtin look-alike): a fresh material.
         if (material) removed.push({ id: def.id, material, textured: textured.get(def.id) });
-        material = applyAmbient(new MeshStandardMaterial({ color: clampAlbedo(def.color), roughness: def.roughness }));
+        material = new MeshStandardMaterial({ color: clampAlbedo(def.color), roughness: def.roughness });
+        setAlbedo(material, clampAlbedo(def.color));
+        applyAmbient(material);
         cache.set(def.id, material);
         textured.delete(def.id);
         version++;
@@ -320,6 +350,8 @@ export function createMaterialLibrary(initial: Pick<Scene, 'materials'> | null =
           textured.delete(def.id);
         }
         material.color.set(clampAlbedo(def.color));
+        setAlbedo(material, clampAlbedo(def.color));
+        syncEmissive(material);
         material.roughness = def.roughness;
       }
     }
@@ -346,6 +378,7 @@ export function createMaterialLibrary(initial: Pick<Scene, 'materials'> | null =
       let material = cache.get(id);
       if (!material) {
         const made = builtin(id);
+        setAlbedo(made, `#${made.color.getHexString()}`);
         made.name = id; // lets the test hook (and devtools) tell the shell's materials apart
         material = isGlass(id) ? made : applyAmbient(made);
         cache.set(id, material);

@@ -2,6 +2,7 @@ import { ceilingMaterial, floorMaterial, roomSideFinish, wallFaceMaterial } from
 import { roomWallSides, type WallSideName } from './geometry/room-sides';
 import type { SiteContext } from './context/schema';
 import { roomDaylightFactors, wallSideRooms } from './lighting/daylight';
+import { lightLumens, roomLightingPlan } from './lighting/lamps';
 import { SUN_PATCH_MIN_AREA, sunPatches, sunlightHours } from './lighting/sunpatch';
 import { localDayBounds, sunAtInstant } from './lighting/sun';
 import { polygonArea } from './measure';
@@ -180,10 +181,31 @@ export function describeRoom(
     };
   });
 
-  const lights = roomLights(scene, room).map((l) => {
+  const roomLightList = roomLights(scene, room);
+  const lights = roomLightList.map((l) => {
     const ov = lighting.lamps?.[l.id];
-    return { id: l.id, type: l.type, on: ov?.on ?? l.on, lumens: Math.round(ov?.lumens ?? l.lumens), kelvin: Math.round(ov?.kelvin ?? l.kelvin) };
+    const total = ov?.lumens ?? lightLumens(l);
+    return {
+      id: l.id,
+      type: l.type,
+      on: ov?.on ?? l.on,
+      lumens: Math.round(total),
+      kelvin: Math.round(ov?.kelvin ?? l.kelvin),
+      ...(l.type === 'grid'
+        ? {
+            rows: l.rows,
+            cols: l.cols,
+            lumensEach: Math.round(total / (l.rows * l.cols)),
+            grid: { position: [r2(l.position[0]), r2(l.position[1])] as Vec2, widthM: r2(l.width), depthM: r2(l.depth), elevationM: r2(l.elevation) },
+          }
+        : {}),
+      ...(l.itemId !== undefined ? { itemId: l.itemId } : {}),
+      ...(l.lumensSource !== undefined ? { lumensSource: l.lumensSource } : {}),
+    };
   });
+  const plan = roomLightingPlan(scene, room, roomLightList.map((l) => ({ lumens: lighting.lamps?.[l.id]?.lumens ?? lightLumens(l), on: lighting.lamps?.[l.id]?.on ?? l.on })));
+  // roomType and areaM2 are already on the room description
+  const lighting_plan = { targetLux: plan.targetLux, note: plan.note, litLumens: plan.litLumens, installedLumens: plan.installedLumens, estimatedLux: plan.estimatedLux, status: plan.status, suggestedGrid: plan.suggestedGrid };
 
   const df = roomDaylightFactors(scene)[roomId];
   const hours = sunlightHours(scene, lighting.date, 10, opts.context)[roomId];
@@ -208,6 +230,7 @@ export function describeRoom(
     walls: wallDescs,
     openings,
     lights,
+    lighting_plan,
     daylight: {
       date: lighting.date,
       obstruction: opts.context ? 'context' : 'none',

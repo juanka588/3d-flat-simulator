@@ -1,7 +1,8 @@
 import { checkParametricMesh, defaultParametricFor, meshAssetId } from '../assets/catalog';
 import { CHEAP_RULES, checkSubject, layoutContext, ROOM_TOLERANCE, type Subject } from '../placement/constraints';
 import { itemDims, itemMountOf } from '../placement/footprint';
-import { LIMITS, Item, type Scene, type Vec2 } from '../schema';
+import { linkedLightFor, linkedLightPose } from '../lighting/lamps';
+import { LIMITS, Item, Light, type Scene, type Vec2 } from '../schema';
 import { pointInPolygon } from '../validate';
 import type { Author, LeafCommand } from './schema';
 import { deepEqual, err, unknownIdHint, type CommandError } from './util';
@@ -10,11 +11,12 @@ import { deepEqual, err, unknownIdHint, type CommandError } from './util';
 export const ITEMS_PER_ROOM_SOFT_CAP = 60;
 
 type ItemLeaf = Extract<LeafCommand, { type: 'item.place' | 'item.move' | 'item.rotate' | 'item.setVariant' | 'item.remove' }>;
-export type ItemOutcome = { ok: true; scene: Scene; inverse: LeafCommand[]; ids: string[] } | { ok: false; errors: CommandError[] };
+/** `ids` are the items touched, `lights` the linked lights added, moved or removed with them. */
+export type ItemOutcome = { ok: true; scene: Scene; inverse: LeafCommand[]; ids: string[]; lights: string[] } | { ok: false; errors: CommandError[] };
 
 const fail = (...errors: CommandError[]): ItemOutcome => ({ ok: false, errors });
-const ok = (scene: Scene, inverse: LeafCommand[], ...ids: string[]): ItemOutcome => ({ ok: true, scene, inverse, ids });
-const noop = (scene: Scene): ItemOutcome => ({ ok: true, scene, inverse: [], ids: [] });
+const ok = (scene: Scene, inverse: LeafCommand[], ids: string[], lights: string[] = []): ItemOutcome => ({ ok: true, scene, inverse, ids, lights });
+const noop = (scene: Scene): ItemOutcome => ({ ok: true, scene, inverse: [], ids: [], lights: [] });
 
 export function isItemCommand(cmd: { type: string }): cmd is ItemLeaf {
   return cmd.type.startsWith('item.');
@@ -163,13 +165,62 @@ function place(scene: Scene, cmd: Extract<ItemLeaf, { type: 'item.place' }>, ctx
   }
   const items = scene.items.slice();
   items.splice(Math.min(cmd.index ?? items.length, items.length), 0, item);
-  return ok({ ...scene, items }, [{ type: 'item.remove', id }], id);
+  // A lamp comes with its light (or the exact light an undo puts back).
+  let lights = scene.lights;
+  const lightIds: string[] = [];
+  if (cmd.restoreLight !== undefined) {
+    const restored = Light.safeParse(cmd.restoreLight.light);
+    if (!restored.success || restored.data.itemId !== id) return fail(err('invalid_command', 'restoreLight', 'restoreLight must be a valid light of this item'));
+    lights = lights.slice();
+    lights.splice(Math.min(cmd.restoreLight.index, lights.length), 0, restored.data);
+    lightIds.push(restored.data.id);
+  } else if (cmd.autoLight !== false && lights.length < LIMITS.lights) {
+    const light = linkedLightFor(item, freshLightId(scene, id), item.roomId, item.product?.name);
+    if (light) {
+      lights = [...lights, light];
+      lightIds.push(light.id);
+    }
+  }
+  return ok({ ...scene, items, lights }, [{ type: 'item.remove', id }], [id], lightIds);
 }
 
-function replaceItem(scene: Scene, index: number, item: Item): Scene {
+/** The light of a lamp item (at most one per item), with its index. */
+function linkedLight(scene: Scene, itemId: string): { light: Light; index: number } | undefined {
+  const index = scene.lights.findIndex((l) => l.itemId === itemId);
+  return index < 0 ? undefined : { light: scene.lights[index]!, index };
+}
+
+/**
+ * Puts the linked light of `item` back where the item says (position, height, room), deriving them with the same pure
+ * function every time: so an item command and its inverse restore the light bit for bit. Unchanged lights keep identity.
+ */
+function syncLinked(scene: Scene, item: Item): { scene: Scene; lights: string[] } {
+  const found = linkedLight(scene, item.id);
+  if (!found || found.light.offset === undefined) return { scene, lights: [] };
+  const pose = linkedLightPose(item, found.light.offset);
+  const next: Record<string, unknown> = { ...found.light, position: pose.position, elevation: pose.elevation };
+  if (item.roomId === undefined) delete next.roomId;
+  else next.roomId = item.roomId;
+  if (deepEqual(next, found.light)) return { scene, lights: [] };
+  const lights = scene.lights.slice();
+  lights[found.index] = next as Light;
+  return { scene: { ...scene, lights }, lights: [found.light.id] };
+}
+
+function replaceItem(scene: Scene, index: number, item: Item): { scene: Scene; lights: string[] } {
   const items = scene.items.slice();
   items[index] = item;
-  return { ...scene, items };
+  return syncLinked({ ...scene, items }, item);
+}
+
+/** Id of the light a new lamp item gets: `<item>-light`, else `light-N`, unique across all entities. */
+function freshLightId(scene: Scene, itemId: string): string {
+  const ids = allIds(scene);
+  const base = `${itemId}-light`;
+  if (base.length <= 64 && !ids.has(base)) return base;
+  let n = scene.lights.length + 1;
+  while (ids.has(`light-${n}`)) n++;
+  return `light-${n}`;
 }
 
 function move(scene: Scene, cmd: Extract<ItemLeaf, { type: 'item.move' }>, ctx: Ctx): ItemOutcome {
@@ -201,6 +252,8 @@ function move(scene: Scene, cmd: Extract<ItemLeaf, { type: 'item.move' }>, ctx: 
     inverse.roomId = item.roomId;
     // dragged into another room: follow it, unless the new spot is still in the old room
     const current = scene.rooms.find((r) => r.id === item.roomId);
+    // an item that stands outside its own room (the hall-facing placard of Chambre 2) must get its room back when it returns
+    if (current && !pointInPolygon(item.position, current.polygon, ROOM_TOLERANCE)) inverse.roomId = item.roomId;
     if (current && !pointInPolygon(cmd.position, current.polygon, ROOM_TOLERANCE)) {
       const into = scene.rooms.find((r) => pointInPolygon(cmd.position, r.polygon, ROOM_TOLERANCE));
       if (into) {
@@ -221,7 +274,8 @@ function move(scene: Scene, cmd: Extract<ItemLeaf, { type: 'item.move' }>, ctx: 
     const problems = placementErrors(scene, parsed.item, 'position');
     if (problems.length) return fail(...problems);
   }
-  return ok(replaceItem(scene, index, parsed.item), [inverse], item.id);
+  const r = replaceItem(scene, index, parsed.item);
+  return ok(r.scene, [inverse], [item.id], r.lights);
 }
 
 function rotate(scene: Scene, cmd: Extract<ItemLeaf, { type: 'item.rotate' }>, ctx: Ctx): ItemOutcome {
@@ -236,7 +290,8 @@ function rotate(scene: Scene, cmd: Extract<ItemLeaf, { type: 'item.rotate' }>, c
     const problems = placementErrors(scene, next, 'rotation');
     if (problems.length) return fail(...problems);
   }
-  return ok(replaceItem(scene, index, next), [{ type: 'item.rotate', id: item.id, rotation: item.rotation }], item.id);
+  const r = replaceItem(scene, index, next);
+  return ok(r.scene, [{ type: 'item.rotate', id: item.id, rotation: item.rotation }], [item.id], r.lights);
 }
 
 function setVariant(scene: Scene, cmd: Extract<ItemLeaf, { type: 'item.setVariant' }>, ctx: Ctx): ItemOutcome {
@@ -300,7 +355,8 @@ function setVariant(scene: Scene, cmd: Extract<ItemLeaf, { type: 'item.setVarian
     const problems = placementErrors(scene, parsed.item, 'dims');
     if (problems.length) return fail(...problems);
   }
-  return ok(replaceItem(scene, index, parsed.item), [inverse], item.id);
+  const r = replaceItem(scene, index, parsed.item);
+  return ok(r.scene, [inverse], [item.id], r.lights);
 }
 
 function remove(scene: Scene, cmd: Extract<ItemLeaf, { type: 'item.remove' }>, ctx: Ctx): ItemOutcome {
@@ -309,7 +365,12 @@ function remove(scene: Scene, cmd: Extract<ItemLeaf, { type: 'item.remove' }>, c
   const { item, index } = found;
   const locked = lockedError(item, ctx, 'removed');
   if (locked) return fail(locked);
-  return ok({ ...scene, items: scene.items.filter((_, i) => i !== index) }, [{ type: 'item.place', item, index }], item.id);
+  const linked = linkedLight(scene, item.id);
+  const next = { ...scene, items: scene.items.filter((_, i) => i !== index), lights: linked ? scene.lights.filter((_, i) => i !== linked.index) : scene.lights };
+  const inverse: LeafCommand = linked
+    ? { type: 'item.place', item, index, restoreLight: { light: linked.light, index: linked.index } }
+    : { type: 'item.place', item, index, autoLight: false };
+  return ok(next, [inverse], [item.id], linked ? [linked.light.id] : []);
 }
 
 /** Reducer for the five item commands. Pure: returns a new scene (untouched entities keep their identity). */

@@ -709,7 +709,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "openWorldHint": false,
       "readOnlyHint": false,
     },
-    "description": "Add a light (point, spot or area). The id is derived (light-N) when omitted.",
+    "description": "Add a light: point (bulb), spot (downward cone), area (panel) or grid: rows x cols identical LED downlights as ONE light (rows, cols, lumensEach, kelvin, angle; fitToRoom + roomId, or position + width + depth). Size a grid by the lighting plan of describe_room. Only about 9 lights cast shadows: light_remove the ceiling light a grid replaces. The id is derived (light-N) when omitted.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -730,40 +730,40 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "additionalProperties": false,
               "properties": {
                 "elevation": {
-                  "description": "Height of the light source above the floor, in metres.",
+                  "description": "Height above the floor, in metres.",
                   "minimum": 0,
                   "type": "number",
                 },
                 "id": {
-                  "description": "Optional light id; derived as "light-N" when omitted.",
+                  "description": "Optional id; derived as light-N.",
                   "maxLength": 64,
                   "minLength": 1,
                   "type": "string",
                 },
                 "kelvin": {
                   "default": 2700,
-                  "description": "Colour temperature in kelvin, 1000-12000 (2700 warm, 6500 daylight). Defaults to 2700.",
+                  "description": "Kelvin, 1000-12000 (2700 warm, 6500 daylight). Default 2700.",
                   "maximum": 12000,
                   "minimum": 1000,
                   "type": "number",
                 },
                 "lumens": {
-                  "description": "Luminous flux in lumens (a 60 W-equivalent bulb is about 800).",
+                  "description": "Lumens (a 60 W-equivalent bulb is about 800).",
                   "minimum": 0,
                   "type": "number",
                 },
                 "name": {
-                  "description": "Optional label, at most 120 characters.",
+                  "description": "Optional label.",
                   "maxLength": 120,
                   "type": "string",
                 },
                 "on": {
                   "default": true,
-                  "description": "Whether the light is switched on. Defaults to true.",
+                  "description": "Switched on. Default true.",
                   "type": "boolean",
                 },
                 "position": {
-                  "description": "Plan position [x, y] in metres; plan y grows down the page.",
+                  "description": "Plan [x, y] in metres (y grows down); a grid: its centre.",
                   "items": {
                     "type": "number",
                   },
@@ -772,14 +772,14 @@ exports[`snapshots (the contract) > tools/list 1`] = `
                   "type": "array",
                 },
                 "roomId": {
-                  "description": "Room the light belongs to (rooms[].id from list_rooms). Optional.",
+                  "description": "Room id (list_rooms). Optional.",
                   "maxLength": 64,
                   "minLength": 1,
                   "type": "string",
                 },
                 "type": {
                   "const": "point",
-                  "description": "A point light radiates in all directions. Discriminator: "point".",
+                  "description": "Bulb: radiates in all directions.",
                   "type": "string",
                 },
               },
@@ -796,46 +796,46 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "properties": {
                 "angle": {
                   "default": 60,
-                  "description": "Spot cone angle in degrees (1-179). Defaults to 60.",
+                  "description": "Cone angle in degrees (1-179). Default 60.",
                   "maximum": 179,
                   "minimum": 1,
                   "type": "number",
                 },
                 "elevation": {
-                  "description": "Height of the light source above the floor, in metres.",
+                  "description": "Height above the floor, in metres.",
                   "minimum": 0,
                   "type": "number",
                 },
                 "id": {
-                  "description": "Optional light id; derived as "light-N" when omitted.",
+                  "description": "Optional id; derived as light-N.",
                   "maxLength": 64,
                   "minLength": 1,
                   "type": "string",
                 },
                 "kelvin": {
                   "default": 2700,
-                  "description": "Colour temperature in kelvin, 1000-12000 (2700 warm, 6500 daylight). Defaults to 2700.",
+                  "description": "Kelvin, 1000-12000 (2700 warm, 6500 daylight). Default 2700.",
                   "maximum": 12000,
                   "minimum": 1000,
                   "type": "number",
                 },
                 "lumens": {
-                  "description": "Luminous flux in lumens (a 60 W-equivalent bulb is about 800).",
+                  "description": "Lumens (a 60 W-equivalent bulb is about 800).",
                   "minimum": 0,
                   "type": "number",
                 },
                 "name": {
-                  "description": "Optional label, at most 120 characters.",
+                  "description": "Optional label.",
                   "maxLength": 120,
                   "type": "string",
                 },
                 "on": {
                   "default": true,
-                  "description": "Whether the light is switched on. Defaults to true.",
+                  "description": "Switched on. Default true.",
                   "type": "boolean",
                 },
                 "position": {
-                  "description": "Plan position [x, y] in metres; plan y grows down the page.",
+                  "description": "Plan [x, y] in metres (y grows down); a grid: its centre.",
                   "items": {
                     "type": "number",
                   },
@@ -844,14 +844,14 @@ exports[`snapshots (the contract) > tools/list 1`] = `
                   "type": "array",
                 },
                 "roomId": {
-                  "description": "Room the light belongs to (rooms[].id from list_rooms). Optional.",
+                  "description": "Room id (list_rooms). Optional.",
                   "maxLength": 64,
                   "minLength": 1,
                   "type": "string",
                 },
                 "type": {
                   "const": "spot",
-                  "description": "A spot light shines straight down in a cone. Discriminator: "spot".",
+                  "description": "Cone shining straight down.",
                   "type": "string",
                 },
               },
@@ -867,45 +867,45 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "additionalProperties": false,
               "properties": {
                 "depth": {
-                  "description": "Panel depth in metres along plan y before rotation.",
+                  "description": "Depth in metres along plan y before rotation.",
                   "exclusiveMinimum": 0,
                   "type": "number",
                 },
                 "elevation": {
-                  "description": "Height of the light source above the floor, in metres.",
+                  "description": "Height above the floor, in metres.",
                   "minimum": 0,
                   "type": "number",
                 },
                 "id": {
-                  "description": "Optional light id; derived as "light-N" when omitted.",
+                  "description": "Optional id; derived as light-N.",
                   "maxLength": 64,
                   "minLength": 1,
                   "type": "string",
                 },
                 "kelvin": {
                   "default": 2700,
-                  "description": "Colour temperature in kelvin, 1000-12000 (2700 warm, 6500 daylight). Defaults to 2700.",
+                  "description": "Kelvin, 1000-12000 (2700 warm, 6500 daylight). Default 2700.",
                   "maximum": 12000,
                   "minimum": 1000,
                   "type": "number",
                 },
                 "lumens": {
-                  "description": "Luminous flux in lumens (a 60 W-equivalent bulb is about 800).",
+                  "description": "Lumens (a 60 W-equivalent bulb is about 800).",
                   "minimum": 0,
                   "type": "number",
                 },
                 "name": {
-                  "description": "Optional label, at most 120 characters.",
+                  "description": "Optional label.",
                   "maxLength": 120,
                   "type": "string",
                 },
                 "on": {
                   "default": true,
-                  "description": "Whether the light is switched on. Defaults to true.",
+                  "description": "Switched on. Default true.",
                   "type": "boolean",
                 },
                 "position": {
-                  "description": "Plan position [x, y] in metres; plan y grows down the page.",
+                  "description": "Plan [x, y] in metres (y grows down); a grid: its centre.",
                   "items": {
                     "type": "number",
                   },
@@ -914,23 +914,23 @@ exports[`snapshots (the contract) > tools/list 1`] = `
                   "type": "array",
                 },
                 "roomId": {
-                  "description": "Room the light belongs to (rooms[].id from list_rooms). Optional.",
+                  "description": "Room id (list_rooms). Optional.",
                   "maxLength": 64,
                   "minLength": 1,
                   "type": "string",
                 },
                 "rotation": {
                   "default": 0,
-                  "description": "Panel rotation in degrees, counter-clockwise seen from above. Defaults to 0.",
+                  "description": "Rotation in degrees, counter-clockwise seen from above. Default 0.",
                   "type": "number",
                 },
                 "type": {
                   "const": "area",
-                  "description": "A rectangular panel facing down. Discriminator: "area".",
+                  "description": "Rectangular panel facing down.",
                   "type": "string",
                 },
                 "width": {
-                  "description": "Panel width in metres along plan x before rotation.",
+                  "description": "Width in metres along plan x before rotation.",
                   "exclusiveMinimum": 0,
                   "type": "number",
                 },
@@ -945,8 +945,111 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               ],
               "type": "object",
             },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "angle": {
+                  "default": 100,
+                  "description": "Beam angle in degrees (1-179). Default 100.",
+                  "maximum": 179,
+                  "minimum": 1,
+                  "type": "number",
+                },
+                "cols": {
+                  "description": "Columns, 1-20 (rows x cols at most 100).",
+                  "maximum": 20,
+                  "minimum": 1,
+                  "type": "integer",
+                },
+                "depth": {
+                  "description": "Depth in metres (plan y) the grid covers. Needed unless fitToRoom.",
+                  "exclusiveMinimum": 0,
+                  "type": "number",
+                },
+                "elevation": {
+                  "description": "Height in metres. Default: 3 cm below the ceiling.",
+                  "minimum": 0,
+                  "type": "number",
+                },
+                "fitToRoom": {
+                  "description": "true: cover the room's largest rectangle (needs roomId).",
+                  "type": "boolean",
+                },
+                "id": {
+                  "description": "Optional id; derived as light-N.",
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string",
+                },
+                "kelvin": {
+                  "default": 2700,
+                  "description": "Kelvin, 1000-12000 (2700 warm, 6500 daylight). Default 2700.",
+                  "maximum": 12000,
+                  "minimum": 1000,
+                  "type": "number",
+                },
+                "lumensEach": {
+                  "description": "Lumens of EACH fixture (a 6 W LED gives about 450); the total is rows x cols x lumensEach.",
+                  "minimum": 0,
+                  "type": "number",
+                },
+                "name": {
+                  "description": "Optional label.",
+                  "maxLength": 120,
+                  "type": "string",
+                },
+                "on": {
+                  "default": true,
+                  "description": "Switched on. Default true.",
+                  "type": "boolean",
+                },
+                "position": {
+                  "description": "Grid centre [x, y] in metres. Needed unless fitToRoom.",
+                  "items": {
+                    "type": "number",
+                  },
+                  "maxItems": 2,
+                  "minItems": 2,
+                  "type": "array",
+                },
+                "roomId": {
+                  "description": "Room id (list_rooms). Optional.",
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string",
+                },
+                "rotation": {
+                  "default": 0,
+                  "description": "Grid rotation in degrees, counter-clockwise seen from above. Defaults to 0.",
+                  "type": "number",
+                },
+                "rows": {
+                  "description": "Rows, 1-20.",
+                  "maximum": 20,
+                  "minimum": 1,
+                  "type": "integer",
+                },
+                "type": {
+                  "const": "grid",
+                  "description": "rows x cols identical LED downlights, edited as ONE light.",
+                  "type": "string",
+                },
+                "width": {
+                  "description": "Width in metres (plan x) the grid covers. Needed unless fitToRoom.",
+                  "exclusiveMinimum": 0,
+                  "type": "number",
+                },
+              },
+              "required": [
+                "type",
+                "rows",
+                "cols",
+                "lumensEach",
+              ],
+              "type": "object",
+            },
           ],
-          "description": "The light to add: point, spot or area, discriminated by its "type".",
+          "description": "The light: point, spot, area or grid, by "type".",
         },
         "preview": {
           "description": "true: change nothing, return the diff and warnings.",
@@ -979,7 +1082,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "openWorldHint": false,
       "readOnlyHint": false,
     },
-    "description": "Change fields of an existing light. Omitted fields stay unchanged; name and roomId accept null to clear. A light cannot take fields of another light type.",
+    "description": "Change fields of a light (not fields of another light type). Grid: rows, cols, lumensEach, kelvin, angle, on, or fitToRoom: true. A lamp item's light (describe_room lights[].itemId) follows its item: only on, lumens, kelvin, name change; move the item instead.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -1002,37 +1105,65 @@ exports[`snapshots (the contract) > tools/list 1`] = `
         },
         "patch": {
           "additionalProperties": false,
-          "description": "Fields to change; omitted fields stay as they are, null clears name and roomId. A light cannot take fields of another light type.",
+          "description": "Fields to change; omitted ones stay, null clears name and roomId.",
           "properties": {
             "angle": {
-              "description": "Spot lights only: cone angle in degrees (1-179).",
+              "description": "Spot and grid only: cone angle in degrees (1-179).",
               "maximum": 179,
               "minimum": 1,
               "type": "number",
             },
+            "cols": {
+              "description": "Grid only: columns (1-20).",
+              "maximum": 20,
+              "minimum": 1,
+              "type": "integer",
+            },
             "depth": {
-              "description": "Area lights only: depth in metres.",
+              "description": "Area and grid only: depth in metres.",
               "exclusiveMinimum": 0,
               "type": "number",
             },
             "elevation": {
-              "description": "Height of the light source above the floor, in metres.",
+              "description": "Height above the floor, in metres.",
               "minimum": 0,
               "type": "number",
             },
+            "fitToRoom": {
+              "description": "Grid only: true: cover the room's largest rectangle (needs roomId).",
+              "type": "boolean",
+            },
             "kelvin": {
-              "description": "Colour temperature in kelvin, 1000-12000.",
+              "description": "Kelvin, 1000-12000.",
               "maximum": 12000,
               "minimum": 1000,
               "type": "number",
             },
             "lumens": {
-              "description": "Luminous flux in lumens.",
+              "description": "Luminous flux in lumens (a grid uses lumensEach).",
               "minimum": 0,
               "type": "number",
             },
+            "lumensEach": {
+              "description": "Grid only: lumens of each fixture.",
+              "minimum": 0,
+              "type": "number",
+            },
+            "lumensSource": {
+              "description": "Internal (undo).",
+              "enum": [
+                "product",
+                "estimated",
+                "user",
+                null,
+              ],
+              "type": [
+                "string",
+                "null",
+              ],
+            },
             "name": {
-              "description": "Label (at most 120 characters); null clears it.",
+              "description": "Label; null clears.",
               "maxLength": 120,
               "type": [
                 "string",
@@ -1040,11 +1171,11 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               ],
             },
             "on": {
-              "description": "Whether the light is switched on.",
+              "description": "Switched on.",
               "type": "boolean",
             },
             "position": {
-              "description": "Plan position [x, y] in metres; plan y grows down the page.",
+              "description": "Plan [x, y] in metres (y grows down); a grid: its centre.",
               "items": {
                 "type": "number",
               },
@@ -1053,7 +1184,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "type": "array",
             },
             "roomId": {
-              "description": "Room the light belongs to (rooms[].id from list_rooms); null clears it.",
+              "description": "Room id (list_rooms); null clears.",
               "maxLength": 64,
               "minLength": 1,
               "type": [
@@ -1062,11 +1193,17 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               ],
             },
             "rotation": {
-              "description": "Area lights only: rotation in degrees, counter-clockwise seen from above.",
+              "description": "Area and grid only: rotation in degrees, counter-clockwise seen from above.",
               "type": "number",
             },
+            "rows": {
+              "description": "Grid only: rows (1-20; rows x cols at most 100).",
+              "maximum": 20,
+              "minimum": 1,
+              "type": "integer",
+            },
             "width": {
-              "description": "Area lights only: width in metres.",
+              "description": "Area and grid only: width in metres.",
               "exclusiveMinimum": 0,
               "type": "number",
             },
@@ -1105,7 +1242,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "openWorldHint": false,
       "readOnlyHint": false,
     },
-    "description": "Remove a light by id. Undo restores it at the same position in the list.",
+    "description": "Remove a light by id. Undo restores it at the same position in the list. A lamp item's own light cannot be removed alone: light_update {on: false}, or remove the item.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -2340,6 +2477,93 @@ exports[`snapshots (the contract) > tools/list 1`] = `
                   ],
                   "type": "object",
                 },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "angle": {
+                      "default": 100,
+                      "maximum": 179,
+                      "minimum": 1,
+                      "type": "number",
+                    },
+                    "cols": {
+                      "maximum": 20,
+                      "minimum": 1,
+                      "type": "integer",
+                    },
+                    "depth": {
+                      "exclusiveMinimum": 0,
+                      "type": "number",
+                    },
+                    "elevation": {
+                      "minimum": 0,
+                      "type": "number",
+                    },
+                    "fitToRoom": {
+                      "type": "boolean",
+                    },
+                    "id": {
+                      "maxLength": 64,
+                      "minLength": 1,
+                      "type": "string",
+                    },
+                    "kelvin": {
+                      "default": 2700,
+                      "maximum": 12000,
+                      "minimum": 1000,
+                      "type": "number",
+                    },
+                    "lumensEach": {
+                      "minimum": 0,
+                      "type": "number",
+                    },
+                    "name": {
+                      "maxLength": 120,
+                      "type": "string",
+                    },
+                    "on": {
+                      "default": true,
+                      "type": "boolean",
+                    },
+                    "position": {
+                      "items": {
+                        "type": "number",
+                      },
+                      "maxItems": 2,
+                      "minItems": 2,
+                      "type": "array",
+                    },
+                    "roomId": {
+                      "maxLength": 64,
+                      "minLength": 1,
+                      "type": "string",
+                    },
+                    "rotation": {
+                      "default": 0,
+                      "type": "number",
+                    },
+                    "rows": {
+                      "maximum": 20,
+                      "minimum": 1,
+                      "type": "integer",
+                    },
+                    "type": {
+                      "const": "grid",
+                      "type": "string",
+                    },
+                    "width": {
+                      "exclusiveMinimum": 0,
+                      "type": "number",
+                    },
+                  },
+                  "required": [
+                    "type",
+                    "rows",
+                    "cols",
+                    "lumensEach",
+                  ],
+                  "type": "object",
+                },
               ],
             },
             "type": {
@@ -2388,6 +2612,11 @@ exports[`snapshots (the contract) > tools/list 1`] = `
                   "minimum": 1,
                   "type": "number",
                 },
+                "cols": {
+                  "maximum": 20,
+                  "minimum": 1,
+                  "type": "integer",
+                },
                 "depth": {
                   "exclusiveMinimum": 0,
                   "type": "number",
@@ -2395,6 +2624,9 @@ exports[`snapshots (the contract) > tools/list 1`] = `
                 "elevation": {
                   "minimum": 0,
                   "type": "number",
+                },
+                "fitToRoom": {
+                  "type": "boolean",
                 },
                 "kelvin": {
                   "maximum": 12000,
@@ -2404,6 +2636,22 @@ exports[`snapshots (the contract) > tools/list 1`] = `
                 "lumens": {
                   "minimum": 0,
                   "type": "number",
+                },
+                "lumensEach": {
+                  "minimum": 0,
+                  "type": "number",
+                },
+                "lumensSource": {
+                  "enum": [
+                    "product",
+                    "estimated",
+                    "user",
+                    null,
+                  ],
+                  "type": [
+                    "string",
+                    "null",
+                  ],
                 },
                 "name": {
                   "maxLength": 120,
@@ -2433,6 +2681,11 @@ exports[`snapshots (the contract) > tools/list 1`] = `
                 },
                 "rotation": {
                   "type": "number",
+                },
+                "rows": {
+                  "maximum": 20,
+                  "minimum": 1,
+                  "type": "integer",
                 },
                 "width": {
                   "exclusiveMinimum": 0,
@@ -2989,7 +3242,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "openWorldHint": false,
       "readOnlyHint": false,
     },
-    "description": "Put a real product into a room. The productId must come from search_products or get_product in this session (else unknown_product); name, price, dimensions and link are read from the server's own product record, never from you, so there are no such arguments. Give a relation (against_wall, in_corner, centered_in, facing, next_to, under_window: the server finds a valid position and rotation) or an explicit position + rotation. Several products: pass items[] (up to 12, one undo step, placed in order). An invalid spot gives placement_invalid with the violations and alternative candidates. The shape defaults to the real 3D model, else a lookalike, else a parametric shape at the exact dims. To switch an already placed item to another colour or size, pass only itemId + variantSku (a variants[].sku from get_product): the server rebuilds its price and dims from the product record. Check the result with validate_layout.",
+    "description": "Put a real product into a room. The productId must come from search_products or get_product in this session (else unknown_product); name, price, dimensions and link are read from the server's own product record, never from you, so there are no such arguments. Give a relation (against_wall, in_corner, centered_in, facing, next_to, under_window: the server finds a valid position and rotation) or an explicit position + rotation. Several products: pass items[] (up to 12, one undo step, placed in order). An invalid spot gives placement_invalid with the violations and alternative candidates. The shape defaults to the real 3D model, else a lookalike, else a parametric shape at the exact dims. To switch an already placed item to another colour or size, pass only itemId + variantSku (a variants[].sku from get_product): the server rebuilds its price and dims from the product record. A lamp comes with a light (placed[].light, switch or dim it with light_update). Check the result with validate_layout.",
     "inputSchema": {
       "$defs": {
         "mesh": {

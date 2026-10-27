@@ -79,6 +79,14 @@ linear light and scales the result so the relative luminance (Rec. 709: 0.2126 R
 (2700 K is about R 2.0, G 0.77, B 0.19). 6500 K is neutral to within 5%, and the blue/red ratio
 increases monotonically from 1000 to 12000 K.
 
+### Grids and lamp bounce
+
+A `grid` light is `rows x cols` fixtures at cell centres, each `lumensEach` lumens in a cone of `angle` degrees; the total flux is exactly the product. The viewer approximates it with at most `gridTiles` (4, or 2 on the low profile) spot lights whose fluxes add up to the total, and draws the fixtures as an instanced emissive mesh.
+
+Lamps have no indirect light in three.js, so each room with a lit lamp gets a bounce: `E = rho * Phi / (A * (1 - rho))` with `rho = 0.5` (`LAMP_BOUNCE_ALBEDO`), `Phi` the room's lit lamp flux and `A` its total surface area (floor, ceiling, walls). The radiance `albedo * E / pi` is written per room into the half-float room-ambient texture and shown through the material emissive channel, so it is local to the room (no leak through walls), switches off with the lamps and needs no extra light. The result is bounded: the bounce flux never exceeds `rho / (1 - rho)` times the lamp flux.
+
+Lighting plan (`roomLightingPlan`): target lux by room type (living 100-150, kitchen 200-300, bathroom 150-250, bedroom 100-150, office 300-500), estimated lux `= lit lumens * 0.5 / area`.
+
 ## Auto exposure
 
 `autoExposure(sunLux, ambientLux, lampLux)` returns the multiplier for

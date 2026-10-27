@@ -1,3 +1,4 @@
+import { DataUtils } from 'three';
 import { describe, expect, it } from 'vitest';
 import { buildShell, loadSceneText, roomDaylightFactors } from '@flat/scene';
 import charme from '@flat/scene/fixtures/charme-3205.flat.json';
@@ -8,12 +9,15 @@ if (!result.ok) throw new Error('fixture does not load');
 const scene = result.scene;
 const shell = buildShell(scene);
 const ambient = createRoomAmbient(scene);
-const texelOf = (uv1: Float32Array, vertex: number) => Math.floor(uv1[vertex * 2]! * (ambient.none + 1));
+const texelOf = (uv1: Float32Array, vertex: number) => Math.floor(uv1[vertex * 2]! * ambient.texels);
 const value = (roomId: string) => (ambient.texture.image.data as Uint8Array)[ambient.indexOf(roomId)]! / 255;
 
 describe('room ambient texture and uv1', () => {
-  it('has one texel per room plus a full-sky texel', () => {
-    expect(ambient.texture.image.width).toBe(scene.rooms.length + 1);
+  it('has one texel per room, a full-sky texel and one full-sky texel per room for its furniture', () => {
+    expect(ambient.texture.image.width).toBe(2 * scene.rooms.length + 1);
+    expect(ambient.texels).toBe(2 * scene.rooms.length + 1);
+    const data = ambient.texture.image.data as Uint8Array;
+    for (let i = scene.rooms.length; i < data.length; i++) expect(data[i]).toBe(255);
     const factors = roomDaylightFactors(scene);
     for (const room of scene.rooms) expect(value(room.id), room.id).toBeCloseTo(factors[room.id]!, 2);
     expect(value('wc')).toBeLessThan(0.3);
@@ -57,5 +61,29 @@ describe('room ambient texture and uv1', () => {
     const exterior = shell.walls.owners.filter((o) => o.entityId === 'w-north' && (o.face === 'left' || o.face === 'right'));
     const exteriorTexels = new Set(exterior.map((o) => texelOf(north.uv1, north.indices[o.start * 3]!)));
     expect(exteriorTexels.has(ambient.none) || exteriorTexels.size > 0).toBe(true);
+  });
+});
+
+describe('room lamp bounce texture', () => {
+  const halves = () => ambient.bounce.texture.image.data as Uint16Array;
+  const rgb = (texel: number) => [0, 1, 2].map((k) => DataUtils.fromHalfFloat(halves()[texel * 4 + k]!));
+
+  it('is dark until a room has a lit lamp, then lights only that room (walls and its furniture)', () => {
+    expect(rgb(ambient.indexOf('wc'))).toEqual([0, 0, 0]);
+    ambient.bounce.set({ wc: { lux: Math.PI * 2, color: [1, 1, 1] } });
+    expect(rgb(ambient.indexOf('wc'))[0]).toBeCloseTo(2, 2); // radiance = E / pi, reflected by the surface colour
+    expect(rgb(ambient.itemIndexOf('wc'))[0]).toBeCloseTo(2, 2);
+    for (const id of ['sejour', 'sdb', 'entree']) expect(rgb(ambient.indexOf(id)), id).toEqual([0, 0, 0]);
+    expect(rgb(ambient.none)).toEqual([0, 0, 0]); // outside faces get no lamp light
+    ambient.bounce.set({});
+    expect(rgb(ambient.indexOf('wc'))).toEqual([0, 0, 0]);
+  });
+
+  it('carries the lamp colour', () => {
+    ambient.bounce.set({ sdb: { lux: Math.PI, color: [1.2, 1, 0.8] } });
+    const c = rgb(ambient.indexOf('sdb'));
+    expect(c[0]).toBeCloseTo(1.2, 2);
+    expect(c[2]).toBeCloseTo(0.8, 2);
+    ambient.bounce.set({});
   });
 });

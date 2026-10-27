@@ -71,20 +71,27 @@ const DESCRIPTIONS: Record<string, { description: string; example: Record<string
     example: { site: { northAngle: 35, timezone: 'Europe/Paris' } },
   },
   'light.add': {
-    description: 'Add a light (point, spot or area). The id is derived (light-N) when omitted.',
-    example: { light: { type: 'point', position: [2.5, 1.8], elevation: 2.4, lumens: 800, kelvin: 2700, on: true } },
+    description:
+      'Add a light: point (bulb), spot (downward cone), area (panel) or grid: rows x cols identical LED downlights as ONE light (rows, cols, lumensEach, kelvin, angle; fitToRoom + roomId, or position + width + depth). ' +
+      'Size a grid by the lighting plan of describe_room. Only about 9 lights cast shadows: light_remove the ceiling light a grid replaces. The id is derived (light-N) when omitted.',
+    example: { light: { type: 'grid', roomId: 'sejour', fitToRoom: true, rows: 3, cols: 4, lumensEach: 450, kelvin: 2700, angle: 100 } },
   },
   'light.update': {
-    description: 'Change fields of an existing light. Omitted fields stay unchanged; name and roomId accept null to clear. A light cannot take fields of another light type.',
+    description:
+      'Change fields of a light (not fields of another light type). ' +
+      'Grid: rows, cols, lumensEach, kelvin, angle, on, or fitToRoom: true. A lamp item\'s light (describe_room lights[].itemId) follows its item: only on, lumens, kelvin, name change; move the item instead.',
     example: { id: 'light-1', patch: { on: false, lumens: 600 } },
   },
-  'light.remove': { description: 'Remove a light by id. Undo restores it at the same position in the list.', example: { id: 'light-1' } },
+  'light.remove': {
+    description: 'Remove a light by id. Undo restores it at the same position in the list. A lamp item\'s own light cannot be removed alone: light_update {on: false}, or remove the item.',
+    example: { id: 'light-1' },
+  },
   'item.place': {
     description:
       'Put a real, purchasable product into a room. Only products returned by search_products may be placed; an item without productRef or product is refused with precondition_failed ("search_products first"). ' +
       'Normally use place_item, which finds a valid position and rotation and fills in the product facts (price, dims, link) from the server\'s record; never type those yourself. ' +
       'The item is refused with placement_invalid when it would stand outside its room, overlap a wall or another item, or block a door swing (the message and hint say which and what to try). Windows, glazing, heavy wall mounts and walkways are checked by place_item and validate_layout. ' +
-      'Item frame: the front faces plan +y at rotation 0; rotation is degrees counter-clockwise seen from above; a floor item has elevation 0. The id is derived (item-N) when omitted. At most 60 items per room. Undo removes the item.',
+      'Item frame: the front faces plan +y at rotation 0; rotation is degrees counter-clockwise seen from above; a floor item has elevation 0. The id is derived (item-N) when omitted. At most 60 items per room. A lamp (product category lamp) gets a light that moves with it: lumens from the product page when stated (lights[].lumensSource "product"), else an estimate (floor 800, table 400, pendant 1000, wall 400 lm at 2700 K; "estimated"); autoLight false places it unlit. Undo removes the item and its light.',
     example: {
       item: {
         assetId: 'ikea-fr:80275887',
@@ -214,9 +221,12 @@ function toJson(schema: z.ZodType): Json {
 
 /** Drops the internal `index` field (insert position used by undo). */
 type Omittable = { omit: (mask: Record<string, true>) => z.ZodType; shape: Record<string, unknown> };
+/** Internal fields used by undo; never shown to a model. */
+const HIDDEN_FIELDS = ['index', 'restoreLight'] as const;
 function visible(schema: z.ZodType): z.ZodType {
   const s = schema as unknown as Omittable;
-  return 'index' in s.shape ? s.omit({ index: true }) : schema;
+  const mask = Object.fromEntries(HIDDEN_FIELDS.filter((k) => k in s.shape).map((k) => [k, true as const]));
+  return Object.keys(mask).length ? s.omit(mask) : schema;
 }
 
 let cache: CommandToolSchema[] | undefined;

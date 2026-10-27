@@ -424,7 +424,7 @@ const PLACE_DESCRIPTION =
   'Several products: pass items[] (up to 12, one undo step, placed in order). An invalid spot gives placement_invalid with the violations and alternative candidates. ' +
   'The shape defaults to the real 3D model, else a lookalike, else a parametric shape at the exact dims. ' +
   'To switch an already placed item to another colour or size, pass only itemId + variantSku (a variants[].sku from get_product): the server rebuilds its price and dims from the product record. ' +
-  'Check the result with validate_layout.';
+  'A lamp comes with a light (placed[].light, switch or dim it with light_update). Check the result with validate_layout.';
 
 function placeSchema(): Json {
   // Single mode: the fields are references into the placement definition (written once).
@@ -444,6 +444,8 @@ interface PlacedInfo {
   elevation: number;
   mesh: string;
   rationale: string[];
+  /** Lamps: the light that came with the item (its lumens are the product's, or an estimate for the kind of lamp). */
+  light?: { id: string; lumens: number; kelvin: number; lumensSource: string };
 }
 
 /** Adds `placed` (and the cost of this call) to a successful write result. */
@@ -575,6 +577,7 @@ async function placeItem(ctx: ToolContext, args: Json): Promise<CallToolResult> 
     if (!step.ok) return commandErrors(step.errors, base.rev);
     working = step.scene;
     placedIds.push(step.changed.items?.[0] ?? working.items.at(-1)?.id ?? '');
+    const lamp = working.lights.find((l) => l.id === step.changed.lights[0] && l.itemId !== undefined);
     placed.push({
       name: snapshot.name,
       productId: entry.productId,
@@ -586,6 +589,7 @@ async function placeItem(ctx: ToolContext, args: Json): Promise<CallToolResult> 
       elevation: placement.elevation,
       mesh: mesh.source,
       rationale: solved.rationale,
+      ...(lamp && lamp.type !== 'grid' ? { light: { id: lamp.id, lumens: Math.round(lamp.lumens), kelvin: lamp.kelvin, lumensSource: lamp.lumensSource ?? 'estimated' } } : {}),
     });
   }
 

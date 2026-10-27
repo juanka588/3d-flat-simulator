@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { ITEM_COMMAND_SCHEMAS, ItemMove, ItemPlace, ItemRemove, ItemRotate, ItemSetVariant } from './item-schema';
-import { ADDRESS_MAX, EntityId, FloorZone, Light, Material, NAME_MAX, Site, stripControlChars } from '../schema';
+import { ADDRESS_MAX, EntityId, FloorZone, GRID_MAX_SIDE, Light, Material, NAME_MAX, Site, stripControlChars } from '../schema';
 
 const Id = EntityId;
 const WallId = Id.describe('Id of the wall (walls[].wallId from describe_room).');
@@ -10,11 +10,27 @@ const MaterialRef = Id.nullable().describe(
     'To use a library texture first call material_define with textureUrl "lib:<slug>" (library[].slug from list_materials).',
 );
 
-/** Light as sent to `light.add`: the id is optional and derived (`light-N`) when absent. */
+const OptionalLightId = Id.describe('Optional id; derived as light-N.').optional();
+/** Fields of a light that only the item commands manage (a lamp item's own light). */
+const LINK_FIELDS = { itemId: true, offset: true, lumensSource: true } as const;
+const FIT_DESC = "true: cover the room's largest rectangle (needs roomId).";
+
+/**
+ * Light as sent to `light.add`: the id is optional and derived (`light-N`) when absent. A grid may omit its
+ * geometry when `fitToRoom` is set. The link to a lamp item (`itemId`, `offset`) is managed by the item commands.
+ */
 const LightInput = z.discriminatedUnion('type', [
-  Light.options[0].extend({ id: Id.describe('Optional light id; derived as "light-N" when omitted.').optional() }),
-  Light.options[1].extend({ id: Id.describe('Optional light id; derived as "light-N" when omitted.').optional() }),
-  Light.options[2].extend({ id: Id.describe('Optional light id; derived as "light-N" when omitted.').optional() }),
+  Light.options[0].omit(LINK_FIELDS).extend({ id: OptionalLightId }),
+  Light.options[1].omit(LINK_FIELDS).extend({ id: OptionalLightId }),
+  Light.options[2].omit(LINK_FIELDS).extend({ id: OptionalLightId }),
+  Light.options[3].omit(LINK_FIELDS).extend({
+    id: OptionalLightId,
+    position: Light.options[3].shape.position.optional().describe('Grid centre [x, y] in metres. Needed unless fitToRoom.'),
+    elevation: Light.options[3].shape.elevation.optional().describe('Height in metres. Default: 3 cm below the ceiling.'),
+    width: Light.options[3].shape.width.optional().describe('Width in metres (plan x) the grid covers. Needed unless fitToRoom.'),
+    depth: Light.options[3].shape.depth.optional().describe('Depth in metres (plan y) the grid covers. Needed unless fitToRoom.'),
+    fitToRoom: z.boolean().describe(FIT_DESC).optional(),
+  }),
 ]);
 
 /** Site fields without schema defaults, so omitted keys are left untouched. */
@@ -30,17 +46,23 @@ const SitePatch = z.strictObject({
 
 /** Light fields that can change; `null` clears the optional ones (`name`, `roomId`). */
 const LightPatch = z.strictObject({
-  name: z.string().max(NAME_MAX).transform(stripControlChars).nullable().describe('Label (at most 120 characters); null clears it.').optional(),
-  roomId: Id.nullable().describe('Room the light belongs to (rooms[].id from list_rooms); null clears it.').optional(),
+  name: z.string().max(NAME_MAX).transform(stripControlChars).nullable().describe('Label; null clears.').optional(),
+  roomId: Id.nullable().describe('Room id (list_rooms); null clears.').optional(),
   position: Light.options[0].shape.position.optional(),
-  elevation: z.number().nonnegative().describe('Height of the light source above the floor, in metres.').optional(),
-  lumens: z.number().nonnegative().describe('Luminous flux in lumens.').optional(),
-  kelvin: z.number().min(1000).max(12000).describe('Colour temperature in kelvin, 1000-12000.').optional(),
-  on: z.boolean().describe('Whether the light is switched on.').optional(),
-  angle: z.number().min(1).max(179).describe('Spot lights only: cone angle in degrees (1-179).').optional(),
-  width: z.number().positive().describe('Area lights only: width in metres.').optional(),
-  depth: z.number().positive().describe('Area lights only: depth in metres.').optional(),
-  rotation: z.number().describe('Area lights only: rotation in degrees, counter-clockwise seen from above.').optional(),
+  elevation: z.number().nonnegative().describe('Height above the floor, in metres.').optional(),
+  lumens: z.number().nonnegative().describe('Luminous flux in lumens (a grid uses lumensEach).').optional(),
+  kelvin: z.number().min(1000).max(12000).describe('Kelvin, 1000-12000.').optional(),
+  on: z.boolean().describe('Switched on.').optional(),
+  angle: z.number().min(1).max(179).describe('Spot and grid only: cone angle in degrees (1-179).').optional(),
+  width: z.number().positive().describe('Area and grid only: width in metres.').optional(),
+  depth: z.number().positive().describe('Area and grid only: depth in metres.').optional(),
+  rotation: z.number().describe('Area and grid only: rotation in degrees, counter-clockwise seen from above.').optional(),
+  rows: z.number().int().min(1).max(GRID_MAX_SIDE).describe('Grid only: rows (1-20; rows x cols at most 100).').optional(),
+  cols: z.number().int().min(1).max(GRID_MAX_SIDE).describe('Grid only: columns (1-20).').optional(),
+  lumensEach: z.number().nonnegative().describe('Grid only: lumens of each fixture.').optional(),
+  fitToRoom: z.boolean().describe('Grid only: ' + FIT_DESC).optional(),
+  // Set by the editor when a lamp item's light changes; part of the patch so an undo restores it exactly.
+  lumensSource: z.enum(['product', 'estimated', 'user']).nullable().describe('Internal (undo).').optional(),
 });
 
 const t = <T extends string>(type: T) => z.literal(type).describe(`Command discriminator, always "${type}".`);
@@ -128,14 +150,14 @@ export const SiteSet = z.strictObject({
 });
 export const LightAdd = z.strictObject({
   type: t('light.add'),
-  light: LightInput.describe('The light to add: point, spot or area, discriminated by its "type".'),
+  light: LightInput.describe('The light: point, spot, area or grid, by "type".'),
   /** Insert position (used by inverses); defaults to the end. */
   index: z.number().int().nonnegative().describe(INDEX_DESC).optional(),
 });
 export const LightUpdate = z.strictObject({
   type: t('light.update'),
   id: Id.describe('Id of the light (lights[].id from describe_room, or lights[].id from get_scene_summary with detail "full").'),
-  patch: LightPatch.describe('Fields to change; omitted fields stay as they are, null clears name and roomId. A light cannot take fields of another light type.'),
+  patch: LightPatch.describe('Fields to change; omitted ones stay, null clears name and roomId.'),
 });
 export const LightRemove = z.strictObject({ type: t('light.remove'), id: Id.describe('Id of the light to remove (lights[].id from describe_room, or lights[].id from get_scene_summary with detail "full").') });
 

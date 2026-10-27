@@ -9,7 +9,7 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { flat } from './helpers';
-import { openConnected, startServer } from './server';
+import { openConnected, startServer, WEB_ORIGIN } from './server';
 import type { RunningServer } from './server';
 
 test.describe.configure({ timeout: 120_000 });
@@ -212,7 +212,7 @@ test('paste a product URL (mock) and fill the missing size', async ({ page }) =>
     r.fulfill({
       status: 422,
       contentType: 'application/json',
-      headers: { 'access-control-allow-origin': 'http://127.0.0.1:5173' },
+      headers: { 'access-control-allow-origin': WEB_ORIGIN },
       body: JSON.stringify({
         ok: false,
         errors: [{ code: 'product_dims_missing', path: '', message: 'no depth in the data', hint: 'type the sizes', details: { draft: { provider: 'pasted-url', sku: 'abcdef0123456789', name: 'Canape pasted', url: 'https://www.meubles-exemple.fr/p/canape', price: 450, currency: 'EUR', priceTtc: true, category: 'sofa' } } }],

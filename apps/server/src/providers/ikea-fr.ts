@@ -3,6 +3,7 @@ import { IKEA_FR_META } from './catalog';
 import { readTextCapped } from './http';
 import { categoryOf, fold, WALL_CATEGORIES } from './category';
 import { asArray, asPrice, extractJsonLd, hasType, isObj, str, type Json } from './jsonld';
+import { htmlToText, parseLumens } from './lumens';
 import { ProviderError, type ModelStream, type ProductProvider, type ProviderContext, type SearchOptions } from './types';
 import { parseLength, parseMeasureText } from './units';
 
@@ -328,6 +329,8 @@ export function parseProductPage(html: string, o: ParsePageOptions): ProductReco
   const sku = /^\d{8}$/.test(mpnSku) ? mpnSku : o.sku;
   const byType = categoryOf(o.hit?.typeName ?? '', [str(product['category']) ?? '', ...(o.hit?.categoryPath ?? [])]);
   const finalCategory = byType === 'other' ? categoryOf(name) : byType;
+  // Lamps: the bulb flux when the page states it (else the viewer uses a default for the kind of lamp).
+  const lumens = finalCategory === 'lamp' ? parseLumens(`${str(product['description']) ?? ''} ${htmlToText(html)}`) : undefined;
   const colour = str(product['color']);
   const colours = colour ? [colour.slice(0, 40)] : (o.hit?.colours.map((c) => c.slice(0, 40)) ?? []);
   const imgs = asArray(product['image'] as unknown[]);
@@ -353,6 +356,7 @@ export function parseProductPage(html: string, o: ParsePageOptions): ProductReco
     colours: colours.slice(0, 8),
     variants: o.hit?.variants ?? [],
     ...(weightKg !== undefined ? { weightKg, weightKind: 'package' } : {}),
+    ...(lumens !== undefined ? { lumens } : {}),
     ...(photoUrl ? { photoUrl } : {}),
     ...(modelRef ? { modelRef } : {}),
     fetchedAt: o.fetchedAt,

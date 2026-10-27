@@ -61,9 +61,10 @@ function lightName(scene: Scene, id: string): string {
   return l ? lightTitle(scene, l) : id;
 }
 
-function lightTitle(scene: Scene, l: Pick<Light, 'id' | 'name' | 'roomId' | 'type'>): string {
+function lightTitle(scene: Scene, l: Pick<Light, 'id' | 'name' | 'roomId' | 'type'> & { rows?: number; cols?: number }): string {
   if (l.name) return l.name;
-  return l.roomId ? `${roomName(scene, l.roomId)} ${l.type} light` : `${l.type} light ${l.id}`;
+  const kind = l.type === 'grid' && l.rows !== undefined && l.cols !== undefined ? `${l.rows}×${l.cols} downlight grid` : `${l.type} light`;
+  return l.roomId ? `${roomName(scene, l.roomId)} ${kind}` : `${kind} ${l.id}`;
 }
 
 const COMPASS_WORD: Record<CompassPoint, string> = {
@@ -192,6 +193,7 @@ function describeLeaf(c: LeafCommand, scene: Scene): string {
     }
     case 'light.add': {
       const l = c.light;
+      if (l.type === 'grid') return clip(`Add ${l.name ?? `${l.rows}×${l.cols} downlight grid`}${l.roomId ? ` in ${roomName(scene, l.roomId)}` : ''} (${num(l.rows * l.cols * l.lumensEach)} lm)`);
       return `Add ${l.name ?? `${l.type} light`}${l.roomId ? ` in ${roomName(scene, l.roomId)}` : ''}`;
     }
     case 'light.remove':
@@ -230,6 +232,14 @@ function describeLightUpdate(c: Extract<LeafCommand, { type: 'light.update' }>, 
   }
   if (p.on !== undefined) bits.push(p.on ? 'on' : 'off');
   if (p.kelvin !== undefined) bits.push(`${num(p.kelvin)} K`);
+  if (p.rows !== undefined || p.cols !== undefined) {
+    const g = scene.lights.find((x) => x.id === c.id);
+    const rows = p.rows ?? (g?.type === 'grid' ? g.rows : undefined);
+    const cols = p.cols ?? (g?.type === 'grid' ? g.cols : undefined);
+    bits.push(rows !== undefined && cols !== undefined ? `${rows}×${cols} fixtures` : 'resized grid');
+  }
+  if (p.lumensEach !== undefined) bits.push(`${num(p.lumensEach)} lm each`);
+  if (p.fitToRoom === true) bits.push('fitted to its room');
   if (p.lumens !== undefined) bits.push(`${num(p.lumens)} lm`);
   if (p.elevation !== undefined) bits.push(`at ${num(p.elevation)} m`);
   if (p.position !== undefined) bits.push('moved');

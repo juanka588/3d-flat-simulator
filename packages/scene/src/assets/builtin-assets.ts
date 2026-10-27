@@ -2,7 +2,7 @@ import { tvDims } from './generators/misc';
 
 /** Legacy `builtin:*` assets (pre-M5 items). Kept apart from `builtin.ts` so `catalog.ts` can read it without an import cycle. */
 
-export type AssetCategory = 'electronics';
+export type AssetCategory = 'electronics' | 'lamp';
 export type AssetMount = 'floor' | 'wall';
 
 export interface BuiltinAsset {

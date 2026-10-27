@@ -1,4 +1,5 @@
 import { isBuiltinAsset } from './assets/builtin';
+import { gridFixtures } from './lighting/grid';
 import { checkParametricMesh, GENERATOR_DIMS_TOLERANCE } from './assets/catalog';
 import { edgeCoverage, roomCeilingHeight, triangulatePolygon } from './geometry/floors';
 import { polygonArea } from './measure';
@@ -275,6 +276,17 @@ export function validateScene(scene: Scene): ValidationResult {
       });
     }
     const room = declared ?? containing[0]!;
+    if (light.type === 'grid') {
+      const outside = gridFixtures(light).filter((f) => !pointInPolygon(f, room.polygon)).length;
+      if (outside > 0) {
+        warnings.push({
+          code: 'grid-outside-room',
+          message: `${outside} of ${light.rows * light.cols} fixtures of grid "${light.id}" fall outside room "${room.id}" (their light would leak into the next room); resize it or use fitToRoom`,
+          entityIds: [light.id, room.id],
+          path: `lights[${i}]`,
+        });
+      }
+    }
     // Balconies have no ceiling unless one is given explicitly.
     if (room.type === 'balcony' && room.ceilingHeight === undefined) return;
     const ceiling = roomCeilingHeight(scene, room);

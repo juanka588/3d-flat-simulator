@@ -225,36 +225,78 @@ export function checkItemRules(item: ItemFields, ctx: z.RefinementCtx): void {
 export const Item = ItemBase.superRefine(checkItemRules);
 export type Item = z.infer<typeof Item>;
 
-const lightBase = {
+/** Most fixtures one `grid` light may stand for (a 10 x 10 grid); the limit keeps a hostile file cheap to draw. */
+export const GRID_MAX_FIXTURES = 100;
+/** Most rows (or columns) of a grid. */
+export const GRID_MAX_SIDE = 20;
+
+/** Where a light's lumen figure comes from: the retailer's product data, a category default, or typed by a user. */
+export const LumensSource = z.enum(['product', 'estimated', 'user']);
+export type LumensSource = z.infer<typeof LumensSource>;
+
+const lightCommon = {
   id: Id.describe('Light id (1-64 characters), unique across all entities.'),
-  name: NameString('Optional label, at most 120 characters.').optional(),
-  roomId: Id.describe('Room the light belongs to (rooms[].id from list_rooms). Optional.').optional(),
-  position: Vec2.describe('Plan position [x, y] in metres; plan y grows down the page.'),
+  name: NameString('Optional label.').optional(),
+  roomId: Id.describe('Room id (list_rooms). Optional.').optional(),
+  position: Vec2.describe('Plan [x, y] in metres (y grows down); a grid: its centre.'),
   /** Height of the light source above the floor. */
-  elevation: z.number().nonnegative().describe('Height of the light source above the floor, in metres.'),
-  lumens: z.number().nonnegative().describe('Luminous flux in lumens (a 60 W-equivalent bulb is about 800).'),
-  kelvin: z.number().min(1000).max(12000).default(2700).describe('Colour temperature in kelvin, 1000-12000 (2700 warm, 6500 daylight). Defaults to 2700.'),
-  on: z.boolean().default(true).describe('Whether the light is switched on. Defaults to true.'),
+  elevation: z.number().nonnegative().describe('Height above the floor, in metres.'),
+  kelvin: z.number().min(1000).max(12000).default(2700).describe('Kelvin, 1000-12000 (2700 warm, 6500 daylight). Default 2700.'),
+  on: z.boolean().default(true).describe('Switched on. Default true.'),
+  /**
+   * Set on the light of a lamp item (floor lamp, pendant...): it follows that item. The pose is DERIVED from the item
+   * (`linkedLightPose`) and kept in step by the item commands; never edit `position` / `elevation` / `roomId` of a linked light.
+   */
+  itemId: Id.describe('Id of the lamp item this light belongs to (it moves with the item). Set by the editor, not by you.').optional(),
+  /** Offset of the bulb from the item origin: `[dx, dy]` in the item frame (metres, rotated with the item), `dz` above the item bottom. */
+  offset: z.tuple([z.number(), z.number(), z.number()]).describe('Linked lights only: [dx, dy, dz] of the bulb from the item origin, in metres.').optional(),
+  lumensSource: LumensSource.describe('Where the lumen figure comes from: "product" (retailer data), "estimated" (category default) or "user". Optional.').optional(),
 };
+const lumensField = z.number().nonnegative().describe('Lumens (a 60 W-equivalent bulb is about 800).');
 
 export const Light = z.discriminatedUnion('type', [
-  z.strictObject({ ...lightBase, type: z.literal('point').describe('A point light radiates in all directions. Discriminator: "point".') }),
+  z.strictObject({ ...lightCommon, lumens: lumensField, type: z.literal('point').describe('Bulb: radiates in all directions.') }),
   z.strictObject({
-    ...lightBase,
-    type: z.literal('spot').describe('A spot light shines straight down in a cone. Discriminator: "spot".'),
+    ...lightCommon,
+    lumens: lumensField,
+    type: z.literal('spot').describe('Cone shining straight down.'),
     /** Full cone angle in degrees. Spots point straight down. */
-    angle: z.number().min(1).max(179).default(60).describe('Spot cone angle in degrees (1-179). Defaults to 60.'),
+    angle: z.number().min(1).max(179).default(60).describe('Cone angle in degrees (1-179). Default 60.'),
   }),
   z.strictObject({
-    ...lightBase,
-    type: z.literal('area').describe('A rectangular panel facing down. Discriminator: "area".'),
+    ...lightCommon,
+    lumens: lumensField,
+    type: z.literal('area').describe('Rectangular panel facing down.'),
     /** Rectangular panel facing down; `width` runs along plan x before rotation. */
-    width: z.number().positive().describe('Panel width in metres along plan x before rotation.'),
-    depth: z.number().positive().describe('Panel depth in metres along plan y before rotation.'),
-    rotation: z.number().default(0).describe('Panel rotation in degrees, counter-clockwise seen from above. Defaults to 0.'),
+    width: z.number().positive().describe('Width in metres along plan x before rotation.'),
+    depth: z.number().positive().describe('Depth in metres along plan y before rotation.'),
+    rotation: z.number().default(0).describe('Rotation in degrees, counter-clockwise seen from above. Default 0.'),
+  }),
+  z.strictObject({
+    ...lightCommon,
+    type: z.literal('grid').describe('rows x cols identical LED downlights, edited as ONE light.'),
+    rows: z.number().int().min(1).max(GRID_MAX_SIDE).describe('Rows, 1-20.'),
+    cols: z.number().int().min(1).max(GRID_MAX_SIDE).describe('Columns, 1-20 (rows x cols at most 100).'),
+    width: z.number().positive().describe('Width in metres (plan x before rotation) the grid covers; fixtures sit at the centres of equal cells.'),
+    depth: z.number().positive().describe('Depth in metres (plan y before rotation) the grid covers.'),
+    rotation: z.number().default(0).describe('Grid rotation in degrees, counter-clockwise seen from above. Defaults to 0.'),
+    lumensEach: z.number().nonnegative().describe('Lumens of EACH fixture (a 6 W LED gives about 450); the total is rows x cols x lumensEach.'),
+    angle: z.number().min(1).max(179).default(100).describe('Beam angle in degrees (1-179). Default 100.'),
   }),
 ]);
 export type Light = z.infer<typeof Light>;
+export type GridLight = Extract<Light, { type: 'grid' }>;
+export type LinkableLight = Extract<Light, { type: 'point' | 'spot' }>;
+
+/** Problems of one light that the field schemas cannot express (grid size). Empty when fine. */
+export function lightIssues(light: Light): string[] {
+  const out: string[] = [];
+  if (light.type === 'grid' && light.rows * light.cols > GRID_MAX_FIXTURES) out.push(`a grid holds at most ${GRID_MAX_FIXTURES} fixtures (${light.rows} x ${light.cols} = ${light.rows * light.cols})`);
+  if (light.itemId === undefined && light.offset !== undefined) out.push('offset needs itemId');
+  if (light.itemId !== undefined && light.type !== 'point' && light.type !== 'spot') out.push('only point and spot lights can belong to an item');
+  return out;
+}
+
 
 export const Site = z.strictObject({
   latitude: z.number().min(-90).max(90),
@@ -392,7 +434,17 @@ export const Scene = SceneBase.superRefine((scene, ctx) => {
       }
     }
   });
-  scene.lights.forEach((light, i) => checkRoom(light.roomId, ['lights', i, 'roomId']));
+  const itemIds = new Set(scene.items.map((it) => it.id));
+  const linked = new Set<string>();
+  scene.lights.forEach((light, i) => {
+    checkRoom(light.roomId, ['lights', i, 'roomId']);
+    for (const message of lightIssues(light)) issue(['lights', i], message);
+    if (light.itemId !== undefined) {
+      if (!itemIds.has(light.itemId)) issue(['lights', i, 'itemId'], `unknown item "${light.itemId}"`);
+      else if (linked.has(light.itemId)) issue(['lights', i, 'itemId'], `item "${light.itemId}" already has a light`);
+      linked.add(light.itemId);
+    }
+  });
 });
 export type Scene = z.infer<typeof Scene>;
 /** Scene as written in a `.flat.json` file, before defaults are applied. */

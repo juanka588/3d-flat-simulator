@@ -106,6 +106,8 @@ export type WeightKind = z.infer<typeof WeightKind>;
 export const Currency = z.string().regex(/^[A-Z]{3}$/, 'expected an ISO 4217 code like "EUR"');
 const Price = z.number().min(0).max(1_000_000);
 const Tag = z.string().min(1).max(32);
+/** Luminous flux of a lamp product, in lumens. */
+const Lumens = z.number().positive().max(100_000);
 
 /** A purchasable variant of a product (another colour or size, usually another article number). */
 export const ProductVariant = z.strictObject({
@@ -142,6 +144,8 @@ export const ProductRecord = z.strictObject({
   /** Weight in kg; heavy wall mounts (> 15 kg) are only allowed on structural walls. */
   weightKg: z.number().positive().max(2000).optional(),
   weightKind: WeightKind.optional(),
+  /** Luminous flux of the bulb in lumens, for lamps, when the product page states it. Absent = unknown (a category default is used). */
+  lumens: Lumens.optional(),
   /** Product photo; shown by the UI, NEVER stored in a scene. */
   photoUrl: HttpUrl.optional(),
   /** Opaque server-side handle of the provider's 3D model (for `fetchModel`); never stored in a scene. */
@@ -181,6 +185,8 @@ export const ProductSummary = z.strictObject({
   colours: z.array(z.string().min(1).max(40)).max(8),
   /** Weight in kg when known. */
   weightKg: z.number().positive().optional(),
+  /** Bulb flux in lumens when the provider states it (lamps). */
+  lumens: Lumens.optional(),
   /** The provider has a real 3D model (otherwise a lookalike / parametric shape at exact dims). */
   has3d: z.boolean(),
   photoUrl: HttpUrl.optional(),
@@ -202,6 +208,7 @@ export function summarizeProduct(p: ProductRecord): ProductSummary {
     mount: p.mount,
     colours: p.colours,
     ...(p.weightKg !== undefined ? { weightKg: p.weightKg } : {}),
+    ...(p.lumens !== undefined ? { lumens: p.lumens } : {}),
     has3d: p.modelRef !== undefined,
     ...(p.photoUrl !== undefined ? { photoUrl: p.photoUrl } : {}),
     personalUseOnly: p.personalUseOnly,
@@ -231,6 +238,8 @@ export const ProductSnapshot = z.strictObject({
   snapshotAt: IsoDateTime,
   /** Chosen colour, when the product has several. */
   colour: z.string().min(1).max(40).optional(),
+  /** Bulb flux in lumens, for lamps whose page states it; the lamp's light uses it ("product" source). */
+  lumens: Lumens.optional(),
 });
 export type ProductSnapshot = z.infer<typeof ProductSnapshot>;
 
@@ -251,6 +260,7 @@ export function productSnapshot(p: ProductRecord, snapshotAt: string, colour?: s
     category: p.category,
     snapshotAt,
     ...(colour !== undefined ? { colour } : {}),
+    ...(p.lumens !== undefined ? { lumens: p.lumens } : {}),
   };
 }
 
