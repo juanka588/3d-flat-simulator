@@ -89,6 +89,7 @@ function RigLight({ light, lampType, geometryKey }: { light: RenderLight; lampTy
         'shadow-normalBias': LAMP_NORMAL_BIAS_M,
         'shadow-camera-near': LAMP_SHADOW_NEAR,
         'shadow-camera-far': LAMP_SHADOW_FAR,
+        'shadow-radius': profile.shadowRadius,
       }
     : {};
   if (light.kind === 'spot') {

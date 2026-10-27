@@ -23,8 +23,9 @@ import { shellFor } from './shell-cache';
 import { withHitContext } from './selection';
 import { MAX_ANISOTROPY, textureCache } from './texture-cache';
 import { shadowCasterGeometry } from './derived-geometry';
+import { ContactShadows } from './ContactShadows';
 import { LightingRig } from './LightingRig';
-import { resolveLamps, roomLampBounce } from './lighting';
+import { computeLighting, resolveLamps, roomLampBounce } from './lighting';
 import { sceneKey } from './scene-identity';
 import { contextReach } from './sun-bounds';
 import type { Selection, ViewState } from './view-types';
@@ -142,10 +143,15 @@ function Shell({ scene, view, onSelect }: { scene: Scene; view: ViewState; onSel
   // Per-room lamp bounce (approximate indirect light of the lamps that are on, local to their room): data in a texture,
   // so switching a lamp changes texels and never the shaders.
   const lamps = useMemo(() => resolveLamps(scene, view.lighting), [scene, view.lighting]);
+  // The bounce is white-balanced like the lamps themselves (see `awbWeight`).
+  const awb = useMemo(() => {
+    const m = computeLighting(scene, view.lighting);
+    return m.ok ? m.awb : 0;
+  }, [scene, view.lighting]);
   useLayoutEffect(() => {
-    ambient.bounce.set(roomLampBounce(scene, lamps));
+    ambient.bounce.set(roomLampBounce(scene, lamps, awb));
     invalidate();
-  }, [ambient, scene, lamps, invalidate]);
+  }, [ambient, scene, lamps, awb, invalidate]);
   // One material library per canvas, kept in step with the scene: an edit updates changed materials in place
   // (the same objects, so no texture is released, re-fetched or re-uploaded); it is never rebuilt per scene.
   const library = useMemo(
@@ -215,6 +221,7 @@ function Shell({ scene, view, onSelect }: { scene: Scene; view: ViewState; onSel
       <ShellMesh name="fittings" data={roomMeshes.fittings} materials={materials} receiveShadow swap={walk && view.translucentDoors !== false ? WALK_SWAP : undefined} renderOrder={1} onSelect={pick} />
       <ShellMesh name="items" data={roomMeshes.items} materials={materials} receiveShadow onSelect={pick} />
       <ItemsMesh scene={scene} models={models} selectedId={selectedId} onSelect={pick} />
+      {getPerfProfile().contactShadows && <ContactShadows scene={scene} itemMesh={shell.items} controller={models.controller} version={models.version} />}
       <ShellMesh name="glass" data={shell.glass} materials={materials} renderOrder={2} onSelect={pick} />
       {selectedId && meshes.map((m, i) => <SelectionHighlight key={i} mesh={m} entityId={selectedId} zoneId={view.selection?.zoneId} />)}
     </group>

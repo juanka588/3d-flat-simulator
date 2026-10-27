@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { Material } from '../schema';
 
-export const MaterialCategory = z.enum(['floor-wood', 'floor-tile', 'wall-plaster', 'wall-paper', 'stone', 'outdoor']);
+export const MaterialCategory = z.enum(['floor-wood', 'floor-tile', 'wall-plaster', 'wall-paper', 'stone', 'metal', 'outdoor']);
 export type MaterialCategory = z.infer<typeof MaterialCategory>;
 
 const Slug = z.string().regex(/^[a-z0-9][a-z0-9-]*$/, 'expected a lowercase slug like "parquet-light-oak"');

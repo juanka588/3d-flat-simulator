@@ -1,13 +1,18 @@
 import { useThree } from '@react-three/fiber';
-import { useEffect, useLayoutEffect, useMemo } from 'react';
-import { Color, NeutralToneMapping } from 'three';
+import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import { Color } from 'three';
 import type { LightingView, Scene, SiteContext } from '@flat/scene';
 import { ContextMesh } from './ContextMesh';
 import { Lamps } from './Lamps';
 import { SkyDome } from './SkyDome';
 import { SunLight } from './SunLight';
 import type { BuildingMode, ViewMode } from './view-types';
-import { computeLighting, groundDisplay, hemisphereColors } from './lighting';
+import { computeLighting, environmentLight, groundDisplay, hemisphereColors } from './lighting';
+import { loadEnvironment } from './environment';
+import type { EnvironmentMap } from './environment';
+import { getPerfProfile } from './perf';
+import { textureCache } from './texture-cache';
+import { toneMappingSetting } from './tone';
 
 const FALLBACK_BACKGROUND = '#e8ebf0';
 const NIGHT_BACKGROUND = '#07090e';
@@ -31,14 +36,31 @@ export function LightingRig({
 }) {
   const model = useMemo(() => computeLighting(scene, lighting), [scene, lighting]);
   const get = useThree((s) => s.get);
+  const env = useEnvironment();
 
   const exposure = model.ok ? model.exposure : 1;
+  const tone = toneMappingSetting();
   useLayoutEffect(() => {
     const { gl, invalidate } = get();
-    gl.toneMapping = NeutralToneMapping;
-    gl.toneMappingExposure = exposure;
+    gl.toneMapping = tone.mapping;
+    gl.toneMappingExposure = exposure * tone.exposureScale;
     invalidate();
-  }, [get, exposure]);
+  }, [get, exposure, tone]);
+
+  // Image-based light: a share of the sky's diffuse light comes from the environment map (so glossy surfaces reflect a
+  // room), the hemisphere light keeps the rest; at night there is no sky and so no environment either (lamps dominate).
+  const ambient = model.ok ? model.ambientIntensity : 0;
+  const split = useMemo(() => (env ? environmentLight(ambient, env.meanRadiance) : { hemisphere: ambient, environment: 0 }), [env, ambient]);
+  useLayoutEffect(() => {
+    const { scene: three, invalidate } = get();
+    if (!env) return;
+    three.environment = env.texture;
+    three.environmentIntensity = model.ok ? split.environment : 0;
+    invalidate();
+    return () => {
+      three.environment = null;
+    };
+  }, [get, env, split, model.ok]);
 
   const showSky = model.ok && lighting.sunEnabled;
   useLayoutEffect(() => {
@@ -77,9 +99,42 @@ export function LightingRig({
     <>
       {contextMesh}
       {showSky && <SkyDome direction={model.sun.direction} zenith={model.zenith} horizon={model.horizon} ground={sky!.floor} sunVisibility={model.sunActive ? 1 : 0} />}
-      <hemisphereLight name="ambient" color={sky!.zenith} groundColor={sky!.ground} intensity={model.ambientIntensity} />
+      <hemisphereLight name="ambient" color={sky!.zenith} groundColor={sky!.ground} intensity={split.hemisphere} />
       <SunLight model={model} scene={scene} context={shownContext} />
       <Lamps lamps={model.lamps} geometryKey={geometryKey} exposure={model.exposure} />
     </>
   );
+}
+
+/**
+ * The environment map, loaded once per canvas when the perf profile allows it (it is one more texture lookup per pixel).
+ * The load counts as pending work for the test hook (`whenRendered` waits for it), so shader programs are settled by then.
+ */
+function useEnvironment(): EnvironmentMap | null {
+  const gl = useThree((s) => s.gl);
+  const invalidate = useThree((s) => s.invalidate);
+  const [env, setEnv] = useState<EnvironmentMap | null>(null);
+  const enabled = getPerfProfile().environment;
+  useEffect(() => {
+    if (!enabled) return;
+    let cancelled = false;
+    let loaded: EnvironmentMap | undefined;
+    void textureCache.track(
+      loadEnvironment(gl).then(
+        (map) => {
+          if (cancelled) return map.dispose();
+          loaded = map;
+          setEnv(map);
+          invalidate();
+        },
+        (error: unknown) => console.warn('[lighting] could not load the environment map; glossy surfaces reflect nothing', error),
+      ),
+    );
+    return () => {
+      cancelled = true;
+      loaded?.dispose();
+      setEnv(null);
+    };
+  }, [gl, enabled, invalidate]);
+  return env;
 }

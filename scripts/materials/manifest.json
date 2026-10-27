@@ -355,5 +355,61 @@
     "sourceSha256": {
       "zip": "58a7fb7f32c44a86879483325b62781d04e0ab8f70b0f70ede36c8f1726f8a22"
     }
+  },
+  {
+    "slug": "oak-veneer",
+    "source": "polyhaven",
+    "sourceId": "oak_veneer_01",
+    "name": "Oak veneer (cabinet fronts)",
+    "category": "floor-wood",
+    "tileSizeM": 1.83,
+    "tileSizeBasis": "api",
+    "roughnessDefault": 0.5,
+    "sourceSha256": {
+      "Diffuse": "c14681f72f59f17bff568cae7a837641443b607b899f0c279cd64a5638f877a7",
+      "nor_gl": "1297acf7b4476d5ccd83cc8b27be96aa6110f7a9c3a40be0bd767bf81b17db01",
+      "Rough": "ca2af5649b628ef05f196793d68cdca874c12ceb6e9ae566976546d9dd5a2604"
+    }
+  },
+  {
+    "slug": "brushed-steel",
+    "source": "ambientcg",
+    "sourceId": "Metal009",
+    "name": "Brushed steel",
+    "category": "metal",
+    "tileSizeM": 0.6,
+    "tileSizeBasis": "estimate",
+    "roughnessDefault": 0.35,
+    "size": 512,
+    "sourceSha256": {
+      "zip": "1b1970219b40fe707e7194b28702f1a65b0d227bbea56da69dfbc8d8b5cfcb5e"
+    }
+  },
+  {
+    "slug": "quartz-light",
+    "source": "ambientcg",
+    "sourceId": "Terrazzo004",
+    "name": "Light quartz / terrazzo (worktops)",
+    "category": "stone",
+    "tileSizeM": 0.8,
+    "tileSizeBasis": "estimate",
+    "roughnessDefault": 0.3,
+    "sourceSha256": {
+      "zip": "fccfebac29c8f0c92905ba32d97fa7d36130fe5834085c9059316c1085be0949"
+    }
+  },
+  {
+    "slug": "fabric-weave-grey",
+    "source": "ambientcg",
+    "sourceId": "Fabric030",
+    "name": "Grey woven upholstery",
+    "category": "wall-paper",
+    "tileSizeM": 0.4,
+    "tileSizeBasis": "estimate",
+    "roughnessDefault": 0.95,
+    "size": 512,
+    "sourceSha256": {
+      "zip": "82d4d00ccf901cf4707c5489005945ab8574933fc60437e26c6737f0436699e0"
+    }
   }
 ]

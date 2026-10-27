@@ -21,6 +21,7 @@
     "mcp:setup": "node scripts/mcp-setup.mjs",
     "providers:probe": "pnpm --silent --filter @flat/server exec tsx src/providers/probe.ts",
     "materials:build": "node scripts/materials/build.mjs",
+    "env:build": "node scripts/env/build.mjs",
     "materials:credits": "node scripts/materials/credits.mjs",
     "assets:sheet": "tsx scripts/assets/contact-sheet.mjs",
     "assets:thumbs": "tsx scripts/assets/param-thumbs.mjs",

@@ -10,7 +10,7 @@ import type { ToolDef } from './registry';
  * The pure parts (`listRooms`, `describeRoom`) live in `@flat/scene` (lane A).
  */
 
-const MATERIAL_CATEGORIES = ['floor-wood', 'floor-tile', 'wall-plaster', 'wall-paper', 'stone', 'outdoor'] as const;
+const MATERIAL_CATEGORIES = ['floor-wood', 'floor-tile', 'wall-plaster', 'wall-paper', 'stone', 'metal', 'outdoor'] as const;
 
 /** `YYYY-MM-DD` that is a real calendar date. */
 export const RealDate = LightingView.shape.date.refine((d) => {

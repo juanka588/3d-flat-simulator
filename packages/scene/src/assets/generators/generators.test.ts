@@ -10,6 +10,8 @@ import { ITEM_MATERIALS } from '../item-materials';
 import { ALL_GENERATORS, registerGenerators } from './index';
 
 const MAX_TRIANGLES = 3000;
+/** Carcass, fronts or ceramic, the dark reveal behind the fronts, metal fittings and one more (worktop, glass). */
+const MAX_MATERIALS = 4;
 const MM = 1e-3;
 
 function bbox(mesh: MeshData) {
@@ -46,7 +48,7 @@ function expectSound(g: AnyGenerator, rawParams: Record<string, unknown>) {
   expect(mesh.owners.every((o) => o.kind === 'item')).toBe(true);
   expect(mesh.owners.reduce((n, o) => n + o.count, 0)).toBe(triangles);
   const materials = new Set(mesh.groups.map((m) => m.materialId));
-  expect(materials.size).toBeLessThanOrEqual(3);
+  expect(materials.size).toBeLessThanOrEqual(MAX_MATERIALS);
   for (const m of materials) expect(Object.values(ITEM_MATERIALS)).toContain(m);
   return mesh;
 }
@@ -99,7 +101,7 @@ describe.each(ALL_GENERATORS.map((g) => [g.id, g] as const))('generator %s', (_i
     expect(g.label.length).toBeGreaterThan(5);
   });
 
-  it('builds the defaults at exactly the described dims, floor-aligned, in at most 3 materials', () => {
+  it('builds the defaults at exactly the described dims, floor-aligned, in at most 4 materials', () => {
     expectSound(g, {});
   });
 
@@ -158,26 +160,26 @@ describe('generator geometry snapshot (determinism across versions)', () => {
     const hashes = Object.fromEntries(ALL_GENERATORS.map((g) => [g.id, hash(g.generate(g.params.parse({})))]));
     expect(hashes).toMatchInlineSnapshot(`
       {
-        "bathtub": "f424c97de453",
-        "bed": "00cde1ca1ce2",
-        "bookshelf": "4243d1409cbb",
-        "chair": "a2d00fe62316",
-        "cooktop": "57a960b1d3e9",
-        "desk": "e7efc3b244fe",
-        "fridge": "f2ee45bd30ae",
-        "kitchenBase": "72a6d4a112e3",
-        "kitchenWall": "21e21a334714",
-        "mirror": "898316897d11",
-        "nightstand": "31cc16bb0dbb",
-        "rug": "fe6a70cce6a3",
-        "sideboard": "e87e8a013a1d",
-        "sofa": "0fbda2f0041f",
-        "table": "1525bab61567",
-        "toilet": "ed732cd1c9fb",
-        "tv": "88bc8271a375",
-        "tvUnit": "f63aaef263b4",
-        "wardrobe": "c0a60c430e33",
-        "washbasin": "55469f0f665a",
+        "bathtub": "53f86549a006",
+        "bed": "dd1c8f81770e",
+        "bookshelf": "0fc035283a17",
+        "chair": "5938bcd59be5",
+        "cooktop": "25fad467c88c",
+        "desk": "33b3f0f692b5",
+        "fridge": "4a989acb1d4d",
+        "kitchenBase": "7595c22b3dc2",
+        "kitchenWall": "0cfbd2b6c08b",
+        "mirror": "9f58ba728e26",
+        "nightstand": "17cb49fdb6c2",
+        "rug": "e729b46333e0",
+        "sideboard": "21e5c1283a52",
+        "sofa": "b950d0047d92",
+        "table": "39996e898674",
+        "toilet": "0491142612c8",
+        "tv": "0f13a4923799",
+        "tvUnit": "96be9ddf0cd6",
+        "wardrobe": "6b7946f318dd",
+        "washbasin": "a33867c4ee57",
       }
     `);
   });

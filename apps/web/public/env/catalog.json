@@ -1,0 +1,25 @@
+[
+  {
+    "id": "small-empty-room",
+    "name": "Small empty room (neutral interior with a window)",
+    "file": "small-empty-room.hdr",
+    "width": 512,
+    "height": 256,
+    "bytes": 529457,
+    "sha256": "d3fc74ac21ecae25a508733c44e11476aacffc9fd03a33db6eb4e1e5bad2881d",
+    "source": "polyhaven",
+    "sourceId": "small_empty_room_1",
+    "sourceUrl": "https://polyhaven.com/a/small_empty_room_1",
+    "license": "CC0-1.0",
+    "licenseEvidence": {
+      "basis": "site-policy",
+      "policyUrl": "https://polyhaven.com/license",
+      "needle": "creativecommons.org/publicdomain/zero",
+      "assetApiUrl": "https://api.polyhaven.com/info/small_empty_room_1",
+      "checkedAt": "2026-10-27T15:16:57.713Z"
+    },
+    "sourceSha256": "b3e042c4a650370c383699f61f65fcca4f037af32660994dafa61fbb257a4b52",
+    "retrievedAt": "2026-10-27T15:16:57.713Z",
+    "note": "Downsampled from the 1k original (box filter) to 512x256; used only for reflections and image-based ambient light."
+  }
+]

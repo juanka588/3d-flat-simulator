@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
-import { charmeFlat, expectLighting, openApp } from './helpers';
+import { charmeFlat, expectLighting, loadScene } from './helpers';
 
 /**
  * Regression: the interior face of the south wall (it faces north, away from the noon sun) showed a
@@ -21,7 +21,7 @@ const WALL_Z = 8.27;
 const PROBE_X = [0.8, 1.6, 2.4, 3.2];
 const PROBE_Y = [0.5, 1.2, 1.9, 2.3];
 /** Allowed spread (max / min of the mean luma) between probes on the lee face. */
-const MAX_SPREAD = 1.06;
+const MAX_SPREAD = 1.12; // 1.06 before the environment map: its specular term varies a few % across a wall with the view angle
 
 /** Mean luma (0-1) of a small window around each world point, from ONE capture. */
 function probeLumas(page: Page, points: [number, number, number][]): Promise<number[]> {
@@ -52,7 +52,11 @@ function probeLumas(page: Page, points: [number, number, number][]): Promise<num
 }
 
 test.beforeEach(async ({ page }) => {
-  await openApp(page);
+  // The wall creases (baked ambient occlusion) darken wall bases and corners on purpose: measure the plain lighting.
+  await page.goto('/?ao=off');
+  await page.evaluate(() => window.__flat!.ready);
+  // The probes measure bare wall: the furniture (kitchen units with lacquer fronts and handles) is left out.
+  expect(await loadScene(page, { ...charmeFlat, items: [] })).toBe(true);
   await expectLighting(page);
   await page.evaluate(() => window.__flat!.setView({ mode: 'walk' }));
 });

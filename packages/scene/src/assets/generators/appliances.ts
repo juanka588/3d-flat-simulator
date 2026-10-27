@@ -5,8 +5,10 @@ import { Kit, boxAnchors, count, metres } from './kit';
 
 /** Kitchen appliances that stand on the floor: cooking block and fridge. Item frame as in `kit.ts` (front +z). */
 
-const W = ITEM_MATERIALS.white;
+/** Enamelled appliance body, dark plinth, glass hob plate and oven window. */
+const W = ITEM_MATERIALS.enamel;
 const DARK = ITEM_MATERIALS.dark;
+const GLASS = ITEM_MATERIALS.glass;
 const METAL = ITEM_MATERIALS.metal;
 
 // ---------------------------------------------------------------------------------------------
@@ -32,7 +34,7 @@ export const cooktop: Generator<CooktopParams> = {
     const front = d / 2 - 0.03;
     kit.box(DARK, -w / 2 + 0.02, 0, -d / 2 + 0.02, w / 2 - 0.02, 0.07, front); // plinth
     kit.box(W, -w / 2, 0.07, -d / 2, w / 2, h - 0.03, front); // body
-    kit.box(DARK, -w / 2, h - 0.03, -d / 2, w / 2, h - 0.012, d / 2); // hob plate
+    kit.box(GLASS, -w / 2, h - 0.03, -d / 2, w / 2, h - 0.012, d / 2); // hob plate
     // control strip with knobs
     kit.box(W, -w / 2, h - 0.12, front, w / 2, h - 0.03, d / 2 - 0.012);
     const knobs = Math.min(4, Math.max(2, Math.floor(w / 0.14)));
@@ -42,8 +44,8 @@ export const cooktop: Generator<CooktopParams> = {
     }
     // oven door: white frame, dark window, handle bar
     kit.box(W, -w / 2 + 0.02, 0.12, front, w / 2 - 0.02, h - 0.14, d / 2 - 0.012);
-    kit.box(DARK, -w / 2 + 0.07, 0.2, d / 2 - 0.012, w / 2 - 0.07, h - 0.24, d / 2 - 0.006);
-    kit.box(METAL, -w / 2 + 0.06, h - 0.2, d / 2 - 0.006, w / 2 - 0.06, h - 0.18, d / 2);
+    kit.box(GLASS, -w / 2 + 0.07, 0.2, d / 2 - 0.012, w / 2 - 0.07, h - 0.24, d / 2 - 0.006, 0.001);
+    kit.handle(METAL, 0, h - 0.19, w - 0.12, false, d / 2 - 0.006, 0.006);
     // burners
     const spots: [number, number][] = [[-1, -1], [1, 1], [1, -1], [-1, 1]];
     const r = Math.min(w, d) * 0.16;
@@ -92,7 +94,7 @@ export const fridge: Generator<FridgeParams> = {
       const bar = Math.min(0.5, (y1 - y0) * 0.6);
       const ym = freezer === 'none' ? y1 - 0.4 : (y0 + y1) / 2;
       const ya = Math.max(y0 + 0.03, ym - bar / 2);
-      kit.box(METAL, w / 2 - 0.06, ya, doorFace, w / 2 - 0.045, Math.min(y1 - 0.03, ya + bar), d / 2);
+      kit.handle(METAL, w / 2 - 0.0525, (ya + Math.min(y1 - 0.03, ya + bar)) / 2, Math.min(y1 - 0.03, ya + bar) - ya, true, doorFace, d / 2 - doorFace);
     }
     return kit.build();
   },

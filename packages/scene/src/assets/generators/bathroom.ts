@@ -6,7 +6,9 @@ import { Kit, boxAnchors, metres } from './kit';
 
 /** Fixed sanitary ware: bathtub, toilet and washbasin / sink unit. Item frame as in `kit.ts` (front +z, back against the wall). */
 
-const W = ITEM_MATERIALS.white;
+/** Sanitary ware is glazed ceramic; the cabinet carcass of a vanity or sink unit is lacquered. */
+const W = ITEM_MATERIALS.ceramic;
+const CARCASS = ITEM_MATERIALS.white;
 const METAL = ITEM_MATERIALS.metal;
 
 // ---------------------------------------------------------------------------------------------
@@ -78,7 +80,7 @@ export const toilet: Generator<ToiletParams> = {
     const seat = Math.min(0.4, h - 0.2);
     kit.prism(W, 0, 0, cz, (w / 2) * 0.7, rz * 0.8, seat - 0.08); // pedestal
     kit.prism(W, 0, seat - 0.08, cz, w / 2, rz, seat); // bowl
-    kit.prism(ITEM_MATERIALS.bedding, 0, seat, cz, w / 2 - 0.02, rz - 0.02, seat + 0.025); // seat and lid
+    kit.prism(CARCASS, 0, seat, cz, w / 2 - 0.02, rz - 0.02, seat + 0.025); // seat and lid
     kit.box(W, -w / 2 + 0.02, seat - 0.06, -d / 2, w / 2 - 0.02, h - 0.015, -d / 2 + cistern); // cistern
     kit.box(METAL, -0.04, h - 0.015, -d / 2 + cistern / 2 - 0.02, 0.04, h, -d / 2 + cistern / 2 + 0.02); // flush button
     return kit.build();
@@ -129,9 +131,9 @@ export const washbasin: Generator<WashbasinParams> = {
         h: top,
         base: 'plinth',
         baseH: 0.1,
-        baseMat: METAL,
-        bodyMat: W,
-        frontMat: W,
+        baseMat: ITEM_MATERIALS.dark,
+        bodyMat: CARCASS,
+        frontMat: CARCASS,
         doors: w >= 1 ? 2 : 1,
         drawers: 0,
       });
@@ -151,7 +153,7 @@ export const washbasin: Generator<WashbasinParams> = {
         const pitch = drainW / ribs;
         for (let i = 0; i < ribs; i++) {
           const x = drain[0] + (i + 0.35) * pitch;
-          kit.box(METAL, x, top + 0.004, drain[1] + 0.02, x + pitch * 0.3, top + 0.012, drain[3] - 0.02);
+          kit.box(METAL, x, top + 0.004, drain[1] + 0.02, x + pitch * 0.3, top + 0.012, drain[3] - 0.02, 0);
         }
       }
       kit.slab(ITEM_MATERIALS.worktop, -w / 2, top, -d / 2, w / 2, h, d / 2, holes);
@@ -159,8 +161,8 @@ export const washbasin: Generator<WashbasinParams> = {
     }
     // vanity
     const bodyH = h - 0.14;
-    cabinet(kit, { w, d, h: bodyH, base: 'plinth', baseH: 0.1, baseMat: METAL, bodyMat: W, frontMat: W, doors: w >= 0.6 ? 2 : 1, drawers: 0 });
-    kit.box(ITEM_MATERIALS.worktop, -w / 2, bodyH, -d / 2, w / 2, bodyH + 0.04, d / 2);
+    cabinet(kit, { w, d, h: bodyH, base: 'plinth', baseH: 0.1, baseMat: ITEM_MATERIALS.dark, bodyMat: CARCASS, frontMat: CARCASS, doors: w >= 0.6 ? 2 : 1, drawers: 0 });
+    kit.box(W, -w / 2, bodyH, -d / 2, w / 2, bodyH + 0.04, d / 2); // ceramic vanity top
     const rx = Math.min(0.22, w / 2 - 0.04);
     const rz = Math.min(0.17, d / 2 - 0.04);
     kit.prism(W, 0, bodyH + 0.04, 0.02, rx, rz, h);

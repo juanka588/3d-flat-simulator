@@ -59,6 +59,45 @@ export const SUN_TO_AMBIENT_RATIO = 2;
 /** Linear albedo of the context ground (`#6f6f6c`), used to match the sky dome's below-horizon fill to it. */
 export const GROUND_ALBEDO = 0.16;
 
+/**
+ * Automatic white balance, like a camera's AWB. A room lit by 2700 K lamps alone would render orange, because the
+ * display is neutral; the eye adapts. The colour of every lamp is shifted towards `AWB_TARGET_KELVIN` (in mired, so the
+ * step is perceptually even) by `AWB_STRENGTH` x the lamp share of the light the view is exposed for (see `awbWeight`):
+ * a lamp-only night view moves a 2700 K lamp to about 4000 K (still warm), while daylight dominated views are untouched,
+ * so a lamp next to a sunny window keeps its warm cast against the daylight. The lamp's real photometry (lumens,
+ * kelvin in the UI and in the scene) is never changed: only the colour it is drawn with.
+ */
+export const AWB_TARGET_KELVIN = 4300;
+export const AWB_STRENGTH = 0.9;
+
+/** Share of the rendered illuminance (`sun + sky + lamps`) that the lamps deliver, 0 (daylight) to 1 (lamps only). */
+export function awbWeight(sunIntensity: number, ambientIntensity: number, lampLux: number): number {
+  const total = sunIntensity + ambientIntensity + lampLux;
+  return total > 0 ? Math.min(1, Math.max(0, lampLux / total)) : 0;
+}
+
+/** The colour temperature a lamp is drawn with after white balance (`weight` from `awbWeight`). */
+export function whiteBalancedKelvin(kelvin: number, weight: number): number {
+  const mired = 1e6 / kelvin;
+  const target = 1e6 / AWB_TARGET_KELVIN;
+  return 1e6 / (mired + (target - mired) * AWB_STRENGTH * Math.min(1, Math.max(0, weight)));
+}
+
+/**
+ * Image-based light. The environment map is a neutral interior; it carries `ENV_SHARE` of the sky's diffuse light and
+ * the hemisphere light the rest, so the total ambient (and so the exposure model) is unchanged while glossy surfaces
+ * get something to reflect. An environment pixel of radiance L lights a diffuse surface like a hemisphere of intensity
+ * pi x L, hence the division by pi x the map's mean radiance.
+ */
+export const ENV_SHARE = 0.4;
+
+export function environmentLight(ambientIntensity: number, meanRadiance: number): { hemisphere: number; environment: number } {
+  return {
+    hemisphere: ambientIntensity * (1 - ENV_SHARE),
+    environment: meanRadiance > 0 ? (ENV_SHARE * ambientIntensity) / (Math.PI * meanRadiance) : 0,
+  };
+}
+
 export type RGB = [number, number, number];
 
 export interface LampSpec {
@@ -103,6 +142,8 @@ export type LightingModel =
       zenith: RGB;
       horizon: RGB;
       exposure: number;
+      /** Lamp share of the light (see `awbWeight`): how far lamp colours are white-balanced. */
+      awb: number;
       lamps: LampSpec[];
     }
   | { ok: false; error: string; lamps: LampSpec[] };
@@ -149,8 +190,8 @@ export function resolveLamps(scene: Scene, lighting: LightingView): LampSpec[] {
   });
 }
 
-function withPhotometry(lamp: LampSpec, light: Light): LampSpec {
-  const color = kelvinToLinearRgb(lamp.kelvin);
+function withPhotometry(lamp: LampSpec, light: Light, awb: number): LampSpec {
+  const color = kelvinToLinearRgb(whiteBalancedKelvin(lamp.kelvin, awb));
   let candela = 0;
   switch (light.type) {
     case 'point':
@@ -259,10 +300,10 @@ export interface RoomBounce {
 }
 
 /**
- * Approximate indirect light of the lamps per room (see `lampBounceLux`): only the lamps of a room light that room.
+ * Approximate indirect light of the lamps per room (see `lampBounceLux`): only the lamps of a room light that room. `awb` white-balances the colour as the lamps themselves are.
  * Rooms without a lit lamp are absent.
  */
-export function roomLampBounce(scene: Scene, lamps: readonly LampSpec[]): Record<string, RoomBounce> {
+export function roomLampBounce(scene: Scene, lamps: readonly LampSpec[], awb = 0): Record<string, RoomBounce> {
   const lux = roomBounceLux(scene, lamps.map((l) => ({ roomId: l.roomId, position: [l.position[0], l.position[2]], lumens: l.lumens, on: l.on })));
   const colors: Record<string, { sum: RGB; weight: number }> = {};
   for (const lamp of lamps) {
@@ -270,7 +311,7 @@ export function roomLampBounce(scene: Scene, lamps: readonly LampSpec[]): Record
     const id = roomIdOfLight(scene, { roomId: lamp.roomId, position: [lamp.position[0], lamp.position[2]] });
     if (!id) continue;
     const c = (colors[id] ??= { sum: [0, 0, 0], weight: 0 });
-    const rgb = kelvinToLinearRgb(lamp.kelvin);
+    const rgb = kelvinToLinearRgb(whiteBalancedKelvin(lamp.kelvin, awb));
     for (let k = 0; k < 3; k++) c.sum[k] = c.sum[k]! + rgb[k]! * lamp.lumens;
     c.weight += lamp.lumens;
   }
@@ -337,12 +378,13 @@ export function computeLighting(scene: Scene, lighting: LightingView): LightingM
     const sunLux = sunActive ? sun.illuminanceLux : 0;
     const sky = skyState(sun.altitudeDeg);
     const ambientLux = lighting.sunEnabled ? sky.ambientLux : 0;
-    const lit = lamps.map((lamp, i) => withPhotometry(lamp, scene.lights[i]!));
     // Mean illuminance the lamps add over the habitable area (lumens per square metre).
     const area = Math.max(interiorArea(scene), 1);
-    const lampLux = lit.reduce((sum, l) => sum + (l.on ? l.lumens : 0), 0) / area;
+    const lampLux = lamps.reduce((sum, l) => sum + (l.on ? l.lumens : 0), 0) / area;
     const ambientIntensity = ambientLux * AMBIENT_FRACTION;
     const sunIntensity = renderSun(sunLux, ambientIntensity);
+    const awb = awbWeight(sunIntensity, ambientIntensity, lampLux);
+    const lit = lamps.map((lamp, i) => withPhotometry(lamp, scene.lights[i]!, awb));
     // Exposure key: the rendered (compressed) sun and hemisphere plus the lamps, not the 87 klux of physical sun.
     const exposure = autoExposure(sunIntensity, ambientIntensity, lampLux) * Math.pow(2, lighting.exposureEV);
     if (!Number.isFinite(exposure) || exposure <= 0) throw new Error('exposure is not a positive number');
@@ -357,6 +399,7 @@ export function computeLighting(scene: Scene, lighting: LightingView): LightingM
       zenith: sky.zenithColor,
       horizon: sky.horizonColor,
       exposure,
+      awb,
       lamps: lit,
     };
   } catch (error) {

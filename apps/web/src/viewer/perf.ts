@@ -15,14 +15,20 @@ export interface PerfProfile {
   maxShadowLamps: number;
   /** Real lights a `grid` lamp is split into (see `planRenderLights`). */
   gridTiles: number;
+  /** Reflections of a neutral interior on glossy surfaces (an environment map, one more texture lookup per pixel). Off on low. */
+  environment: boolean;
+  /** Soft contact shadows under furniture (one extra plane over the floors). Off on low. */
+  contactShadows: boolean;
+  /** Blur radius (texels) of the sun's and lamps' shadow edges; the filter always takes the same number of samples. */
+  shadowRadius: number;
 }
 
-export const FULL_PROFILE: PerfProfile = { low: false, maxDpr: 2, sunMap: 2048, pointMap: 512, areaMap: 1024, spotMap: 1024, maxShadowLamps: 12, gridTiles: 4 };
-export const LOW_PROFILE: PerfProfile = { low: true, maxDpr: 1.5, sunMap: 1024, pointMap: 256, areaMap: 512, spotMap: 512, maxShadowLamps: 6, gridTiles: 2 };
+export const FULL_PROFILE: PerfProfile = { low: false, maxDpr: 2, sunMap: 2048, pointMap: 512, areaMap: 1024, spotMap: 1024, maxShadowLamps: 12, gridTiles: 4, environment: true, contactShadows: true, shadowRadius: 3 };
+export const LOW_PROFILE: PerfProfile = { low: true, maxDpr: 1.5, sunMap: 1024, pointMap: 256, areaMap: 512, spotMap: 512, maxShadowLamps: 6, gridTiles: 2, environment: false, contactShadows: false, shadowRadius: 1.5 };
 
 /**
  * Texture units a lit material needs besides the lamp shadow maps: the sun's shadow map, the shell material's maps
- * (colour, normal, roughness, room ambient, room bounce) and one spare. A fragment shader cannot use more than the
+ * (colour, normal, roughness, room ambient, room bounce) and one spare (the environment map). A fragment shader cannot use more than the
  * GPU's `MAX_TEXTURE_IMAGE_UNITS` (16 on most), so the lamp shadow maps get what is left.
  */
 export const RESERVED_TEXTURE_UNITS = 7;
@@ -49,6 +55,9 @@ export function getPerfProfile(): PerfProfile {
   if (cached) return cached;
   const coarse = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
   const override = typeof location !== 'undefined' ? new URLSearchParams(location.search).get('quality') : null;
-  cached = perfProfileFor({ coarsePointer: coarse, cores: typeof navigator !== 'undefined' ? navigator.hardwareConcurrency : undefined, override });
+  const base = perfProfileFor({ coarsePointer: coarse, cores: typeof navigator !== 'undefined' ? navigator.hardwareConcurrency : undefined, override });
+  // `?ao=off` leaves out the contact shadows and wall creases (measurements of flat lighting, debugging).
+  const aoOff = typeof location !== 'undefined' && ['0', 'off'].includes(new URLSearchParams(location.search).get('ao') ?? '');
+  cached = aoOff ? { ...base, contactShadows: false } : base;
   return cached;
 }

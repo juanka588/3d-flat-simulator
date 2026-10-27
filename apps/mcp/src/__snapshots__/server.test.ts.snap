@@ -3798,6 +3798,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
             "wall-plaster",
             "wall-paper",
             "stone",
+            "metal",
             "outdoor",
           ],
           "type": "string",
