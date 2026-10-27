@@ -1,6 +1,6 @@
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import type { RootState } from '@react-three/fiber';
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { BUILTIN_MATERIALS, buildItems } from '@flat/scene';
 import type { ShellMeshes } from '@flat/scene';
@@ -23,6 +23,7 @@ import { withHitContext } from './selection';
 import { MAX_ANISOTROPY, textureCache } from './texture-cache';
 import { shadowCasterGeometry } from './derived-geometry';
 import { LightingRig } from './LightingRig';
+import { resolveLamps, roomLampBounce } from './lighting';
 import { sceneKey } from './scene-identity';
 import { contextReach } from './sun-bounds';
 import type { Selection, ViewState } from './view-types';
@@ -136,6 +137,13 @@ function Shell({ scene, view, onSelect }: { scene: Scene; view: ViewState; onSel
   // Per-room sky ambient (windowless rooms get less): an aoMap on the shell materials, see room-ambient.ts.
   const ambient = useMemo(() => createRoomAmbient(scene), [scene]);
   useEffect(() => () => ambient.dispose(), [ambient]);
+  // Per-room lamp bounce (approximate indirect light of the lamps that are on, local to their room): data in a texture,
+  // so switching a lamp changes texels and never the shaders.
+  const lamps = useMemo(() => resolveLamps(scene, view.lighting), [scene, view.lighting]);
+  useLayoutEffect(() => {
+    ambient.bounce.set(roomLampBounce(scene, lamps));
+    invalidate();
+  }, [ambient, scene, lamps, invalidate]);
   // One material library per canvas, kept in step with the scene: an edit updates changed materials in place
   // (the same objects, so no texture is released, re-fetched or re-uploaded); it is never rebuilt per scene.
   const library = useMemo(
@@ -148,7 +156,7 @@ function Shell({ scene, view, onSelect }: { scene: Scene; view: ViewState; onSel
   );
   // Updated while rendering (idempotent) so that meshes rendered below already see the new materials.
   const materials = useMemo(() => {
-    library.update(scene.materials, ambient.texture);
+    library.update(scene.materials, ambient.texture, ambient.bounce.texture);
     return library.snapshot();
   }, [library, scene.materials, ambient]);
   // Materials the update removed are disposed once the render that stopped using them is committed.

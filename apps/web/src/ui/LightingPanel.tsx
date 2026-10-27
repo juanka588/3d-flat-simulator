@@ -1,10 +1,11 @@
 import { useId } from 'react';
-import { applyPreset } from '@flat/scene';
-import type { LampOverride, PresetName, Scene } from '@flat/scene';
+import { applyPreset, lightFixtureCount, lightLumens } from '@flat/scene';
+import type { LampOverride, Light, PresetName, Scene } from '@flat/scene';
 import { SPEEDS, useClockStore } from '../state/dayClock';
 import { fromMinutes, instantToLocal, toMinutes } from '../state/localTime';
 import { sunInfoFor } from '../state/sunInfo';
 import { WALK_LIGHTS_EV } from '../state/effectiveLighting';
+import { useSceneStore } from '../state/sceneStore';
 import { useViewStore } from '../state/viewStore';
 import type { BuildingMode } from '../viewer/view-types';
 import { NumberField } from './NumberField';
@@ -45,6 +46,10 @@ export function LightingPanel({ scene, hasContext }: LightingPanelProps) {
 
   const setLamp = (id: string, patch: LampOverride) =>
     setLighting({ lamps: { ...lighting.lamps, [id]: { ...lighting.lamps[id], ...patch } } });
+
+  /** Structural edits of a light (rows, columns) are scene commands, so they are undoable. */
+  const editLight = (id: string, patch: { rows?: number; cols?: number }) =>
+    useSceneStore.getState().dispatch({ type: 'light.update', id, patch }, { coalesceKey: `light.update:${id}:${Object.keys(patch).join(',')}` });
 
   const now = () => {
     const local = instantToLocal(new Date(), scene.site.timezone);
@@ -213,16 +218,34 @@ export function LightingPanel({ scene, hasContext }: LightingPanelProps) {
             const o = lighting.lamps[light.id] ?? {};
             const on = walkOverride || (o.on ?? light.on);
             const name = light.name ?? light.id;
+            const total = o.lumens ?? lightLumens(light);
+            const count = lightFixtureCount(light);
             return (
               <li key={light.id} data-testid={`lamp-${light.id}`}>
                 <label className="check">
                   <input type="checkbox" checked={on} disabled={walkOverride} aria-label={`${name} on`} onChange={(e) => setLamp(light.id, { on: e.target.checked })} />
                   {name}
                 </label>
+                {light.type === 'grid' && (
+                  <div className="lamp-fields" data-testid={`grid-${light.id}`}>
+                    <NumberField label={`${name} rows`} value={light.rows} min={1} max={20} step={1} testId={`grid-rows-${light.id}`} onCommit={(rows) => editLight(light.id, { rows: Math.round(rows) })} />
+                    <NumberField label={`${name} columns`} value={light.cols} min={1} max={20} step={1} testId={`grid-cols-${light.id}`} onCommit={(cols) => editLight(light.id, { cols: Math.round(cols) })} />
+                  </div>
+                )}
                 <div className="lamp-fields">
-                  <NumberField label={`${name} lumens`} unit="lm" value={o.lumens ?? light.lumens} min={0} step={50} onCommit={(lumens) => setLamp(light.id, { lumens })} />
+                  {light.type === 'grid' ? (
+                    <NumberField label={`${name} lumens each`} unit="lm" value={Math.round(total / count)} min={0} step={10} testId={`grid-each-${light.id}`} onCommit={(each) => setLamp(light.id, { lumens: each * count })} />
+                  ) : (
+                    <NumberField label={`${name} lumens`} unit="lm" value={total} min={0} step={50} onCommit={(lumens) => setLamp(light.id, { lumens })} />
+                  )}
                   <NumberField label={`${name} kelvin`} unit="K" value={o.kelvin ?? light.kelvin} min={1000} max={12000} step={100} onCommit={(kelvin) => setLamp(light.id, { kelvin })} />
                 </div>
+                {light.type === 'grid' && (
+                  <p className="hint" data-testid={`grid-total-${light.id}`}>
+                    {light.rows * light.cols} fixtures, {Math.round(total)} lm in total
+                  </p>
+                )}
+                {light.itemId !== undefined && <p className="hint" data-testid={`lamp-source-${light.id}`}>{sourceNote(light)}</p>}
               </li>
             );
           })}
@@ -230,4 +253,15 @@ export function LightingPanel({ scene, hasContext }: LightingPanelProps) {
       </fieldset>
     </section>
   );
+}
+
+function sourceNote(light: Light): string {
+  switch (light.lumensSource) {
+    case 'product':
+      return 'Lamp item: lumens from the product page.';
+    case 'estimated':
+      return 'Lamp item: lumens estimated for this kind of lamp (the product page does not state them).';
+    default:
+      return 'Lamp item: lumens set by you.';
+  }
 }

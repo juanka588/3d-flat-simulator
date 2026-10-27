@@ -1,8 +1,14 @@
 import {
   autoExposure,
+  gridClusters,
+  gridFixtures,
   kelvinToLinearRgb,
+  lightFixtureCount,
+  lightLumens,
   pointCandela,
   polygonArea,
+  roomBounceLux,
+  roomIdOfLight,
   skyState,
   spotCandela,
   sunAt,
@@ -67,7 +73,7 @@ export interface LampSpec {
   kelvin: number;
   /** Linear RGB of the lamp colour, luminance-normalised. */
   color: RGB;
-  /** Candela (point/spot, and the point proxy of an area panel: lm / 2pi); 0 when the lamp is off. */
+  /** Candela (point/spot, and the point proxy of an area panel: lm / 2pi); 0 when the lamp is off. Grids: see `planRenderLights`. */
   intensity: number;
   /** Spot half-angle in radians (three's `angle`). */
   angle: number;
@@ -75,6 +81,10 @@ export interface LampSpec {
   depth: number;
   /** Plan rotation of an area panel, degrees. */
   rotation: number;
+  /** True for the light of a lamp item (it has its own model, so no fixture mesh is drawn). */
+  linked: boolean;
+  /** Grids: the layout. `fixtures` are world positions `[x, y, z]`; `lumens` is the TOTAL, `lumensEach` the per-fixture figure. */
+  grid?: { rows: number; cols: number; lumensEach: number; beam: number; width: number; depth: number; fixtures: [number, number, number][] };
 }
 
 export type LightingModel =
@@ -101,28 +111,47 @@ export type LightingModel =
 export function resolveLamps(scene: Scene, lighting: LightingView): LampSpec[] {
   return scene.lights.map((light) => {
     const o = lighting.lamps[light.id] ?? {};
-    return {
+    const total = o.lumens ?? lightLumens(light);
+    const count = lightFixtureCount(light);
+    const base: LampSpec = {
       id: light.id,
       name: light.name ?? light.id,
       type: light.type,
       roomId: light.roomId,
       position: [light.position[0], light.elevation, light.position[1]],
       on: o.on ?? light.on,
-      lumens: o.lumens ?? light.lumens,
+      lumens: total,
       kelvin: o.kelvin ?? light.kelvin,
       color: [1, 1, 1],
       intensity: 0,
       angle: light.type === 'spot' ? (light.angle * Math.PI) / 360 : 0,
-      width: light.type === 'area' ? light.width : 0,
-      depth: light.type === 'area' ? light.depth : 0,
-      rotation: light.type === 'area' ? light.rotation : 0,
+      width: light.type === 'area' || light.type === 'grid' ? light.width : 0,
+      depth: light.type === 'area' || light.type === 'grid' ? light.depth : 0,
+      rotation: light.type === 'area' || light.type === 'grid' ? light.rotation : 0,
+      linked: light.itemId !== undefined,
     };
+    if (light.type === 'grid') {
+      return {
+        ...base,
+        angle: (light.angle * Math.PI) / 360,
+        grid: {
+          rows: light.rows,
+          cols: light.cols,
+          lumensEach: total / count,
+          beam: light.angle,
+          width: light.width,
+          depth: light.depth,
+          fixtures: gridFixtures(light).map(([x, z]) => [x, light.elevation, z]),
+        },
+      };
+    }
+    return base;
   });
 }
 
 function withPhotometry(lamp: LampSpec, light: Light): LampSpec {
   const color = kelvinToLinearRgb(lamp.kelvin);
-  let candela: number;
+  let candela = 0;
   switch (light.type) {
     case 'point':
       candela = pointCandela(lamp.lumens);
@@ -134,8 +163,123 @@ function withPhotometry(lamp: LampSpec, light: Light): LampSpec {
       // A panel radiates its whole flux into the lower hemisphere: rendered as a point light with lm / (2pi) (see Lamps).
       candela = lamp.lumens / (2 * Math.PI);
       break;
+    case 'grid':
+      // A grid is lit by a few cluster lights (see `planRenderLights`); this is the candela of ONE fixture at its beam angle.
+      candela = spotCandela(lamp.lumens / lightFixtureCount(light), light.angle);
+      break;
   }
   return { ...lamp, color, intensity: lamp.on ? candela : 0 };
+}
+
+/**
+ * An area panel is lit as a point light this far below the panel (metres), clear of the panel's own mesh and of the
+ * ceiling slab, so the cube shadow map sees the room and not the panel.
+ */
+export const AREA_LIGHT_DROP_M = 0.06;
+
+/** Unshadowed lights are cut off at this distance (three's smooth `distance` window), to limit light through walls. */
+export const UNSHADOWED_REACH_M = 5;
+
+/** One real three.js light of the rig. */
+export interface RenderLight {
+  /** Unique, stable per scene structure: `<lampId>` or `<lampId>#<tile>` for a grid tile. */
+  key: string;
+  lampId: string;
+  kind: 'point' | 'spot';
+  /** World position `[x, y, z]`. */
+  position: [number, number, number];
+  /** Candela; 0 when the lamp is off (the light still exists, so toggling never changes the shaders). */
+  intensity: number;
+  /** Spot half-angle, radians. */
+  angle: number;
+  color: RGB;
+  /** Casts a shadow. Decided by the position in the lamp list, never by `on`, so toggling cannot recompile. */
+  shadow: boolean;
+  /** Cut-off distance (0 = none). Set for unshadowed lights. */
+  reach: number;
+}
+
+export interface RenderBudget {
+  /** Shadow-casting lights allowed in total (see `shadowLampBudget`). */
+  shadowLamps: number;
+  /** Real lights a grid is split into. */
+  gridTiles: number;
+}
+
+/**
+ * Turns the lamps into the real lights the renderer draws, with a constant structure: one light per lamp (a grid:
+ * `gridTiles` tiles of neighbouring fixtures, each lit as one spot at the tile centroid with the tile's flux, so a grid's
+ * TOTAL flux is exact and only its distribution is approximate). The first `shadowLamps` lights, in scene order, cast
+ * shadows; the others are unshadowed with a cut-off (`UNSHADOWED_REACH_M`). Lamps are never reordered by `on`.
+ */
+export function planRenderLights(lamps: readonly LampSpec[], budget: RenderBudget): RenderLight[] {
+  const out: RenderLight[] = [];
+  const push = (l: Omit<RenderLight, 'shadow' | 'reach'>) => {
+    const shadow = out.length < budget.shadowLamps;
+    out.push({ ...l, shadow, reach: shadow ? 0 : UNSHADOWED_REACH_M });
+  };
+  for (const lamp of lamps) {
+    if (lamp.grid) {
+      const g = lamp.grid;
+      const tiles = gridClusters({ position: [0, 0], rows: g.rows, cols: g.cols, width: g.width, depth: g.depth, rotation: lamp.rotation }, budget.gridTiles);
+      const [cx, cy, cz] = lamp.position;
+      tiles.forEach((t, k) =>
+        push({
+          key: `${lamp.id}#${k}`,
+          lampId: lamp.id,
+          kind: 'spot',
+          position: [cx + t.position[0], cy, cz + t.position[1]],
+          intensity: lamp.on ? spotCandela(t.count * g.lumensEach, g.beam) : 0,
+          angle: lamp.angle,
+          color: lamp.color,
+        }),
+      );
+    } else {
+      const [x, y, z] = lamp.position;
+      push({
+        key: lamp.id,
+        lampId: lamp.id,
+        kind: lamp.type === 'spot' ? 'spot' : 'point',
+        position: [x, lamp.type === 'area' ? y - AREA_LIGHT_DROP_M : y, z],
+        intensity: lamp.intensity,
+        angle: lamp.angle,
+        color: lamp.color,
+      });
+    }
+  }
+  return out;
+}
+
+/** Per-room bounce of the lamps for the viewer: the room's mean inter-reflected illuminance and the lamps' mean colour. */
+export interface RoomBounce {
+  /** Bounce illuminance in lux. */
+  lux: number;
+  /** Flux-weighted mean lamp colour (linear, luminance 1). */
+  color: RGB;
+}
+
+/**
+ * Approximate indirect light of the lamps per room (see `lampBounceLux`): only the lamps of a room light that room.
+ * Rooms without a lit lamp are absent.
+ */
+export function roomLampBounce(scene: Scene, lamps: readonly LampSpec[]): Record<string, RoomBounce> {
+  const lux = roomBounceLux(scene, lamps.map((l) => ({ roomId: l.roomId, position: [l.position[0], l.position[2]], lumens: l.lumens, on: l.on })));
+  const colors: Record<string, { sum: RGB; weight: number }> = {};
+  for (const lamp of lamps) {
+    if (!lamp.on || !(lamp.lumens > 0)) continue;
+    const id = roomIdOfLight(scene, { roomId: lamp.roomId, position: [lamp.position[0], lamp.position[2]] });
+    if (!id) continue;
+    const c = (colors[id] ??= { sum: [0, 0, 0], weight: 0 });
+    const rgb = kelvinToLinearRgb(lamp.kelvin);
+    for (let k = 0; k < 3; k++) c.sum[k] = c.sum[k]! + rgb[k]! * lamp.lumens;
+    c.weight += lamp.lumens;
+  }
+  const out: Record<string, RoomBounce> = {};
+  for (const [id, e] of Object.entries(lux)) {
+    const c = colors[id];
+    out[id] = { lux: e, color: c && c.weight > 0 ? (c.sum.map((v) => v / c.weight) as RGB) : [1, 1, 1] };
+  }
+  return out;
 }
 
 /** Rec. 709 relative luminance of a linear RGB triple. */

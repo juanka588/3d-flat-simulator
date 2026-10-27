@@ -1,6 +1,8 @@
 import { roomSideFinish } from '../geometry/materials';
 import { analyzeRoomWallSides, wallFaceRooms } from '../geometry/room-sides';
-import { LIMITS, Light, Scene, type Light as LightT, type Material, type Room, type Wall } from '../schema';
+import { fitGridToRoom, GRID_DROP_M } from '../lighting/lamps';
+import { roomCeilingHeight } from '../geometry/floors';
+import { LIMITS, Light, Scene, lightIssues, type Light as LightT, type Material, type Room, type Wall } from '../schema';
 import { isDefaultStructural } from '../structural';
 import { canCutOpening, canRemoveWall } from './guards';
 import { applyItemCommand, isItemCommand } from './items';
@@ -432,6 +434,29 @@ function checkRoomRef(scene: Scene, roomId: string | null | undefined, path: str
   return err('unknown_entity', path, `unknown room "${roomId}"`, unknownIdHint(roomId, scene.rooms.map((r) => r.id), 'room'));
 }
 
+/** Geometry of a grid from `fitToRoom` or from the defaults of an omitted elevation; errors say what to send. */
+function resolveGrid(scene: Scene, input: Record<string, unknown>, path: string): Record<string, unknown> | CommandError {
+  const out: Record<string, unknown> = { ...input };
+  const roomId = typeof input.roomId === 'string' ? input.roomId : undefined;
+  const room = roomId !== undefined ? scene.rooms.find((r) => r.id === roomId) : undefined;
+  if (input.fitToRoom === true) {
+    if (!room) return err('invalid_command', `${path}/roomId`, 'fitToRoom needs the roomId of the room to cover', 'pass roomId (rooms[].id from list_rooms) or give position, width and depth');
+    const fit = fitGridToRoom(scene, room);
+    if (!fit) return err('precondition_failed', `${path}/fitToRoom`, `no rectangle fits in room "${room.id}"`, 'give position, width and depth');
+    out.position = fit.position;
+    out.width = fit.width;
+    out.depth = fit.depth;
+    out.rotation = 0;
+    if (out.elevation === undefined) out.elevation = fit.elevation;
+  }
+  delete out.fitToRoom;
+  if (out.elevation === undefined && room) out.elevation = Math.max(0, Math.round((roomCeilingHeight(scene, room) - GRID_DROP_M) * 100) / 100);
+  for (const k of ['position', 'width', 'depth', 'elevation']) {
+    if (out[k] === undefined) return err('invalid_command', `${path}/${k}`, `a grid needs ${k}`, 'set fitToRoom: true with a roomId to cover the room, or give position, width, depth and elevation');
+  }
+  return out;
+}
+
 function addLight(scene: Scene, cmd: Extract<LeafCommand, { type: 'light.add' }>): Outcome {
   if (scene.lights.length >= LIMITS.lights) return fail(err('limit_exceeded', 'light', `too many lights (max ${LIMITS.lights})`));
   const ids = allIds(scene);
@@ -445,10 +470,18 @@ function addLight(scene: Scene, cmd: Extract<LeafCommand, { type: 'light.add' }>
   }
   const badRoom = checkRoomRef(scene, cmd.light.roomId, 'light/roomId');
   if (badRoom) return fail(badRoom);
-  const parsed = Light.safeParse({ ...cmd.light, id });
+  let candidate: Record<string, unknown> = { ...cmd.light, id };
+  if (cmd.light.type === 'grid') {
+    const resolved = resolveGrid(scene, candidate, 'light');
+    if (isErr(resolved)) return fail(resolved);
+    candidate = resolved;
+  }
+  const parsed = Light.safeParse(candidate);
   if (!parsed.success) {
     return fail(...parsed.error.issues.map((i) => err('invalid_command', ['light', ...i.path.map(String)].join('/'), i.message)));
   }
+  const problems = lightIssues(parsed.data);
+  if (problems.length) return fail(...problems.map((m) => err('invalid_command', 'light', m)));
   const lights = scene.lights.slice();
   lights.splice(Math.min(cmd.index ?? lights.length, lights.length), 0, parsed.data);
   return {
@@ -460,16 +493,44 @@ function addLight(scene: Scene, cmd: Extract<LeafCommand, { type: 'light.add' }>
   };
 }
 
+/** Fields of a lamp item's light that follow the item and so cannot be set on the light. */
+const LINKED_FIXED = ['position', 'elevation', 'roomId'] as const;
+
 function updateLight(scene: Scene, cmd: Extract<LeafCommand, { type: 'light.update' }>): Outcome {
   const at = scene.lights.findIndex((l) => l.id === cmd.id);
   if (at < 0) return fail(err('unknown_entity', 'id', `unknown light "${cmd.id}"`, unknownIdHint(cmd.id, scene.lights.map((l) => l.id), 'light')));
   const light = scene.lights[at]!;
   const badRoom = checkRoomRef(scene, cmd.patch.roomId, 'patch/roomId');
   if (badRoom) return fail(badRoom);
+  const patch: Record<string, unknown> = { ...cmd.patch };
+  if (light.itemId !== undefined) {
+    for (const k of LINKED_FIXED) {
+      if (patch[k] !== undefined) {
+        return fail(err('precondition_failed', `patch/${k}`, `light "${light.id}" belongs to item "${light.itemId}" and follows it (${k} cannot be set on the light)`, 'move or rotate the item (item_move, item_rotate); on, lumens, kelvin and name can be changed here'));
+      }
+    }
+  }
+  if (patch.fitToRoom !== undefined) {
+    if (light.type !== 'grid') return fail(err('invalid_command', 'patch/fitToRoom', 'fitToRoom is for grid lights', 'a ' + light.type + ' light takes position instead'));
+    if (patch.fitToRoom === true) {
+      const roomId = patch.roomId === null ? undefined : ((patch.roomId as string | undefined) ?? light.roomId);
+      const resolved = resolveGrid(scene, { ...light, roomId, fitToRoom: true, elevation: patch.elevation ?? light.elevation }, 'patch');
+      if (isErr(resolved)) return fail(resolved);
+      patch.position = resolved.position;
+      patch.width = resolved.width;
+      patch.depth = resolved.depth;
+      patch.rotation = 0;
+    }
+    delete patch.fitToRoom;
+  }
+  // A user's change of a lamp item's lumens makes the figure the user's, not the product's (undo restores the source).
+  if (light.itemId !== undefined && patch.lumens !== undefined && patch.lumensSource === undefined && light.lumensSource !== undefined && light.lumensSource !== 'user' && patch.lumens !== (light as { lumens: number }).lumens) {
+    patch.lumensSource = 'user';
+  }
   const merged: Record<string, unknown> = { ...light };
   const prevPatch: Record<string, unknown> = {};
   let changedAny = false;
-  for (const [k, v] of Object.entries(cmd.patch)) {
+  for (const [k, v] of Object.entries(patch)) {
     if (v === undefined) continue;
     const prev = (light as Record<string, unknown>)[k];
     const next = v === null ? undefined : v;
@@ -484,6 +545,8 @@ function updateLight(scene: Scene, cmd: Extract<LeafCommand, { type: 'light.upda
   if (!parsed.success) {
     return fail(...parsed.error.issues.map((i) => err('invalid_command', ['patch', ...i.path.map(String)].join('/'), i.message, `a ${light.type} light cannot take this field`)));
   }
+  const problems = lightIssues(parsed.data);
+  if (problems.length) return fail(...problems.map((m) => err('invalid_command', 'patch', m)));
   return {
     ok: true,
     scene: { ...scene, lights: replaceAt(scene.lights, at, merged as LightT) },
@@ -497,6 +560,9 @@ function removeLight(scene: Scene, cmd: Extract<LeafCommand, { type: 'light.remo
   const at = scene.lights.findIndex((l) => l.id === cmd.id);
   if (at < 0) return fail(err('unknown_entity', 'id', `unknown light "${cmd.id}"`, unknownIdHint(cmd.id, scene.lights.map((l) => l.id), 'light')));
   const light = scene.lights[at]!;
+  if (light.itemId !== undefined) {
+    return fail(err('precondition_failed', 'id', `light "${light.id}" belongs to item "${light.itemId}" and cannot be removed on its own`, 'switch it off with light_update {on: false}, or remove the item (item_remove)'));
+  }
   return {
     ok: true,
     scene: { ...scene, lights: scene.lights.filter((_, i) => i !== at) },
@@ -523,7 +589,7 @@ function reservedLeaf(scene: Scene, cmd: { type: string; wallId?: unknown }): Ou
 function itemLeaf(scene: Scene, cmd: Extract<LeafCommand, { type: `item.${string}` }>, ctx: ReduceContext): Outcome {
   const r = applyItemCommand(scene, cmd, ctx);
   if (!r.ok) return r;
-  return { ok: true, scene: r.scene, inverse: r.inverse, changed: r.ids.length ? touch('items', ...r.ids) : emptyChanged(), warnings: [] };
+  return { ok: true, scene: r.scene, inverse: r.inverse, changed: r.ids.length ? { ...touch('items', ...r.ids), lights: r.lights } : emptyChanged(), warnings: [] };
 }
 
 function applyLeaf(scene: Scene, cmd: LeafCommand, ctx: ReduceContext): Outcome {

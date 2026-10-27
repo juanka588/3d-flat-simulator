@@ -13,6 +13,8 @@ export interface FlatStats {
   textureSets: { loaded: number; pending: number; idle: number; slugs: string[] };
   /** Compiled shader programs (renderer.info.programs). */
   programs: number;
+  /** Fragment texture units of the GPU (MAX_TEXTURE_IMAGE_UNITS); the lamp shadow budget derives from it. */
+  maxTextures: number;
   /** Names of the visible named meshes, e.g. walls, floors, ceilings. */
   meshes: string[];
   mode: string;
@@ -44,6 +46,9 @@ export interface FlatStats {
     area: number;
     /** Ids of the lamps currently emitting (intensity > 0). */
     lampsLit: string[];
+    /** Real three.js lights that stand for lamps (a grid is several), and how many of them cast shadows (on or off). */
+    lampLights: number;
+    lampShadowCasters: number;
     /** Lights that cast shadows and emit (the sun counts when it is up). */
     shadowCasters: number;
     /** Ids/names of those lights. */

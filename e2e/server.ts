@@ -11,7 +11,7 @@ import { join } from 'node:path';
 import { expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
-export const WEB_ORIGIN = 'http://127.0.0.1:5173';
+export const WEB_ORIGIN = `http://127.0.0.1:${process.env.E2E_PORT ?? 5173}`;
 const SERVER_CWD = join(process.cwd(), 'apps', 'server'); // playwright runs from the repo root
 
 export interface RunningServer {

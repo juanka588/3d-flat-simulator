@@ -111,8 +111,8 @@
     { "id": "l-ch2", "name": "Chambre 2 ceiling", "type": "point", "roomId": "ch2", "position": [5.5, 2.0], "elevation": 2.3, "lumens": 800, "kelvin": 2700 },
     { "id": "l-ch1", "name": "Chambre 1 ceiling", "type": "point", "roomId": "ch1", "position": [8.5, 2.2], "elevation": 2.3, "lumens": 800, "kelvin": 2700 },
     { "id": "l-entree", "name": "Entrée spot", "type": "spot", "roomId": "entree", "position": [6.6, 5.2], "elevation": 2.45, "angle": 100, "lumens": 600, "kelvin": 3000 },
-    { "id": "l-sdb", "name": "Bathroom spot", "type": "spot", "roomId": "sdb", "position": [5.4, 7.2], "elevation": 2.45, "angle": 100, "lumens": 700, "kelvin": 4000 },
-    { "id": "l-wc", "name": "WC spot", "type": "spot", "roomId": "wc", "position": [9.4, 5.2], "elevation": 2.45, "angle": 90, "lumens": 300, "kelvin": 3000 },
+    { "id": "l-sdb", "name": "Bathroom spot", "type": "spot", "roomId": "sdb", "position": [5.4, 7.2], "elevation": 2.45, "angle": 150, "lumens": 900, "kelvin": 4000 },
+    { "id": "l-wc", "name": "WC spot", "type": "spot", "roomId": "wc", "position": [9.4, 5.2], "elevation": 2.45, "angle": 150, "lumens": 400, "kelvin": 3000 },
     { "id": "l-balcon", "name": "Balcony wall light", "type": "point", "roomId": "balcon", "position": [-0.35, 4.0], "elevation": 2.1, "lumens": 400, "kelvin": 2700 }
   ]
 }

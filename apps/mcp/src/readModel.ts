@@ -1,4 +1,4 @@
-import { DEFAULT_LIGHTING, listRooms, roomArea, stripControlChars, type HistoryResponse, type LightingView, type Scene } from '@flat/scene';
+import { DEFAULT_LIGHTING, lightLumens, listRooms, roomArea, stripControlChars, type HistoryResponse, type LightingView, type Scene } from '@flat/scene';
 import { apiFailure } from './errors';
 import type { FlatApi } from './flatApi';
 import type { Fetched } from './tools/common';
@@ -107,7 +107,7 @@ export async function buildSummary(deps: Deps, detail: 'brief' | 'full'): Promis
       ...base,
       rooms: listRooms(scene),
       materials: scene.materials.map((m) => ({ ...material(m), inUse: used.has(m.id) })),
-      lights: lights.map((l) => ({ id: l.id, type: l.type, ...(l.roomId ? { roomId: l.roomId } : {}), on: l.on, lumens: l.lumens, kelvin: l.kelvin })),
+      lights: lights.map((l) => ({ id: l.id, type: l.type, ...(l.roomId ? { roomId: l.roomId } : {}), on: l.on, lumens: Math.round(lightLumens(l)), kelvin: l.kelvin, ...(l.type === 'grid' ? { rows: l.rows, cols: l.cols, lumensEach: l.lumensEach } : {}), ...(l.itemId ? { itemId: l.itemId } : {}) })),
       openings: { door: scene.openings.filter((o) => o.type === 'door').length, window: scene.openings.filter((o) => o.type === 'window').length, passage: scene.openings.filter((o) => o.type === 'passage').length },
     },
   };

@@ -1,6 +1,6 @@
 import { defineConfig, devices } from '@playwright/test';
 
-const PORT = 5173;
+const PORT = Number(process.env.E2E_PORT ?? 5173);
 /** The production build served by `vite preview` under the GitHub Pages base path (e2e/static.e2e.ts). */
 const STATIC_PORT = 4173;
 const STATIC_BASE = '/3d-flat-simulator/';
@@ -79,7 +79,7 @@ export default defineConfig({
       ? []
       : [
           {
-            command: 'npx -y pnpm@10.34.7 --filter @flat/web dev',
+            command: `npx -y pnpm@10.34.7 --filter @flat/web exec vite --port ${PORT} --strictPort --host 127.0.0.1`,
             url: `http://127.0.0.1:${PORT}`,
             reuseExistingServer: !process.env.CI,
             timeout: 120_000,

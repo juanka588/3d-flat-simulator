@@ -157,11 +157,40 @@ export type RoomOpeningDescription = z.infer<typeof RoomOpeningDescription>;
 
 export const RoomLightDescription = z.strictObject({
   id: z.string(),
-  type: z.enum(['point', 'spot', 'area']),
+  type: z.enum(['point', 'spot', 'area', 'grid']),
   on: z.boolean(),
+  /** Total flux in lumens (a grid: rows x cols x lumensEach). */
   lumens: z.number(),
   kelvin: z.number(),
+  /** Grids only: the layout and the flux of each fixture. */
+  rows: z.number().int().optional(),
+  cols: z.number().int().optional(),
+  lumensEach: z.number().optional(),
+  /** Grids only: where it sits, so a model can resize it. */
+  grid: z.strictObject({ position: Plan2, widthM: z.number(), depthM: z.number(), elevationM: z.number() }).optional(),
+  /** Lamp items: the item this light belongs to (it moves with it). */
+  itemId: z.string().optional(),
+  /** Lamp items: where the lumen figure comes from (`product`: the retailer page, `estimated`: category default, `user`). */
+  lumensSource: z.enum(['product', 'estimated', 'user']).optional(),
 });
+
+/** Lighting hint of `describe_room`: the target illuminance for the room type and what the lights give now (lumen method). */
+export const RoomLightingPlan = z.strictObject({
+  /** Recommended average illuminance on the floor / work plane, lux. */
+  targetLux: z.strictObject({ min: z.number(), max: z.number() }),
+  note: z.string(),
+  /** Lumens of the lights that are on / of all the lights of the room. */
+  litLumens: z.number(),
+  installedLumens: z.number(),
+  /** Estimated mean illuminance of the lit lights: lumens x 0.5 / area. */
+  estimatedLux: z.number(),
+  status: z.enum(['dark', 'below', 'within', 'above']),
+  /** A downlight grid for the middle of the target; send it to light_add with fitToRoom. */
+  suggestedGrid: z
+    .strictObject({ rows: z.number().int(), cols: z.number().int(), lumensEach: z.number() })
+    .nullable(),
+});
+export type RoomLightingPlan = z.infer<typeof RoomLightingPlan>;
 
 /** One placed item as `describe_room` lists it (M5.16). Compact: the LLM reads a dozen of these per room. */
 export const RoomItemDescription = z.strictObject({
@@ -209,6 +238,8 @@ export const RoomDescription = z.strictObject({
   walls: z.array(RoomWallDescription),
   openings: z.array(RoomOpeningDescription),
   lights: z.array(RoomLightDescription),
+  /** Target illuminance for the room type vs what the lights give now, and a grid that would reach it. */
+  lighting_plan: RoomLightingPlan,
   /** Daylight for `date` (default: the session lighting date). Null fields: not computable (e.g. no windows). */
   daylight: z.strictObject({
     date: z.string(),

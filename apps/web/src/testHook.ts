@@ -160,6 +160,8 @@ function lightStats(root: Object3D): FlatStats['lights'] {
     spot: 0,
     area: 0,
     lampsLit: [],
+    lampLights: 0,
+    lampShadowCasters: 0,
     shadowCasters: 0,
     shadowCasterNames: [],
     sunIntensity: 0,
@@ -177,7 +179,13 @@ function lightStats(root: Object3D): FlatStats['lights'] {
     } else if (l.isPointLight) out.point++;
     else if (l.isSpotLight) out.spot++;
     else if (l.isRectAreaLight) out.area++;
-    if (o.name.startsWith('lamp:') && l.intensity > 0) out.lampsLit.push(o.name.slice(5));
+    if (o.name.startsWith('lamp:')) {
+      // grid tiles are `lamp:<id>#<tile>`: report the lamp once
+      const id = o.name.slice(5).split('#')[0]!;
+      out.lampLights++;
+      if (l.castShadow) out.lampShadowCasters++;
+      if (l.intensity > 0 && !out.lampsLit.includes(id)) out.lampsLit.push(id);
+    }
     if (l.castShadow && l.intensity > 0) {
       out.shadowCasters++;
       out.shadowCasterNames.push(o.name || l.type);
@@ -328,6 +336,7 @@ export function installTestHook(): void {
         textures: gl.info.memory.textures,
         textureSets: textureStats(),
         programs: gl.info.programs?.length ?? 0,
+        maxTextures: gl.capabilities.maxTextures,
         meshes: meshNames(scene),
         mode: useViewStore.getState().mode,
         sceneName: useSceneStore.getState().scene?.name ?? '',

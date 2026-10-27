@@ -27,6 +27,16 @@ and the model never types them. All of these need the scene server; the product 
 | `validate_layout` | Checks the placed furniture of a room (or the flat): inside the room, no overlaps, door swings, window sills and glazing, walkways at least 0.8 m (0.9 m at the entry). Returns `violations`, `warnings`, `freeFloorM2`, `minWalkwayM`, `totalEur` and, with `budgetEur`, `overBudget`. Note that it reads the saved scene, not a preview. |
 | `get_bill_of_materials` | Shopping list grouped by product (quantity, TTC unit price, amount, link), `totalEur` (unlocked items only; locked furniture counts 0; no delivery or assembly), subtotals per room, `stale` price snapshots (older than 7 days). |
 
+### Lighting (M5.19-M5.21)
+
+| Tool | What it does |
+|---|---|
+| `light_add` | Adds a `point`, `spot`, `area` or `grid` light. A **grid** is one LED downlight entity: `rows`, `cols`, `lumensEach`, `kelvin`, `angle` and either `fitToRoom: true` with `roomId` (covers the room just below the ceiling) or `position`, `width`, `depth`. Up to 100 fixtures; total flux is exactly rows x cols x lumensEach. Example: `{"light":{"type":"grid","roomId":"sejour","fitToRoom":true,"rows":3,"cols":4,"lumensEach":450,"kelvin":2700}}`. |
+| `light_update` | Patches a light: `on`, `kelvin`, `lumens`, and for grids `rows`, `cols`, `lumensEach`, `fitToRoom`. One undo step each. |
+| `light_remove` | Removes a light (not one linked to a lamp item: remove the item instead). |
+
+`describe_room` lists each light (grid: rows, cols, lumensEach, total lumens, footprint) and a `lighting_plan`: the target lux for the room type, the lux the lit lamps give (lumen method, utilisation 0.5), and a `suggestedGrid` that reaches the target and can be sent to `light_add` as is. Lamp products placed with `place_item` get a linked light (`placed[].light`: id, lumens, kelvin, `lumensSource` `product` when the page states lumens, else `estimated` from the category: floor 800, table 400, pendant 1000, wall 400 lm at 2700 K). It follows `item_move`/`item_rotate`/`item_remove` and can be dimmed or switched with `light_update`. Adding a grid does not remove the old ceiling light: remove it with `light_remove` if the room should be lit by the grid alone.
+
 Errors worth knowing: `unknown_product` (invented or never-searched product id), `placement_invalid`, `provider_blocked` / `provider_unavailable` / `provider_rate_limited` (circuit breaker; `retryAt`), `product_dims_missing`, `model_unavailable` (a lookalike or parametric shape is used instead).
 Provider calls take longer than scene calls (a live IKEA search reads product pages politely, about 10 s), so the MCP waits up to 45 s for them.
 

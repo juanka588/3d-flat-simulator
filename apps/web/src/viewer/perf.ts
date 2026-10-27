@@ -11,10 +11,26 @@ export interface PerfProfile {
   pointMap: number;
   areaMap: number;
   spotMap: number;
+  /** Most shadow-casting lamp lights (every one costs a shadow map and a texture unit); the rest are unshadowed. */
+  maxShadowLamps: number;
+  /** Real lights a `grid` lamp is split into (see `planRenderLights`). */
+  gridTiles: number;
 }
 
-export const FULL_PROFILE: PerfProfile = { low: false, maxDpr: 2, sunMap: 2048, pointMap: 512, areaMap: 1024, spotMap: 1024 };
-export const LOW_PROFILE: PerfProfile = { low: true, maxDpr: 1.5, sunMap: 1024, pointMap: 256, areaMap: 512, spotMap: 512 };
+export const FULL_PROFILE: PerfProfile = { low: false, maxDpr: 2, sunMap: 2048, pointMap: 512, areaMap: 1024, spotMap: 1024, maxShadowLamps: 12, gridTiles: 4 };
+export const LOW_PROFILE: PerfProfile = { low: true, maxDpr: 1.5, sunMap: 1024, pointMap: 256, areaMap: 512, spotMap: 512, maxShadowLamps: 6, gridTiles: 2 };
+
+/**
+ * Texture units a lit material needs besides the lamp shadow maps: the sun's shadow map, the shell material's maps
+ * (colour, normal, roughness, room ambient, room bounce) and one spare. A fragment shader cannot use more than the
+ * GPU's `MAX_TEXTURE_IMAGE_UNITS` (16 on most), so the lamp shadow maps get what is left.
+ */
+export const RESERVED_TEXTURE_UNITS = 7;
+
+/** Shadow-casting lamp lights the profile allows on a GPU with `maxTextures` fragment texture units (at least 2). */
+export function shadowLampBudget(profile: PerfProfile, maxTextures: number): number {
+  return Math.max(2, Math.min(profile.maxShadowLamps, Math.floor(maxTextures) - RESERVED_TEXTURE_UNITS));
+}
 
 /** Cores at or below which a desktop is treated as low-end. 4-core CI runners keep full quality. */
 export const LOW_CORE_COUNT = 2;
