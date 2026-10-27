@@ -1390,3 +1390,12 @@ legend {
 .app.mobile .product-card .meta {
   font-size: 0.9rem;
 }
+
+.add-to-room {
+  font-size: 0.8em;
+  padding: 0.15em 0.6em;
+}
+.lock-hint {
+  flex-basis: 100%;
+  margin: 0;
+}

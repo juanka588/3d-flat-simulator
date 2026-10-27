@@ -24,7 +24,7 @@ describe('room item list and totals', () => {
     expect(view.rooms.find((r) => r.roomId === 'ch1')!.totalEur).toBe(0);
     expect(view.totalEur).toBe(599);
     const placard = view.rooms.find((r) => r.roomId === 'ch1')!.lines[0]!;
-    expect(placard).toMatchObject({ locked: true });
+    expect(placard).toMatchObject({ locked: true, existing: true });
     expect(placard.price).toMatch(/^0,00/);
   });
   it('flags stale prices and items without a product', () => {
@@ -45,6 +45,7 @@ describe('formatting', () => {
     const now = Date.parse('2026-10-28T00:00:00Z');
     expect(isStale('2026-10-21T00:00:00Z', now)).toBe(false);
     expect(isStale('2026-10-20T00:00:00Z', now)).toBe(true);
+    expect(isStale('garbage', now)).toBe(true);
   });
   it('names items and spots built-ins', () => {
     const placard = base.scene.items.find((i) => i.id === 'placard-ch1')!;

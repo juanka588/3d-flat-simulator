@@ -2,14 +2,24 @@
 // Model library gates (M5.15, model parts), run after the web build:
 //  - every file in public/models (and dist/models) is listed in catalog.json (GLB, thumbnail) with the recorded sha256;
 //  - budgets: <= 300 KB per model, <= 6 MiB in total, <= 20k triangles, <= 4 materials;
-//  - credits: every entry has a licence (CC0-1.0 or CC-BY-4.0) and a credit line, and docs/MODELS-CREDITS.md lists it.
+//  - credits: every entry has a licence (CC0-1.0 or CC-BY-4.0) and a credit line, and docs/MODELS-CREDITS.md lists it;
+//  - licence evidence: every entry records HOW the licence was verified (basis, needle, source URL, date);
+//  - the GLBs themselves are parsed (`checkGlbFiles`, with @gltf-transform/core): catalog.json is not trusted for
+//    triangles, materials, texture sizes (<= 1024), Meshopt compression, a bottom at y = 0, a centred footprint
+//    (+- 2 cm) or the nativeDims it declares (+- 2 cm).
+import { Logger, NodeIO } from '@gltf-transform/core';
+import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
+import { getBounds } from '@gltf-transform/functions';
+import { MeshoptDecoder } from 'meshoptimizer';
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
-export const BUDGETS = { modelBytes: 300 * 1024, totalBytes: 6 * 1024 * 1024, triangles: 20_000, materials: 4 };
+export const BUDGETS = { modelBytes: 300 * 1024, totalBytes: 6 * 1024 * 1024, triangles: 20_000, materials: 4, textureSize: 1024 };
+/** How far (m) the model's bottom may be from y = 0, its footprint centre from the origin, and its measured size from `nativeDims`. */
+export const FRAME_TOLERANCE_M = 0.02;
 const ALLOWED_LICENCES = new Set(['CC0-1.0', 'CC-BY-4.0']);
 const sha = (buf) => createHash('sha256').update(buf).digest('hex');
 
@@ -39,6 +49,10 @@ export function checkModelsDir(dir, { credits, budgets = BUDGETS } = {}) {
     if (!ALLOWED_LICENCES.has(e.licence)) problems.push(`${e.id}: licence "${e.licence}" is not CC0-1.0 or CC-BY-4.0`);
     if (!e.credit || !String(e.credit).trim()) problems.push(`${e.id}: no credit line`);
     if (e.licence === 'CC-BY-4.0' && !/\bby\b/i.test(String(e.credit ?? ''))) problems.push(`${e.id}: CC-BY needs an author in the credit`);
+    const ev = e.licenseEvidence;
+    if (!ev || typeof ev !== 'object' || !ev.basis || !ev.needle || !ev.checkedAt || !(ev.packUrl || ev.policyUrl || ev.assetApiUrl || ev.url)) {
+      problems.push(`${e.id}: no licence evidence (licenseEvidence needs basis, needle, checkedAt and the source URL)`);
+    }
     if (credits !== undefined && !credits.includes(`\`${e.id}\``)) problems.push(`${e.id}: missing from docs/MODELS-CREDITS.md (run pnpm models:credits)`);
     if (e.triangles > budgets.triangles) problems.push(`${e.id}: ${e.triangles} triangles exceed ${budgets.triangles}`);
     if (e.materials > budgets.materials) problems.push(`${e.id}: ${e.materials} materials exceed ${budgets.materials}`);
@@ -61,7 +75,81 @@ export function checkModelsDir(dir, { credits, budgets = BUDGETS } = {}) {
   return { problems, bytes: found.reduce((n, f) => n + f.bytes, 0) };
 }
 
-function main() {
+let ioPromise;
+async function getIO() {
+  ioPromise ??= MeshoptDecoder.ready.then(() => new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({ 'meshopt.decoder': MeshoptDecoder }));
+  return ioPromise;
+}
+
+/** Facts measured from a GLB (a Buffer / Uint8Array), not read from the catalog. */
+export async function inspectGlb(bytes) {
+  const doc = await (await getIO()).readBinary(new Uint8Array(bytes));
+  doc.setLogger(new Logger(Logger.Verbosity.SILENT));
+  const root = doc.getRoot();
+  let tris = 0;
+  for (const mesh of root.listMeshes()) {
+    for (const p of mesh.listPrimitives()) {
+      const idx = p.getIndices();
+      tris += idx ? idx.getCount() / 3 : (p.getAttribute('POSITION')?.getCount() ?? 0) / 3;
+    }
+  }
+  const scene = root.listScenes()[0];
+  const b = scene ? getBounds(scene) : { min: [0, 0, 0], max: [0, 0, 0] };
+  return {
+    triangles: Math.round(tris),
+    materials: root.listMaterials().length,
+    textures: root.listTextures().map((t) => t.getSize()),
+    meshopt: root.listExtensionsUsed().some((x) => x.extensionName === 'EXT_meshopt_compression'),
+    hasMesh: root.listMeshes().length > 0,
+    min: b.min,
+    max: b.max,
+  };
+}
+
+/** Problems found by parsing every GLB listed in the catalog of `dir` (missing files are reported by `checkModelsDir`). */
+export async function checkGlbFiles(dir, { budgets = BUDGETS, tolerance = FRAME_TOLERANCE_M } = {}) {
+  const problems = [];
+  const catalog = JSON.parse(readFileSync(join(dir, 'catalog.json'), 'utf8'));
+  for (const e of Array.isArray(catalog) ? catalog : []) {
+    const p = e.file && join(dir, e.file);
+    if (!p || !existsSync(p)) continue;
+    let g;
+    try {
+      g = await inspectGlb(readFileSync(p));
+    } catch (error) {
+      problems.push(`${e.file}: cannot be parsed as GLB (${error instanceof Error ? error.message : error})`);
+      continue;
+    }
+    const at = (msg) => problems.push(`${e.file}: ${msg}`);
+    if (!g.hasMesh) at('has no mesh');
+    if (g.triangles > budgets.triangles) at(`${g.triangles} triangles (measured) exceed ${budgets.triangles}`);
+    if (e.triangles !== undefined && e.triangles !== g.triangles) at(`catalog says ${e.triangles} triangles, the file has ${g.triangles}`);
+    if (g.materials > budgets.materials) at(`${g.materials} materials (measured) exceed ${budgets.materials}`);
+    for (const size of g.textures) {
+      if (!size) at('a texture has an unreadable size');
+      else if (Math.max(size[0], size[1]) > budgets.textureSize) at(`a ${size[0]}x${size[1]} texture exceeds ${budgets.textureSize} px`);
+    }
+    if (g.hasMesh && !g.meshopt) at('is not Meshopt-compressed (EXT_meshopt_compression missing)');
+    const cx = (g.min[0] + g.max[0]) / 2;
+    const cz = (g.min[2] + g.max[2]) / 2;
+    if (Math.abs(g.min[1]) > tolerance) at(`bottom is at y = ${g.min[1].toFixed(3)} m, not 0 (+- ${tolerance * 100} cm)`);
+    if (Math.abs(cx) > tolerance || Math.abs(cz) > tolerance) at(`footprint centre is at (${cx.toFixed(3)}, ${cz.toFixed(3)}), not the origin (+- ${tolerance * 100} cm)`);
+    const d = e.nativeDims;
+    if (d) {
+      const w = g.max[0] - g.min[0];
+      const dd = g.max[2] - g.min[2];
+      const h = g.max[1] - g.min[1];
+      if (Math.abs(w - d.w) > tolerance || Math.abs(dd - d.d) > tolerance || Math.abs(h - d.h) > tolerance) {
+        at(`measures ${w.toFixed(3)} x ${dd.toFixed(3)} x ${h.toFixed(3)} m but the catalog says ${d.w} x ${d.d} x ${d.h} m`);
+      }
+    }
+    // The front axis cannot be derived from geometry alone: it stays a declared, reviewed catalog field (+z after normalisation).
+    if (e.front !== undefined && e.front !== '+z' && e.normalisation) at(`front is "${e.front}": a normalised model must face +z`);
+  }
+  return problems;
+}
+
+async function main() {
   let failed = false;
   const creditsPath = resolve(root, 'docs/MODELS-CREDITS.md');
   const credits = existsSync(creditsPath) ? readFileSync(creditsPath, 'utf8') : undefined;
@@ -75,6 +163,7 @@ function main() {
       continue;
     }
     const { problems, bytes } = checkModelsDir(dir, { credits });
+    if (existsSync(join(dir, 'catalog.json'))) problems.push(...(await checkGlbFiles(dir)));
     console.log(`${rel}: ${(bytes / 1024 / 1024).toFixed(2)} MiB, ${problems.length} problem(s)`);
     for (const p of problems) console.error(`  ${p}`);
     if (problems.length) failed = true;
@@ -82,4 +171,4 @@ function main() {
   if (failed) process.exit(1);
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main();
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await main();

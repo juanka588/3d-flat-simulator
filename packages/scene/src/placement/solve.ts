@@ -25,6 +25,8 @@ export const SAMPLE_STEP_M = 0.05;
 export const MAX_SAMPLES = 2000;
 /** Alternatives closer than this to each other are the same idea; keep the first. */
 const MIN_CANDIDATE_SPACING_M = 0.25;
+/** Wall-clock budget of the search for alternatives; when it runs out the candidates found so far are returned. */
+export const SOLVE_BUDGET_MS = 50;
 /** Walkway rasters computed per solve at most (each is a few ms). */
 const MAX_WALKWAY_CHECKS = 24;
 /** After a pose failed the walkway test, poses this close to it are not tried (they would fail the same way). */
@@ -49,6 +51,9 @@ function mountElevation(req: PlacementRequest, info: RoomInfo, atElevation: numb
   const ceiling = Number.isFinite(info.ceiling) ? info.ceiling : OPEN_AIR_CEILING_M;
   return round4(Math.max(0, ceiling - req.dims.h));
 }
+
+/** An `at` relation stores the real height of the item bottom, not the 0 default of a request that only gave `elevation`. */
+const withElevation = (rel: Relation, elevation: number): Relation => (rel.kind === 'at' ? { ...rel, elevation } : rel);
 
 interface Verdict {
   violations: Violation[];
@@ -157,6 +162,7 @@ const fail = (v: Violation[], candidates: Placement[] = []): PlacementResult => 
  * unparseable request, an unknown room or an impossible relation come back as `invalid_relation`.
  */
 export function solvePlacement(scene: Scene, request: PlacementRequestInput): PlacementResult {
+  const started = performance.now();
   const parsed = PlacementRequest.safeParse(request);
   if (!parsed.success) {
     const issue = parsed.error.issues[0]!;
@@ -181,6 +187,7 @@ export function solvePlacement(scene: Scene, request: PlacementRequestInput): Pl
   const target = resolved.target;
   const rotation = normRot(target.rotation + (req.rotation ?? 0));
   const elevation = mountElevation(req, info, target.elevation);
+  const category = req.category ?? scene.items.find((i) => i.id === req.itemId)?.product?.category;
   const subjectAt = (position: Vec2, rot: number): Subject => ({
     ...(req.itemId !== undefined ? { id: req.itemId } : {}),
     roomId: room.id,
@@ -190,6 +197,7 @@ export function solvePlacement(scene: Scene, request: PlacementRequestInput): Pl
     dims: req.dims,
     mount: req.mount,
     ...(req.weightKg !== undefined ? { weightKg: req.weightKg } : {}),
+    ...(category !== undefined ? { category } : {}),
     acknowledgeHeavyPartition: req.acknowledgeHeavyPartition,
   });
 
@@ -201,7 +209,7 @@ export function solvePlacement(scene: Scene, request: PlacementRequestInput): Pl
     for (const w of main.warnings) rationale.push(`warning: ${w.message}`);
     return {
       ok: true,
-      placement: { roomId: room.id, position: target.position, rotation, elevation, relation: target.relation },
+      placement: { roomId: room.id, position: target.position, rotation, elevation, relation: withElevation(target.relation, elevation) },
       rationale,
       warnings: main.warnings,
     };
@@ -214,16 +222,21 @@ export function solvePlacement(scene: Scene, request: PlacementRequestInput): Pl
   const failedWalkway: Vec2[] = [];
   const scored: { placement: Placement; penalty: number }[] = [];
   const wanted = req.maxCandidates;
+  const deadline = started + SOLVE_BUDGET_MS;
   if (wanted > 0) {
     const poses = sample(scene, room, req, target, rotation);
+    let looked = 0;
     for (const pose of poses) {
       if (scored.length >= wanted * 3) break;
+      // poses come nearest first, so stopping early keeps the best ones and the order stays stable
+      if ((++looked & 15) === 0 && performance.now() > deadline) break;
       if (kept.some((k) => Math.hypot(k[0] - pose.position[0], k[1] - pose.position[1]) < MIN_CANDIDATE_SPACING_M)) continue;
       const subject = subjectAt(pose.position, pose.rotation);
       const cheap = checkSubject(ctx, subject);
       if (cheap.violations.length > 0) continue;
       if (walkwayChecks >= MAX_WALKWAY_CHECKS) break;
       if (failedWalkway.some((f) => Math.hypot(f[0] - pose.position[0], f[1] - pose.position[1]) < WALKWAY_FAIL_RADIUS_M)) continue;
+      if (performance.now() > deadline) break;
       walkwayChecks++;
       const v = fullCheck(ctx, info, subject, req.itemId);
       if (v.violations.length > 0) {
@@ -232,7 +245,7 @@ export function solvePlacement(scene: Scene, request: PlacementRequestInput): Pl
       }
       kept.push(pose.position);
       scored.push({
-        placement: { roomId: room.id, position: pose.position, rotation: pose.rotation, elevation, relation: pose.relation },
+        placement: { roomId: room.id, position: pose.position, rotation: pose.rotation, elevation, relation: withElevation(pose.relation, elevation) },
         penalty: clearancePenalty(ctx, subject, req.clearance),
       });
     }

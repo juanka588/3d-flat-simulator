@@ -15,7 +15,7 @@ describe('the command built from a drop', () => {
     const source = productSource({ provider: 'mock', productId: 'mock:MOCK-BED-160', name: bedRecord.name, dims: bedRecord.dims, mount: 'floor', has3d: true });
     expect(source.productRef).toEqual({ provider: 'mock', sku: 'MOCK-BED-160' });
     expect(source.mesh).toEqual({ kind: 'provider' });
-    const snapshot = snapshotOf(bedRecord, new Date('2026-10-27T10:00:00Z'));
+    const snapshot = snapshotOf({ ...bedRecord, fetchedAt: '2026-10-27T10:00:00.000Z' });
     expect(snapshot).toMatchObject({ price: 299, snapshotAt: '2026-10-27T10:00:00.000Z' });
     const cmd = placeCommand(source, { position: [8.2, 2], rotation: 0, elevation: 0 }, 'ch1', snapshot);
     const r = applyCommand(charme.scene, env(cmd as never));

@@ -18,12 +18,11 @@ export interface RunningServer {
 }
 
 export async function startServer(config: ServerConfig, options: { providers?: ProviderRegistry } = {}): Promise<RunningServer> {
+  const secrets = createSecrets(process.env, readEnvFile(config.envLocalFile));
   const store = await SceneStore.open(config);
   // FLAT_PROVIDERS empty (default): no provider module is imported.
-  const providers =
-    options.providers ??
-    (await createProviderRegistry({ enabled: config.providers, log: config.log, secrets: createSecrets(process.env, readEnvFile(config.envLocalFile)) }));
-  const app = createApp(store, config, providers);
+  const providers = options.providers ?? (await createProviderRegistry({ enabled: config.providers, log: config.log, secrets }));
+  const app = createApp(store, config, providers, { redact: secrets.redact });
   const server = await new Promise<Server>((resolve, reject) => {
     const s = serve({ fetch: app.fetch, port: config.port, hostname: config.host }, () => resolve(s as Server));
     s.once('error', reject);

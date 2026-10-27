@@ -6,7 +6,7 @@ const STATIC_PORT = 4173;
 const STATIC_BASE = '/3d-flat-simulator/';
 /** E2E_STATIC=only runs just the static project (CI `e2e-static`), E2E_STATIC=skip leaves it out; unset runs everything. */
 const STATIC = process.env.E2E_STATIC ?? 'all';
-const STATIC_SPEC = '**/static.e2e.ts';
+const STATIC_SPEC = '**/static*.e2e.ts';
 const MOBILE_SPEC = '**/mobile.e2e.ts';
 /** Specs that also run on the mobile projects (they skip the tests that do not fit the layout). */
 const MOBILE_SPECS = [MOBILE_SPEC, '**/finishes.e2e.ts'];

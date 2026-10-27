@@ -39,8 +39,8 @@ export function furnishRoomMessages(args: { roomId: string; brief: string; budge
     text('3. Pick. Call `get_product` for the few products you choose: check the TTC price, the dimensions, the variants (colours or sizes) and weightKg. Keep the running total below the budget; prefer fewer, well-chosen pieces over filling the room. Tell the user your picks and the total before placing anything.'),
     text('4. Position. Call `get_placement_options` for each pick with the relation you want (against_wall, in_corner, facing, next_to, under_window, centered_in). Use a valid candidate; never block a door swing or a window, and keep the walkways free (0.8 m, 0.9 m at the entry). Heavy wall mounts only on structural walls. Structural walls stay untouched. Take a `checkpoint` named "before-furnish".'),
     text('5. Preview. Make ONE call of `place_item` with items[] holding every pick (one undo step), `preview: true` and a `render` (an overview of the room), plus a `label` like "Furnish the room". Check the diff, the warnings and the picture. If a spot was refused, use the candidates it returned.'),
-    text(`6. Validate. Call \`validate_layout\` for "${room}"${cap}: there must be no violations and overBudget must be false. Fix the picks or positions and preview again otherwise. Then call \`get_bill_of_materials\` for the room and check the total.`),
-    text('7. Apply. If the preview is right, send the same `place_item` call without `preview`, with `ifRev` set to the baseRev of the preview. If it is refused as stale, read the room again and redo steps 4 to 6.'),
+    text('6. Apply. If the preview is right, send the same `place_item` call without `preview`, with `ifRev` set to the baseRev of the preview. If it is refused as stale, read the room again and redo steps 4 and 5.'),
+    text(`7. Validate. \`validate_layout\` reads the saved flat, so run it after applying: call \`validate_layout\` for "${room}"${cap}: there must be no violations and overBudget must be false. Otherwise undo the furnishing (one step; see step 10), fix the picks or positions and go back to step 5. Then call \`get_bill_of_materials\` for the room and check the total.`),
     text(`8. Render. Call \`render_view\` with view "room" for "${room}", then view "walk" for "${room}" as someone coming in through the door would see it: set facing to the compass point of the wall opposite the door (see the doors in describe_room). Look at the pictures: nothing floating, nothing in a doorway, the light as expected. Keep any caption the render returns (for example "IKEA models, personal use").`),
     text('9. Summarise. Give a price table with one row per item: item, sku (productId), dimensions (w x d x h m), price (TTC), link. Add the total, which must stay at or below the budget, and the note "indicative prices as of <date>" using the oldest snapshot date in the bill of materials. Mention anything you could not do, and that prices and stock can change.'),
     text('10. Offer undo. Say that `undo` reverts the whole furnishing batch in one step (the history is shared with the user) and that `restore_checkpoint` with "before-furnish" returns to the starting point.'),
@@ -65,7 +65,7 @@ export function registerPrompts(server: McpServer): void {
     'furnish_room',
     {
       title: 'Furnish a room',
-      description: 'Furnish a room with real products within a budget: read, search, pick, position, preview, validate, apply, render, price table, offer undo.',
+      description: 'Furnish a room with real products within a budget: read, search, pick, position, preview, apply, validate, render, price table, offer undo.',
       argsSchema: z.object({
         roomId: z.string().max(64).describe('Room id.'),
         brief: z.string().max(500).describe('What the room is for and the look the user wants.'),

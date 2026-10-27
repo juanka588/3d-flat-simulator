@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { EMPTY_MESH_CATALOG } from '@flat/scene';
 import type { Item, MeshAsset, MeshCatalog, MeshResolveContext, ResolvedMesh } from '@flat/scene';
 import { createModelCache } from './model-cache';
-import { ModelController } from './model-controller';
-import type { ModelLike } from './model-controller';
+import { ModelController, PROVIDER_RETRY_MS } from './model-controller';
+import type { ControllerDeps, ModelLike } from './model-controller';
 import { catalogFromAssets } from './model-env';
 import type { Box } from './model-math';
 
@@ -52,24 +52,25 @@ function fakeResolve(it: Pick<Item, 'dims' | 'productRef' | 'mesh'>, ctx: MeshRe
   return { source: 'parametric', dims, scale: [1, 1, 1], generator: { id: 'sofa', params: {} }, reason: 'parametric' };
 }
 
-function setup(opts: { origin?: string | null; catalog?: MeshCatalog; native?: Box; fail?: (url: string) => boolean } = {}) {
+function setup(opts: { origin?: string | null; catalog?: MeshCatalog; native?: Box; fail?: (url: string) => boolean; schedule?: ControllerDeps<FakeModel>['schedule'] } = {}) {
   const loads: string[] = [];
   const disposed: string[] = [];
   const cache = createModelCache<FakeModel>({ dispose: (m) => disposed.push(m.url) });
-  const origin = opts.origin === undefined ? 'http://127.0.0.1:8787' : opts.origin;
+  const net = { origin: opts.origin === undefined ? ('http://127.0.0.1:8787' as string | null) : opts.origin, down: false };
   const controller = new ModelController<FakeModel>({
     cache,
     load: async (url) => {
       loads.push(url);
-      if (opts.fail?.(url)) throw new Error('HTTP 404');
+      if (opts.fail?.(url) || (net.down && url.includes('/api/assets/'))) throw new Error('HTTP 404');
       return { value: { url, box: opts.native ?? box(2, 0.9, 0.9) }, bytes: 100 };
     },
     resolve: fakeResolve,
     catalog: async () => opts.catalog ?? catalogFromAssets([SOFA_ASSET]),
-    origin: () => origin,
+    origin: () => net.origin,
     base: () => '/models/',
+    ...(opts.schedule ? { schedule: opts.schedule } : {}),
   });
-  return { controller, loads, disposed, cache };
+  return { controller, loads, disposed, cache, net };
 }
 
 const PROVIDER_URL = 'http://127.0.0.1:8787/api/assets/products/mock/SOFA.glb';
@@ -242,7 +243,7 @@ describe('model fallback chain', () => {
   it('honours the per-item provider front override', async () => {
     const controller = new ModelController<FakeModel>({
       cache: createModelCache<FakeModel>({ dispose: () => undefined }),
-      load: async (url) => ({ value: { url, box: box(2, 0.9, 0.9) }, bytes: 1 }),
+      load: async (url) => ({ value: { url, box: box(0.9, 0.9, 2) }, bytes: 1 }),
       resolve: fakeResolve,
       catalog: async () => EMPTY_MESH_CATALOG,
       origin: () => 'http://127.0.0.1:8787',
@@ -251,5 +252,93 @@ describe('model fallback chain', () => {
     controller.update([item()]);
     await controller.settled();
     expect(controller.state('sofa-1')?.front).toBe('-x');
+  });
+
+  it('checks the proportions with the same front it draws with (the provider front override)', async () => {
+    // A model 0.9 wide and 2 deep fits a 2 x 0.9 item only when its front is turned a quarter: with the default +z it is >50% off.
+    const make = (front?: '-x') =>
+      new ModelController<FakeModel>({
+        cache: createModelCache<FakeModel>({ dispose: () => undefined }),
+        load: async (url) => ({ value: { url, box: box(0.9, 0.9, 2) }, bytes: 1 }),
+        resolve: fakeResolve,
+        catalog: async () => EMPTY_MESH_CATALOG,
+        origin: () => 'http://127.0.0.1:8787',
+        ...(front ? { providerFront: () => front } : {}),
+      });
+    const turned = make('-x');
+    turned.update([item()]);
+    await turned.settled();
+    expect(turned.stats()).toMatchObject({ sources: { 'sofa-1': 'provider' }, warnings: [], failed: 0 });
+    const plain = make();
+    plain.update([item()]);
+    await plain.settled();
+    expect(plain.stats().sources['sofa-1']).toBe('parametric');
+  });
+
+  it('above the hard limit (50%) a provider model is not used: the lookalike takes over; a smaller mismatch only warns', async () => {
+    const wild = setup({ native: box(2, 0.9, 6) }); // far too deep
+    wild.controller.update([item()]);
+    await wild.controller.settled();
+    expect(wild.controller.stats().sources['sofa-1']).toBe('parametric'); // the lookalike is the same wild box here
+    expect(wild.controller.state('sofa-1')?.failures).toEqual([PROVIDER_URL, '/models/sofa.glb']);
+    const bad = setup({ native: box(2, 0.9, 0.9) });
+    bad.controller.update([item()]);
+    await bad.controller.settled();
+    expect(bad.controller.stats().warnings).toEqual([]);
+  });
+
+  it('an item resolved offline is resolved again when the server origin appears', async () => {
+    const { controller, loads, net } = setup({ origin: null });
+    controller.update([item()]);
+    await controller.settled();
+    expect(controller.stats()).toMatchObject({ sources: { 'sofa-1': 'lookalike' }, offline: ['sofa-1'] });
+    net.origin = 'http://127.0.0.1:8787';
+    controller.update([item()]);
+    expect(controller.pending()).toBe(1);
+    await controller.settled();
+    expect(controller.stats()).toMatchObject({ sources: { 'sofa-1': 'provider' }, offline: [] });
+    expect(loads).toContain(PROVIDER_URL);
+  });
+
+  it('a failed provider load is retried after a backoff, and again when the origin changes', async () => {
+    const timers: (() => void)[] = [];
+    const delays: number[] = [];
+    const { controller, loads, net } = setup({ schedule: (fn, ms) => (timers.push(fn), delays.push(ms), () => undefined) });
+    net.down = true;
+    controller.update([item()]);
+    await controller.settled();
+    expect(controller.stats().sources['sofa-1']).toBe('lookalike');
+    expect(delays).toEqual([PROVIDER_RETRY_MS[0]]);
+    net.down = false;
+    timers.shift()!();
+    expect(controller.pending()).toBe(1);
+    await controller.settled();
+    expect(controller.stats().sources['sofa-1']).toBe('provider');
+    expect(loads.filter((u) => u === PROVIDER_URL)).toHaveLength(2);
+    expect(timers).toHaveLength(0);
+
+    // another origin: the signature differs, so the item resolves again at once
+    net.origin = 'http://127.0.0.1:9999';
+    controller.update([item()]);
+    expect(controller.pending()).toBe(1);
+    await controller.settled();
+    expect(loads.at(-1)).toBe('http://127.0.0.1:9999/api/assets/products/mock/SOFA.glb');
+  });
+
+  it('gives up retrying after the last backoff and cancels a pending retry when the item goes', async () => {
+    let cancelled = 0;
+    const timers: (() => void)[] = [];
+    const { controller, net } = setup({ schedule: (fn) => (timers.push(fn), () => void cancelled++) });
+    net.down = true;
+    controller.update([item()]);
+    await controller.settled();
+    for (let i = 0; i < PROVIDER_RETRY_MS.length; i++) {
+      timers.shift()!();
+      await controller.settled();
+    }
+    expect(timers).toHaveLength(0); // no retry left
+    controller.update([item({ id: 'other' })]);
+    await controller.settled();
+    expect(controller.state('sofa-1')).toBeUndefined();
   });
 });

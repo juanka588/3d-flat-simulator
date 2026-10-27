@@ -2,7 +2,7 @@ import { GENERATORS, isBuiltinAsset } from '@flat/scene';
 import type { Item, MeshAsset, MeshCatalog, MeshResolveContext, ResolvedMesh } from '@flat/scene';
 import type { Loaded, ModelCache, ModelHandle } from './model-cache';
 import { catalogWithout, libraryModelUrl, providerModelUrl } from './model-env';
-import { checkDims, rotateBoxY, boxSize, frontRotationY } from './model-math';
+import { HARD_DIMS_LIMIT, checkDims, rotateBoxY, boxSize, frontRotationY } from './model-math';
 import type { Box, Dims, Front, ModelKind } from './model-math';
 import type { DimsWarning, ModelSource, ModelStats } from './model-types';
 
@@ -51,12 +51,21 @@ export interface ControllerDeps<T extends ModelLike> {
   base?: () => string;
   /** Per-item override of the front axis of a PROVIDER model (they are assumed to face +z). */
   providerFront?: (item: Item) => Front | undefined;
+  /** Schedules a retry of a failed provider load; returns its cancel function (default `setTimeout`). Injected by tests. */
+  schedule?: (fn: () => void, ms: number) => () => void;
 }
 
+/** Waits (ms) before the 1st, 2nd... retry of a provider model that failed to load (a retry also happens at once when the origin changes). */
+export const PROVIDER_RETRY_MS: readonly number[] = [15_000, 60_000];
 
-/** Item fields that decide which model is used; moves and rotations do not re-resolve. */
-export function resolveSignature(item: Item): string {
-  return JSON.stringify([item.assetId, item.mesh ?? null, item.productRef ?? null, item.product?.dims ?? null, item.product?.category ?? null, item.dims ?? null]);
+
+/**
+ * Item fields that decide which model is used; moves and rotations do not re-resolve. The server `origin` is part
+ * of it: an item resolved offline (lookalike) is resolved again when the server connects, and a provider model that
+ * failed against one server is tried again against another.
+ */
+export function resolveSignature(item: Item, origin: string | null = null): string {
+  return JSON.stringify([item.assetId, item.mesh ?? null, item.productRef ?? null, item.product?.dims ?? null, item.product?.category ?? null, item.dims ?? null, origin]);
 }
 
 /**
@@ -78,6 +87,9 @@ interface Record_<T extends ModelLike> {
   sig: string;
   state: ItemModel<T>;
   handle?: ModelHandle<T>;
+  /** Retries of a failed provider load already made / the pending one. */
+  retries: number;
+  cancelRetry?: () => void;
 }
 
 export class ModelController<T extends ModelLike> {
@@ -169,24 +181,10 @@ export class ModelController<T extends ModelLike> {
         this.drop(item.id);
         continue;
       }
-      const sig = resolveSignature(item);
+      const sig = resolveSignature(item, this.deps.origin());
       if (this.records.get(item.id)?.sig === sig) continue;
       this.drop(item.id);
-      const rec: Record_<T> = {
-        sig,
-        state: {
-          itemId: item.id,
-          status: 'loading',
-          source: 'placeholder',
-          front: '+z',
-          dims: item.dims ?? item.product?.dims ?? { w: 0.3, d: 0.3, h: 0.3 },
-          offline: false,
-          failures: [],
-          reason: 'resolving',
-        },
-      };
-      this.records.set(item.id, rec);
-      void this.run(item, rec);
+      this.start(item, sig, 0);
     }
     for (const id of [...this.records.keys()]) if (!seen.has(id)) this.drop(id);
   }
@@ -205,10 +203,48 @@ export class ModelController<T extends ModelLike> {
 
   // ---- internals ---------------------------------------------------------------------------------
 
+  private start(item: Item, sig: string, retries: number): void {
+    const rec: Record_<T> = {
+      sig,
+      retries,
+      state: {
+        itemId: item.id,
+        status: 'loading',
+        source: 'placeholder',
+        front: '+z',
+        dims: item.dims ?? item.product?.dims ?? { w: 0.3, d: 0.3, h: 0.3 },
+        offline: false,
+        failures: [],
+        reason: 'resolving',
+      },
+    };
+    this.records.set(item.id, rec);
+    void this.run(item, rec);
+  }
+
+  /** A provider model failed: ask again after a backoff (a failed file is not a verdict; the server may have been busy). */
+  private scheduleRetry(item: Item, rec: Record_<T>): void {
+    const ms = PROVIDER_RETRY_MS[rec.retries];
+    if (ms === undefined || this.disposed) return;
+    const schedule = this.deps.schedule ?? ((fn, delay) => {
+      const t = setTimeout(fn, delay);
+      return () => clearTimeout(t);
+    });
+    rec.cancelRetry = schedule(() => {
+      rec.cancelRetry = undefined;
+      if (!this.current(item, rec)) return;
+      this.drop(item.id);
+      this.start(item, rec.sig, rec.retries + 1);
+      this.notify();
+    }, ms);
+  }
+
   private drop(id: string): void {
     const rec = this.records.get(id);
     if (!rec) return;
     this.records.delete(id);
+    rec.cancelRetry?.();
+    rec.cancelRetry = undefined;
     rec.handle?.release();
     rec.handle = undefined;
   }
@@ -241,6 +277,7 @@ export class ModelController<T extends ModelLike> {
     if (!this.current(item, rec)) return;
     const failedAssets = new Set<string>();
     let providerUsable = true;
+    let providerFailed = false;
     const state = rec.state;
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
       const origin = this.deps.origin();
@@ -263,6 +300,7 @@ export class ModelController<T extends ModelLike> {
         state.status = 'settled';
         state.source = resolved.source === 'builtin' ? 'parametric' : resolved.source === 'provider' || resolved.source === 'lookalike' ? 'placeholder' : resolved.source;
         state.reason = resolved.reason;
+        if (providerFailed) this.scheduleRetry(item, rec);
         this.notify();
         return;
       }
@@ -276,16 +314,30 @@ export class ModelController<T extends ModelLike> {
           handle.release();
           return;
         }
+        // The front used to CHECK the proportions is the one used to DRAW the model (provider models may be overridden).
+        const front = target.kind === 'provider' ? (this.deps.providerFront?.(item) ?? target.front) : target.front;
+        const check = checkDims(target.kind, boxSize(rotateBoxY(handle.value.box, frontRotationY(front))), state.dims);
+        if (check.distortion > HARD_DIMS_LIMIT) {
+          // Far too different from the product's size: stretching it would misrepresent the product. Fall down the chain.
+          handle.release();
+          this.failedFiles++;
+          state.failures.push(url);
+          state.reason = `${target.kind} model does not fit the item's size (${Math.round(check.distortion * 100)}% distortion > ${HARD_DIMS_LIMIT * 100}%); falling back`;
+          if (target.kind === 'provider') {
+            providerUsable = false;
+            providerFailed = true;
+          } else failedAssets.add(target.assetId!);
+          continue;
+        }
         rec.handle = handle;
         state.status = 'ready';
         state.source = target.kind;
         state.url = url;
         state.model = handle.value;
-        state.front = target.kind === 'provider' ? (this.deps.providerFront?.(item) ?? target.front) : target.front;
+        state.front = front;
         state.reason = resolved.reason;
-        const size = boxSize(rotateBoxY(handle.value.box, frontRotationY(target.front)));
-        const check = checkDims(target.kind, size, state.dims);
         state.warning = check.mismatch ? { code: 'dims_mismatch', kind: target.kind, distortion: check.distortion, limit: check.limit } : undefined;
+        if (providerFailed) this.scheduleRetry(item, rec);
         this.notify();
         return;
       } catch (error) {
@@ -293,8 +345,10 @@ export class ModelController<T extends ModelLike> {
         this.failedFiles++;
         state.failures.push(url);
         state.reason = `${target.kind} model failed (${error instanceof Error ? error.message : String(error)}); falling back`;
-        if (target.kind === 'provider') providerUsable = false;
-        else failedAssets.add(target.assetId!);
+        if (target.kind === 'provider') {
+          providerUsable = false;
+          providerFailed = true;
+        } else failedAssets.add(target.assetId!);
       }
     }
     // Pathological resolver that keeps offering models: stop at a placeholder.

@@ -18,6 +18,7 @@ import {
   type ProviderErrorCode,
 } from '@flat/scene';
 import type { ServerConfig } from './config';
+import { localModelId, readLocalCatalog, readLocalModel } from './local-assets';
 import { createDisabledRegistry } from './providers/registry';
 import { ProviderError, type ProviderRegistry } from './providers/types';
 import type { Outcome, SceneStore } from './store';
@@ -79,10 +80,29 @@ const PROVIDER_STATUS: Record<ProviderErrorCode, ContentfulStatusCode> = {
 };
 
 /** Routes that reach retailers or serve their data: read access also needs an allowed `Origin` (not only writes). */
-const PRODUCT_PATH = /^\/api\/(providers|products|assets\/products)(\/|$)/;
+const PRODUCT_PATH = /^\/api\/(providers|products|assets\/products|assets\/meshes)(\/|$)/;
 
-export function createApp(store: SceneStore, config: ServerConfig, providers: ProviderRegistry = createDisabledRegistry()) {
+export interface AppOptions {
+  /** Applied to everything the server logs and to provider error messages (credential redaction). */
+  redact?: (text: string) => string;
+}
+
+/** `Sec-Fetch-Site` values of a request the user's own browser made by navigating or typing (no page of another origin involved). */
+const FIRST_PARTY_FETCH_SITE = new Set(['same-origin', 'none']);
+
+/**
+ * Product / asset routes are not for other web pages, including pages on other localhost ports (`same-site`):
+ * a request that carries `Origin` must come from an allowed one; one without `Origin` (a navigation, an `<img>`,
+ * curl, the MCP) must not be flagged by the browser as cross-site or same-site. Fetch with CORS from an allowed origin.
+ */
+export function foreignProductRequest(origin: string | undefined, fetchSite: string | undefined, allowed: readonly string[]): boolean {
+  if (origin !== undefined) return !originAllowed(origin, allowed);
+  return fetchSite !== undefined && !FIRST_PARTY_FETCH_SITE.has(fetchSite);
+}
+
+export function createApp(store: SceneStore, config: ServerConfig, providers: ProviderRegistry = createDisabledRegistry(), options: AppOptions = {}) {
   const app = new Hono<Env>();
+  const redact = options.redact ?? ((t: string) => t);
   const allow = rateLimiter(config.rateLimitPerSec);
   const allowView = rateLimiter(config.viewRatePerSec);
 
@@ -112,9 +132,7 @@ export function createApp(store: SceneStore, config: ServerConfig, providers: Pr
   // Provider routes (reads too): retailer traffic and retailer data must not be triggerable or readable by a foreign page.
   app.use('/api/*', async (c, next) => {
     if (!PRODUCT_PATH.test(c.req.path)) return next();
-    const origin = c.req.header('origin');
-    const foreign = origin !== undefined ? !originAllowed(origin, config.allowedOrigins) : c.req.header('sec-fetch-site') === 'cross-site';
-    if (foreign) return c.json(err('forbidden', 'origin not allowed'), 403);
+    if (foreignProductRequest(c.req.header('origin'), c.req.header('sec-fetch-site'), config.allowedOrigins)) return c.json(err('forbidden', 'origin not allowed'), 403);
     await next();
     c.header('Cache-Control', 'no-store');
   });
@@ -152,6 +170,11 @@ export function createApp(store: SceneStore, config: ServerConfig, providers: Pr
     }
   });
 
+  // `author.kind` (user / llm / planner) is taken from the body: it selects the guards (locked items, structural
+  // walls, "LLM items must reference a product"). That is a convention between cooperating clients, not
+  // authentication. With FLAT_TOKEN set EVERY write (user or not) needs the bearer token, so a non-user author
+  // cannot be claimed or dropped without it; with FLAT_TOKEN unset (loopback default) any local process may
+  // claim any kind, which is accepted for a single-user local tool (documented in apps/server/README.md).
   app.post('/api/commands', limit(config.bodyLimit), async (c) => {
     const body = await readJson(c);
     if (body === undefined) return malformed(c);
@@ -236,12 +259,13 @@ export function createApp(store: SceneStore, config: ServerConfig, providers: Pr
   // ---- M5 products (providers live in this server; nothing is persisted, nothing is served from Pages) ----
   const providerFailure = (c: Context<Env>, e: unknown) => {
     if (!(e instanceof ProviderError)) throw e;
+    config.log('warn', redact(`provider error ${e.code}: ${e.message}`));
     const status = PROVIDER_STATUS[e.code];
     if (e.retryAt !== undefined) c.header('Retry-After', String(Math.max(1, Math.ceil((e.retryAt - Date.now()) / 1000))));
     return c.json(
       {
         ok: false as const,
-        errors: [{ code: e.code, path: '', message: e.message, hint: e.hint, ...(e.details ? { details: e.details } : {}), ...(e.retryAt !== undefined ? { retryAt: e.retryAt } : {}) }],
+        errors: [{ code: e.code, path: '', message: redact(e.message), hint: redact(e.hint), ...(e.details ? { details: e.details } : {}), ...(e.retryAt !== undefined ? { retryAt: e.retryAt } : {}) }],
       },
       status,
     );
@@ -323,9 +347,42 @@ export function createApp(store: SceneStore, config: ServerConfig, providers: Pr
     }
   });
 
+  // Product photo proxy: the web never hotlinks a retailer image (that would send the retailer the user's IP,
+  // Referer and browsing). Memory-cached 1 h, 2 MB cap, raster images only (sniffed, never SVG), polite fetch.
+  // Reach it with fetch() from an allowed Origin (an <img src> from another localhost port is refused).
+  app.get('/api/products/:id/photo', async (c) => {
+    try {
+      const photo = await providers.fetchPhoto(c.req.param('id'));
+      return c.body(photo.data as Uint8Array<ArrayBuffer>, 200, {
+        'Content-Type': photo.contentType,
+        'Content-Length': String(photo.data.byteLength),
+        'Cache-Control': 'private, no-store',
+        'X-Content-Type-Options': 'nosniff',
+        'Content-Security-Policy': "default-src 'none'; sandbox",
+      });
+    } catch (e) {
+      return providerFailure(c, e);
+    }
+  });
+
+  // Local 3D-FUTURE pack (research licence, this machine only). Catalog first so `catalog.json` is never read as an asset id.
+  app.get('/api/assets/meshes/catalog.json', async (c) => c.json(await readLocalCatalog(config.localAssetsDir)));
+  app.get('/api/assets/meshes/:file{[^/]+\\.glb}', async (c) => {
+    const assetId = c.req.param('file').slice(0, -'.glb'.length);
+    if (localModelId(assetId) === undefined) return c.json(err('not_found', 'no such mesh'), 404);
+    const bytes = await readLocalModel(config.localAssetsDir, assetId);
+    if (!bytes) return c.json(err('not_found', 'no such mesh'), 404);
+    return c.body(bytes as Uint8Array<ArrayBuffer>, 200, {
+      'Content-Type': 'model/gltf-binary',
+      'Content-Length': String(bytes.byteLength),
+      'Cache-Control': 'no-store',
+      'X-Content-Type-Options': 'nosniff',
+    });
+  });
+
   app.notFound((c) => c.json(err('not_found', 'no such route'), 404));
   app.onError((e, c) => {
-    config.log('error', e.stack ?? String(e));
+    config.log('error', redact(e.stack ?? String(e)));
     return c.json(err('internal_error', 'internal error'), 500);
   });
   return app;

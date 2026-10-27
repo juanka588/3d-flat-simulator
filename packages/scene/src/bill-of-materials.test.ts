@@ -34,7 +34,7 @@ describe('billOfMaterials', () => {
       item('b3', [6, 2], { product: snap, productRef: { provider: 'mock', sku: bed.sku }, roomId: 'r2' }),
       item('w1', [5, 3], { product: productSnapshot(wardrobe, T0) }),
     ]);
-    const bom = billOfMaterials(s);
+    const bom = billOfMaterials(s, { now: t0 });
     expect(bom.totalEur).toBeCloseTo(3 * bed.price + wardrobe.price, 2);
     expect(bom.byRoom.r1).toEqual({ totalEur: 2 * bed.price, itemCount: 2 });
     expect(bom.byRoom.r2!.itemCount).toBe(2);
@@ -49,32 +49,67 @@ describe('billOfMaterials', () => {
     expect(bom.stale).toEqual([]);
   });
 
-  it('locked items are listed at EUR 0 and are never missing a price, with or without a product', () => {
-    const s = build([
-      item('placard', [1, 1], { locked: true }),
-      item('locked-priced', [2, 2], { locked: true, product: productSnapshot(wardrobe, T0) }),
-      item('plain', [3, 3]),
-    ]);
+  it('existing furniture (locked, no product) is listed at EUR 0 and never missing a price', () => {
+    const s = build([item('placard', [1, 1], { locked: true }), item('plain', [3, 3])]);
     const bom = billOfMaterials(s);
-    expect(bom.lines.map((l) => [l.itemId, l.locked, l.amount])).toEqual([['placard', true, 0], ['locked-priced', true, 0], ['plain', false, 0]]);
-    expect(bom.lines[1]!.unitPrice).toBe(wardrobe.price);
+    expect(bom.lines.map((l) => [l.itemId, l.locked, l.existing, l.amount])).toEqual([['placard', true, true, 0], ['plain', false, false, 0]]);
     expect(bom.totalEur).toBe(0);
     expect(bom.missingPrice).toEqual(['plain']);
-    const g = bom.bySku[0]!;
-    expect([g.quantity, g.toBuy, g.amount]).toEqual([1, 0, 0]);
   });
 
-  it('flags snapshots older than 7 days relative to the injected now, not locked ones', () => {
+  it('a pinned (locked) purchasable item keeps its price; only existing products count 0', () => {
+    const own = { ...productSnapshot(wardrobe, T0), provider: 'existing' };
+    const s = build([
+      item('pinned', [2, 2], { locked: true, product: productSnapshot(wardrobe, T0) }),
+      item('own', [3, 3], { locked: true, product: own }),
+    ]);
+    const bom = billOfMaterials(s);
+    expect(bom.lines.map((l) => [l.itemId, l.locked, l.existing, l.amount])).toEqual([['pinned', true, false, wardrobe.price], ['own', true, true, 0]]);
+    expect(bom.totalEur).toBe(wardrobe.price);
+    expect(bom.bySku[0]!).toMatchObject({ quantity: 1, toBuy: 1, amount: wardrobe.price });
+    expect(bom.bySku[1]!).toMatchObject({ quantity: 1, toBuy: 0, amount: 0 });
+  });
+
+  it('groups by (sku, price, currency): the same SKU at two prices is two groups whose amounts add up', () => {
+    const cheap = { ...productSnapshot(bed, T0), price: 100 };
+    const dear = { ...productSnapshot(bed, T0), price: 150 };
+    const usd = { ...productSnapshot(bed, T0), price: 100, currency: 'USD' };
+    const s = build([item('a', [1, 1], { product: cheap }), item('b', [2, 2], { product: dear }), item('c', [3, 3], { product: cheap }), item('d', [1, 3], { product: usd })]);
+    const bom = billOfMaterials(s);
+    expect(bom.bySku.map((g) => [g.unitPrice, g.currency, g.quantity, g.amount])).toEqual([[100, 'EUR', 2, 200], [150, 'EUR', 1, 150], [100, 'USD', 1, 100]]);
+    for (const g of bom.bySku) expect(g.amount).toBe(g.unitPrice * g.toBuy);
+  });
+
+  it('flags snapshots older than 7 days relative to the injected now; pinned items too, existing ones never', () => {
     const old = productSnapshot(bed, new Date(t0 - (STALE_PRICE_DAYS + 1) * DAY).toISOString());
     const edge = productSnapshot(wardrobe, new Date(t0 - STALE_PRICE_DAYS * DAY).toISOString());
-    const s = build([item('old', [1, 1], { product: old }), item('edge', [2, 2], { product: edge }), item('lk', [3, 3], { product: old, locked: true })]);
+    const s = build([item('old', [1, 1], { product: old }), item('edge', [2, 2], { product: edge }), item('own', [3, 3], { product: { ...old, provider: 'existing' }, locked: true })]);
     const bom = billOfMaterials(s, { now: t0 });
     expect(bom.stale).toEqual(['old']);
     expect(bom.lines.find((l) => l.itemId === 'old')!.stale).toBe(true);
     expect(bom.bySku.find((g) => g.productId === `mock:${bed.sku}`)!.stale).toBe(true);
-    // The default now is the latest snapshot in the scene: deterministic, and the oldest is 8 days before the newest only if so.
-    expect(billOfMaterials(s).stale).toEqual([]);
     expect(billOfMaterials(s, { now: t0 + 30 * DAY }).stale).toEqual(['old', 'edge']);
+  });
+
+  it('defaults now to the real clock: an old snapshot is stale without an injected now', () => {
+    const old = productSnapshot(bed, '2020-01-01T00:00:00.000Z');
+    const fresh = productSnapshot(wardrobe, new Date().toISOString());
+    expect(billOfMaterials(build([item('old', [1, 1], { product: old }), item('new', [2, 2], { product: fresh })])).stale).toEqual(['old']);
+  });
+
+  it('an unparseable snapshotAt is stale', () => {
+    const scene = build([item('bad', [1, 1], { product: productSnapshot(bed, T0) })]);
+    // the schema refuses such a date, but a hand-edited or legacy scene may reach the BOM unparsed
+    const bad = { ...scene, items: scene.items.map((i) => ({ ...i, product: { ...i.product!, snapshotAt: 'not a date' } })) };
+    const bom = billOfMaterials(bad, { now: t0 });
+    expect(bom.stale).toEqual(['bad']);
+    expect(bom.lines[0]!.stale).toBe(true);
+  });
+
+  it('mixedCurrency ignores existing (EUR 0) items in another currency', () => {
+    const usd = { ...productSnapshot(bed, T0), currency: 'USD', provider: 'existing' };
+    const s = build([item('own', [1, 1], { product: usd, locked: true }), item('eur', [2, 2], { product: productSnapshot(wardrobe, T0) })]);
+    expect(billOfMaterials(s).mixedCurrency).toBe(false);
   });
 
   it('flags non-EUR lines and leaves them out of the EUR total', () => {

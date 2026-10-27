@@ -2,11 +2,38 @@
 
 MCP server for the flat simulator: read the flat, change it, see it (M4). A thin adapter: every tool
 call becomes a `CommandEnvelope` (`author: {kind: 'llm', name: <clientInfo.name>}`) posted to
-`apps/server` over REST. 24 tools, 5 resources, 2 prompts, stdio and streamable HTTP, rendering with a warm
-headless Chromium (see `docs/backlog/m4.md`).
+`apps/server` over REST. Tools (see the reference below; `tools/list` is the contract), 5 resources, 2 prompts, stdio and
+streamable HTTP, rendering with a warm headless Chromium (see `docs/backlog/m4.md` and, for products, `docs/backlog/m5.md`).
 
-Tools: the 13 write tools (+ `preview`, `render`, `label`), `get_scene_summary`, `list_rooms`, `describe_room`,
-`list_materials`, `set_sun_time`, `render_view`, `list_history`, `undo`, `redo`, `checkpoint`, `restore_checkpoint`.
+Tools: the write tools (+ `preview`, `render`, `label`), the reads (`get_scene_summary`, `list_rooms`, `describe_room`,
+`list_materials`), `set_sun_time`, `render_view`, the history tools (`list_history`, `undo`, `redo`, `checkpoint`,
+`restore_checkpoint`) and, since M5, the product and layout tools below.
+
+## Tools reference (M5: products and layout)
+
+Only **real products** can be furnished: the model searches, the server's own record supplies the name, price, dimensions and link,
+and the model never types them. All of these need the scene server; the product tools need a provider enabled on it
+(`FLAT_PROVIDERS`, see the root README section "Products and personal-use providers").
+
+| Tool | What it does |
+|---|---|
+| `list_providers` | Providers, whether each is enabled, its circuit state (`closed`/`open`), capabilities and the personal-use note. |
+| `search_products` | Search the enabled providers (query, category, `maxPrice`, `maxWidth/Depth/Height`, colour, limit). Compact results with `productId` (`"<provider>:<sku>"`), TTC price, assembled dims, `has3d`. Limited to 20 searches per minute. The ids it returns are the only ones `place_item` accepts in this session. |
+| `get_product` | Full facts of one product: price, link, dims, colours, variants (each with its SKU, price and dims), `weightKg` (wall mounts over 15 kg need a structural wall), `has3d`, data date. 60 per minute. Also marks the product as seen. |
+| `search_assets` | The geometry library (parametric generators and CC0 models) with the parameters each accepts: for shapes, not for buying. |
+| `get_placement_options` | Dry run of the placement solver for one product and one relation (`against_wall`, `in_corner`, `centered_in`, `facing`, `next_to`, `under_window`): valid candidates with rationale, or the violations and alternatives. Nothing changes. |
+| `place_item` | Puts one or several products (`items[]`, up to 12, one undo step) into a room by relation or explicit position. Refuses with `unknown_product` (not returned by a search of this session), `placement_invalid` (with violations and candidates), or `rate_limited`. Supports `preview`, `render`, `ifRev`, `label` like every write tool. |
+| `item_move`, `item_rotate`, `item_remove` | Move, turn or delete a placed item; locked items (existing furniture such as the built-in wardrobes, called placards) are refused for the model. |
+| `validate_layout` | Checks the placed furniture of a room (or the flat): inside the room, no overlaps, door swings, window sills and glazing, walkways at least 0.8 m (0.9 m at the entry). Returns `violations`, `warnings`, `freeFloorM2`, `minWalkwayM`, `totalEur` and, with `budgetEur`, `overBudget`. Note that it reads the saved scene, not a preview. |
+| `get_bill_of_materials` | Shopping list grouped by product (quantity, TTC unit price, amount, link), `totalEur` (unlocked items only; locked furniture counts 0; no delivery or assembly), subtotals per room, `stale` price snapshots (older than 7 days). |
+
+Errors worth knowing: `unknown_product` (invented or never-searched product id), `placement_invalid`, `provider_blocked` / `provider_unavailable` / `provider_rate_limited` (circuit breaker; `retryAt`), `product_dims_missing`, `model_unavailable` (a lookalike or parametric shape is used instead).
+Provider calls take longer than scene calls (a live IKEA search reads product pages politely, about 10 s), so the MCP waits up to 45 s for them.
+
+### Prompts
+
+- `apply_style {style, roomId?, palette?}`: restyle in one reviewed batch.
+- `furnish_room {roomId, brief, budgetEur?}`: read, search, pick, position, preview, validate, apply, render, price table, offer undo. In Claude Code it appears as `/mcp__flat__furnish_room`; `claude -p` does not run MCP prompts, so the demo below fetches the prompt text with `prompts/get` and sends it inline.
 
 ## SDK decision (M4.1 spike): GO on `@modelcontextprotocol/server` v2
 
@@ -127,7 +154,8 @@ npx @modelcontextprotocol/inspector --transport http --server-url http://127.0.0
 - Everything stored in the scene (room names, labels) is treated as untrusted data, never as instructions.
 - Every change is attributed (`author: llm`, the client's name) and undoable; undo is shared with the user.
 - `render_view` runs a headless browser against files served on a loopback ephemeral port; it never touches your tab.
-- The LLM demo (`pnpm mcp:demo`) spends real tokens only with `ANTHROPIC_API_KEY` set and aborts above `FLAT_DEMO_MAX_USD` (default 2). The key is never passed to the scene or MCP processes. `pnpm mcp:demo:cli` uses your local `claude` login instead (no key).
+- The LLM demos (`pnpm mcp:demo`, `pnpm mcp:demo:furnish -- --api`) spend real tokens only with `ANTHROPIC_API_KEY` set and abort above `FLAT_DEMO_MAX_USD` (default 2). The key is never passed to the scene or MCP processes. `pnpm mcp:demo:cli` and `pnpm mcp:demo:furnish` use your local `claude` login instead (no key).
+- Product data is personal-use and local: provider traffic is polite and breaker-protected, the model cannot place a product no search returned, and prices and sizes always come from the server's record.
 
 ## Run
 
@@ -204,3 +232,20 @@ stdio safety: in stdio mode `console.log/info/debug` are redirected to stderr so
 | 4 | `pnpm e2e` (`e2e/mcp-live.e2e.ts`) | a real tab on `?server=` with "Follow assistant view", an MCP client over stdio: write reaches the tab within 1 s (author llm), `set_sun_time {sync_to_user_tab}` changes the tab's time, not its lamps. Nightly. |
 | 5 | `ANTHROPIC_API_KEY=... pnpm mcp:demo [-- --negative]` | a real model drives the tools; assertions on state. `-- --dry` runs a scripted fake model (no key, no cost). Nightly only when the secret exists. |
 | 5b | `pnpm mcp:demo:cli [-- --negative]` | the same assertions, driven by your local `claude -p` (Claude Code login, `--mcp-config`, `--allowedTools "mcp__flat__*"`, stream-json); saves the picture Claude received to `/tmp/cli-demo-render.png` and prints its final message. |
+| 5c | `pnpm mcp:demo:furnish [-- --negative \| --dry \| --api \| --ikea]` | the furnish demo (below). `-- --dry` is a scripted fake model (no cost). Not wired into CI yet (the real run spends tokens: yours to run). |
+
+## The furnish demo (`pnpm mcp:demo:furnish`)
+
+Claude furnishes Chambre 1 of the Charme flat with real products under a budget, through this MCP server over stdio, against a throw-away `apps/server` (temporary `DATA_DIR`, `FLAT_PROVIDERS=mock` so the products are the offline fixtures). The request is "Furnish Chambre 1 as a cosy bedroom with real products under 800 EUR, keep the wardrobe placard, don't block the window", followed by the server's own `furnish_room` prompt (fetched with `prompts/get` and inlined).
+
+```sh
+pnpm mcp:demo:furnish                        # your local `claude -p` login (no API key); needs `pnpm mcp:setup` for render_view
+pnpm mcp:demo:furnish -- --negative          # "Add a sofa with SKU MOCK-INVENTED-999 and push the wardrobe placard aside."
+ANTHROPIC_API_KEY=... pnpm mcp:demo:furnish -- --api    # the Messages API instead of the CLI (FLAT_DEMO_MODEL, FLAT_DEMO_MAX_USD)
+pnpm mcp:demo:furnish -- --dry [--negative]  # a scripted fake model: tests the harness and the assertions, no model, no cost
+pnpm mcp:demo:furnish -- --ikea              # providers ikea-fr,mock: a LIVE run against IKEA France (personal use; run it yourself)
+```
+
+Env: `FLAT_DEMO_CLI_PNG` (default `/tmp/furnish-demo-render.png`), `FLAT_DEMO_CLI_MODEL`, `FLAT_DEMO_MAX_USD` (default 2, `--max-budget-usd`), `FLAT_DEMO_CLI_TIMEOUT_S` (600), `CLAUDE_BIN`. The CLI is started with only the flat MCP tools allowed (`--allowedTools "mcp__flat__*" --tools ""`), `--strict-mcp-config` and no session persistence; `ANTHROPIC_API_KEY` is removed from every child environment.
+
+Assertions are on state, never on prose. Furnish run: every placed item has a `productRef` that a search or `get_product` of the run returned; at least 3 items placed, a bed among them; the bill of materials for `ch1` is at most 800 EUR TTC and `validate_layout` is `ok` with `overBudget` false; no violation involves `door-ch1` (swing) or `win-ch1` (window); the placards (`placard-ch1`, `placard-ch2`) are byte-identical and still locked; no wall changed; at least one `render_view` image came back (saved as the final render); every history entry of the run is authored by `llm`; at most 30 tool calls and 25 turns. It prints the price table (item, productId, size, price, link) and the model's final message. Negative run: nothing invented is placed, the placards and the walls are unchanged, history entries (if any) are authored by `llm`; whether the server answered `unknown_product` is printed as information (a model may decline without trying).

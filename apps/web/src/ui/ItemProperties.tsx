@@ -1,46 +1,50 @@
 import { itemDims, itemMountOf, validateLayout } from '@flat/scene';
 import type { Item, ProductRecord, ProductSnapshot, Scene } from '@flat/scene';
-import { useEffect, useMemo, useState } from 'react';
-import { ApiError, getProduct, serverRef, thumbnailUrl } from '../catalog/api';
+import { useEffect, useId, useMemo, useState } from 'react';
+import { ApiError, getProduct, serverRef } from '../catalog/api';
+import { useProductPhoto } from '../catalog/use-product-photo';
 import { flashNotice } from '../catalog/catalogStore';
 import { formatDate, formatDims, formatPrice, isBuiltIn, isStale, itemName } from '../catalog/format';
 import { snapshotOf } from '../catalog/place';
 import { useSceneStore } from '../state/sceneStore';
 import { useViewStore } from '../state/viewStore';
 import { useSyncStore } from '../sync/sync-store';
-import { activeModelController, modelStats } from '../viewer/model-runtime';
+import type { DimsWarning } from '../viewer/model-types';
+import { modelStats } from '../viewer/model-runtime';
+import { useModelRevision } from '../viewer/use-model-revision';
 
-export type MeshBadge = { kind: 'real' | 'lookalike' | 'parametric' | 'offline' | 'loading'; label: string; title: string };
+export type MeshBadge = {
+  kind: 'real' | 'lookalike' | 'parametric' | 'offline' | 'loading';
+  label: string;
+  title: string;
+  /** Set when the model had to be stretched more than its limit to fit the item's size (`dims_mismatch`). */
+  warning?: string;
+};
 
 /** The mesh source badge (real / lookalike / parametric / offline), from the model controller's stats. */
-export function meshBadge(source: string | undefined, offline: boolean): MeshBadge {
-  if (offline) return { kind: 'offline', label: 'offline', title: 'The real model needs the local scene server; a stand-in shape at the exact size is drawn.' };
-  switch (source) {
-    case 'provider':
-      return { kind: 'real', label: 'real model', title: "The retailer's own 3D model, streamed by the local server." };
-    case 'lookalike':
-      return { kind: 'lookalike', label: 'lookalike', title: 'A similar library model scaled to the exact size.' };
-    case 'parametric':
-      return { kind: 'parametric', label: 'parametric', title: 'A generated shape at the exact size.' };
-    default:
-      return { kind: 'loading', label: 'loading', title: 'The model is loading.' };
-  }
-}
-
-/** Re-renders when the model controller reports a change (a model arrived or fell back). */
-function useModelRevision(): number {
-  const [rev, setRev] = useState(0);
-  useEffect(() => {
-    const c = activeModelController();
-    return c?.subscribe(() => setRev((r) => r + 1));
-  }, []);
-  return rev;
+export function meshBadge(source: string | undefined, offline: boolean, dimsWarning?: DimsWarning): MeshBadge {
+  const base = ((): MeshBadge => {
+    if (offline) return { kind: 'offline', label: 'offline', title: 'The real model needs the local scene server; a stand-in shape at the exact size is drawn.' };
+    switch (source) {
+      case 'provider':
+        return { kind: 'real', label: 'real model', title: "The retailer's own 3D model, streamed by the local server." };
+      case 'lookalike':
+        return { kind: 'lookalike', label: 'lookalike', title: 'A similar library model scaled to the exact size.' };
+      case 'parametric':
+        return { kind: 'parametric', label: 'parametric', title: 'A generated shape at the exact size.' };
+      default:
+        return { kind: 'loading', label: 'loading', title: 'The model is loading.' };
+    }
+  })();
+  if (!dimsWarning || base.kind === 'offline' || base.kind === 'loading') return base;
+  const warning = `This ${dimsWarning.kind === 'provider' ? 'model' : 'lookalike'} is stretched about ${Math.round(dimsWarning.distortion * 100)}% out of proportion to fit the exact size (limit ${Math.round(dimsWarning.limit * 100)}%).`;
+  return { ...base, warning, title: `${base.title} ${warning}` };
 }
 
 export function useMeshBadge(itemId: string): MeshBadge {
   useModelRevision();
   const stats = modelStats();
-  return meshBadge(stats.sources[itemId], stats.offline.includes(itemId));
+  return meshBadge(stats.sources[itemId], stats.offline.includes(itemId), stats.warnings.find((w) => w.itemId === itemId)?.warning);
 }
 
 /** What `validateLayout` says about one item. */
@@ -61,15 +65,18 @@ export function variantSnapshot(record: ProductRecord, base: ProductSnapshot, sk
     return {
       variant: v.sku,
       dims: v.dims ?? null,
-      snapshot: { ...snapshotOf(record, new Date(), v.colour), sku: v.sku, name: v.name ?? record.name, price: v.price ?? record.price, dims: v.dims ?? record.dims, url: v.url ?? record.url },
+      snapshot: { ...snapshotOf(record, v.colour), sku: v.sku, name: v.name ?? record.name, price: v.price ?? record.price, dims: v.dims ?? record.dims, url: v.url ?? record.url },
     };
   }
-  if (record.colours.includes(sku)) return { variant: sku, dims: null, snapshot: { ...base, snapshotAt: new Date().toISOString(), colour: sku } };
+  if (record.colours.includes(sku)) return { variant: sku, dims: null, snapshot: { ...base, colour: sku } };
   return null;
 }
 
+export const LOCK_HINT = 'Lock keeps this item where it is (the assistant cannot move it). Its price still counts in the total; only existing furniture is free.';
+
 /** Details, variants, validation and actions of the selected item (D10). */
 export function ItemProperties({ scene, item }: { scene: Scene; item: Item }) {
+  const lockHintId = useId();
   const dispatch = useSceneStore((s) => s.dispatch);
   const select = useViewStore((s) => s.select);
   const mode = useSyncStore((s) => s.mode);
@@ -108,7 +115,7 @@ export function ItemProperties({ scene, item }: { scene: Scene; item: Item }) {
     if (!record || !p) return;
     try {
       if (sku === '') {
-        const base = snapshotOf(record, new Date());
+        const base = snapshotOf(record);
         return run({ type: 'item.setVariant', id: item.id, variant: null, product: base, dims: record.dims }, `Reset ${itemName(item)}`);
       }
       const v = variantSnapshot(record, p, sku);
@@ -127,7 +134,7 @@ export function ItemProperties({ scene, item }: { scene: Scene; item: Item }) {
       const fresh = await getProduct(ref, refId);
       setFetched({ id: refId, record: fresh });
       const colour = p.colour;
-      const snap = snapshotOf(fresh, new Date(), colour);
+      const snap = snapshotOf(fresh, colour);
       run({ type: 'item.setVariant', id: item.id, variant: item.variant ?? null, product: snap, dims: snap.dims }, `Update price of ${itemName(item)}`);
     } catch (e) {
       fail(e);
@@ -152,14 +159,14 @@ export function ItemProperties({ scene, item }: { scene: Scene; item: Item }) {
     );
   };
 
-  const photo = thumbnailUrl(record?.photoUrl, serverRef());
+  const photo = useProductPhoto(refId, !!record?.photoUrl);
   const variantOptions = record ? [...record.variants.map((v) => ({ value: v.sku, label: `${v.colour ?? v.name ?? v.sku}${v.price !== undefined ? ` · ${formatPrice(v.price, record.currency)}` : ''}` })), ...(record.variants.length === 0 ? record.colours.map((c) => ({ value: c, label: c })) : [])] : [];
   const chosen = item.variant ?? '';
 
   return (
     <div className="item-props" data-testid="item-properties">
       <div className="item-head">
-        {photo && <img className="item-photo" src={photo} alt="" referrerPolicy="no-referrer" onError={(e) => (e.currentTarget.style.display = 'none')} />}
+        {photo && <img className="item-photo" src={photo} alt="" referrerPolicy="no-referrer" />}
         <div className="item-badges">
           {builtIn && (
             <span className="badge badge-locked" data-testid="badge-builtin">
@@ -176,8 +183,14 @@ export function ItemProperties({ scene, item }: { scene: Scene; item: Item }) {
               no product
             </span>
           )}
-          <span className={`badge badge-mesh badge-${badge.kind}`} data-testid="badge-mesh" data-source={badge.kind} title={badge.title}>
+          <span className={`badge badge-mesh badge-${badge.kind}${badge.warning ? ' badge-warn' : ''}`} data-testid="badge-mesh" data-source={badge.kind} {...(badge.warning ? { 'data-warning': 'dims_mismatch' } : {})} title={badge.title}>
             {badge.label}
+            {badge.warning && (
+              <span role="img" aria-label={badge.warning} data-testid="badge-mesh-warning">
+                {' '}
+                ⚠
+              </span>
+            )}
           </span>
         </div>
       </div>
@@ -267,9 +280,14 @@ export function ItemProperties({ scene, item }: { scene: Scene; item: Item }) {
           </>
         )}
         {!builtIn && (
-          <button type="button" onClick={toggleLock} data-testid="lock-toggle" aria-pressed={item.locked === true} title="Locked items stay put: the assistant cannot move them">
-            {item.locked ? 'Unlock' : 'Lock'}
-          </button>
+          <>
+            <button type="button" onClick={toggleLock} data-testid="lock-toggle" aria-pressed={item.locked === true} aria-describedby={lockHintId} title={LOCK_HINT}>
+              {item.locked ? 'Unlock' : 'Lock'}
+            </button>
+            <span id={lockHintId} className="hint lock-hint" data-testid="lock-hint">
+              {LOCK_HINT}
+            </span>
+          </>
         )}
         <button type="button" className="link" onClick={() => select(null)}>
           Close

@@ -79,8 +79,22 @@ describe('item.place', () => {
       if (!r.ok) expect(r.errors[0]).toMatchObject({ code: 'precondition_failed', path: 'item/product', hint: expect.stringContaining('search_products first') });
     }
     expect(apply(bare, place(bare1)).ok).toBe(true);
-    // a product ref alone is enough
-    expect(apply(bare, place({ ...bare1, productRef: { provider: 'mock', sku: 'x' } }), llm).ok).toBe(true);
+    // a product ref alone is NOT enough for a non-user: the snapshot (price, dims) must be there
+    const refOnly = apply(bare, place({ ...bare1, productRef: { provider: 'mock', sku: 'x' } }), llm);
+    expect(!refOnly.ok && refOnly.errors[0]).toMatchObject({ code: 'precondition_failed', path: 'item/product' });
+    expect(apply(bare, place({ ...bare1, productRef: { provider: 'mock', sku: 'x' } })).ok).toBe(true);
+  });
+
+  it('a non-user item must agree with its product snapshot (dims within 1 mm, productRef, parametric shape)', () => {
+    const dimsMismatch = apply(bare, place(bedDraft({ dims: { w: 0.2, d: 0.2, h: 0.2 } })), llm);
+    expect(!dimsMismatch.ok && dimsMismatch.errors[0]).toMatchObject({ code: 'precondition_failed', path: 'item/dims' });
+    expect(apply(bare, place(bedDraft({ dims: { w: 1.6004, d: 2, h: 0.9 } })), llm).ok).toBe(true);
+    const refMismatch = apply(bare, place(bedDraft({ productRef: { provider: 'ikea-fr', sku: 'FAKE' } })), llm);
+    expect(!refMismatch.ok && refMismatch.errors[0]).toMatchObject({ path: expect.stringContaining('productRef') }); // refused by the command schema already
+    const badMesh = apply(bare, place(bedDraft({ mesh: { kind: 'parametric', generator: 'bed', params: { w: 0.5, l: 0.5, h: 0.5, headboard: true } } })), llm);
+    expect(!badMesh.ok && badMesh.errors[0]).toMatchObject({ code: 'precondition_failed', path: 'item/mesh' });
+    // a user (the catalog UI, drag-and-drop) is not held to it
+    expect(apply(bare, place(bedDraft({ dims: { w: 0.2, d: 0.2, h: 0.2 } }))).ok).toBe(true);
   });
 
   it('refuses a duplicate id, an unknown room and an invalid item', () => {
@@ -252,6 +266,36 @@ describe('item.setVariant', () => {
     expect(!r.ok && r.errors[0]).toMatchObject({ code: 'precondition_failed' });
     const big = apply(plain, { type: 'item.setVariant', id: 'p', variant: 'x', dims: { w: 8, d: 8, h: 0.4 } });
     expect(!big.ok && big.errors[0]).toMatchObject({ code: 'placement_invalid' });
+  });
+});
+
+describe('item.setVariant: consistency for a non-user', () => {
+  const other = { ...snapshot, sku: 'BED-140', name: 'MOCK bed 140x200', price: 149, dims: { w: 1.4, d: 2, h: 0.9 } };
+
+  it('refuses dims that contradict the product snapshot', () => {
+    const r = apply(withBed, { type: 'item.setVariant', id: 'bed', variant: 'BED-140', product: other, dims: { w: 0.3, d: 0.3, h: 0.3 } }, llm);
+    expect(!r.ok && r.errors[0]).toMatchObject({ code: 'precondition_failed', path: 'item/dims' });
+    const lone = apply(withBed, { type: 'item.setVariant', id: 'bed', variant: 'x', dims: { w: 1.1, d: 2, h: 0.9 } }, llm);
+    expect(!lone.ok && lone.errors[0]).toMatchObject({ code: 'precondition_failed', path: 'item/dims' });
+  });
+
+  it('keeps item.dims in step with a new product that has no explicit dims', () => {
+    const r = apply(withBed, { type: 'item.setVariant', id: 'bed', variant: 'BED-140', product: other }, llm);
+    expect(r.ok && r.scene.items[0]!.dims).toEqual({ w: 1.4, d: 2, h: 0.9 });
+    if (r.ok) {
+      const back = applyCommand(r.scene, env(r.inverse));
+      expect(back.ok && back.scene).toStrictEqual(withBed);
+    }
+  });
+
+  it('re-derives a parametric mesh at the new size and restores it exactly on undo', () => {
+    const generated = okScene(bare, place(bedDraft({ id: 'pb', assetId: 'param:bed', mesh: { kind: 'parametric', generator: 'bed', params: { w: 1.6, l: 2, h: 0.9, headboard: true } } })), llm);
+    const r = apply(generated, { type: 'item.setVariant', id: 'pb', variant: 'BED-140', product: other, dims: { w: 1.4, d: 2, h: 0.9 } }, llm);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.scene.items[0]!.mesh).toMatchObject({ kind: 'parametric', generator: 'bed', params: { w: 1.4, l: 2 } });
+    const back = applyCommand(r.scene, env(r.inverse));
+    expect(back.ok && back.scene).toStrictEqual(generated);
   });
 });
 

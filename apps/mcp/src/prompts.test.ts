@@ -29,7 +29,7 @@ describe('prompts (M4.12)', () => {
     expect(textOf(applyStyleMessages({ style: 'industrial' }))).toContain('the whole flat');
   });
 
-  it('furnish_room walks read, search, pick, position, preview, validate, apply, render, price table, undo', async () => {
+  it('furnish_room walks read, search, pick, position, preview, apply, validate, render, price table, undo', async () => {
     const { client } = await connect();
     const p = await client.getPrompt({ name: 'furnish_room', arguments: { roomId: 'sejour', brief: 'cosy reading corner', budgetEur: '1500' } });
     const text = textOf(p.messages as never);
@@ -37,7 +37,7 @@ describe('prompts (M4.12)', () => {
     expect(text).toContain('"sejour"');
     expect(text).toContain('1500 EUR');
     expect(text).toContain('budgetEur` 1500');
-    const order = ['1. Read', '2. Search', '3. Pick', '4. Position', '5. Preview', '6. Validate', '7. Apply', '8. Render', '9. Summarise', '10. Offer undo'].map((s) => text.indexOf(s));
+    const order = ['1. Read', '2. Search', '3. Pick', '4. Position', '5. Preview', '6. Apply', '7. Validate', '8. Render', '9. Summarise', '10. Offer undo'].map((s) => text.indexOf(s));
     expect(order.every((i) => i >= 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
     // the tools, in the order of the flow

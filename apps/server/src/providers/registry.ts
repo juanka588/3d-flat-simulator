@@ -8,15 +8,18 @@ import {
 } from '@flat/scene';
 import { MemoryCache, TTL_MODEL_MS, TTL_PRODUCT_MS, TTL_SEARCH_MS } from './cache';
 import { PROVIDER_CATALOG, type ProviderMeta } from './catalog';
-import { createNetwork, type NetworkOptions, type ProviderNetwork } from './http';
+import { createNetwork, readBytesCapped, type NetworkOptions, type ProviderNetwork } from './http';
+import { createPinnedFetch } from './pinned';
 import { createSecrets, type Secrets } from './secrets';
 import { ProviderError, type ModelStream, type ProductProvider, type ProviderContext, type ProviderRegistry, type SearchOptions } from './types';
 
 /** Seen-products registry TTL (D9): ids a search returned to an MCP session stay placeable for an hour after the last touch. */
 export const SEEN_TTL_MS = 60 * 60_000;
-const SEEN_MAX_SESSIONS = 200;
-const SEEN_MAX_IDS = 5000;
+export const SEEN_MAX_SESSIONS = 200;
+export const SEEN_MAX_IDS = 5000;
 const GLB_MAGIC = [0x67, 0x6c, 0x54, 0x46]; // "glTF"
+export const PHOTO_MAX_BYTES = 2 * 1024 * 1024;
+const TTL_PHOTO_MS = 60 * 60_000;
 
 type Loader = () => Promise<ProductProvider>;
 
@@ -42,6 +45,8 @@ export interface RegistryOptions {
   random?: NetworkOptions['random'];
   gapMs?: number;
   timeoutMs?: number;
+  bodyTimeoutMs?: number;
+  maxQueue?: number;
   maxRetries?: number;
   lookup?: (hostname: string) => Promise<string[]>;
   log?: (level: 'info' | 'warn' | 'error', message: string) => void;
@@ -110,6 +115,8 @@ function assembleRegistry(opts: RegistryOptions, providers: ReadonlyMap<string, 
     ...(opts.random ? { random: opts.random } : {}),
     ...(opts.gapMs !== undefined ? { gapMs: opts.gapMs } : {}),
     ...(opts.timeoutMs !== undefined ? { timeoutMs: opts.timeoutMs } : {}),
+    ...(opts.bodyTimeoutMs !== undefined ? { bodyTimeoutMs: opts.bodyTimeoutMs } : {}),
+    ...(opts.maxQueue !== undefined ? { maxQueue: opts.maxQueue } : {}),
     ...(opts.maxRetries !== undefined ? { maxRetries: opts.maxRetries } : {}),
     log,
     redact: secrets.redact,
@@ -118,7 +125,12 @@ function assembleRegistry(opts: RegistryOptions, providers: ReadonlyMap<string, 
   for (const [id, meta] of Object.entries(PROVIDER_CATALOG)) slots.set(id, { meta });
   const loadedIds: string[] = [];
   for (const [id, provider] of providers) {
-    const net = network.forProvider(provider.id, { scope: HOST_SCOPED.has(provider.id) ? 'host' : 'provider' });
+    // Pasted URLs reach arbitrary hosts: the connection itself is pinned to the vetted address (M6). A test `fetch` replaces the wire.
+    const hostScoped = HOST_SCOPED.has(provider.id);
+    const net = network.forProvider(provider.id, {
+      scope: hostScoped ? 'host' : 'provider',
+      ...(hostScoped && !opts.fetch ? { transport: createPinnedFetch({ ...(opts.lookup ? { lookup: opts.lookup } : {}) }) } : {}),
+    });
     const slot: Slot = slots.get(id) ?? {
       meta: { id: provider.id, label: provider.label, capabilities: provider.capabilities, personalUseOnly: provider.personalUseOnly, ...(provider.note ? { note: provider.note } : {}) },
     };
@@ -296,12 +308,17 @@ function assembleRegistry(opts: RegistryOptions, providers: ReadonlyMap<string, 
     markSeen(session, ids) {
       sweepSeen();
       let entry = seen.get(session);
-      if (!entry) {
+      if (entry) seen.delete(session); // re-insert below: Map order = least recently used first
+      else {
         if (seen.size >= SEEN_MAX_SESSIONS) seen.delete(seen.keys().next().value!);
         entry = { ids: new Set(), expires: 0 };
-        seen.set(session, entry);
       }
-      for (const id of ids) if (entry.ids.size < SEEN_MAX_IDS) entry.ids.add(id);
+      seen.set(session, entry);
+      for (const id of ids) {
+        if (entry.ids.has(id)) entry.ids.delete(id);
+        else if (entry.ids.size >= SEEN_MAX_IDS) entry.ids.delete(entry.ids.values().next().value!); // at the cap the LRU id goes, the new one stays
+        entry.ids.add(id);
+      }
       entry.expires = clock.now() + SEEN_TTL_MS;
       return entry.ids.size;
     },
@@ -313,10 +330,54 @@ function assembleRegistry(opts: RegistryOptions, providers: ReadonlyMap<string, 
         seen.delete(session);
         return false;
       }
-      return entry.ids.has(productId);
+      if (!entry.ids.has(productId)) return false;
+      // A use counts as recency for both the id and the session (the TTL still runs from the last markSeen).
+      entry.ids.delete(productId);
+      entry.ids.add(productId);
+      seen.delete(session);
+      seen.set(session, entry);
+      return true;
+    },
+
+    async fetchPhoto(productId) {
+      const ref = parseProductId(productId);
+      if (!ref) throw new ProviderError('product_not_found', `"${productId}" is not a product id`);
+      const s = slotFor(ref.provider);
+      const p = s.provider;
+      if (!p.fetchPhoto) throw new ProviderError('product_not_found', `${p.id} has no product photos`);
+      return cache.flight(
+        `photo\0${formatProductId(ref)}`,
+        TTL_PHOTO_MS,
+        async () => {
+          const rec = await reg.getProduct(productId);
+          if (!rec.photoUrl) throw new ProviderError('product_not_found', `${productId} has no photo`);
+          return readPhoto(await p.fetchPhoto!(rec, s.ctx), PHOTO_MAX_BYTES);
+        },
+        (ph) => ph.data.byteLength,
+      );
     },
   };
   return reg;
+}
+
+/** MIME type from the magic bytes (the upstream header is not trusted); raster images only, never SVG. */
+export function sniffImage(b: Uint8Array): string | undefined {
+  const at = (o: number, ...bytes: number[]) => bytes.every((x, i) => b[o + i] === x);
+  if (at(0, 0xff, 0xd8, 0xff)) return 'image/jpeg';
+  if (at(0, 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a)) return 'image/png';
+  if (at(0, 0x47, 0x49, 0x46, 0x38)) return 'image/gif';
+  if (at(0, 0x52, 0x49, 0x46, 0x46) && at(8, 0x57, 0x45, 0x42, 0x50)) return 'image/webp';
+  if (at(4, 0x66, 0x74, 0x79, 0x70) && (at(8, 0x61, 0x76, 0x69, 0x66) || at(8, 0x61, 0x76, 0x69, 0x73))) return 'image/avif';
+  return undefined;
+}
+
+async function readPhoto(m: ModelStream, maxBytes: number): Promise<{ data: Uint8Array; contentType: string }> {
+  const res = new Response(m.stream, { headers: m.size !== undefined ? { 'content-length': String(m.size) } : {} });
+  const tooBig = () => new ProviderError('model_unavailable', `photo is larger than ${maxBytes} bytes`);
+  const data = await readBytesCapped(res, maxBytes, tooBig);
+  const contentType = sniffImage(data);
+  if (!contentType) throw new ProviderError('model_unavailable', 'the downloaded file is not a raster image');
+  return { data, contentType };
 }
 
 /** Reads a provider model fully (the upstream stream is consumed once, then served from memory), enforcing the size cap and the GLB magic. */

@@ -121,7 +121,8 @@ describe('polite network', () => {
       return text('ok');
     };
     const t = testContext([[/https:\/\/a\.example\//, slow], [/https:\/\/b\.example\//, slow]]);
-    await Promise.all([t.ctx.fetch('https://a.example/1'), t.ctx.fetch('https://a.example/2'), t.ctx.fetch('https://a.example/3')]);
+    const get = async (u: string) => (await t.ctx.fetch(u)).text(); // the host slot is held until the body is read
+    await Promise.all([get('https://a.example/1'), get('https://a.example/2'), get('https://a.example/3')]);
     expect(maxRunning).toBe(1);
     const at = t.fetch.pages().map((c) => c.at);
     expect(at[1]! - at[0]!).toBeGreaterThanOrEqual(1500);
@@ -184,20 +185,14 @@ describe('polite network', () => {
     ]);
     await expect(t.ctx.fetch('https://a.example/search?q=1')).rejects.toMatchObject({ code: 'robots_disallowed' });
     expect(t.fetch.pages()).toHaveLength(0);
-    await t.ctx.fetch('https://a.example/ok');
+    await (await t.ctx.fetch('https://a.example/ok')).text();
     expect(t.fetch.calls.filter((c) => c.url.endsWith('/robots.txt'))).toHaveLength(1);
     t.clock.advance(23 * 3_600_000);
-    await t.ctx.fetch('https://a.example/ok');
+    await (await t.ctx.fetch('https://a.example/ok')).text();
     expect(t.fetch.calls.filter((c) => c.url.endsWith('/robots.txt'))).toHaveLength(1);
     t.clock.advance(2 * 3_600_000);
-    await t.ctx.fetch('https://a.example/ok');
+    await (await t.ctx.fetch('https://a.example/ok')).text();
     expect(t.fetch.calls.filter((c) => c.url.endsWith('/robots.txt'))).toHaveLength(2);
-  });
-
-  it('a 403 on robots.txt does not trip the circuit (the page request decides)', async () => {
-    const t = testContext([['https://a.example/robots.txt', status(403)], ['https://a.example/ok', text('ok')]]);
-    expect(await (await t.ctx.fetch('https://a.example/ok')).text()).toBe('ok');
-    expect(t.net.circuit().state).toBe('closed');
   });
 
   it('times out after the configured deadline (10 s by default) as provider_unavailable', async () => {

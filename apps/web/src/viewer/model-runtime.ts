@@ -45,10 +45,19 @@ export function createViewerModelController(): ModelController<ModelTemplate> {
 }
 
 let active: ModelController<ModelTemplate> | null = null;
+const activeListeners = new Set<() => void>();
 
 /** The controller of the mounted viewer (for the test hook), or null. */
 export function setActiveModelController(c: ModelController<ModelTemplate> | null): void {
+  if (active === c) return;
   active = c;
+  for (const l of [...activeListeners]) l();
+}
+
+/** Called when the active controller is replaced (the viewer remounted): UI that subscribed to the old one must follow. */
+export function subscribeActiveController(listener: () => void): () => void {
+  activeListeners.add(listener);
+  return () => void activeListeners.delete(listener);
 }
 export function activeModelController(): ModelController<ModelTemplate> | null {
   return active;

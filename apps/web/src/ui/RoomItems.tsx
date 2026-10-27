@@ -3,7 +3,8 @@ import type { Scene } from '@flat/scene';
 import { useEffect, useMemo, useState } from 'react';
 import { bomView, formatPrice } from '../catalog/format';
 import { useViewStore } from '../state/viewStore';
-import { activeModelController, modelStats } from '../viewer/model-runtime';
+import { modelStats } from '../viewer/model-runtime';
+import { useModelRevision } from '../viewer/use-model-revision';
 
 /** The clock, ticking once a minute (a price turns stale while the page stays open). */
 function useNow(): number {
@@ -15,18 +16,17 @@ function useNow(): number {
   return now;
 }
 
-/** Items per room with TTC prices and a total for the flat (locked items count 0; stale prices are flagged). */
+/** Items per room with TTC prices and a total for the flat (existing furniture counts 0, locked products keep their price; stale prices are flagged). */
 export function RoomItems({ scene }: { scene: Scene }) {
   const select = useViewStore((s) => s.select);
   const selected = useViewStore((s) => s.selection?.entityId);
-  const [, setRev] = useState(0);
-  useEffect(() => activeModelController()?.subscribe(() => setRev((r) => r + 1)), []);
+  useModelRevision();
   const now = useNow();
   const view = useMemo(() => bomView(scene, billOfMaterials(scene, { now })), [scene, now]);
   const offline = new Set(modelStats().offline);
   if (view.itemCount === 0) return null;
   return (
-    <section className="panel room-items" aria-label="Items" data-testid="room-items">
+    <section className="panel room-items" aria-label="Items" data-testid="room-items" data-item-keys="">
       <h2>Items</h2>
       {view.rooms.map((room) => (
         <div key={room.roomId} className="room-block" data-room={room.roomId}>
@@ -42,7 +42,7 @@ export function RoomItems({ scene }: { scene: Scene }) {
                 <span className="line-price">{l.price}</span>
                 {l.locked && <span className="badge badge-locked">locked</span>}
                 {l.stale && <span className="badge badge-warn" title="Price older than 7 days">stale</span>}
-                {l.noProduct && !l.locked && <span className="badge badge-warn">no product</span>}
+                {l.noProduct && !l.existing && <span className="badge badge-warn">no product</span>}
                 {offline.has(l.itemId) && <span className="badge" title="Real model unavailable without the server">offline</span>}
               </li>
             ))}

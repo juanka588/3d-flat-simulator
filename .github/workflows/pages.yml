@@ -27,6 +27,14 @@ jobs:
       - run: pnpm --filter @flat/web build
         env:
           BASE_PATH: /${{ github.event.repository.name }}/
+      # Local-only guards (D4) on exactly what is about to be deployed. This workflow does not wait for CI, so a
+      # leak (retailer host, stray GLB, oversized or unlisted material / model) must fail HERE, before the upload.
+      - name: Guard - no retailer data in the Pages build
+        run: node scripts/ci/check-no-retailer.mjs --dist apps/web/dist
+      - name: Guard - model library
+        run: node scripts/ci/check-models.mjs
+      - name: Guard - material library
+        run: node scripts/ci/check-materials.mjs
       - uses: actions/upload-pages-artifact@v3
         with:
           path: apps/web/dist

@@ -1,5 +1,5 @@
-import { DEFAULT_WALL_MOUNT_ELEVATION_M, itemCoalesceKey, meshAssetId, productSnapshot } from '@flat/scene';
-import type { Command, Dims, Item, ItemMount, MeshSource, ProductRecord, ProductSnapshot, Vec2 } from '@flat/scene';
+import { DEFAULT_CEILING_HEIGHT, DEFAULT_WALL_MOUNT_ELEVATION_M, itemCoalesceKey, meshAssetId, productSnapshot } from '@flat/scene';
+import type { Command, Dims, Item, ItemMount, MeshSource, ProductRecord, ProductSnapshot, Relation, Vec2 } from '@flat/scene';
 import type { GhostPose, GhostSubject } from './ghost';
 
 /** What a drag carries: everything `item.place` needs except the pose. */
@@ -22,8 +22,15 @@ export interface PlaceSource {
 
 const round3 = (n: number): number => Math.round(n * 1000) / 1000;
 
-/** Default elevation of the item bottom for a mount. */
-export const defaultElevation = (mount: ItemMount): number => (mount === 'wall' ? DEFAULT_WALL_MOUNT_ELEVATION_M : 0);
+/**
+ * Default elevation of the item bottom for a mount: 0 on the floor, the usual wall-mount height on a wall, and
+ * hanging from the ceiling (`ceilingHeight - h`) for a ceiling mount (the drag then uses the room's own ceiling).
+ */
+export function defaultElevation(mount: ItemMount, h = 0, ceilingHeight: number = DEFAULT_CEILING_HEIGHT): number {
+  if (mount === 'wall') return DEFAULT_WALL_MOUNT_ELEVATION_M;
+  if (mount === 'ceiling') return Math.max(0, round3(ceilingHeight - h));
+  return 0;
+}
 
 /** A source for a product from its search summary or full record (the snapshot is added from the record at drop). */
 export function productSource(p: { provider: string; sku?: string; productId?: string; name: string; dims: Dims; mount: ItemMount; weightKg?: number; has3d?: boolean; modelRef?: string }): PlaceSource {
@@ -35,7 +42,7 @@ export function productSource(p: { provider: string; sku?: string; productId?: s
     assetId: meshAssetId({ kind: 'provider' }, { provider: p.provider }),
     dims: p.dims,
     mount: p.mount,
-    elevation: defaultElevation(p.mount),
+    elevation: defaultElevation(p.mount, p.dims.h),
     ...(p.weightKg !== undefined ? { weightKg: p.weightKg } : {}),
     ...(mesh ? { mesh } : {}),
     productRef: { provider: p.provider, sku },
@@ -45,25 +52,29 @@ export function productSource(p: { provider: string; sku?: string; productId?: s
 /** A source for a parametric generator at the dims it promises. */
 export function generatorSource(g: { id: string; label: string }, params: Record<string, number | string | boolean>, dims: Dims, mount: ItemMount = 'floor'): PlaceSource {
   const mesh: MeshSource = { kind: 'parametric', generator: g.id, params };
-  return { label: g.label, assetId: meshAssetId(mesh), dims: { w: round3(dims.w), d: round3(dims.d), h: round3(dims.h) }, mount, elevation: defaultElevation(mount), mesh, noProduct: true };
+  return { label: g.label, assetId: meshAssetId(mesh), dims: { w: round3(dims.w), d: round3(dims.d), h: round3(dims.h) }, mount, elevation: defaultElevation(mount, dims.h), mesh, noProduct: true };
 }
 
 /** A source for a library (CC0) model at its native dims. */
 export function libraryModelSource(a: { id: string; name: string; nativeDims: Dims }, mount: ItemMount = 'floor'): PlaceSource {
   const mesh: MeshSource = { kind: 'lookalike', assetId: a.id };
   const d = a.nativeDims;
-  return { label: a.name, assetId: meshAssetId(mesh), dims: { w: round3(d.w), d: round3(d.d), h: round3(d.h) }, mount, elevation: defaultElevation(mount), mesh, noProduct: true };
+  return { label: a.name, assetId: meshAssetId(mesh), dims: { w: round3(d.w), d: round3(d.d), h: round3(d.h) }, mount, elevation: defaultElevation(mount, d.h), mesh, noProduct: true };
 }
 
 export const subjectOf = (s: PlaceSource, id?: string): GhostSubject => ({ ...(id !== undefined ? { id } : {}), dims: s.dims, mount: s.mount, ...(s.weightKg !== undefined ? { weightKg: s.weightKg } : {}) });
 
-/** The snapshot stored with a placed product: from the server record, TTC only. Throws `RangeError` for a non-TTC price. */
-export function snapshotOf(record: ProductRecord, now: Date = new Date(), colour?: string): ProductSnapshot {
-  return productSnapshot(record, now.toISOString(), colour);
+/**
+ * The snapshot stored with a placed product: from the server record, TTC only. It is stamped with the record's
+ * own `fetchedAt` (when the price was actually read), NOT the placement time, so a record that sat in a cache
+ * does not pass for fresh and the stale flag can fire. Throws `RangeError` for a non-TTC price.
+ */
+export function snapshotOf(record: ProductRecord, colour?: string): ProductSnapshot {
+  return productSnapshot(record, record.fetchedAt, colour);
 }
 
 /** The `item.place` command for a drop. `roomId` is the room under the pointer. */
-export function placeCommand(source: PlaceSource, pose: GhostPose, roomId: string | undefined, snapshot?: ProductSnapshot): Command {
+export function placeCommand(source: PlaceSource, pose: GhostPose, roomId: string | undefined, snapshot?: ProductSnapshot, relation?: Relation): Command {
   const item: Record<string, unknown> = {
     assetId: source.assetId,
     position: pose.position,
@@ -75,6 +86,7 @@ export function placeCommand(source: PlaceSource, pose: GhostPose, roomId: strin
     ...(source.mesh ? { mesh: source.mesh } : {}),
     ...(source.productRef ? { productRef: source.productRef } : {}),
     ...(snapshot ? { product: snapshot } : {}),
+    ...(relation ? { relation } : {}),
   };
   return { type: 'item.place', item } as Command;
 }

@@ -42,3 +42,26 @@ export function findExportViolations(doc: unknown): string[] {
   }
   return out;
 }
+
+export type PreparedExport = { ok: true; text: string } | { ok: false; violations: string[] };
+
+/**
+ * Last gate before a flat leaves the app as a file: the serialized text is parsed and checked with
+ * `findExportViolations`. A document that breaks the rule is REFUSED (never stripped silently: a stray photo or model
+ * reference means a bug upstream that should be seen), with the offending paths.
+ */
+export function prepareExport(text: string): PreparedExport {
+  let doc: unknown;
+  try {
+    doc = JSON.parse(text);
+  } catch {
+    return { ok: false, violations: ['the document is not valid JSON'] };
+  }
+  const violations = findExportViolations(doc);
+  return violations.length === 0 ? { ok: true, text } : { ok: false, violations };
+}
+
+/** The message shown when an export or an autosave is refused. */
+export function violationMessage(violations: string[]): string {
+  return `It contains data that is never stored or exported (${violations.slice(0, 3).join('; ')}${violations.length > 3 ? `; and ${violations.length - 3} more` : ''}).`;
+}

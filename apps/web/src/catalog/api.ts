@@ -98,7 +98,24 @@ export function recordWithUserDims(draft: Record<string, unknown>, cm: { w: numb
   });
 }
 
-/** Thumbnail URL of a result: the product photo, shown only in server mode (a Pages visitor never sees or requests one). */
-export function thumbnailUrl(photoUrl: string | undefined, ref: ServerRef | null): string | undefined {
-  return ref && photoUrl ? photoUrl : undefined;
+/**
+ * The product photo through the local server's photo proxy (`GET /api/products/:id/photo`), NEVER the retailer's own
+ * URL (no hotlinking: the browser would send the retailer a request). It is read with `fetch()`, which carries an
+ * Origin the server accepts (a bare `<img src>` from the dev origin has none), and shown from a blob URL.
+ * Rejects with an `ApiError` when there is no server or no photo; the card then shows its initial.
+ */
+export async function fetchProductPhoto(ref: ServerRef | null, productId: string, f: Fetch = (...a) => fetch(...a)): Promise<Blob> {
+  if (!ref) throw new ApiError('no_server', 'The scene server is not connected.');
+  const headers: Record<string, string> = {};
+  if (ref.token) headers.authorization = `Bearer ${ref.token}`;
+  let res: Response;
+  try {
+    res = await f(`${ref.origin}/api/products/${encodeURIComponent(productId)}/photo`, { headers });
+  } catch {
+    throw new ApiError('unreachable', 'The scene server could not be reached.');
+  }
+  if (!res.ok) throw new ApiError('no_photo', `No photo (HTTP ${res.status}).`, undefined, undefined, res.status);
+  const blob = await res.blob();
+  if (!blob.type.startsWith('image/')) throw new ApiError('no_photo', 'The server did not return an image.');
+  return blob;
 }

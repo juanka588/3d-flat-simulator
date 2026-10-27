@@ -265,3 +265,47 @@ describe('history tools against the real apps/server (in process)', () => {
     expect(s.counts.rooms).toBe(8);
   });
 });
+
+describe('locked items cannot be reached through undo / redo / restore_checkpoint by an LLM (M1)', () => {
+  const cabinet = { type: 'item.place', item: { assetId: 'param:wardrobe', id: 'locked-cab', position: [7.71, 1], roomId: 'ch1', dims: { w: 0.6, d: 0.6, h: 1 }, locked: true } } as const;
+  const userPlace = (id: string) => makeEnvelope(cabinet as never, { id, ts: 5, author: { kind: 'user' } });
+
+  it('on the mock: undo and restore_checkpoint of a user-placed locked item are refused, the user keeps their own undo', async () => {
+    const { client, flat } = await connect();
+    await client.callTool({ name: 'checkpoint', arguments: { name: 'before' } });
+    expect((await flat.postCommand(userPlace('lock-1'))).ok).toBe(true);
+    const undo = await client.callTool({ name: 'undo', arguments: {} });
+    expect(undo.isError).toBe(true);
+    expect(json(undo)).toMatchObject({ code: 'precondition_failed', hint: 'locked item: ask the user' });
+    const restore = await client.callTool({ name: 'restore_checkpoint', arguments: { name: 'before' } });
+    expect(json(restore)).toMatchObject({ ok: false, code: 'precondition_failed', hint: 'locked item: ask the user' });
+    expect(flat.scene.items.some((i) => i.id === 'locked-cab')).toBe(true);
+    const byUser = await flat.undo({ id: 'user-undo', author: { kind: 'user' } });
+    expect(byUser.ok).toBe(true);
+    expect(flat.scene.items.some((i) => i.id === 'locked-cab')).toBe(false);
+  });
+
+  let real: RealServer | undefined;
+  afterEach(async () => {
+    await real?.close();
+    real = undefined;
+  });
+
+  it('end to end over the real server: /api/undo and /api/undo-to carry the author, so the same refusal applies', async () => {
+    real = await startRealServer();
+    const flat = new HttpFlatApi(loadConfig({}, { serverUrl: real.url, log: () => {} }));
+    const { client } = await connect({ serverUrl: real.url }, flat as unknown as MockFlatApi);
+    await client.callTool({ name: 'checkpoint', arguments: { name: 'before' } });
+    const placed = await flat.postCommand(userPlace('lock-r1'));
+    expect(placed.ok, JSON.stringify(placed)).toBe(true);
+    const undo = await client.callTool({ name: 'undo', arguments: {} });
+    expect(json(undo)).toMatchObject({ ok: false, code: 'precondition_failed', hint: 'locked item: ask the user' });
+    const restore = await client.callTool({ name: 'restore_checkpoint', arguments: { name: 'before' } });
+    expect(json(restore)).toMatchObject({ ok: false, code: 'precondition_failed', hint: 'locked item: ask the user' });
+    const items = ((await flat.getScene()) as { data: { scene: { items: { id: string }[] } } }).data.scene.items;
+    expect(items.some((i) => i.id === 'locked-cab')).toBe(true);
+    // the user (no author given = the server's own user author) can undo it
+    const byUser = await flat.undo({ id: 'user-undo-r', author: { kind: 'user' } });
+    expect(byUser.ok).toBe(true);
+  });
+});

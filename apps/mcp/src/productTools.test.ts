@@ -33,7 +33,7 @@ describe('registry', () => {
       expect(by.get(n)!.annotations?.readOnlyHint, n).toBe(true);
     }
     expect(by.get('place_item')!.annotations?.readOnlyHint).toBe(false);
-    expect(tools).toHaveLength(37);
+    expect(tools).toHaveLength(35);
   });
 
   it('place_item has NO price, name, link or dims field, and unknown keys are rejected', async () => {
@@ -57,15 +57,13 @@ describe('registry', () => {
     for (const n of ['list_providers', 'search_products', 'get_product', 'search_assets', 'get_placement_options', 'validate_layout', 'get_bill_of_materials']) expect(names).toContain(n);
   });
 
-  it('the item_* descriptions point to place_item, search_products and the new reads', async () => {
+  it('item_place and item_set_variant are not offered to the LLM; the other item_* point to the new reads', async () => {
     const { client } = await connect();
     const d = Object.fromEntries((await client.listTools()).tools.map((t) => [t.name, t.description ?? '']));
-    expect(d.item_place).toMatch(/place_item/);
-    expect(d.item_place).toMatch(/search_products/);
-    expect(d.item_place).toMatch(/get_placement_options/);
-    expect(d.item_place).toMatch(/get_product/);
+    expect(d).not.toHaveProperty('item_place');
+    expect(d).not.toHaveProperty('item_set_variant');
     expect(d.item_move).toMatch(/get_placement_options/);
-    expect(d.item_set_variant).toMatch(/get_product/);
+    expect(d.place_item).toMatch(/itemId \+ variantSku/);
   });
 });
 

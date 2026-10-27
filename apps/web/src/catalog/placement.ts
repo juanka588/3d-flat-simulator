@@ -1,5 +1,5 @@
-import { itemCoalesceKey, itemDims, itemMountOf } from '@flat/scene';
-import type { Item, ProductRecord, Scene, Vec2 } from '@flat/scene';
+import { DEFAULT_CEILING_HEIGHT, itemCoalesceKey, itemDims, itemMountOf } from '@flat/scene';
+import type { Item, ProductRecord, Relation, Scene, Vec2 } from '@flat/scene';
 import { committedScene, useSceneStore } from '../state/sceneStore';
 import { useViewStore } from '../state/viewStore';
 import { ceilingAt, checkGhost, fullGhostCheck } from './ghost';
@@ -118,7 +118,10 @@ function recompute(s: Session): void {
   let pose: GhostPose;
   if (spec.kind === 'new') {
     const snapped = snapPose({ point: floor, rotation: s.rotBase, dims: s.subject.dims, rooms: scene.rooms, mount: s.subject.mount }, { grid: !s.mods.alt, angle: !s.mods.shift });
-    const lift = Math.max(0, Math.min(spec.source.elevation, ceilingAt(scene, snapped.position) - s.subject.dims.h));
+    const ceiling = ceilingAt(scene, snapped.position);
+    const room = (Number.isFinite(ceiling) ? ceiling : DEFAULT_CEILING_HEIGHT) - s.subject.dims.h; // an open balcony has no ceiling: cap at the usual height
+    // a ceiling mount hangs from THIS room's ceiling; a wall mount keeps its default height, kept under the ceiling
+    const lift = spec.source.mount === 'ceiling' ? Math.max(0, room) : Math.max(0, Math.min(spec.source.elevation, room));
     pose = { position: snapped.position, rotation: snapped.rotation, elevation: spec.source.mount === 'floor' ? 0 : lift };
   } else {
     const item = findItem(scene, spec.itemId);
@@ -133,7 +136,8 @@ function recompute(s: Session): void {
     } else {
       const y = lineHeight(ray, item.position[0], item.position[1]);
       if (y === null) return;
-      const top = Math.max(0, ceilingAt(scene, item.position) - s.subject.dims.h);
+      const ceiling = ceilingAt(scene, item.position);
+      const top = Math.max(0, (Number.isFinite(ceiling) ? ceiling : DEFAULT_CEILING_HEIGHT) - s.subject.dims.h);
       pose = { position: item.position, rotation: item.rotation, elevation: Math.max(0, Math.min(top, snapValue(y - spec.grab))) };
     }
   }
@@ -260,35 +264,53 @@ async function finish(s: Session): Promise<void> {
   const scene = sceneNow();
   const pose = s.pose;
   const spec = s.spec;
-  endDrag(spec.kind !== 'new');
-  if (!scene || !pose) return;
   if (spec.kind !== 'new') {
-    const verdict = checkGhost(scene, s.subject, pose);
-    if (!verdict.valid) flashNotice(`Can't put ${s.label} there: ${verdict.message}`);
+    // The preview on screen is the LAST VALID pose of the drag. The release is judged on the FINAL pose, with the same
+    // full check the ghost runs at rest: when it is red, or there is no pose at all (released over the sidebar), the
+    // edit is reverted, never committed from the last valid step.
+    const verdict = scene && pose ? fullGhostCheck(scene, s.subject, pose, { assetId: s.assetId }) : null;
+    if (!verdict?.valid) {
+      endDrag(false);
+      flashNotice(`Can't put ${s.label} there: ${verdict?.message ?? 'drop it inside the view.'}`);
+      return;
+    }
+    endDrag(true);
     return;
   }
+  endDrag(false);
+  if (!scene || !pose) return;
   const verdict = fullGhostCheck(scene, s.subject, pose, { assetId: s.assetId });
   if (!verdict.valid) {
     flashNotice(`Can't place ${s.label} here: ${verdict.message}`);
     return;
   }
+  await placeFromSource(spec.source, pose, verdict.roomId, spec.getRecord);
+}
+
+/**
+ * Commits a new item from a card at `pose` (the product snapshot is read from the server record, stamped with the
+ * record's own date), selects it and tells the user why when it is refused. Shared by the drop and by the
+ * "Add to room" button. Returns whether the item was placed.
+ */
+export async function placeFromSource(source: PlaceSource, pose: GhostPose, roomId: string | undefined, getRecord?: () => Promise<ProductRecord>, relation?: Relation): Promise<boolean> {
   let snapshot;
-  if (spec.source.productRef) {
+  if (source.productRef) {
     try {
-      if (!spec.getRecord) throw new Error('product record unavailable');
-      snapshot = snapshotOf(await spec.getRecord());
+      if (!getRecord) throw new Error('product record unavailable');
+      snapshot = snapshotOf(await getRecord());
     } catch (e) {
-      flashNotice(`Can't place ${s.label}: ${e instanceof Error ? e.message : 'the product could not be read'}`);
-      return;
+      flashNotice(`Can't place ${source.label}: ${e instanceof Error ? e.message : 'the product could not be read'}`);
+      return false;
     }
   }
-  const result = useSceneStore.getState().dispatch(placeCommand(spec.source, pose, verdict.roomId, snapshot), { label: `Place ${s.label}` });
+  const result = useSceneStore.getState().dispatch(placeCommand(source, pose, roomId, snapshot, relation), { label: `Place ${source.label}` });
   if (!result.ok) {
-    flashNotice(`Can't place ${s.label} here: ${result.errors[0]?.message ?? 'refused'}`);
-    return;
+    flashNotice(`Can't place ${source.label} here: ${result.errors[0]?.message ?? 'refused'}`);
+    return false;
   }
   const placed = result.scene.items[result.scene.items.length - 1];
   if (placed) useViewStore.getState().select({ kind: 'item', entityId: placed.id });
+  return true;
 }
 
 /** The current drag, for the test hook. */

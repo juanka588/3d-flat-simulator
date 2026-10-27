@@ -32,6 +32,47 @@ const TTL_PRODUCT_MS = 60 * 60_000;
 const CAPABILITIES = IKEA_FR_META.capabilities;
 
 // ---------------------------------------------------------------------------------------------
+// URL allow-lists: nothing the (undocumented, tamperable) IKEA JSON says is fetched unless it points at IKEA
+// ---------------------------------------------------------------------------------------------
+
+const PAGE_HOST = 'www.ikea.com';
+const PAGE_PATH = '/fr/fr/p/';
+/** Hosts a photo or a model may come from. */
+const ASSET_HOSTS: ReadonlySet<string> = new Set(['www.ikea.com', 'web-api.ikea.com']);
+
+function parseHttps(raw: string | undefined): URL | undefined {
+  if (!raw || raw.length > 2048) return undefined;
+  let u: URL;
+  try {
+    u = new URL(raw);
+  } catch {
+    return undefined;
+  }
+  if (u.protocol !== 'https:' || u.port !== '' || u.username !== '' || u.password !== '') return undefined;
+  return u;
+}
+
+/** A product page URL: `https://www.ikea.com/fr/fr/p/...` and nothing else (no other host, port, credentials or path). */
+export function safePageUrl(raw: string | undefined): string | undefined {
+  const u = parseHttps(raw);
+  if (!u || u.hostname !== PAGE_HOST || !u.pathname.startsWith(PAGE_PATH)) return undefined;
+  u.hash = '';
+  return u.href;
+}
+
+/** A photo URL on an IKEA host (https, no port or credentials). */
+export function safeAssetUrl(raw: string | undefined): string | undefined {
+  const u = parseHttps(raw);
+  return u && ASSET_HOSTS.has(u.hostname) ? u.href : undefined;
+}
+
+/** The page URL of an article: the (validated) one the search gave, else rebuilt from the article number. */
+const pageUrlOf = (sku: string, candidate?: string) => {
+  const safe = safePageUrl(candidate);
+  return safe && new URL(safe).pathname.replace(/\/$/, '').endsWith(`-${sku}`) ? safe : `${SITE}/p/-${sku}/`;
+};
+
+// ---------------------------------------------------------------------------------------------
 // Search response
 // ---------------------------------------------------------------------------------------------
 
@@ -82,12 +123,12 @@ export function parseSearchResponse(json: unknown): IkeaHit[] {
       if (!vsku || vsku === sku || variants.length >= 20) continue;
       const vp = isObj(v['salesPrice']) ? asPrice(v['salesPrice']['numeral']) : undefined;
       const colour = colourFromAlt(str(v['imageAlt']));
-      const vurl = str(v['pipUrl']);
+      const vurl = safePageUrl(str(v['pipUrl']));
       variants.push({
         sku: vsku,
         ...(colour ? { colour } : {}),
         ...(vp !== undefined ? { price: vp } : {}),
-        ...(vurl && /^https?:\/\//.test(vurl) ? { url: vurl } : {}),
+        ...(vurl ? { url: vurl } : {}),
       });
     }
     hits.push({
@@ -97,8 +138,8 @@ export function parseSearchResponse(json: unknown): IkeaHit[] {
       measureText: str(p['itemMeasureReferenceText']) ?? '',
       price,
       currency: isObj(sp) ? (str(sp['currencyCode']) ?? 'EUR') : 'EUR',
-      url: pipUrl,
-      ...(str(p['mainImageUrl']) ? { photoUrl: str(p['mainImageUrl'])! } : {}),
+      url: pageUrlOf(sku, pipUrl),
+      ...(safeAssetUrl(str(p['mainImageUrl'])) ? { photoUrl: safeAssetUrl(str(p['mainImageUrl']))! } : {}),
       colours,
       categoryPath: cats,
       variants,
@@ -191,7 +232,7 @@ export function pickModelRef(node: Json | undefined): string | undefined {
   if (!node) return undefined;
   const urls = asArray(node['encoding'] as unknown[]).flatMap((e) => (isObj(e) && str(e['contentUrl']) ? [str(e['contentUrl'])!] : []));
   const rank = (u: string): number | undefined => {
-    if (!u.startsWith(ASSET_BASE) || !/\.glb(\?|$)/.test(u)) return undefined;
+    if (!u.startsWith(ASSET_BASE) || !/\.glb(\?|$)/.test(u) || modelUrlOf(u.slice(ASSET_BASE.length)) === undefined) return undefined;
     const lod = /\/(iqp|rqp)(\d)\//.exec(u);
     const draco = u.includes('/glb_draco/');
     if (!lod) return draco ? 50 : 60;
@@ -291,10 +332,10 @@ export function parseProductPage(html: string, o: ParsePageOptions): ProductReco
   const colours = colour ? [colour.slice(0, 40)] : (o.hit?.colours.map((c) => c.slice(0, 40)) ?? []);
   const imgs = asArray(product['image'] as unknown[]);
   const first = imgs[0];
-  const photoUrl = typeof first === 'string' ? first : isObj(first) ? str(first['contentUrl']) : o.hit?.photoUrl;
+  const photoUrl = safeAssetUrl(typeof first === 'string' ? first : isObj(first) ? str(first['contentUrl']) : undefined) ?? o.hit?.photoUrl;
   const weightKg = parsePackageWeightKg(html);
   const offerUrl = asArray(product['offers'] as unknown[]).flatMap((x) => (isObj(x) && str(x['url']) ? [str(x['url'])!] : []))[0];
-  const url = str(product['url']) ?? offerUrl ?? o.hit?.url ?? o.pageUrl;
+  const url = safePageUrl(str(product['url'])) ?? safePageUrl(offerUrl) ?? safePageUrl(o.hit?.url) ?? pageUrlOf(o.sku, o.pageUrl);
 
   const parsed = ProductRecord.safeParse({
     provider: IKEA_FR_ID,
@@ -312,7 +353,7 @@ export function parseProductPage(html: string, o: ParsePageOptions): ProductReco
     colours: colours.slice(0, 8),
     variants: o.hit?.variants ?? [],
     ...(weightKg !== undefined ? { weightKg, weightKind: 'package' } : {}),
-    ...(photoUrl && /^https:\/\//.test(photoUrl) ? { photoUrl } : {}),
+    ...(photoUrl ? { photoUrl } : {}),
     ...(modelRef ? { modelRef } : {}),
     fetchedAt: o.fetchedAt,
     personalUseOnly: true,
@@ -343,7 +384,7 @@ export function createIkeaFrProvider(options: IkeaFrOptions = {}): ProductProvid
     const p = (async () => {
       const hit = ctx.cache.get<IkeaHit>(`hit:${sku}`);
       // `/p/-<sku>/` redirects to the canonical slug page.
-      const pageUrl = hit?.url ?? `${SITE}/p/-${sku}/`;
+      const pageUrl = pageUrlOf(sku, hit?.url); // never a URL taken as-is from a response
       const res = await ctx.fetch(pageUrl, { headers: { accept: 'text/html', 'accept-language': 'fr-FR,fr;q=0.9' }, ...(ctx.signal ? { signal: ctx.signal } : {}) });
       if (res.status === 404 || res.status === 410) {
         await res.body?.cancel().catch(() => undefined);
@@ -437,6 +478,18 @@ export function createIkeaFrProvider(options: IkeaFrOptions = {}): ProductProvid
     },
 
     get: getRecord,
+
+    async fetchPhoto(rec: ProductRecord, ctx: ProviderContext): Promise<ModelStream> {
+      const url = safeAssetUrl(rec.photoUrl);
+      if (!url) throw new ProviderError('product_not_found', `IKEA ${rec.sku} has no photo on an IKEA host`);
+      const res = await ctx.fetch(url, { headers: { accept: 'image/avif,image/webp,image/*' }, ...(ctx.signal ? { signal: ctx.signal } : {}) });
+      if (!res.ok || !res.body) {
+        await res.body?.cancel().catch(() => undefined);
+        throw new ProviderError(res.status === 404 || res.status === 410 ? 'product_not_found' : 'provider_unavailable', `IKEA photo answered ${res.status}`);
+      }
+      const len = Number(res.headers.get('content-length'));
+      return { stream: res.body, contentType: 'image/*', ...(Number.isFinite(len) && len > 0 ? { size: len } : {}) };
+    },
 
     async fetchModel(sku: string, ctx: ProviderContext): Promise<ModelStream> {
       const rec = await getRecord(sku, ctx);

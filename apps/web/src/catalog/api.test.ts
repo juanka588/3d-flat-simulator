@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ApiError, draftFromDimsError, fetchProviders, getProduct, recordWithUserDims, resolveUrl, searchProducts, thumbnailUrl } from './api';
+import { ApiError, draftFromDimsError, fetchProviders, getProduct, recordWithUserDims, resolveUrl, searchProducts, fetchProductPhoto } from './api';
 
 const ref = { origin: 'http://127.0.0.1:8787', token: 'tok' };
 const reply = (status: number, body: unknown, log: { url: string; init: RequestInit }[] = []): typeof fetch =>
@@ -33,8 +33,20 @@ describe('product api', () => {
     expect(r.dimsSource).toBe('user');
     expect(() => recordWithUserDims(draft, { w: 0, d: 90, h: 85 })).toThrow();
   });
-  it('shows a photo only in server mode', () => {
-    expect(thumbnailUrl('https://x/p.jpg', null)).toBeUndefined();
-    expect(thumbnailUrl('https://x/p.jpg', ref)).toBe('https://x/p.jpg');
+  it('reads the photo through the local proxy with fetch (an Origin is sent), never from the retailer', async () => {
+    const log: { url: string; init: RequestInit }[] = [];
+    const f = (async (url: string, init: RequestInit) => (log.push({ url, init }), new Response(new Blob(['x'], { type: 'image/png' }), { status: 200 }))) as unknown as typeof fetch;
+    const blob = await fetchProductPhoto(ref, 'mock:A B', f);
+    expect(blob.type).toBe('image/png');
+    expect(log[0]!.url).toBe('http://127.0.0.1:8787/api/products/mock%3AA%20B/photo');
+    expect((log[0]!.init.headers as Record<string, string>).authorization).toBe('Bearer tok');
   });
+  it('rejects without a server, on a missing photo and on a non-image answer', async () => {
+    const f404 = (async () => new Response('no', { status: 404 })) as unknown as typeof fetch;
+    const fHtml = (async () => new Response('<html>', { status: 200, headers: { 'content-type': 'text/html' } })) as unknown as typeof fetch;
+    await expect(fetchProductPhoto(null, 'mock:A')).rejects.toMatchObject({ code: 'no_server' });
+    await expect(fetchProductPhoto(ref, 'mock:A', f404)).rejects.toMatchObject({ code: 'no_photo' });
+    await expect(fetchProductPhoto(ref, 'mock:A', fHtml)).rejects.toMatchObject({ code: 'no_photo' });
+  });
+
 });

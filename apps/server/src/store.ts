@@ -93,19 +93,27 @@ const outcomeOf = (r: ApplyOk) => ({
   ...(r.noop ? { noop: true as const } : {}),
 });
 
-/** Applies one logged entry to a state; the only place history and scene advance together. */
+/** The author a replayed undo / redo runs as: the log is already validated history, so the live "LLM may not touch locked items" guard (which undo / redo apply by author) must not reject it. */
+const REPLAY_AUTHOR: Author = { kind: 'user' };
+
+/**
+ * Applies one logged entry to a state; the only place history and scene advance together.
+ * `replay` (boot, from the log): undo / redo steps are re-applied as trusted history. Their envelope is not
+ * used (the log keeps the original one), so the author only selects whether the live guard runs.
+ */
 function advance(
   scene: Scene,
   history: History,
   env: CommandEnvelope,
   rev?: number,
+  replay = false,
 ): { ok: true; scene: Scene; history: History; result: ApplyOk } | { ok: false; errors: ErrorResponse['errors'] } {
   if (env.undoOf !== undefined) {
-    const s = undo(history, scene, { id: env.id, ts: env.ts, author: env.author });
+    const s = undo(history, scene, { id: env.id, ts: env.ts, author: replay ? REPLAY_AUTHOR : env.author });
     return s.ok ? { ok: true, scene: s.scene, history: s.history, result: s.result } : { ok: false, errors: stepErrors(s) };
   }
   if (env.redoOf !== undefined) {
-    const s = redo(history, scene, { id: env.id, ts: env.ts, author: env.author });
+    const s = redo(history, scene, { id: env.id, ts: env.ts, author: replay ? REPLAY_AUTHOR : env.author });
     return s.ok ? { ok: true, scene: s.scene, history: s.history, result: s.result } : { ok: false, errors: stepErrors(s) };
   }
   const r = applyCommand(scene, env, rev === undefined ? {} : { rev });
@@ -248,7 +256,7 @@ export class SceneStore {
         leftover.push(entry);
         continue;
       }
-      const r = advance(this.scene, this.history, entry.envelope);
+      const r = advance(this.scene, this.history, entry.envelope, undefined, true);
       if (!r.ok) {
         this.config.log('warn', `log entry ${entry.seq} no longer applies (${r.errors[0]?.message}); stopping replay`);
         stopped = true;
@@ -549,22 +557,33 @@ export class SceneStore {
         }
         const author = body.author ?? SERVER_AUTHOR;
         const base = id.length <= 56 ? id : createHash('sha256').update(id).digest('hex').slice(0, 40);
-        const afters: Promise<void>[] = [];
-        let last: Outcome | undefined;
+        // All-or-nothing: dry-run every step on a copy of the state first. A refusal part-way (e.g. an LLM undo that
+        // would touch a locked item) leaves the scene, history and log untouched; only then are the steps committed.
+        type Planned = { s: Extract<ReturnType<typeof undo>, { ok: true }>; stepId: string };
+        const plan: Planned[] = [];
+        let simScene = this.scene;
+        let simHistory = this.history;
         for (let i = 0; i < steps; i++) {
           const stepId = `${base}~${i}`;
-          const s = undo(this.history, this.scene, { id: stepId, ts: Date.now(), author });
+          const s = undo(simHistory, simScene, { id: stepId, ts: Date.now(), author });
           if (!s.ok) {
-            last = { status: 422, body: { ok: false, errors: stepErrors(s) } };
-            break;
+            const errors = stepErrors(s).map((e) => ({ ...e, message: `step ${i + 1} of ${steps}: ${e.message}; nothing was undone` }));
+            return { outcome: { status: 422, body: { ok: false, errors } } };
           }
+          plan.push({ s, stepId });
+          simScene = s.scene;
+          simHistory = s.history;
+        }
+        const afters: Promise<void>[] = [];
+        let last: Outcome | undefined;
+        for (const { s, stepId } of plan) {
           const staged = await this.commit(s.envelope, { ok: true, scene: s.scene, history: s.history, result: s.result }, stepKey('undo', stepId), STEP_HASH);
           last = staged.outcome;
           if (staged.outcome.status !== 200) break;
           if (staged.after) afters.push(staged.after);
         }
         if (!last || last.status !== 200) {
-          // Earlier steps (if any) are already committed and logged; report the failure, `redo` can restore them.
+          // Only a storage failure gets here: earlier steps are already committed and logged; `redo` can restore them.
           return { outcome: last ?? fail(500, 'internal_error', 'undo-to made no progress'), ...(afters.length ? { after: Promise.all(afters).then(() => undefined) } : {}) };
         }
         const response: UndoToResponse = { ...(last.body as PostCommandResponse), steps };

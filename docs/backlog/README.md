@@ -9,7 +9,7 @@ Milestones, user stories and acceptance criteria. The overall roadmap (M0–M9) 
 | M2 | Sun (suncalc + site context from IGN), sky, lamps, presets | ✅ done (pending user check-in) |
 | M3 | Command layer, undo/redo, finishes + CC0 materials, structural walls, scene server, live sync | ✅ done [m3.md](m3.md) |
 | M4 | MCP server v1: read scene, finishes, lighting, `render_view` | ✅ done (approved 2026-10-27) [m4.md](m4.md) |
-| M5 | Product-grounded assets (parametric, CC0, 3D-FUTURE local, retailer spike) + placement solver | 🚧 [m5.md](m5.md) |
+| M5 | Product-grounded assets (parametric, CC0, 3D-FUTURE local, retailer spike) + placement solver | 🚧 stories done, pending QA fixes + user check-in [m5.md](m5.md) |
 | M6 | Blueprint image → Scene JSON (vision LLM + trace tool) | ⏳ |
 | M7 | Inspiration image → design descriptors → MCP instruction plan | ⏳ |
 | M8 | Autonomous furnishing under constraints, variants | ⏳ |

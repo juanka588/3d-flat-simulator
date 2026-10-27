@@ -1,6 +1,7 @@
 import { GENERATORS } from '@flat/scene';
 import type { AnyGenerator } from '@flat/scene';
 import { useEffect, useMemo, useState } from 'react';
+import { addToRoom } from '../catalog/add-to-room';
 import { formatDims } from '../catalog/format';
 import { loadLibraryModels, matchesFilter } from '../catalog/library';
 import type { LibraryModel } from '../catalog/library';
@@ -72,6 +73,9 @@ function GeneratorCard({ generator, onDragStart }: { generator: AnyGenerator; on
         <span className="dims">{result.ok ? formatDims(result.dims) : 'invalid parameters'}</span>
         <span className="badges">
           <span className="badge">parametric</span>
+          <button type="button" className="add-to-room" data-testid="add-to-room" disabled={!result.ok} aria-label={`Add ${generator.label} to the room`} title="Place it in the selected room (or the first room) at a spot the solver finds" onClick={() => result.ok && void addToRoom(generatorSource(generator, result.params, result.dims))}>
+            Add to room
+          </button>
           {fields.length > 0 && (
             <button type="button" className="link" aria-expanded={open} onClick={() => setOpen(!open)}>
               {open ? 'Hide sizes' : 'Sizes…'}
@@ -117,6 +121,9 @@ function ModelCard({ model, onDragStart }: { model: LibraryModel; onDragStart?: 
         <span className="dims">{formatDims(asset.nativeDims)}</span>
         <span className="badges">
           <span className="badge">{asset.licence}</span>
+          <button type="button" className="add-to-room" data-testid="add-to-room" aria-label={`Add ${asset.name} to the room`} title="Place it in the selected room (or the first room) at a spot the solver finds" onClick={() => void addToRoom(libraryModelSource(asset))}>
+            Add to room
+          </button>
         </span>
       </div>
     </li>

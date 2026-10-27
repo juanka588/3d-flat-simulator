@@ -36,10 +36,10 @@ export function formatDate(iso: string): string {
   return new Date(t).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
 }
 
-/** True when a snapshot is more than `STALE_PRICE_DAYS` old at `now`. */
+/** True when a snapshot (or an unreadable date) is more than `STALE_PRICE_DAYS` old at `now`. */
 export function isStale(snapshotAt: string, now: number = Date.now()): boolean {
   const t = Date.parse(snapshotAt);
-  return Number.isFinite(t) && now - t > STALE_PRICE_DAYS * DAY_MS;
+  return !(now - t <= STALE_PRICE_DAYS * DAY_MS); // an unparseable date is stale too
 }
 
 export interface RoomTotal {
@@ -47,7 +47,7 @@ export interface RoomTotal {
   name: string;
   itemCount: number;
   totalEur: number;
-  lines: { itemId: string; name: string; price: string; locked: boolean; stale: boolean; noProduct: boolean }[];
+  lines: { itemId: string; name: string; price: string; locked: boolean; existing: boolean; stale: boolean; noProduct: boolean }[];
 }
 
 export interface BomView {
@@ -59,7 +59,7 @@ export interface BomView {
   stale: number;
 }
 
-/** The room item list with its price totals (TTC; locked items count 0), from the pure bill of materials. */
+/** The room item list with its price totals (TTC; existing furniture counts 0, a locked product keeps its price), from the pure bill of materials. */
 export function bomView(scene: Scene, bom: BillOfMaterials): BomView {
   const names = new Map(scene.rooms.map((r) => [r.id, r.name]));
   const itemNames = new Map(scene.items.map((i) => [i.id, itemName(i)]));
@@ -76,8 +76,9 @@ export function bomView(scene: Scene, bom: BillOfMaterials): BomView {
       lines: lines.map((l) => ({
         itemId: l.itemId,
         name: itemNames.get(l.itemId) ?? l.name,
-        price: l.locked ? formatPrice(0, 'EUR') : l.unitPrice !== undefined ? formatPrice(l.unitPrice, l.currency) : '–',
+        price: l.existing ? formatPrice(0, 'EUR') : l.unitPrice !== undefined ? formatPrice(l.unitPrice, l.currency) : '–',
         locked: l.locked,
+        existing: l.existing,
         stale: l.stale,
         noProduct: l.productId === undefined,
       })),

@@ -1,6 +1,7 @@
 import { Command, CommandEnvelope, parseScene, serializeScene } from '@flat/scene';
 import type { HistoryEntry, Scene } from '@flat/scene';
 import { create } from 'zustand';
+import { findExportViolations, violationMessage } from './export-guard';
 import { DEFAULT_FIXTURE } from './fixtures';
 import { committedScene, useSceneStore } from './sceneStore';
 
@@ -140,6 +141,12 @@ function failureReason(error: unknown): string {
 
 // ----------------------------------------------------------------- autosaver
 
+/** Why a document may not be written (photos, models or foreign URLs in the scene: `findExportViolations`), or null. */
+export function refusedReason(doc: PersistedDoc): string | null {
+  const violations = findExportViolations(doc.scene);
+  return violations.length === 0 ? null : `Not saved. ${violationMessage(violations)}`;
+}
+
 export const RETRY_BASE_MS = 1000;
 export const RETRY_MAX_MS = 30_000;
 export const RETRY_ATTEMPTS = 8;
@@ -184,6 +191,12 @@ export class Autosaver {
     this.pending = false;
     const doc = this.getDoc();
     if (!doc) return this.inflight;
+    const refused = refusedReason(doc);
+    if (refused) {
+      // Never written, never retried: the same document would be refused again. The next edit tries again.
+      useDocumentStatus.setState({ autosave: 'unavailable', reason: refused });
+      return this.inflight;
+    }
     useDocumentStatus.setState({ autosave: 'saving' });
     this.writing++;
     this.inflight = this.inflight.then(async () => {
@@ -214,7 +227,7 @@ export class Autosaver {
     if (isPaused() || (!this.pending && this.writing === 0)) return;
     const doc = this.getDoc();
     if (this.pending) void this.flush();
-    if (doc) {
+    if (doc && !refusedReason(doc)) {
       try {
         this.adapter.writeSync?.(doc);
       } catch {

@@ -2,17 +2,20 @@ import { summarizeProduct } from '@flat/scene';
 import type { ProductRecord, ProductSummary, ProviderInfo } from '@flat/scene';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
-import { ApiError, draftFromDimsError, fetchProviders, getProduct, recordWithUserDims, resolveUrl, searchProducts, serverRef, thumbnailUrl } from '../catalog/api';
+import { ApiError, draftFromDimsError, fetchProviders, getProduct, recordWithUserDims, resolveUrl, searchProducts, serverRef } from '../catalog/api';
 import type { ServerRef } from '../catalog/api';
-import { useCatalogStore } from '../catalog/catalogStore';
+import { addToRoom } from '../catalog/add-to-room';
+import { flashNotice, useCatalogStore } from '../catalog/catalogStore';
 import { formatDims, formatPrice } from '../catalog/format';
 import { productSource } from '../catalog/place';
+import { RecordCache } from '../catalog/record-cache';
 import { providerView, personalUseBanner, productsAvailability, SERVER_HINT, SEARCH_MIN_CHARS, SEARCH_DEBOUNCE_MS } from '../catalog/panel-state';
 import { useCardDrag } from '../catalog/use-card-drag';
+import { useProductPhoto } from '../catalog/use-product-photo';
 import { useSyncStore } from '../sync/sync-store';
 
 /** Records already read from the server (a card warms its record on press / hover so a drop does not wait). */
-const records = new Map<string, ProductRecord>();
+const records = new RecordCache();
 
 async function recordOf(ref: ServerRef, productId: string): Promise<ProductRecord> {
   const hit = records.get(productId);
@@ -185,15 +188,18 @@ function PasteUrl({ onResolved }: { onResolved: (r: ProductRecord) => void }) {
     }
   };
 
+  // Two separate forms: Enter in a size field submits the sizes, never the URL form (which would wipe the draft).
   return (
-    <form className="paste-url" onSubmit={(e) => void submit(e)}>
-      <label>
-        <span className="visually-hidden">Paste a product URL</span>
-        <input type="url" placeholder="…or paste a product URL" value={url} onChange={(e) => setUrl(e.target.value)} data-testid="paste-url" />
-      </label>
-      <button type="submit" disabled={busy || !url.trim()}>
-        {busy ? '…' : 'Add'}
-      </button>
+    <div className="paste-url-block">
+      <form className="paste-url" onSubmit={(e) => void submit(e)}>
+        <label>
+          <span className="visually-hidden">Paste a product URL</span>
+          <input type="url" placeholder="…or paste a product URL" value={url} onChange={(e) => setUrl(e.target.value)} data-testid="paste-url" />
+        </label>
+        <button type="submit" disabled={busy || !url.trim()}>
+          {busy ? '…' : 'Add'}
+        </button>
+      </form>
       {error && (
         <p className="catalog-error" role="alert" data-testid="paste-error">
           {error.message}
@@ -201,27 +207,27 @@ function PasteUrl({ onResolved }: { onResolved: (r: ProductRecord) => void }) {
         </p>
       )}
       {draft && (
-        <fieldset className="dims-form" data-testid="dims-form">
-          <legend>Size of the product (cm)</legend>
-          {(['w', 'd', 'h'] as const).map((k) => (
-            <label key={k}>
-              {k === 'w' ? 'Width' : k === 'd' ? 'Depth' : 'Height'}
-              <input type="number" min="1" max="1000" step="0.5" inputMode="decimal" value={cm[k]} onChange={(e) => setCm({ ...cm, [k]: e.target.value })} data-testid={`dims-${k}`} />
-            </label>
-          ))}
-          <button type="button" onClick={complete} data-testid="dims-submit">
-            Use these sizes
-          </button>
-        </fieldset>
+        <form className="dims-form-wrap" onSubmit={complete}>
+          <fieldset className="dims-form" data-testid="dims-form">
+            <legend>Size of the product (cm)</legend>
+            {(['w', 'd', 'h'] as const).map((k) => (
+              <label key={k}>
+                {k === 'w' ? 'Width' : k === 'd' ? 'Depth' : 'Height'}
+                <input type="number" min="1" max="1000" step="0.5" inputMode="decimal" value={cm[k]} onChange={(e) => setCm({ ...cm, [k]: e.target.value })} data-testid={`dims-${k}`} />
+              </label>
+            ))}
+            <button type="submit" data-testid="dims-submit">
+              Use these sizes
+            </button>
+          </fieldset>
+        </form>
       )}
-    </form>
+    </div>
   );
 }
 
 export function ProductCard({ product, pasted = false, onDragStart }: { product: ProductSummary; pasted?: boolean; onDragStart?: (() => void) | undefined }) {
-  const ref = serverRef();
   const [record, setRecord] = useState<ProductRecord | undefined>(() => records.get(product.productId));
-  const [photoFailed, setPhotoFailed] = useState(false);
   const warm = useCallback(() => {
     const r = serverRef();
     if (!r || record) return;
@@ -237,7 +243,7 @@ export function ProductCard({ product, pasted = false, onDragStart }: { product:
     onStart: onDragStart,
     disabled: !product.priceTtc,
   });
-  const thumb = thumbnailUrl(product.photoUrl, ref);
+  const thumb = useProductPhoto(product.productId, !!product.photoUrl);
   const openPage = async () => {
     const r = serverRef();
     if (!r) return;
@@ -247,10 +253,15 @@ export function ProductCard({ product, pasted = false, onDragStart }: { product:
       // the card keeps working
     }
   };
+  const addToRoomNow = () => {
+    const r = serverRef();
+    if (!r) return flashNotice('The scene server is not connected.');
+    void addToRoom(productSource(product), () => recordOf(r, product.productId));
+  };
   return (
     <li className="product-card" data-testid="product-card" data-product-id={product.productId} data-draggable={product.priceTtc} onPointerDown={drag.onPointerDown} onPointerEnter={warm} onFocus={warm} onDragStart={(e) => e.preventDefault()}>
       <div className="thumb" aria-hidden="true">
-        {thumb && !photoFailed ? <img src={thumb} alt="" loading="lazy" referrerPolicy="no-referrer" draggable={false} onError={() => setPhotoFailed(true)} /> : <span>{product.category.slice(0, 1).toUpperCase()}</span>}
+        {thumb ? <img src={thumb} alt="" loading="lazy" referrerPolicy="no-referrer" draggable={false} /> : <span>{product.category.slice(0, 1).toUpperCase()}</span>}
       </div>
       <div className="meta">
         <strong className="name">{product.name}</strong>
@@ -269,6 +280,9 @@ export function ProductCard({ product, pasted = false, onDragStart }: { product:
             </span>
           )}
           {pasted && <span className="badge">pasted</span>}
+          <button type="button" className="add-to-room" data-testid="add-to-room" disabled={!product.priceTtc} aria-label={`Add ${product.name} to the room`} title="Place it in the selected room (or the first room) at a spot the solver finds" onClick={addToRoomNow}>
+            Add to room
+          </button>
           {record ? (
             <a href={record.url} target="_blank" rel="noopener noreferrer">
               Product page ↗

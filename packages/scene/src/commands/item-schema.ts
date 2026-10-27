@@ -115,6 +115,7 @@ export const ItemSetVariant = z.strictObject({
   /** A different variant is usually another article with its own price and dims: the resolved facts come with it. */
   product: ProductSnapshotD.describe('Snapshot of the chosen variant (resolved by the server from its record; never invented). Optional.').optional(),
   dims: Dims.nullable().describe('Dimensions of the chosen variant when they differ; null clears them back to the product dimensions. Optional.').optional(),
+  mesh: MeshSourceD.nullable().describe('Shape source to store with the variant; null clears it. Omitted: a parametric shape follows the new dimensions. Optional.').optional(),
 });
 
 export const ItemRemove = z.strictObject({ type: t('item.remove'), id: ItemId });

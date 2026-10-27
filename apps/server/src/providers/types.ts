@@ -70,6 +70,8 @@ export interface ProductProvider {
   resolveUrl?(url: string, ctx: ProviderContext): Promise<ProductRecord>;
   /** Only when `capabilities.model3d`: the product's GLB. Throws `model_unavailable`. */
   fetchModel?(sku: string, ctx: ProviderContext): Promise<ModelStream>;
+  /** The product photo (`record.photoUrl`), fetched through `ctx.fetch` only after the provider checked the host. The caller caps size and sniffs the MIME type. */
+  fetchPhoto?(record: ProductRecord, ctx: ProviderContext): Promise<ModelStream>;
 }
 
 /** Failure of a provider call: a stable `code`, a message for the log and a hint for the model. */
@@ -122,6 +124,8 @@ export interface ProviderRegistry {
   resolveUrl(url: string): Promise<ProductRecord>;
   /** GLB bytes for a product (cached 1 h, 20 MB cap). Throws `model_unavailable`. */
   fetchModel(productId: string): Promise<ModelStream>;
+  /** The product photo bytes (memory-cached 1 h, 2 MB cap, raster images only): the web never hotlinks retailer photos. */
+  fetchPhoto(productId: string): Promise<{ data: Uint8Array; contentType: string }>;
   /** Records the ids a search returned to an MCP session (the "seen" registry of D9). */
   markSeen(session: string, productIds: readonly string[]): number;
   isSeen(session: string, productId: string): boolean;

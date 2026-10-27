@@ -9,6 +9,8 @@ export interface ServerConfig {
   /** Scene used on first boot (no snapshot yet). */
   sceneFile: string;
   materialsFile: string;
+  /** The local 3D-FUTURE pack served at `/api/assets/meshes/*` (gitignored; `pnpm models:local`). */
+  localAssetsDir: string;
   allowedOrigins: string[];
   /** Extra `Host` names accepted besides loopback (needed for `HOST=0.0.0.0` LAN mode). */
   allowedHosts: string[];
@@ -42,6 +44,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     dataDir: env.DATA_DIR || here('../data'),
     sceneFile: env.SCENE_FILE || here('../../../packages/scene/fixtures/charme-3205.flat.json'),
     materialsFile: env.MATERIALS_FILE || here('../../web/public/materials/catalog.json'),
+    localAssetsDir: env.LOCAL_ASSETS_DIR || here('../local-assets/3d-future'),
     allowedOrigins: (env.ALLOWED_ORIGINS ?? DEFAULT_ORIGINS.join(','))
       .split(',')
       .map((s) => s.trim())

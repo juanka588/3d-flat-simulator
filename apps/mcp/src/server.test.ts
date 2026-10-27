@@ -2,7 +2,7 @@ import { commandToolSchemas } from '@flat/scene';
 import { describe, expect, it } from 'vitest';
 import { connect, json } from './testing/inproc';
 import { withMcpExtras } from './tools';
-import { DESCRIPTION_NOTES } from './tools/commandTools';
+import { DESCRIPTION_NOTES, LLM_HIDDEN_TOOLS } from './tools/commandTools';
 
 describe('SDK spike: schemas are advertised unchanged (a)', () => {
   it('every commandToolSchemas() inputSchema reaches the client byte-for-byte', async () => {
@@ -10,6 +10,10 @@ describe('SDK spike: schemas are advertised unchanged (a)', () => {
     const { tools } = await client.listTools();
     for (const t of commandToolSchemas()) {
       const listed = tools.find((x) => x.name === t.name);
+      if (LLM_HIDDEN_TOOLS.has(t.name)) {
+        expect(listed, t.name).toBeUndefined(); // item_place / item_set_variant: product facts only via place_item
+        continue;
+      }
       expect(listed, t.name).toBeDefined();
       if (t.name === 'batch') continue; // the MCP layer states ITS command limit (config) on batch: see below
       expect(listed!.inputSchema).toEqual(withMcpExtras(t.inputSchema));
@@ -18,13 +22,17 @@ describe('SDK spike: schemas are advertised unchanged (a)', () => {
     // batch: identical except for the command limit, which is the server's (50), not the reducer's (500)
     const rawBatch = commandToolSchemas().find((t) => t.name === 'batch')!;
     const listedBatch = tools.find((t) => t.name === 'batch')!;
+    // ... and without the two hidden commands, and without the field descriptions the tools already carry
     const normalize = (schema: unknown) => {
-      const c = structuredClone(schema) as { properties: { commands: { maxItems?: number; description?: string } } };
+      const c = structuredClone(schema) as { properties: { commands: { maxItems?: number; description?: string; items: { anyOf: { $ref: string }[] } } }; $defs: Record<string, unknown> };
       delete c.properties.commands.maxItems;
       delete c.properties.commands.description;
+      c.properties.commands.items.anyOf = c.properties.commands.items.anyOf.filter((r) => ![...LLM_HIDDEN_TOOLS].some((n) => r.$ref.endsWith(`/${n}`)));
+      c.$defs = Object.fromEntries(Object.entries(c.$defs).filter(([n]) => !LLM_HIDDEN_TOOLS.has(n)).map(([n, d]) => [n, JSON.parse(JSON.stringify(d, (k, v) => (k === 'description' && typeof v === 'string' ? undefined : v)))]));
       return c;
     };
     expect(normalize(listedBatch.inputSchema)).toEqual(normalize(withMcpExtras(rawBatch.inputSchema)));
+    expect(JSON.stringify(listedBatch.inputSchema)).not.toMatch(/item_place|item_set_variant|item\.place|item\.setVariant/);
     expect((listedBatch.inputSchema as unknown as { properties: { commands: { maxItems: number } } }).properties.commands.maxItems).toBe(50);
     const batch = tools.find((t) => t.name === 'batch')!.inputSchema as unknown as { $defs: Record<string, unknown> };
     expect(Object.keys(batch.$defs)).toContain('wall_set_finish');
@@ -138,6 +146,15 @@ describe('stubs and modes', () => {
   it('FLAT_MCP_TOOLS restricts the list', async () => {
     const { client } = await connect({ toolAllowList: ['batch', 'list_rooms'] });
     expect((await client.listTools()).tools.map((t) => t.name).sort()).toEqual(['batch', 'list_rooms']);
+  });
+});
+
+describe('tools/list token budget', () => {
+  it('stays under about 21k tokens (chars / 4); item_place and item_set_variant are not listed', async () => {
+    const { client } = await connect();
+    const { tools } = await client.listTools();
+    const chars = JSON.stringify(tools).length;
+    expect(Math.round(chars / 4), `tools/list is ${chars} chars`).toBeLessThan(21_000);
   });
 });
 

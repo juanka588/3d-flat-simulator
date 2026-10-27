@@ -140,16 +140,16 @@ export class HttpFlatApi implements FlatApi {
   }
 
   /** One attempt (retry only for idempotent writes: `retry`). */
-  private async call<T>(method: 'GET' | 'POST', path: string, body?: unknown, retry = false): Promise<FlatResult<T>> {
-    let r = await this.attempt<T>(method, path, body);
+  private async call<T>(method: 'GET' | 'POST', path: string, body?: unknown, retry = false, timeoutMs = this.config.requestTimeoutMs): Promise<FlatResult<T>> {
+    let r = await this.attempt<T>(method, path, body, timeoutMs);
     if (retry && !r.ok && r.kind === 'unreachable') {
       if (this.retryDelayMs > 0) await new Promise((resolve) => setTimeout(resolve, this.retryDelayMs));
-      r = await this.attempt<T>(method, path, body);
+      r = await this.attempt<T>(method, path, body, timeoutMs);
     }
     return r;
   }
 
-  private async attempt<T>(method: 'GET' | 'POST', path: string, body?: unknown): Promise<FlatResult<T>> {
+  private async attempt<T>(method: 'GET' | 'POST', path: string, body: unknown, timeoutMs: number): Promise<FlatResult<T>> {
     const headers: Record<string, string> = { accept: 'application/json' };
     if (body !== undefined) headers['content-type'] = 'application/json';
     if (this.config.token) headers.authorization = `Bearer ${this.config.token}`;
@@ -159,7 +159,7 @@ export class HttpFlatApi implements FlatApi {
         method,
         headers,
         ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-        signal: AbortSignal.timeout(this.config.requestTimeoutMs),
+        signal: AbortSignal.timeout(timeoutMs),
       });
     } catch (e) {
       const cause = (e as { cause?: { code?: string; message?: string } }).cause;
@@ -168,7 +168,7 @@ export class HttpFlatApi implements FlatApi {
       return {
         ok: false,
         kind: 'unreachable',
-        message: `${this.config.serverUrl}${path}: ${timedOut ? `timed out after ${this.config.requestTimeoutMs} ms` : (cause?.code ?? cause?.message ?? (e instanceof Error ? e.message : String(e)))}`,
+        message: `${this.config.serverUrl}${path}: ${timedOut ? `timed out after ${timeoutMs} ms` : (cause?.code ?? cause?.message ?? (e instanceof Error ? e.message : String(e)))}`,
         ...(timedOut ? { timedOut: true } : {}),
         mayHaveApplied: method === 'POST' && !neverSent,
       };
@@ -183,6 +183,11 @@ export class HttpFlatApi implements FlatApi {
     const j = (json ?? {}) as { errors?: ApiErrorItem[]; rev?: number; epoch?: string };
     const errors = Array.isArray(j.errors) && j.errors.length ? j.errors : [{ code: 'internal_error', path: '', message: `scene server answered ${res.status}` }];
     return { ok: false, kind: 'http', status: res.status, errors, ...(j.rev !== undefined ? { rev: j.rev } : {}), ...(j.epoch !== undefined ? { epoch: j.epoch } : {}) };
+  }
+
+  /** Provider calls go to a retailer politely (1.5 s gap per request; a search also reads product pages): a live IKEA search takes about 10 s. */
+  private providerTimeoutMs(): number {
+    return Math.max(this.config.requestTimeoutMs, 45_000);
   }
 
   getScene() {
@@ -221,13 +226,13 @@ export class HttpFlatApi implements FlatApi {
   searchProducts(params: ProductSearchParamsInput) {
     const qs = new URLSearchParams();
     for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== '') qs.set(k, String(v));
-    return this.call<ProductSearchResponse>('GET', `/api/products/search?${qs}`);
+    return this.call<ProductSearchResponse>('GET', `/api/products/search?${qs}`, undefined, false, this.providerTimeoutMs());
   }
   getProduct(productId: string) {
-    return this.call<GetProductResponse>('GET', `/api/products/${encodeURIComponent(productId)}`);
+    return this.call<GetProductResponse>('GET', `/api/products/${encodeURIComponent(productId)}`, undefined, false, this.providerTimeoutMs());
   }
   resolveProductUrl(url: string) {
-    return this.call<GetProductResponse>('POST', '/api/products/resolve', { url });
+    return this.call<GetProductResponse>('POST', '/api/products/resolve', { url }, false, this.providerTimeoutMs());
   }
   markProductsSeen(session: string, productIds: readonly string[]) {
     return this.call<MarkSeenResponse>('POST', '/api/products/seen', { session, productIds }, true);

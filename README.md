@@ -34,7 +34,40 @@ npx pnpm@10 dev:all                                                             
 claude mcp add flat -- pnpm --silent --dir "$PWD" mcp                                  # always pnpm --silent
 ```
 
-`pnpm mcp:demo` runs an automated LLM twin of the demo (needs `ANTHROPIC_API_KEY`; `-- --dry` tests the harness without a key).
+`pnpm mcp:demo` runs an automated LLM twin of the demo (needs `ANTHROPIC_API_KEY`; `-- --dry` tests the harness without a key). `pnpm mcp:demo:furnish` has Claude furnish Chambre 1 with real products under a budget through your local `claude` CLI and checks the result.
+
+## Products and personal-use providers
+
+The furniture of a flat comes from **real products** (name, price, link, exact size), never from invented ones. Product data lives in `apps/server`, so it only exists when you run the local scene server (`npx pnpm@10 dev:all`); the GitHub Pages build has no server, makes no retailer or provider request, and still opens flats that hold product items (stand-in shapes at the exact size, an "offline" badge).
+
+**Enable providers** with `FLAT_PROVIDERS`, a comma list (default: none, and then no provider code is even loaded):
+
+```sh
+FLAT_PROVIDERS=ikea-fr,pasted-url npx pnpm@10 server     # IKEA France search + product pages + 3D models, and "paste a product URL"
+FLAT_PROVIDERS=mock npx pnpm@10 server                   # fictional offline catalogue for tests and demos
+```
+
+`apps/server/.env.local` (gitignored, loaded by the server; the process environment wins) may hold the same setting and any provider credential. Credentials are read from the environment only and redacted from logs. Check what is on with `list_providers` (MCP) or `GET /api/providers`; `npx pnpm@10 providers:probe ikea-fr "lit 160"` makes a few polite live requests and prints what the parser found.
+
+**Personal-use rules.** The IKEA FR and pasted-URL providers use unofficial endpoints and public pages. Their data and 3D models are for your own private design work on your own machine:
+
+- they are shown in the UI under a "personal use" banner, and in `render_view` captions ("IKEA models, personal use");
+- they are streamed through your local server on demand and kept in memory only (search results 10 min, products 1 h, models 1 h; 200 MB in total, 20 MB per model), never written to disk, never committed, never served from Pages;
+- the traffic is polite: an honest User-Agent, GET only, one request at a time per host with a 1.5 s gap, `robots.txt` honoured, and a circuit breaker that pauses the provider after a 403/429 (so a blocked provider is not hammered);
+- they may break without notice when the retailer changes its pages. A site with bot protection (Leroy Merlin, Maisons du Monde, La Redoute, Darty) cannot be read by "paste a product URL"; you then type the size by hand;
+- you decide per provider (see `docs/research/m5-retailer-spike.md` for the spike and `docs/MODELS-CREDITS.md` for the CC0 model library that ships with the app).
+
+**What is stored.** A saved or exported flat keeps, per product item, only the **reference and a snapshot**: provider, SKU, link, name, price (TTC), currency, dimensions, category and the snapshot date. No photos, no 3D models and no provider response are written into the file; models are re-streamed when you open the flat with the server running, and fall back to a CC0 lookalike or a parametric shape at the exact size otherwise. A price older than 7 days is flagged "stale" and can be refreshed from the server ("Update price/dims"). The bill of materials (`get_bill_of_materials`, the room item list) counts TTC prices of the items you placed; the existing built-in wardrobes (placards) are locked and count 0; delivery and assembly are not included.
+
+**Guards that keep retailer data local** (D4 of `docs/backlog/m5.md`):
+
+- provider modules are imported lazily, only for ids listed in `FLAT_PROVIDERS`, and only from `apps/server`;
+- `node scripts/ci/check-no-retailer.mjs` (run in CI after a Pages build, and `--worktree` locally) fails when the Pages `dist` or any tracked file mentions a retailer host from `scripts/ci/retailer-hosts.json`, contains a stray `.glb`/`.gltf`/`.usdz` outside the CC0 library, a `.env*` file or 3D-FUTURE content;
+- provider routes (reads too) answer 403 to a foreign `Origin`, the server only accepts loopback `Host` names, and "paste a URL" has an SSRF guard (public addresses only);
+- the model can only place products that a search returned in its own session (`unknown_product` otherwise), and price and size always come from the server's record, never from the model's arguments;
+- the e2e suite checks that Pages mode makes zero retailer, provider or `/api` requests (`e2e/static-products.e2e.ts` on the Pages build).
+
+Provider authors: see [`apps/server/src/providers/README.md`](apps/server/src/providers/README.md). Furnishing with an assistant: `npx pnpm@10 mcp:demo:furnish` (see [`apps/mcp/README.md`](apps/mcp/README.md)).
 
 ## Walk camera
 

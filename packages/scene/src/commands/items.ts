@@ -1,3 +1,4 @@
+import { checkParametricMesh, defaultParametricFor, meshAssetId } from '../assets/catalog';
 import { CHEAP_RULES, checkSubject, layoutContext, ROOM_TOLERANCE, type Subject } from '../placement/constraints';
 import { itemDims, itemMountOf } from '../placement/footprint';
 import { LIMITS, Item, type Scene, type Vec2 } from '../schema';
@@ -79,6 +80,36 @@ function placementErrors(scene: Scene, item: Item, path: string): CommandError[]
 const allIds = (scene: Scene): Set<string> =>
   new Set([...scene.materials, ...scene.walls, ...scene.openings, ...scene.rooms, ...scene.items, ...scene.lights].map((e) => e.id));
 
+const DIMS_TOLERANCE = 0.001;
+const sameDims = (a: { w: number; d: number; h: number }, b: { w: number; d: number; h: number }) =>
+  Math.abs(a.w - b.w) <= DIMS_TOLERANCE && Math.abs(a.d - b.d) <= DIMS_TOLERANCE && Math.abs(a.h - b.h) <= DIMS_TOLERANCE;
+
+/**
+ * Defence in depth for non-user authors (the MCP layer builds the product from the server's record; the
+ * reducer cannot see that record but can refuse an item that contradicts itself): a product snapshot, a
+ * productRef equal to it, dims equal to its dims, a parametric shape of that size.
+ */
+function consistencyErrors(item: Item, path: string): CommandError[] {
+  const p = item.product;
+  if (p === undefined) {
+    return [err('precondition_failed', `${path}/product`, 'a product snapshot is required (a productRef alone is not enough)', 'use place_item: it reads the product record from the server')];
+  }
+  const errors: CommandError[] = [];
+  if (item.productRef !== undefined && (item.productRef.provider !== p.provider || item.productRef.sku !== p.sku)) {
+    errors.push(err('precondition_failed', `${path}/productRef`, `productRef ${item.productRef.provider}:${item.productRef.sku} does not match the product ${p.provider}:${p.sku}`, 'use place_item: it reads the product record from the server'));
+  }
+  if (item.dims !== undefined && !sameDims(item.dims, p.dims)) {
+    errors.push(err('precondition_failed', `${path}/dims`, `dims ${item.dims.w} x ${item.dims.d} x ${item.dims.h} differ from the product dims ${p.dims.w} x ${p.dims.d} x ${p.dims.h}`, 'dimensions come from the product record; use place_item'));
+  }
+  if (item.mesh?.kind === 'parametric') {
+    const check = checkParametricMesh(item.mesh, item.dims ?? p.dims);
+    if (check.status === 'dims_mismatch' || check.status === 'invalid_params') {
+      errors.push(err('precondition_failed', `${path}/mesh`, `the parametric shape does not fit the product dimensions`, 'omit mesh or use the dims of the product'));
+    }
+  }
+  return errors;
+}
+
 function place(scene: Scene, cmd: Extract<ItemLeaf, { type: 'item.place' }>, ctx: Ctx): ItemOutcome {
   const draft = cmd.item;
   if (!ctx.trusted) {
@@ -118,6 +149,10 @@ function place(scene: Scene, cmd: Extract<ItemLeaf, { type: 'item.place' }>, ctx
   }
   if (item.roomId !== undefined && scene.items.filter((i) => i.roomId === item.roomId).length >= ITEMS_PER_ROOM_SOFT_CAP) {
     return fail(err('limit_exceeded', 'item', `room "${item.roomId}" already holds ${ITEMS_PER_ROOM_SOFT_CAP} items (the per-room limit)`, 'remove something first'));
+  }
+  if (!ctx.trusted && ctx.author.kind !== 'user') {
+    const inconsistent = consistencyErrors(item, 'item');
+    if (inconsistent.length) return fail(...inconsistent);
   }
   if (!ctx.trusted) {
     const problems = placementErrors(scene, item, 'item');
@@ -216,15 +251,45 @@ function setVariant(scene: Scene, cmd: Extract<ItemLeaf, { type: 'item.setVarian
     // a variant is usually another article: keep productRef (when there is one) pointing at the product
     if (item.productRef !== undefined) next.productRef = { provider: cmd.product.provider, sku: cmd.product.sku };
     inverse.product = item.product!;
+    // explicit dims stay in step with the new product (else they would be stale)
+    if (cmd.dims === undefined && item.dims !== undefined) {
+      next.dims = cmd.product.dims;
+      inverse.dims = item.dims;
+    }
   }
   if (cmd.dims !== undefined) {
     if (cmd.dims === null) delete next.dims;
     else next.dims = cmd.dims;
     inverse.dims = item.dims ?? null;
   }
+  // The shape follows the dims: an explicit mesh wins; a parametric one is re-derived for the new size
+  // (a lookalike is scaled by the viewer, a provider model is the product's own).
+  const newDims = (next.dims as Item['dims']) ?? cmd.product?.dims ?? item.product?.dims;
+  if (cmd.mesh !== undefined) {
+    if (cmd.mesh === null) delete next.mesh;
+    else {
+      next.mesh = cmd.mesh;
+      next.assetId = meshAssetId(cmd.mesh as never, (next.productRef as Item['productRef']) ?? undefined);
+    }
+    inverse.mesh = item.mesh ?? null;
+  } else if (item.mesh?.kind === 'parametric' && newDims !== undefined && !sameDims(newDims, item.dims ?? item.product?.dims ?? newDims)) {
+    const category = cmd.product?.category ?? item.product?.category;
+    const def = category !== undefined ? defaultParametricFor(category, newDims) : undefined;
+    if (def && checkParametricMesh(def, newDims).status === 'ok') {
+      next.mesh = { kind: 'parametric', generator: def.generator, params: def.params };
+      next.assetId = meshAssetId(next.mesh as never);
+    } else {
+      delete next.mesh;
+    }
+    inverse.mesh = item.mesh;
+  }
   const parsed = parseItem(next, 'item');
   if ('errors' in parsed) return fail(...parsed.errors);
   if (deepEqual(parsed.item, item)) return noop(scene);
+  if (!ctx.trusted && ctx.author.kind !== 'user' && (cmd.product !== undefined || (cmd.dims !== undefined && cmd.dims !== null))) {
+    const inconsistent = consistencyErrors(parsed.item, 'item');
+    if (inconsistent.length) return fail(...inconsistent);
+  }
   if (!ctx.trusted && !deepEqual(itemDims(parsed.item), itemDims(item))) {
     const problems = placementErrors(scene, parsed.item, 'dims');
     if (problems.length) return fail(...problems);

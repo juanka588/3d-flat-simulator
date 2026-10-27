@@ -24,6 +24,12 @@ import { newSession, systemClock, type Clock, type McpSession, type Renderer } f
  * `Mcp-Session-Id`s, or run one `--http` process each. A session lives as long as the process (at
  * most `MAX_SESSIONS` are kept, least recently used first), so the write cap does not reset on
  * reconnect: restart `--http` or raise FLAT_MCP_SESSION_WRITES.
+ *
+ * The seen-products registry (D9: place_item only accepts a productId that search_products / get_product
+ * returned) is keyed by that session's id, so it has the same granularity: a per-connection id is not
+ * possible in this stateless transport, and clients that share a User-Agent and send no `Mcp-Session-Id`
+ * share what they have seen (they also share the user's flat, so nothing is placed that the user did not
+ * see offered). Send a distinct `Mcp-Session-Id` per conversation to isolate it.
  */
 
 export const DEFAULT_HTTP_PORT = 8788;

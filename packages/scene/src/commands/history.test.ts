@@ -213,4 +213,40 @@ describe('history', () => {
       expect(s.h.past).toHaveLength(1);
     });
   });
+
+  describe('locked items and non-user undo / redo', () => {
+    const llm = { kind: 'llm' as const, name: 'claude' };
+    const cabinet = { assetId: 'param:wardrobe', id: 'cab', position: [7.71, 1] as [number, number], roomId: 'ch1', dims: { w: 0.6, d: 0.6, h: 1 }, locked: true };
+    const place = (item: Record<string, unknown>): Command => ({ type: 'item.place', item: item as never });
+    const bare = { ...base, items: [] };
+
+    it('an LLM cannot undo the user placing a locked item (nor redo its removal); the user can', () => {
+      const s = run(createHistory(), bare, place(cabinet));
+      const refused = undo(s.h, s.scene, { id: 'x1', ts: 1, author: llm });
+      expect(!refused.ok && refused.reason).toBe('apply_failed');
+      if (!refused.ok && refused.reason === 'apply_failed') {
+        expect(refused.errors[0]).toMatchObject({ code: 'precondition_failed', hint: 'locked item: ask the user' });
+        expect(refused.history).toBe(s.h);
+      }
+      const byUser = undo(s.h, s.scene, { id: 'x2', ts: 2, author });
+      expect(byUser.ok && byUser.scene.items).toHaveLength(0);
+      if (!byUser.ok) return;
+      // redo of the creation re-creates a locked item: refused for an LLM
+      expect(redo(byUser.history, byUser.scene, { id: 'x3', ts: 3, author: llm }).ok).toBe(false);
+      expect(redo(byUser.history, byUser.scene, { id: 'x4', ts: 4, author }).ok).toBe(true);
+    });
+
+    it('an LLM cannot undo a user move of a locked item; unlocked items stay undoable', () => {
+      let s = run(createHistory(), bare, place(cabinet));
+      s = run(s.h, s.scene, { type: 'item.move', id: 'cab', position: [7.9, 1] });
+      expect(undo(s.h, s.scene, { id: 'm1', ts: 1, author: llm }).ok).toBe(false);
+      const free = run(createHistory(), bare, place({ ...cabinet, locked: undefined, id: 'free' }));
+      expect(undo(free.h, free.scene, { id: 'm2', ts: 2, author: llm }).ok).toBe(true);
+    });
+
+    it('also inside a batch', () => {
+      const s = run(createHistory(), bare, { type: 'batch', label: 'b', commands: [place(cabinet) as LeafCommand] });
+      expect(undo(s.h, s.scene, { id: 'b1', ts: 1, author: llm }).ok).toBe(false);
+    });
+  });
 });

@@ -422,6 +422,8 @@ function FinishPanelBody({ scene, selection }: { scene: Scene; selection: Select
 
 /** Finish controls for the current selection: a wall side, a floor or a ceiling; a hint for anything else. */
 export function FinishPanel({ scene, selection }: { scene: Scene; selection: Selection }) {
+  // Furniture has its own properties (price, link, lock): the finish hint would only be noise there.
+  if (selection.kind === 'item') return null;
   if (!takesFinish(selection)) {
     return (
       <p className="hint finish-note" data-testid="finish-note">

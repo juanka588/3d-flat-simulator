@@ -7,7 +7,7 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { findExportViolations } from '../apps/web/src/state/export-guard';
-import { sofaGlb } from '../apps/web/src/viewer/synthetic-glb';
+import { bedGlb } from '../apps/web/src/viewer/synthetic-glb';
 import { charmeFlat, flat, loadScene, openApp, rendered } from './helpers';
 import { openConnected, startServer, WEB_ORIGIN } from './server';
 
@@ -31,7 +31,7 @@ const recent = () => new Date().toISOString();
 const old = () => new Date(Date.now() - 30 * 86_400_000).toISOString();
 
 async function stubProviderModel(page: Page): Promise<void> {
-  const glb = Buffer.from(sofaGlb());
+  const glb = Buffer.from(bedGlb()); // 1.6 x 2 x 0.9 m: it fits the mock bed (a sofa-shaped stand-in would be refused as too distorted)
   await page.route('**/api/assets/products/mock/*.glb', (r) => r.fulfill({ status: 200, contentType: 'model/gltf-binary', headers: { 'access-control-allow-origin': WEB_ORIGIN }, body: glb }));
 }
 
@@ -98,7 +98,9 @@ test('a stale snapshot offers "Update price/dims", which refreshes it from the s
     await expect(props.getByTestId('stale-badge')).toHaveCount(0);
     const p = await flat(page, (f) => f.getScene().items.find((i) => i.id === 'bed-1')!.product!);
     expect(p.price).toBe(299);
-    expect(Date.now() - Date.parse(p.snapshotAt)).toBeLessThan(60_000);
+    // the snapshot carries the date the SERVER read the price (the record's fetchedAt), not the click time
+    expect(Date.parse(p.snapshotAt)).toBeGreaterThan(Date.parse(old()));
+    expect(Date.parse(p.snapshotAt)).toBeLessThanOrEqual(Date.now());
     await page.screenshot({ path: '/tmp/catalog-stale.png' });
   } finally {
     await server.stop();

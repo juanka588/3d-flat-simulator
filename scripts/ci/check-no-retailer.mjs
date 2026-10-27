@@ -1,18 +1,24 @@
 /* global console, process */
 // D4 local-only guard (M5.15): retailer data and models must never reach the Pages build or the repository.
 //  1. the Pages dist build (BASE_PATH=/3d-flat-simulator/ pnpm build) holds none of the deny-list hosts (retailer-hosts.json);
-//  2. no .glb / .gltf / .usdz in dist outside the committed model library (dist/models, listed in its catalog.json);
-//  3. `git ls-files` holds no model file outside apps/web/public/models, no .env file (except .env.example), nothing
+//  2. no .glb / .gltf / .usdz in dist outside the committed model library (dist/models, listed in its catalog.json),
+//     and no file of ANY name (.bin, .dat, no extension...) that is a glTF by content: binary `glTF` magic, or JSON with
+//     asset.version; no .env* file; `.wasm` modules are scanned for hosts too;
+//  3. `git ls-files` holds no model file outside apps/web/public/models, no .env / .envrc file (except .env.example), nothing
 //     under the 3D-FUTURE folders, and no deny-list host outside `allowPaths`.
 // Flags: --dist <dir>, --worktree (also scan untracked, non-ignored files: for local runs before committing).
 import { execFileSync } from 'node:child_process';
+import { Buffer } from 'node:buffer';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
-const TEXT_EXT = new Set(['.js', '.mjs', '.cjs', '.ts', '.tsx', '.jsx', '.json', '.html', '.htm', '.css', '.svg', '.map', '.txt', '.md', '.yml', '.yaml', '.webmanifest', '.xml', '.toml', '.env', '.example', '']);
+const TEXT_EXT = new Set(['.js', '.mjs', '.cjs', '.ts', '.mts', '.cts', '.tsx', '.jsx', '.json', '.html', '.htm', '.css', '.svg', '.map', '.txt', '.md', '.yml', '.yaml', '.webmanifest', '.xml', '.toml', '.env', '.example', '']);
 const MODEL_EXT = /\.(glb|gltf|usdz)$/i;
+/** Binary formats whose strings (data segments) are searched for hosts as latin1 text. */
+const BINARY_SCAN_EXT = new Set(['.wasm']);
+const GLTF_MAGIC = Buffer.from('glTF');
 
 export function loadConfig(path = resolve(root, 'scripts/ci/retailer-hosts.json')) {
   return JSON.parse(readFileSync(path, 'utf8'));
@@ -34,9 +40,18 @@ export function globToRegExp(glob) {
 }
 const matchesAny = (path, globs) => globs.some((g) => globToRegExp(g).test(path));
 
-/** Deny-list hosts found in `text` (case-insensitive; a host also matches as the suffix of a longer hostname). */
+/**
+ * Undoes the usual ways of writing a dot so `ikea\\.com` (a regex source or an escaped string in a bundle), `ikea\\u002ecom`,
+ * `ikea\\x2ecom`, `ikea&#46;com`, `ikea&#x2e;com`, `ikea&period;com`, `ikea%2ecom` and `ikea[.]com` all read as `ikea.com`.
+ */
+export function normaliseDots(text) {
+  return text
+    .replace(/\\+\.|\\+u002e|\\+x2e|&#0*46;|&#x0*2e;|&period;|%2e|\[\.\]/gi, '.');
+}
+
+/** Deny-list hosts found in `text` (case-insensitive; a host also matches as the suffix of a longer hostname; escaped dots count). */
 export function findHosts(text, hosts) {
-  const lower = text.toLowerCase();
+  const lower = normaliseDots(text.toLowerCase());
   const found = [];
   for (const h of hosts) {
     const re = new RegExp(`(?<![a-z0-9])${h.replace(/\./g, '\\.')}(?![a-z0-9-])`);
@@ -55,7 +70,24 @@ function walk(dir, prefix = '') {
   return out;
 }
 
-/** Problems of a built dist directory: retailer hosts, and model files outside the committed library. */
+/** True when `buf` is a glTF by content, whatever its file name: binary `glTF` magic, or JSON whose `asset.version` is set. */
+export function isGltfContent(buf) {
+  if (buf.length >= 4 && buf.subarray(0, 4).equals(GLTF_MAGIC)) return true;
+  if (buf.length > 8 * 1024 * 1024) return false;
+  let i = 0;
+  if (buf[0] === 0xef && buf[1] === 0xbb && buf[2] === 0xbf) i = 3; // BOM
+  while (i < buf.length && (buf[i] === 0x20 || buf[i] === 0x0a || buf[i] === 0x0d || buf[i] === 0x09)) i++;
+  if (buf[i] !== 0x7b) return false; // JSON glTF is an object; JS bundles that merely mention "asset" do not start with "{"
+  const text = buf.toString('utf8');
+  try {
+    const j = JSON.parse(text);
+    return typeof j === 'object' && j !== null && typeof j.asset === 'object' && j.asset !== null && 'version' in j.asset;
+  } catch {
+    return /"asset"\s*:\s*\{[^}]*"version"/.test(text); // truncated or hand-edited JSON still carrying the glTF header
+  }
+}
+
+/** Problems of a built dist directory: retailer hosts, glTF content under any name, .env files, and model files outside the committed library. */
 export function scanDist(dist, cfg) {
   const problems = [];
   let listed = new Set();
@@ -66,9 +98,16 @@ export function scanDist(dist, cfg) {
     // no library in dist: every model file below is a stray
   }
   for (const rel of walk(dist)) {
+    const ext = extname(rel).toLowerCase();
+    const base = rel.split('/').pop();
+    if (/^\.env/i.test(base) && base !== '.env.example') problems.push(`${rel}: environment file in the build`);
     if (MODEL_EXT.test(rel) && !listed.has(rel)) problems.push(`${rel}: model file in the build that is not in the models catalog`);
-    if (TEXT_EXT.has(extname(rel).toLowerCase())) {
-      for (const h of findHosts(readFileSync(join(dist, rel), 'utf8'), cfg.hosts)) problems.push(`${rel}: mentions retailer host ${h}`);
+    const buf = readFileSync(join(dist, rel));
+    if (!MODEL_EXT.test(rel) && isGltfContent(buf)) problems.push(`${rel}: glTF content under a non-model name (not in the models catalog)`);
+    if (TEXT_EXT.has(ext)) {
+      for (const h of findHosts(buf.toString('utf8'), cfg.hosts)) problems.push(`${rel}: mentions retailer host ${h}`);
+    } else if (BINARY_SCAN_EXT.has(ext)) {
+      for (const h of findHosts(buf.toString('latin1'), cfg.hosts)) problems.push(`${rel}: mentions retailer host ${h}`);
     }
   }
   return problems;
@@ -92,7 +131,8 @@ export function scanTracked(files, cfg, read) {
       if (!problems.some((p) => p.startsWith(`${f}:`))) problems.push(`${f}: model file outside apps/web/public/models`);
     }
     if (matchesAny(f, cfg.allowPaths ?? [])) continue;
-    if (!TEXT_EXT.has(extname(f).toLowerCase())) continue;
+    const ext = extname(f).toLowerCase();
+    if (!TEXT_EXT.has(ext) && !BINARY_SCAN_EXT.has(ext)) continue;
     const text = read(f);
     if (text === undefined) continue;
     for (const h of findHosts(text, cfg.hosts)) problems.push(`${f}: mentions retailer host ${h}`);
@@ -118,6 +158,7 @@ function main() {
       const p = join(root, f);
       if (statSync(p).size > 5 * 1024 * 1024) return undefined;
       const buf = readFileSync(p);
+      if (BINARY_SCAN_EXT.has(extname(f).toLowerCase())) return buf.toString('latin1');
       return buf.includes(0) ? undefined : buf.toString('utf8');
     }),
   );

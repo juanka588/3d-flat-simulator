@@ -38,6 +38,7 @@
     "scripts/ci/**",
     "scripts/models/**",
     "README.md",
+    "apps/server/README.md",
     "tools/**"
   ],
   "denyFiles": [
@@ -46,6 +47,7 @@
     "**/*.usdz",
     "**/.env",
     "**/.env.*",
+    "**/.envrc",
     "**/*3d-future*",
     "**/*3D-FUTURE*"
   ],

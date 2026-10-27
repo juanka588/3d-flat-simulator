@@ -8,7 +8,7 @@ import { RenderViewArgs } from './render';
 import type { ToolContext, ToolDef } from './registry';
 
 /**
- * The 13 write tools, generated from `commandToolSchemas()` (@flat/scene) plus the MCP extras
+ * The write tools (no `item_place` / `item_set_variant`: see `LLM_HIDDEN_TOOLS`), generated from `commandToolSchemas()` (@flat/scene) plus the MCP extras
  * (`preview`, `render`, `label`; see `extras.ts`). The tool schema is advertised as given (plus the
  * extras); `toolCallToCommand` + `parseCommand` (and then the server's reducer) are the only source
  * of validation errors. Flow of a call:
@@ -23,6 +23,33 @@ import type { ToolContext, ToolDef } from './registry';
 
 const SETTERS = new Set(['wall.setFinish', 'wall.setStructural', 'room.setWallFinish', 'room.setFloor', 'room.setCeiling', 'scene.setDefaults', 'site.set', 'light.update', 'material.define']);
 const DESTRUCTIVE = new Set(['material.remove', 'light.remove']);
+
+/**
+ * Commands an LLM may not send raw (D1/D8/D9: only real products, facts from the server's record).
+ * `item.place` and `item.setVariant` carry product facts (price, dims, name): they go through `place_item`
+ * (which reads the record from the scene server), never through a tool call or a batch.
+ */
+export const LLM_HIDDEN_TOOLS: ReadonlySet<string> = new Set(['item_place', 'item_set_variant']);
+const FACT_COMMANDS = new Set(['item.place', 'item.setVariant']);
+
+/** The first `item.place` / `item.setVariant` in a command (or in its batch), or undefined. */
+function rawProductCommand(cmd: Record<string, unknown>): { type: string; path: string } | undefined {
+  if (typeof cmd.type === 'string' && FACT_COMMANDS.has(cmd.type)) return { type: cmd.type, path: '' };
+  if (cmd.type === 'batch' && Array.isArray(cmd.commands)) {
+    for (const [i, c] of cmd.commands.entries()) {
+      if (typeof c === 'object' && c !== null && typeof (c as { type?: unknown }).type === 'string' && FACT_COMMANDS.has((c as { type: string }).type)) return { type: (c as { type: string }).type, path: `commands/${i}` };
+    }
+  }
+  return undefined;
+}
+
+function refuseRawProduct(cmd: Record<string, unknown>): CallToolResult | undefined {
+  const raw = rawProductCommand(cmd);
+  if (!raw) return undefined;
+  const hint = raw.type === 'item.place' ? 'use place_item (it fetches the product record from the server)' : 'use place_item with variantSku (it rebuilds the product facts from the server record)';
+  const path = raw.path || 'type';
+  return toolError('precondition_failed', `${raw.type} cannot be sent by an LLM${raw.path ? ` (${raw.path})` : ''}: product facts (price, dimensions, name) must come from the server's record, never from you`, hint, { errors: [{ code: 'precondition_failed', path, message: `${raw.type} is not available to an LLM`, hint }] });
+}
 
 const NO_RENDERER = 'rendering is not wired in this server; the change itself was handled. Use describe_room to verify.';
 
@@ -110,6 +137,10 @@ export async function runCommandTool(ctx: ToolContext, toolName: string, args: R
   if (cmd.type === 'batch' && Array.isArray(cmd.commands) && cmd.commands.length > ctx.limits.maxBatch) {
     return toolError('batch_too_large', `batch has ${cmd.commands.length} commands; the limit is ${ctx.limits.maxBatch}`);
   }
+  if (ctx.author.kind !== 'user') {
+    const refused = refuseRawProduct(cmd);
+    if (refused) return refused;
+  }
   // A labelled single command is recorded as a one-command batch: same effect, the label in the history.
   if (extras.label !== undefined) cmd = { type: 'batch', label: extras.label, commands: [cmd] };
   return executeCommand(ctx, cmd as unknown as Command, { ifRev: extras.ifRev, preview: extras.preview, plan });
@@ -179,15 +210,33 @@ async function previewCommand(ctx: ToolContext, envelope: Parameters<typeof appl
   );
 }
 
+/** A copy of a JSON Schema without its `description`s (structure, types, enums and bounds stay). */
+function withoutDescriptions(node: unknown): unknown {
+  if (Array.isArray(node)) return node.map(withoutDescriptions);
+  if (typeof node !== 'object' || node === null) return node;
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(node)) {
+    if (k === 'description' && typeof v === 'string') continue;
+    // a property NAMED "description" holds a schema, not text
+    out[k] = k === 'properties' && typeof v === 'object' && v !== null ? Object.fromEntries(Object.entries(v).map(([pk, pv]) => [pk, withoutDescriptions(pv)])) : withoutDescriptions(v);
+  }
+  return out;
+}
+
 /** The batch tool with THIS server's command limit (`FLAT_MCP_MAX_BATCH`) in its description and schema; the reducer's own cap (500) is not what the model should plan around. */
 function withBatchLimit(t: { name: string; description: string; inputSchema: Record<string, unknown> }, maxBatch: number) {
   if (t.name !== 'batch') return t;
   const props = t.inputSchema.properties as Record<string, Record<string, unknown>>;
-  const commands = { ...props.commands, maxItems: maxBatch, description: `Commands applied in order and atomically: all succeed or none apply. At most ${maxBatch} per batch (split larger edits); batches cannot nest.` };
+  // item.place / item.setVariant are not available to an LLM: leave their (large) schemas out of the batch.
+  const hiddenRefs = new Set([...LLM_HIDDEN_TOOLS].map((n) => `#/$defs/${n}`));
+  const items = props.commands!.items as { anyOf: { $ref: string }[] };
+  // The command definitions repeat the field descriptions of the tools they name: keep the structure only.
+  const defs = Object.fromEntries(Object.entries(t.inputSchema.$defs as Record<string, unknown>).filter(([n]) => !LLM_HIDDEN_TOOLS.has(n)).map(([n, d]) => [n, withoutDescriptions(d)]));
+  const commands = { ...props.commands, items: { ...items, anyOf: items.anyOf.filter((r) => !hiddenRefs.has(r.$ref)) }, maxItems: maxBatch, description: `Commands applied in order and atomically: all succeed or none apply. At most ${maxBatch} per batch (split larger edits); batches cannot nest.` };
   return {
     ...t,
-    description: t.description.replace('The server limits the number of commands per batch.', `At most ${maxBatch} commands per batch.`),
-    inputSchema: { ...t.inputSchema, properties: { ...props, commands } },
+    description: t.description.replace('The server limits the number of commands per batch.', `At most ${maxBatch} commands per batch. Field meanings are those of the tool with the same name (not repeated in the schema).`),
+    inputSchema: { ...t.inputSchema, properties: { ...props, commands }, $defs: defs },
   };
 }
 
@@ -196,14 +245,12 @@ function withBatchLimit(t: { name: string; description: string; inputSchema: Rec
  * Appended to the advertised description of the `item_*` tools (the tools stay for fine edits).
  */
 export const DESCRIPTION_NOTES: Record<string, string> = {
-  item_place: ' Prefer place_item: it checks the product against search_products and fills in price, dims and link itself. To see valid spots first, call get_placement_options; get_product lists variants and weight.',
   item_move: ' To find a valid spot first, call get_placement_options.',
-  item_set_variant: ' get_product lists the variants (variants[].sku) of a product.',
-  item_remove: ' To find which item to remove, read items[] with describe_room; get_bill_of_materials shows the cost.',
+  item_remove: ' Find the item id with describe_room; get_bill_of_materials shows the cost.',
 };
 
 export function commandTools(limits: { maxBatch: number } = DEFAULT_LIMITS): ToolDef[] {
-  return commandToolSchemas().map((raw) => withBatchLimit(raw, limits.maxBatch) as typeof raw).map((t) => ({
+  return commandToolSchemas().filter((t) => !LLM_HIDDEN_TOOLS.has(t.name)).map((raw) => withBatchLimit(raw, limits.maxBatch) as typeof raw).map((t) => ({
     name: t.name,
     description: t.description + (DESCRIPTION_NOTES[t.name] ?? ''),
     inputSchema: withMcpExtras(t.inputSchema),

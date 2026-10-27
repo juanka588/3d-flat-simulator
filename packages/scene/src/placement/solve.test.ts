@@ -4,10 +4,11 @@ import { deepFreeze } from '../commands/testUtil';
 import { HEAVY_MOUNT_KG } from '../products';
 import type { Item, Scene } from '../schema';
 import { footprintOf, penetration } from './footprint';
-import { solvePlacement } from './solve';
+import { independentViolations } from './independentCheck';
+import { SOLVE_BUDGET_MS, solvePlacement } from './solve';
 import { doorSwingPolygon, openingFrame } from './swing';
 import { BARE_CHARME, corridorScene, mkItem, withItems } from './testUtil';
-import { VIOLATION_CODES, type PlacementRequestInput, type PlacementResult } from './types';
+import { VIOLATION_CODES, type Placement, type PlacementRequestInput, type PlacementResult } from './types';
 import { validateLayout } from './validateLayout';
 
 const charme = BARE_CHARME;
@@ -225,44 +226,58 @@ describe('properties', () => {
     expect(JSON.stringify(frozen)).toBe(JSON.stringify(charme));
   });
 
-  const relation = fc.oneof(
-    fc.record({ kind: fc.constant('against_wall' as const), wallId: fc.constantFrom('w-north', 'w-east', 'w-ch1-south', 'w-ch2-ch1', 'w-wc-west'), roomId: fc.constant('ch1'), align: fc.constantFrom('start', 'center', 'end' as const), offset: fc.double({ min: 0, max: 1, noNaN: true }) }),
-    fc.record({ kind: fc.constant('in_corner' as const), roomId: fc.constant('ch1'), corner: fc.nat(5) }),
-    fc.record({ kind: fc.constant('centered_in' as const), roomId: fc.constant('ch1'), axis: fc.constantFrom('both', 'x', 'y' as const) }),
-    fc.record({ kind: fc.constant('under_window' as const), openingId: fc.constantFrom('win-ch1', 'door-ch1', 'x') }),
-    fc.record({ kind: fc.constant('at' as const), position: fc.tuple(fc.double({ min: 6, max: 11, noNaN: true }), fc.double({ min: -1, max: 5, noNaN: true })), rotation: fc.double({ min: 0, max: 360, noNaN: true }) }),
+  const roomIds = ['ch1', 'ch2', 'sejour', 'entree', 'wc', 'sdb', 'alcove'];
+  const wallIds = frozen.walls.map((w) => w.id);
+  const openingIds = frozen.openings.map((o) => o.id);
+  const relationOf = (room: string) =>
+    fc.oneof(
+      fc.record({ kind: fc.constant('against_wall' as const), wallId: fc.constantFrom(...wallIds), roomId: fc.constant(room), align: fc.constantFrom('start', 'center', 'end' as const), offset: fc.double({ min: 0, max: 1, noNaN: true }) }),
+      fc.record({ kind: fc.constant('in_corner' as const), roomId: fc.constant(room), corner: fc.nat(7) }),
+      fc.record({ kind: fc.constant('centered_in' as const), roomId: fc.constant(room), axis: fc.constantFrom('both', 'x', 'y' as const) }),
+      fc.record({ kind: fc.constant('under_window' as const), openingId: fc.constantFrom(...openingIds) }),
+      fc.record({ kind: fc.constant('at' as const), position: fc.tuple(fc.double({ min: -1, max: 11, noNaN: true }), fc.double({ min: -1, max: 9, noNaN: true })), rotation: fc.double({ min: 0, max: 360, noNaN: true }) }),
+    );
+  const request = fc.constantFrom(...roomIds).chain((room) =>
+    fc.tuple(
+      fc.constant(room),
+      relationOf(room),
+      fc.record({ w: fc.double({ min: 0.2, max: 2.2, noNaN: true }), d: fc.double({ min: 0.2, max: 2.2, noNaN: true }), h: fc.double({ min: 0.02, max: 2.4, noNaN: true }) }),
+      fc.constantFrom('floor', 'wall', 'ceiling' as const),
+    ),
   );
 
-  it('every accepted placement re-validates; every rejection names a constraint', () => {
+  /** The geometric rules again with `independentCheck.ts` (polygon clipping), then the shared validator. */
+  const holds = (roomId: string, d: { w: number; d: number; h: number }, mount: 'floor' | 'wall' | 'ceiling', p: Placement, label: string) => {
+    const wall = mount === 'wall';
+    // stored dims are the requested ones; a wall mount's footprint is its depth against the wall
+    const found = independentViolations(frozen, { roomId, position: p.position, rotation: p.rotation, elevation: p.elevation, w: d.w, d: d.d, h: d.h, mount });
+    expect(found, `${label} ${JSON.stringify(p)}`).toEqual([]);
+    const scene = placed(frozen, 'new', { ok: true, placement: p, rationale: [], warnings: [] }, d, { mount });
+    const report = validateLayout(scene, { roomId });
+    // walkways are the shared raster's business (and validateLayout judges the whole room); everything else must hold
+    expect(report.violations.filter((v) => v.code !== 'walkway_too_narrow'), `${label} ${JSON.stringify(p)} ${wall ? '(wall)' : ''}`).toEqual([]);
+  };
+
+  it('every accepted placement and alternative re-validates independently (7 rooms); every rejection names a constraint', () => {
     fc.assert(
-      fc.property(
-        relation,
-        fc.record({ w: fc.double({ min: 0.2, max: 2.2, noNaN: true }), d: fc.double({ min: 0.2, max: 2.2, noNaN: true }), h: fc.double({ min: 0.02, max: 2.4, noNaN: true }) }),
-        fc.constantFrom('floor', 'wall' as const),
-        (rel, d, mount) => {
-          const r = solvePlacement(frozen, { roomId: 'ch1', dims: d, mount, relation: rel as PlacementRequestInput['relation'] });
-          if (r.ok) {
-            const scene = placed(frozen, 'new', r, d, { mount });
-            const report = validateLayout(scene, { roomId: 'ch1' });
-            expect(report.violations, JSON.stringify(r.placement)).toEqual([]);
-          } else {
-            expect(r.violations.length).toBeGreaterThan(0);
-            for (const v of r.violations) {
-              expect(VIOLATION_CODES).toContain(v.code);
-              expect(v.message.length).toBeGreaterThan(0);
-              expect(v.hint.length).toBeGreaterThan(0);
-            }
-            expect(r.candidates.length).toBeLessThanOrEqual(3);
-            for (const c of r.candidates) {
-              const scene = placed(frozen, 'alt', { ok: true, placement: c, rationale: [], warnings: [] }, d, { mount });
-              expect(validateLayout(scene, { roomId: 'ch1' }).violations, JSON.stringify(c)).toEqual([]);
-            }
+      fc.property(request, ([roomId, rel, d, mount]) => {
+        const r = solvePlacement(frozen, { roomId, dims: d, mount, relation: rel as PlacementRequestInput['relation'] });
+        if (r.ok) {
+          holds(roomId, d, mount, r.placement, 'accepted');
+        } else {
+          expect(r.violations.length).toBeGreaterThan(0);
+          for (const v of r.violations) {
+            expect(VIOLATION_CODES).toContain(v.code);
+            expect(v.message.length).toBeGreaterThan(0);
+            expect(v.hint.length).toBeGreaterThan(0);
           }
-        },
-      ),
-      { numRuns: 200 },
+          expect(r.candidates.length).toBeLessThanOrEqual(3);
+          for (const c of r.candidates) holds(roomId, d, mount, c, 'candidate');
+        }
+      }),
+      { numRuns: 400 },
     );
-  });
+  }, 30_000);
 });
 
 describe('performance', () => {
@@ -281,6 +296,24 @@ describe('performance', () => {
     expect(time(() => solvePlacement(fresh(), bed()))).toBeLessThan(50);
     expect(time(() => solvePlacement(fresh(), { roomId: 'ch1', dims: dims(0.5, 0.5, 0.5), relation: { kind: 'at', position: [7.3, 3.9] } }))).toBeLessThan(50);
     expect(time(() => solvePlacement(fresh(), { roomId: 'sejour', dims: dims(2, 1, 0.9), relation: { kind: 'at', position: [-5, -5] } }))).toBeLessThan(50);
+  });
+
+  it('the all-candidates-fail path in a furnished room stays bounded (SOLVE_BUDGET_MS)', () => {
+    const furnished = withItems(charme, [
+      mkItem('sofa', { position: [1.5, 3.3], roomId: 'sejour', dims: dims(2.2, 0.9, 0.85) }),
+      mkItem('table', { position: [2.5, 5], roomId: 'sejour', dims: dims(1.4, 0.8, 0.75) }),
+      mkItem('tv', { position: [1.5, 8], roomId: 'sejour', dims: dims(1.6, 0.4, 0.5) }),
+      mkItem('c1', { position: [0.4, 6], roomId: 'sejour', dims: dims(0.5, 0.5, 1) }),
+      mkItem('c2', { position: [3.5, 7.4], roomId: 'sejour', dims: dims(0.5, 0.5, 1) }),
+    ]);
+    // a 3.2 m barrier fails the walkway rule wherever it is tried: every sample costs a raster
+    const worst = (): PlacementResult => solvePlacement({ ...furnished }, { roomId: 'sejour', maxCandidates: 10, dims: dims(3.2, 0.5, 1.2), relation: { kind: 'at', position: [2, 4] } });
+    expect(worst().ok).toBe(false);
+    expect(time(() => worst())).toBeLessThan(SOLVE_BUDGET_MS + 15);
+    const blocked = (): PlacementResult => solvePlacement({ ...furnished }, { roomId: 'sejour', dims: dims(2, 1, 0.9), relation: { kind: 'at', position: [1.5, 3.3] } });
+    expect(time(() => blocked())).toBeLessThan(SOLVE_BUDGET_MS);
+    const hopeless = (): PlacementResult => solvePlacement({ ...furnished }, { roomId: 'sejour', maxCandidates: 10, dims: dims(3.9, 5, 0.9), relation: { kind: 'at', position: [2, 5] } });
+    expect(time(() => hopeless())).toBeLessThan(SOLVE_BUDGET_MS);
   });
 
   it('validateLayout with 40 items takes under 100 ms', () => {

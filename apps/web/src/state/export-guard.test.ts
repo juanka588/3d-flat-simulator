@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { applyCommand, makeEnvelope, parseScene, serializeScene } from '@flat/scene';
 import type { Scene } from '@flat/scene';
 import { readFileSync } from 'node:fs';
-import { findExportViolations } from './export-guard';
+import { findExportViolations, prepareExport, violationMessage } from './export-guard';
 
 const charme = JSON.parse(readFileSync(new URL('../../../../packages/scene/fixtures/charme-3205.flat.json', import.meta.url), 'utf8')) as Record<string, unknown>;
 
@@ -38,7 +38,7 @@ describe('export allow-list', () => {
   });
   it('flags photos, models, other URLs and unknown product fields', () => {
     const doc = JSON.parse(serializeScene(withBed())) as { items: Record<string, unknown>[] };
-    const bed = doc.items.at(-1) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+    const bed = doc.items.at(-1) as Record<string, any>;
     bed['product'].photoUrl = 'https://cdn.example/bed.jpg';
     bed['product'].extra = 1;
     bed['modelRef'] = 'x';
@@ -52,5 +52,20 @@ describe('export allow-list', () => {
     expect(found).toContain('items.0.note: not an item field');
     // the buy link itself is allowed
     expect(found).not.toMatch(/product\.url/);
+  });
+});
+
+describe('prepareExport', () => {
+  it('lets a clean flat through unchanged', () => {
+    const text = serializeScene(withBed());
+    expect(prepareExport(text)).toEqual({ ok: true, text });
+  });
+  it('refuses a document with a photo, a model or invalid JSON, naming the paths', () => {
+    const doc = JSON.parse(serializeScene(withBed())) as { items: Record<string, any>[] };
+    doc.items.at(-1)!['product'].photoUrl = 'https://cdn.example/bed.jpg';
+    const refused = prepareExport(JSON.stringify(doc));
+    expect(refused.ok).toBe(false);
+    if (!refused.ok) expect(violationMessage(refused.violations)).toContain('photoUrl');
+    expect(prepareExport('{nope').ok).toBe(false);
   });
 });

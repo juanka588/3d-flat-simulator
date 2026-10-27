@@ -178,6 +178,18 @@ describe('camera presets', () => {
     });
   }
 
+  it('charme: a walk view never puts the eye inside furniture (ch1 facing N sat inside the wardrobe: one flat colour)', () => {
+    const charme = FIXTURES.charme!;
+    const wardrobe = charme.items.find((i) => i.id === 'placard-ch1')!;
+    for (const facing of ['N', 'E', 'S', 'W', undefined] as const) {
+      const pose = walkPoseInRoom(charme, 'ch1', facing ? { facing } : undefined);
+      const [x, y] = pose.position;
+      const d = wardrobe.dims!;
+      const inside = Math.abs(x - wardrobe.position[0]) < d.w / 2 && Math.abs(y - wardrobe.position[1]) < d.d / 2;
+      expect(inside, `facing ${facing}`).toBe(false);
+    }
+  });
+
   it('charme: facing the north windows of ch1 backs away from them', () => {
     const charme = FIXTURES.charme!;
     const pose = walkPoseInRoom(charme, 'ch1', { facing: { openingId: 'win-ch1' } });

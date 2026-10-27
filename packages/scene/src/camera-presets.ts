@@ -4,6 +4,7 @@ import { roomWallSides } from './geometry/room-sides';
 import { roomCeilingHeight } from './geometry/floors';
 import { wallSideRooms } from './lighting/daylight';
 import { polygonCentroid } from './measure';
+import { footprintOf, insideConvex, itemDims } from './placement/footprint';
 import type { Room, Scene, Vec2, Wall } from './schema';
 import { wallLeftNormal, wallLength } from './schema';
 import { distanceToSegment, pointInPolygon } from './validate';
@@ -258,6 +259,15 @@ export function walkPoseInRoom(
       const p: Vec2 = [x, y];
       if (pointInPolygon(p, poly, 0) && inFlat(p)) cands.push({ p, clear: clearance(p) });
     }
+  }
+  // The eye must not stand inside furniture (a wardrobe around the camera renders as one flat colour):
+  // drop spots within a body radius of any item that reaches into the body zone. Kept only if some spot remains.
+  const bodies = scene.items
+    .filter((i) => (i.elevation ?? 0) < 1.8 && (i.elevation ?? 0) + itemDims(i).h > 0.25)
+    .map((i) => footprintOf(i.position, i.rotation, { w: itemDims(i).w + 2 * DEFAULT_RADIUS, d: itemDims(i).d + 2 * DEFAULT_RADIUS }));
+  if (bodies.length) {
+    const free = cands.filter((c) => !bodies.some((b) => insideConvex(c.p, b)));
+    if (free.length) cands.splice(0, cands.length, ...free);
   }
   if (cands.length === 0) cands.push({ p: pointInPolygon(centre, poly, 0) ? centre : poly[0]!, clear: 0 });
   let pool = cands.filter((c) => c.clear >= DEFAULT_RADIUS);

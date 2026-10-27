@@ -1,5 +1,6 @@
 import type { Opening, Room, Scene, Vec2, Wall } from '../schema';
 import { wallLeftNormal, wallLength } from '../schema';
+import { isPassable } from '../collision';
 import { pointInPolygon } from '../validate';
 
 /**
@@ -9,6 +10,9 @@ import { pointInPolygon } from '../validate';
  *    side). `hinge` is `start` (the jamb with the smaller offset, default) or `end`; `swing` is `left` or
  *    `right` of `wallLeftNormal` (default `left`), exactly as `buildFittings` draws the leaf;
  *  - the ENTRY door (a door with a room on one side only) also keeps a 0.9 m deep landing, door wide, on its room side;
+ *  - a door also keeps a door-wide, 0.6 m deep `approach` rectangle on the side it does NOT swing to (non-entry doors;
+ *    the entry landing already covers both sides), and every passable opening has a thin `span` slab on both faces that
+ *    wall mounts (pictures, shelves) must stay out of;
  *  - a PASSAGE keeps a rectangle (its width, 0.6 m deep) on every room side;
  *  - a WINDOW (and any glazed opening) has a 0.3 m deep strip in front, used for the sill / glazing rules.
  */
@@ -16,10 +20,16 @@ import { pointInPolygon } from '../validate';
 export const LANDING_DEPTH_M = 0.9;
 export const PASSAGE_DEPTH_M = 0.6;
 export const GLAZING_STRIP_M = 0.3;
+/** Depth of the keep-out rectangle on the non-swing side of a door (door wide). */
+export const APPROACH_DEPTH_M = 0.6;
+/** The approach is a comfort margin, not a leaf sweep: a footprint may brush it by this much (a 0.7 m toilet in a 1.28 m WC). */
+const APPROACH_TOLERANCE_M = 0.03;
+/** Depth of the doorway slab (wall thickness plus this on each face) wall mounts must stay out of. */
+const SPAN_MARGIN_M = 0.08;
 /** Segments of the quarter-circle arc. */
 const ARC_STEPS = 12;
 
-export type ZoneKind = 'swing' | 'landing' | 'passage' | 'window' | 'glass';
+export type ZoneKind = 'swing' | 'landing' | 'passage' | 'approach' | 'span' | 'window' | 'glass';
 
 export interface Zone {
   kind: ZoneKind;
@@ -32,6 +42,8 @@ export interface Zone {
   hi: number;
   /** `window` zones: sill height (items must stay under `sill - 0.02`). */
   sill?: number;
+  /** Penetration (m) below which a footprint only brushes the zone; default `TOUCH_TOLERANCE`. */
+  tolerance?: number;
 }
 
 export interface OpeningFrame {
@@ -117,12 +129,22 @@ export function openingZones(scene: Pick<Scene, 'walls' | 'rooms' | 'openings'>)
     ];
     const base = { openingId: o.id, wallId: o.wallId };
     if (o.type === 'door') {
-      zones.push({ ...base, kind: 'swing', polygon: doorSwingPolygon(f, o), lo: 0, hi: o.height });
+      const top = o.sill + o.height;
+      zones.push({ ...base, kind: 'swing', polygon: doorSwingPolygon(f, o), lo: 0, hi: top });
       if (isEntryDoor(o, f)) {
-        for (const s of sides) if (s.room) zones.push({ ...base, kind: 'landing', polygon: sideRect(f, o.width, LANDING_DEPTH_M, s.normal), lo: 0, hi: o.height });
+        for (const s of sides) if (s.room) zones.push({ ...base, kind: 'landing', polygon: sideRect(f, o.width, LANDING_DEPTH_M, s.normal), lo: 0, hi: top });
+      } else {
+        const swingNormal = (o.swing ?? 'left') === 'left' ? f.left : neg(f.left);
+        for (const s of sides) {
+          if (!s.room || (s.normal[0] === swingNormal[0] && s.normal[1] === swingNormal[1])) continue;
+          zones.push({ ...base, kind: 'approach', polygon: sideRect(f, o.width, APPROACH_DEPTH_M, s.normal), lo: 0, hi: top, tolerance: APPROACH_TOLERANCE_M });
+        }
       }
     } else if (o.type === 'passage') {
-      for (const s of sides) if (s.room) zones.push({ ...base, kind: 'passage', polygon: sideRect(f, o.width, PASSAGE_DEPTH_M, s.normal), lo: 0, hi: o.height });
+      for (const s of sides) if (s.room) zones.push({ ...base, kind: 'passage', polygon: sideRect(f, o.width, PASSAGE_DEPTH_M, s.normal), lo: 0, hi: o.sill + o.height });
+    }
+    if (isPassable(o)) {
+      for (const s of sides) zones.push({ ...base, kind: 'span', polygon: sideRect(f, o.width, SPAN_MARGIN_M, s.normal), lo: 0, hi: o.sill + o.height });
     }
     const glazed = o.glazed ?? o.type === 'window';
     if (o.type === 'window') {

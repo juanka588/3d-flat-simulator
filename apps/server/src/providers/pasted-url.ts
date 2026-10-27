@@ -15,8 +15,9 @@ import { lengthOf, parseLength } from './units';
  * SSRF guard (every hop, including redirects): https only, port 443, no credentials in the URL, a public
  * host (every DNS answer public; local names and private / loopback / link-local literals refused), no
  * redirect off the host (a `www.` swap is the only change allowed), at most 2 MB, no cookies.
- * Residual risk, accepted for a single-user local tool: DNS is checked right before the request, then the
- * runtime resolves again to connect (a rebinding answer in that gap is not pinned).
+ * The check is repeated on the connection itself: the registry gives this provider a DNS-pinned transport
+ * (`pinned.ts`) whose `lookup` hook vets the address the socket actually connects to, so a rebinding answer
+ * between the pre-check and the connect is refused (M6).
  */
 
 export const PASTED_URL_ID = PASTED_URL_META.id;
@@ -314,6 +315,17 @@ export function createPastedUrlProvider(): ProductProvider {
       const record = parsePastedPage(html, url.href, new Date(ctx.clock.now()).toISOString());
       ctx.cache.set(key, record, TTL_MS, 4096);
       return record;
+    },
+
+    async fetchPhoto(rec: ProductRecord, ctx: ProviderContext): Promise<ModelStream> {
+      if (!rec.photoUrl) throw new ProviderError('product_not_found', 'this page publishes no photo');
+      const { res } = await guardedGet(validatePastedUrl(rec.photoUrl), ctx, 'image/avif,image/webp,image/*');
+      if (!res.ok || !res.body) {
+        await res.body?.cancel().catch(() => undefined);
+        throw new ProviderError('product_not_found', `photo download answered ${res.status}`);
+      }
+      const len = Number(res.headers.get('content-length'));
+      return { stream: res.body, contentType: 'image/*', ...(Number.isFinite(len) && len > 0 ? { size: len } : {}) };
     },
 
     async fetchModel(sku: string, ctx: ProviderContext): Promise<ModelStream> {

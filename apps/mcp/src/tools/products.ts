@@ -21,6 +21,18 @@ const DEFAULT_SEARCH_RESULTS = 8;
 const round = (n: number, digits = 3): number => Math.round(n * 10 ** digits) / 10 ** digits;
 const dimsOf = (d: { w: number; d: number; h: number }) => ({ w: round(d.w), d: round(d.d), h: round(d.h) });
 
+const MAX_URL_CHARS = 300;
+const clip = (t: string, n: number): string => (t.length > n ? `${t.slice(0, n - 1)}…` : t);
+/** Shop text is data a seller controls: a long URL (a place to hide text for the model) is replaced by its host. */
+function urlFacts(url: string): { url: string } | { urlHost: string } {
+  if (url.length <= MAX_URL_CHARS) return { url };
+  try {
+    return { urlHost: new URL(url).hostname };
+  } catch {
+    return { urlHost: '' };
+  }
+}
+
 /** Registers ids as seen by this session; the failure result when the server cannot (placing would then be refused). */
 export async function markSeen(ctx: ToolContext, ids: readonly string[]): Promise<CallToolResult | undefined> {
   if (ids.length === 0) return undefined;
@@ -37,7 +49,7 @@ const rateLimited = (ctx: ToolContext, bucket: 'searches' | 'productGets', what:
 function searchLine(p: ProductSummary) {
   return {
     productId: p.productId,
-    name: p.name,
+    name: clip(p.name, 120),
     price: p.price,
     currency: p.currency,
     ...(p.priceTtc ? {} : { priceTtc: false }),
@@ -45,7 +57,7 @@ function searchLine(p: ProductSummary) {
     ...(p.dimsSource === 'structured' ? {} : { dimsSource: p.dimsSource }),
     category: p.category,
     ...(p.mount === 'floor' ? {} : { mount: p.mount }),
-    colours: p.colours,
+    colours: p.colours.map((c) => clip(c, 40)),
     has3d: p.has3d,
     ...(p.personalUseOnly ? { personalUse: true } : {}),
   };
@@ -168,8 +180,8 @@ const searchProducts: ToolDef = {
 export function productFacts(p: ProductRecord) {
   return {
     productId: `${p.provider}:${p.sku}`,
-    name: p.name,
-    url: p.url,
+    name: clip(p.name, 120),
+    ...urlFacts(p.url),
     price: p.price,
     currency: p.currency,
     priceTtc: p.priceTtc,

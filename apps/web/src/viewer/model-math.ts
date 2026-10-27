@@ -24,6 +24,9 @@ export type ModelKind = 'provider' | 'lookalike';
 /** Aspect distortion above which a `dims_mismatch` warning is reported (relative; 0.10 = 10%). */
 export const DIMS_MISMATCH_LIMIT: Record<ModelKind, number> = { provider: 0.1, lookalike: 0.25 };
 
+/** Distortion above which a model is NOT used at all (the next source in the chain is): 50%. */
+export const HARD_DIMS_LIMIT = 0.5;
+
 /** Rotation about +y (radians, three.js convention) that turns the source model's front axis into +z. */
 export function frontRotationY(front: Front): number {
   switch (front) {

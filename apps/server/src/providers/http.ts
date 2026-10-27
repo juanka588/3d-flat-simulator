@@ -11,6 +11,8 @@ export const DEFAULT_GAP_MS = 1500;
 export const DEFAULT_TIMEOUT_MS = 10_000;
 export const ROBOTS_TTL_MS = 24 * 60 * 60_000;
 const MAX_REDIRECTS = 3;
+export const DEFAULT_BODY_TIMEOUT_MS = 30_000;
+export const DEFAULT_MAX_QUEUE = 20;
 const ROBOTS_MAX_BYTES = 512 * 1024;
 /** How long an open circuit stays open. */
 const OPEN_BLOCKED_MS = 30 * 60_000;
@@ -30,6 +32,10 @@ export interface NetworkOptions {
   gapMs?: number;
   /** Per request, headers to end of response head (default 10 s). */
   timeoutMs?: number;
+  /** Per response, the whole body (default 30 s): a slow-drip server cannot hold the host slot for ever. */
+  bodyTimeoutMs?: number;
+  /** Requests waiting for one host at most; one more is refused as "busy" (default 20). */
+  maxQueue?: number;
   /** Retries after a 5xx or network error (default 2). */
   maxRetries?: number;
   backoffBaseMs?: number;
@@ -55,6 +61,8 @@ export interface ProviderNetwork {
 export interface ProviderNetworkOptions {
   /** `provider`: one 403/429 pauses the whole provider (IKEA). `host`: per site (pasted-url). */
   scope?: 'provider' | 'host';
+  /** The wire for this provider (default: the network's `fetch`). pasted-url uses a DNS-pinned one (M6). */
+  transport?: typeof fetch;
 }
 
 class Breaker {
@@ -62,6 +70,8 @@ class Breaker {
   failures = 0;
   retryAt = 0;
   reason: 'blocked' | 'failures' = 'failures';
+  /** Half-open: exactly one request (the probe) is let through. */
+  probing = false;
 }
 
 const isRedirect = (s: number) => s === 301 || s === 302 || s === 303 || s === 307 || s === 308;
@@ -79,34 +89,53 @@ export function createNetwork(opts: NetworkOptions) {
   const random = opts.random ?? Math.random;
   const gapMs = opts.gapMs ?? DEFAULT_GAP_MS;
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const bodyTimeoutMs = opts.bodyTimeoutMs ?? DEFAULT_BODY_TIMEOUT_MS;
+  const maxQueue = opts.maxQueue ?? DEFAULT_MAX_QUEUE;
   const maxRetries = opts.maxRetries ?? 2;
   const backoffBase = opts.backoffBaseMs ?? 500;
   const redact = opts.redact ?? ((s: string) => s);
   const log = (level: 'info' | 'warn' | 'error', m: string) => opts.log?.(level, redact(m));
 
   // ---- per-host queue + gap ----
+  // One request at a time per host. The slot is held until the response BODY is consumed (or cancelled, or
+  // times out) and the gap is measured from that moment, so a big GLB never overlaps the next request.
   const tails = new Map<string, Promise<void>>();
   const lastEnd = new Map<string, number>();
-  async function onHost<T>(host: string, fn: () => Promise<T>): Promise<T> {
+  const depth = new Map<string, number>();
+  type Hold = (done: Promise<void>) => void;
+  async function onHost<T>(host: string, fn: (hold: Hold) => Promise<T>): Promise<T> {
+    const waiting = depth.get(host) ?? 0;
+    if (waiting >= maxQueue) throw new ProviderError('provider_unavailable', `${host}: busy (${waiting} requests already queued)`);
+    depth.set(host, waiting + 1);
     const prev = tails.get(host) ?? Promise.resolve();
     let release!: () => void;
     const gate = new Promise<void>((r) => (release = r));
     const tail = prev.then(() => gate);
     tails.set(host, tail);
-    await prev;
+    let held: Promise<void> | undefined;
     try {
+      await prev;
       const wait = (lastEnd.get(host) ?? -Infinity) + gapMs - now();
       if (wait > 0) await sleep(wait);
-      return await fn();
+      return await fn((p) => {
+        held = p;
+      });
     } finally {
-      lastEnd.set(host, now());
-      release();
-      if (tails.get(host) === tail) tails.delete(host);
+      const free = () => {
+        lastEnd.set(host, now());
+        release();
+        if (tails.get(host) === tail) tails.delete(host);
+        const d = (depth.get(host) ?? 1) - 1;
+        if (d <= 0) depth.delete(host);
+        else depth.set(host, d);
+      };
+      if (held) void held.then(free, free);
+      else free();
     }
   }
 
-  // ---- one attempt: headers -> response head, with timeout ----
-  async function attempt(url: URL, init: RequestInit): Promise<Response> {
+  // ---- one attempt: headers -> response head, with timeout; the body is guarded separately ----
+  async function attempt(wire: typeof fetch, url: URL, init: RequestInit, hold: Hold): Promise<Response> {
     const ctl = new AbortController();
     let timedOut = false;
     const timer = setTimeout(() => {
@@ -119,48 +148,27 @@ export function createNetwork(opts: NetworkOptions) {
       if (outer.aborted) ctl.abort();
       else outer.addEventListener('abort', onOuter, { once: true });
     }
+    let res: Response;
     try {
-      return await realFetch(url, { method: 'GET', headers: buildHeaders(init.headers), redirect: 'manual', signal: ctl.signal });
+      res = await wire(url, { method: 'GET', headers: buildHeaders(init.headers), redirect: 'manual', signal: ctl.signal });
     } catch (e) {
       if (timedOut) throw new ProviderError('provider_unavailable', `${url.host} did not answer within ${timeoutMs / 1000} s`, { cause: e });
       if (outer?.aborted) throw e;
+      if (e instanceof ProviderError) throw e; // e.g. the pinned transport refused a private address
       throw new NetworkError(e);
     } finally {
       clearTimeout(timer);
       outer?.removeEventListener('abort', onOuter);
     }
+    return guardBody(res, hold, bodyTimeoutMs, () => ctl.abort(), url.host);
   }
 
   // ---- robots.txt (24 h) ----
   const robots = new Map<string, { text: string; expires: number }>();
-  async function robotsText(url: URL): Promise<string> {
-    const hit = robots.get(url.origin);
-    if (hit && hit.expires > now()) return hit.text;
-    const robotsUrl = new URL('/robots.txt', url.origin);
-    const res = await onHost(url.host, () => attempt(robotsUrl, {})).catch((e) => {
-      if (e instanceof ProviderError) throw e;
-      throw new ProviderError('provider_unavailable', `${url.host}: robots.txt unreachable`, { cause: e });
-    });
-    let text = '';
-    if (res.status === 200) text = new TextDecoder().decode(await readBytesCapped(res, ROBOTS_MAX_BYTES).catch(() => new Uint8Array()));
-    else {
-      await res.body?.cancel().catch(() => undefined);
-      // RFC 9309: 4xx = no robots file (everything allowed); a protected site answers 403 and the page request will trip the circuit.
-      if (res.status >= 500) throw new ProviderError('provider_unavailable', `${url.host}: robots.txt answered ${res.status}`);
-    }
-    robots.set(url.origin, { text, expires: now() + ROBOTS_TTL_MS });
-    return text;
-  }
-  async function assertRobots(url: URL): Promise<void> {
-    if (url.pathname === '/robots.txt') return;
-    const text = await robotsText(url);
-    if (!robotsAllows(text, url.pathname + url.search, ROBOTS_TOKEN)) {
-      throw new ProviderError('robots_disallowed', `robots.txt of ${url.host} disallows ${url.pathname}`);
-    }
-  }
 
   function forProvider(providerId: string, popts: ProviderNetworkOptions = {}): ProviderNetwork {
     const scope = popts.scope ?? 'provider';
+    const wire = popts.transport ?? realFetch;
     const breakers = new Map<string, Breaker>();
     const breaker = (host: string) => {
       const key = scope === 'provider' ? '*' : host;
@@ -178,59 +186,140 @@ export function createNetwork(opts: NetworkOptions) {
       b.retryAt = now() + ms;
       log('warn', `${providerId}: circuit open for ${Math.round(ms / 1000)} s (${reason}, ${host})`);
     };
-    const gate = (b: Breaker, host: string) => {
-      if (b.state !== 'open') return;
-      if (now() >= b.retryAt) {
-        b.state = 'half_open';
-        return;
-      }
+    const refuseOpen = (b: Breaker, host: string): never => {
       if (b.reason === 'blocked') {
         throw new ProviderError('provider_blocked', `${providerId}: paused after the retailer blocked a request (${host})`, { retryAt: b.retryAt });
       }
       throw new ProviderError('provider_unavailable', `${providerId}: paused after repeated failures (${host})`, { retryAt: b.retryAt });
     };
+    /** Cheap check before queueing: an open circuit refuses without waiting in line. */
+    const peek = (b: Breaker, host: string) => {
+      if (b.state === 'open' && now() < b.retryAt) refuseOpen(b, host);
+    };
+    /**
+     * The gate, evaluated INSIDE the host slot right before the request goes out (a call queued before a 403
+     * must not reach the retailer after it). Half-open lets exactly one probe through; returns true for it.
+     */
+    const admit = (b: Breaker, host: string): boolean => {
+      if (b.state === 'open') {
+        if (now() < b.retryAt) refuseOpen(b, host);
+        b.state = 'half_open';
+        b.probing = false;
+      }
+      if (b.state === 'half_open') {
+        if (b.probing) throw new ProviderError('provider_unavailable', `${providerId}: probing ${host} after a pause; try again shortly`);
+        b.probing = true;
+        return true;
+      }
+      return false;
+    };
+
+    type Attempt = { res: Response } | { retry: unknown };
+    /** One gated request inside the host slot. 403/429 open the circuit and throw; 5xx and network errors ask for a retry. */
+    async function gatedAttempt(url: URL, init: RequestInit, b: Breaker): Promise<Attempt> {
+      return onHost(url.host, async (hold) => {
+        const probe = admit(b, url.hostname);
+        try {
+          let res: Response;
+          try {
+            res = await attempt(wire, url, init, hold);
+          } catch (e) {
+            if (e instanceof NetworkError) return { retry: e.cause };
+            if (e instanceof ProviderError && e.code === 'provider_unavailable') {
+              if (b.state === 'half_open' || ++b.failures >= FAILURES_TO_OPEN) open(b, 'failures', OPEN_FAILURES_MS, url.hostname);
+            }
+            throw e;
+          }
+          if (res.status === 403 || res.status === 429) {
+            await res.body?.cancel().catch(() => undefined);
+            const retryAfter = Number(res.headers.get('retry-after'));
+            const ms = res.status === 429 ? Math.max(OPEN_RATE_LIMITED_MS, Number.isFinite(retryAfter) ? retryAfter * 1000 : 0) : OPEN_BLOCKED_MS;
+            open(b, 'blocked', ms, url.hostname);
+            throw new ProviderError('provider_blocked', `${url.host} answered ${res.status}`, { retryAt: b.retryAt });
+          }
+          if (res.status >= 500) {
+            const ra = Number(res.headers.get('retry-after'));
+            await res.body?.cancel().catch(() => undefined);
+            return { retry: Object.assign(new Error(`HTTP ${res.status}`), { retryAfter: Number.isFinite(ra) && ra > 0 ? ra : undefined }) };
+          }
+          b.state = 'closed';
+          b.failures = 0;
+          return { res };
+        } finally {
+          if (probe) b.probing = false;
+        }
+      });
+    }
+
+    /**
+     * robots.txt of the origin (RFC 9309 with a fail-closed twist): 200 = parsed; 404/410 = no file, allow all;
+     * a same-host redirect is followed; 403/429 open the circuit and refuse; anything else (other 4xx, 5xx,
+     * a redirect off the host, an unreadable body) refuses this request. Only 200 and 404/410 are cached (24 h).
+     */
+    async function robotsText(url: URL, b: Breaker): Promise<string> {
+      const hit = robots.get(url.origin);
+      if (hit && hit.expires > now()) return hit.text;
+      let robotsUrl = new URL('/robots.txt', url.origin);
+      for (let hop = 0; ; hop++) {
+        const r = await gatedAttempt(robotsUrl, {}, b).catch((e) => {
+          if (e instanceof ProviderError) throw e;
+          throw new ProviderError('provider_unavailable', `${url.host}: robots.txt unreachable`, { cause: e });
+        });
+        if ('retry' in r) throw new ProviderError('provider_unavailable', `${url.host}: robots.txt unreachable (${errText(r.retry)})`);
+        const res = r.res;
+        if (isRedirect(res.status)) {
+          await res.body?.cancel().catch(() => undefined);
+          const loc = res.headers.get('location');
+          let next: URL | undefined;
+          try {
+            next = loc ? new URL(loc, robotsUrl) : undefined;
+          } catch {
+            next = undefined;
+          }
+          if (!next || hop >= MAX_REDIRECTS || next.hostname !== robotsUrl.hostname || (next.protocol !== 'https:' && next.protocol !== 'http:')) {
+            throw new ProviderError('provider_unavailable', `${url.host}: robots.txt redirects somewhere it may not follow`);
+          }
+          robotsUrl = next;
+          continue;
+        }
+        let text = '';
+        if (res.status === 200) {
+          try {
+            text = new TextDecoder().decode(await readBytesCapped(res, ROBOTS_MAX_BYTES));
+          } catch (e) {
+            throw new ProviderError('provider_unavailable', `${url.host}: robots.txt could not be read`, { cause: e });
+          }
+        } else {
+          await res.body?.cancel().catch(() => undefined);
+          if (res.status !== 404 && res.status !== 410) throw new ProviderError('provider_unavailable', `${url.host}: robots.txt answered ${res.status}`);
+        }
+        robots.set(url.origin, { text, expires: now() + ROBOTS_TTL_MS });
+        return text;
+      }
+    }
+    async function assertRobots(url: URL, b: Breaker): Promise<void> {
+      if (url.pathname === '/robots.txt') return;
+      const text = await robotsText(url, b);
+      if (!robotsAllows(text, url.pathname + url.search, ROBOTS_TOKEN)) {
+        throw new ProviderError('robots_disallowed', `robots.txt of ${url.host} disallows ${url.pathname}`);
+      }
+    }
 
     async function request(url: URL, init: RequestInit): Promise<Response> {
       const b = breaker(url.hostname);
-      gate(b, url.hostname);
-      await assertRobots(url);
+      peek(b, url.hostname);
+      await assertRobots(url, b);
       let lastError: unknown;
       for (let n = 0; n <= maxRetries; n++) {
         if (n > 0) await sleep(backoffBase * 2 ** (n - 1) + random() * backoffBase);
         log('info', `${providerId}: GET ${url.origin}${url.pathname}${n > 0 ? ` (retry ${n})` : ''}`);
-        let res: Response;
-        try {
-          res = await onHost(url.host, () => attempt(url, init));
-        } catch (e) {
-          if (e instanceof NetworkError) {
-            lastError = e.cause;
-            continue;
-          }
-          if (e instanceof ProviderError && e.code === 'provider_unavailable') {
-            if (++b.failures >= FAILURES_TO_OPEN) open(b, 'failures', OPEN_FAILURES_MS, url.hostname);
-            throw e;
-          }
-          throw e;
-        }
-        if (res.status === 403 || res.status === 429) {
-          await res.body?.cancel().catch(() => undefined);
-          const retryAfter = Number(res.headers.get('retry-after'));
-          const ms = res.status === 429 ? Math.max(OPEN_RATE_LIMITED_MS, Number.isFinite(retryAfter) ? retryAfter * 1000 : 0) : OPEN_BLOCKED_MS;
-          open(b, 'blocked', ms, url.hostname);
-          throw new ProviderError('provider_blocked', `${url.host} answered ${res.status}`, { retryAt: b.retryAt });
-        }
-        if (res.status >= 500) {
-          lastError = new Error(`HTTP ${res.status}`);
-          const ra = Number(res.headers.get('retry-after'));
-          await res.body?.cancel().catch(() => undefined);
-          if (n < maxRetries && Number.isFinite(ra) && ra > 0) await sleep(Math.min(ra, 10) * 1000);
-          continue;
-        }
-        b.state = 'closed';
-        b.failures = 0;
-        return res;
+        const r = await gatedAttempt(url, init, b);
+        if ('res' in r) return r.res;
+        lastError = r.retry;
+        const ra = (r.retry as { retryAfter?: number }).retryAfter;
+        if (n < maxRetries && ra !== undefined) await sleep(Math.min(ra, 10) * 1000);
       }
-      if (++b.failures >= FAILURES_TO_OPEN) open(b, 'failures', OPEN_FAILURES_MS, url.hostname);
+      if (b.state === 'half_open' || ++b.failures >= FAILURES_TO_OPEN) open(b, 'failures', OPEN_FAILURES_MS, url.hostname);
       throw new ProviderError('provider_unavailable', `${url.host} failed after ${maxRetries + 1} attempts: ${errText(lastError)}`, {
         ...(b.state === 'open' ? { retryAt: b.retryAt } : {}),
         cause: lastError,
@@ -320,4 +409,58 @@ export async function readBytesCapped(res: Response, maxBytes: number, onTooLarg
 
 export async function readTextCapped(res: Response, maxBytes: number, onTooLarge?: () => Error): Promise<string> {
   return new TextDecoder('utf-8').decode(await readBytesCapped(res, maxBytes, onTooLarge));
+}
+
+/**
+ * Wraps a response so the host slot is held until its body is read to the end, cancelled, errors, or the
+ * body deadline passes (a slow-drip server then gets its stream errored and its socket aborted).
+ */
+function guardBody(res: Response, hold: (done: Promise<void>) => void, bodyTimeoutMs: number, abort: () => void, host: string): Response {
+  if (!res.body) return res;
+  let finish!: () => void;
+  hold(new Promise<void>((r) => (finish = r)));
+  const reader = res.body.getReader();
+  let ctl!: ReadableStreamDefaultController<Uint8Array>;
+  let finished = false;
+  const end = () => {
+    if (finished) return;
+    finished = true;
+    clearTimeout(timer);
+    finish();
+  };
+  const timer = setTimeout(() => {
+    ctl.error(new ProviderError('provider_unavailable', `${host}: the response body did not finish within ${Math.round(bodyTimeoutMs / 1000)} s`));
+    abort();
+    reader.cancel().catch(() => undefined);
+    end();
+  }, bodyTimeoutMs);
+  timer.unref?.();
+  const body = new ReadableStream<Uint8Array>({
+    start(c) {
+      ctl = c;
+    },
+    async pull(c) {
+      try {
+        const { done, value } = await reader.read();
+        if (done) {
+          end();
+          c.close();
+        } else c.enqueue(value);
+      } catch (e) {
+        end();
+        try {
+          c.error(e);
+        } catch {
+          // already errored by the deadline
+        }
+      }
+    },
+    cancel(reason) {
+      end();
+      return reader.cancel(reason).catch(() => undefined);
+    },
+  });
+  const out = new Response(body, { status: res.status, statusText: res.statusText, headers: res.headers });
+  Object.defineProperty(out, 'url', { value: res.url });
+  return out;
 }

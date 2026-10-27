@@ -13,17 +13,13 @@ import { toolError } from '../errors';
  * before the arguments become a command.
  */
 
-const PREVIEW = { type: 'boolean', description: 'true: do NOT change the flat; return what the change would do (diff, warnings, would-be changed ids). Use it to show the user before applying.' };
+const PREVIEW = { type: 'boolean', description: 'true: change nothing, return what the change would do (diff, warnings, would-be changed ids).' };
 const RENDER = {
   anyOf: [{ type: 'boolean' }, { type: 'object', additionalProperties: true }],
-  description: 'true or render_view arguments (view, roomId, ...): also return an image of the result (after the change, or of the previewed state). true = the overview of the first changed room, else the whole flat from above. Without the render service the result carries render_unavailable.',
+  description: 'true, or render_view arguments: also return an image of the result (or of the previewed state). true = overview of the first changed room, else the flat from above.',
 };
-const IFREV = {
-  type: 'integer',
-  minimum: 0,
-  description: 'Optional. Apply only if the flat is still at this revision, else stale_scene and nothing changes. Pass baseRev from a preview of the same change to apply only if nothing changed since; or rev from a previous result.',
-};
-const LABEL = { type: 'string', minLength: 1, maxLength: 200, description: 'Short description of this change, shown in the undo history (at most 200 characters).' };
+const IFREV = { type: 'integer', minimum: 0, description: 'Apply only if the flat is still at this revision (rev of a result, baseRev of a preview), else stale_scene and nothing changes.' };
+const LABEL = { type: 'string', minLength: 1, maxLength: 200, description: 'Short description of this change for the undo history.' };
 
 type Json = Record<string, unknown>;
 

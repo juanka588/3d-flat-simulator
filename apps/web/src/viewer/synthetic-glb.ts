@@ -98,3 +98,17 @@ export function sofaGlb(): Uint8Array {
     { min: [0.8, 0, 0.3], max: [0.9, 0.2, 0.4], color: legs },
   ]);
 }
+
+/** A bed-shaped model, 1.6 m wide, 2 m deep and 0.9 m high, centred, bottom at y = 0 (fits the 160 x 200 mock bed). */
+export function bedGlb(): Uint8Array {
+  const wood: [number, number, number] = [0.55, 0.4, 0.28];
+  const linen: [number, number, number] = [0.85, 0.85, 0.82];
+  return buildGlb([
+    { min: [-0.8, 0.25, -1], max: [0.8, 0.55, 1], color: linen },
+    { min: [-0.8, 0.25, -1], max: [0.8, 0.9, -0.9], color: wood },
+    { min: [-0.8, 0, -1], max: [-0.7, 0.25, -0.9], color: wood },
+    { min: [0.7, 0, -1], max: [0.8, 0.25, -0.9], color: wood },
+    { min: [-0.8, 0, 0.9], max: [-0.7, 0.25, 1], color: wood },
+    { min: [0.7, 0, 0.9], max: [0.8, 0.25, 1], color: wood },
+  ]);
+}

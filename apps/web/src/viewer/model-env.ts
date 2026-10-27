@@ -17,6 +17,14 @@ let originOverride: string | null | undefined;
 /** Test hook: pretend the server is at `origin` (or that there is none, with `null`). `undefined` restores the sync state. */
 export function setModelOriginOverride(origin: string | null | undefined): void {
   originOverride = origin;
+  for (const l of [...originListeners]) l();
+}
+
+const originListeners = new Set<() => void>();
+/** Called when a forced origin changes (the sync state is observed through the store instead). */
+export function subscribeModelOriginOverride(listener: () => void): () => void {
+  originListeners.add(listener);
+  return () => void originListeners.delete(listener);
 }
 
 /** Origin of the connected scene server (no trailing slash), or null in Local / Pages mode. */

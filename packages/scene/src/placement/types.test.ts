@@ -55,7 +55,7 @@ describe('PlacementRequest', () => {
 });
 
 describe('Violation and results', () => {
-  it('lists the ten D7 codes, each with a default hint', () => {
+  it('lists the eleven D7 codes, each with a default hint', () => {
     expect([...VIOLATION_CODES]).toEqual([
       'outside_room',
       'overlap',
@@ -64,6 +64,7 @@ describe('Violation and results', () => {
       'glazing_blocked',
       'walkway_too_narrow',
       'heavy_mount_partition',
+      'weight_unknown',
       'locked_item',
       'invalid_relation',
       'dims_mismatch',

@@ -1,4 +1,4 @@
-import { ALL_RULES, checkSubject, layoutContext, pointInPolygon, validateLayout } from '@flat/scene';
+import { ALL_RULES, DEFAULT_CEILING_HEIGHT, checkSubject, layoutContext, pointInPolygon, roomCeilingHeight, validateLayout } from '@flat/scene';
 import type { Dims, ItemMount, LayoutContext, Scene, Vec2, Violation } from '@flat/scene';
 
 /** What is being placed or moved, as far as the validity check cares. */
@@ -38,12 +38,16 @@ function contextOf(scene: Scene): LayoutContext {
 
 export const roomAt = (scene: Scene, p: Vec2): string | undefined => scene.rooms.find((r) => pointInPolygon(p, r.polygon, ROOM_TOLERANCE))?.id;
 
-/** Floor-to-ceiling height of the room at a plan point (the room's own, else the lowest wall, else 2.5 m). */
+/**
+ * Floor-to-ceiling height of the room at a plan point: the room's own `ceilingHeight`, else the lowest wall along
+ * ITS edges (`roomCeilingHeight`, as the validator and the renderer use), else 2.5 m. A balcony without a
+ * `ceilingHeight` has no ceiling (Infinity). Outside every room: the lowest wall of the flat.
+ */
 export function ceilingAt(scene: Scene, p: Vec2): number {
   const room = scene.rooms.find((r) => pointInPolygon(p, r.polygon, ROOM_TOLERANCE));
-  if (room?.ceilingHeight !== undefined) return room.ceilingHeight;
-  const lowest = Math.min(...scene.walls.map((w) => w.height ?? 2.5));
-  return Number.isFinite(lowest) ? lowest : 2.5;
+  if (room) return room.type === 'balcony' && room.ceilingHeight === undefined ? Infinity : roomCeilingHeight(scene, room);
+  const lowest = Math.min(...scene.walls.map((w) => w.height ?? DEFAULT_CEILING_HEIGHT));
+  return Number.isFinite(lowest) ? lowest : DEFAULT_CEILING_HEIGHT;
 }
 
 /** A heavy wall mount on a partition only warns (the user may accept it); everything else blocks. */

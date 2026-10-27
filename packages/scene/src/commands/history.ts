@@ -1,7 +1,7 @@
 import { applyCommand, type ApplyFail, type ApplyOk, type ApplyResult } from './apply';
 import type { Author, Command, CommandEnvelope, LeafCommand } from './schema';
 import type { Scene } from '../schema';
-import { deepEqual } from './util';
+import { deepEqual, err, type CommandError } from './util';
 
 /** Maximum undo steps kept. */
 export const HISTORY_CAP = 200;
@@ -134,11 +134,36 @@ export function dropEntry(history: History, which: 'undo' | 'redo'): History {
   return history.future.length ? { ...history, future: history.future.slice(0, -1), open: null } : history;
 }
 
+const itemLeaves = (cmd: Command): LeafCommand[] => (cmd.type === 'batch' ? cmd.commands : [cmd]);
+
+/**
+ * Undo, redo and checkpoint rollback re-apply commands as `trusted`, which skips the locked-item guard.
+ * A non-user author must not use that to create, remove, move or alter a locked item (existing furniture):
+ * the shared stack is kept, but such an entry is refused ("locked item: ask the user").
+ */
+function lockedConflict(scene: Scene, cmd: Command, author: Author): CommandError | undefined {
+  if (author.kind === 'user') return undefined;
+  for (const leaf of itemLeaves(cmd)) {
+    let id: string | undefined;
+    if (leaf.type === 'item.place') {
+      if (leaf.item.locked === true) id = leaf.item.id ?? 'item';
+    } else if (leaf.type === 'item.move' || leaf.type === 'item.rotate' || leaf.type === 'item.setVariant' || leaf.type === 'item.remove') {
+      if (scene.items.some((i) => i.id === leaf.id && i.locked === true)) id = leaf.id;
+    }
+    if (id !== undefined) {
+      return err('precondition_failed', 'id', `this step would change the locked item "${id}" (existing furniture); only the user can`, 'locked item: ask the user');
+    }
+  }
+  return undefined;
+}
+
 /** Undoes the last entry by appending an `undoOf` envelope; returns data a server can log. */
 export function undo(history: History, scene: Scene, ctx: StepContext): HistoryStep {
   const entry = history.past[history.past.length - 1];
   if (!entry) return { ok: false, reason: 'nothing_to_undo', history };
   const envelope: CommandEnvelope = { v: 1, id: ctx.id, ts: ctx.ts, author: ctx.author, undoOf: entry.envelope.id, cmd: entry.inverse };
+  const locked = lockedConflict(scene, entry.inverse, ctx.author);
+  if (locked) return { ok: false, errors: [locked], reason: 'apply_failed', history, entryId: entry.envelope.id };
   const result = applyCommand(scene, envelope, { trusted: true });
   if (!result.ok) return { ...result, reason: 'apply_failed', history, entryId: entry.envelope.id };
   return {
@@ -155,6 +180,8 @@ export function redo(history: History, scene: Scene, ctx: StepContext): HistoryS
   const entry = history.future[history.future.length - 1];
   if (!entry) return { ok: false, reason: 'nothing_to_redo', history };
   const envelope: CommandEnvelope = { v: 1, id: ctx.id, ts: ctx.ts, author: ctx.author, redoOf: entry.envelope.id, cmd: entry.envelope.cmd };
+  const locked = lockedConflict(scene, entry.envelope.cmd, ctx.author);
+  if (locked) return { ok: false, errors: [locked], reason: 'apply_failed', history, entryId: entry.envelope.id };
   const result = applyCommand(scene, envelope, { trusted: true });
   if (!result.ok) return { ...result, reason: 'apply_failed', history, entryId: entry.envelope.id };
   return {

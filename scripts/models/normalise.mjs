@@ -116,6 +116,21 @@ export async function finishGlb(doc) {
 
 const r3 = (v) => Math.round(v * 1000) / 1000;
 
+/** Width (x), depth (z) and height (y) of a document's first scene, in metres. */
+export function measureDims(doc) {
+  const b = getBounds(doc.getRoot().listScenes()[0]);
+  return { w: r3(b.max[0] - b.min[0]), d: r3(b.max[2] - b.min[2]), h: r3(b.max[1] - b.min[1]) };
+}
+
+/** Dims of a finished GLB (decoded again, so quantisation and Meshopt are included); `fallback` when it cannot be read. */
+export async function measureGlb(glb, fallback) {
+  try {
+    return measureDims(await documentFromBuffer(glb));
+  } catch {
+    return fallback;
+  }
+}
+
 /**
  * Full normalisation with a size ladder: lowers texture quality, then texture size, until the GLB fits `maxBytes`.
  * `load` returns a FRESH Document for each attempt. `onStageA(doc, info)` may render a thumbnail from the document.
@@ -130,7 +145,10 @@ export async function normalise(load, opts) {
     const info = await normaliseStageA(doc, { ...opts, texMax: step.size, quality: step.q });
     if (opts.onStageA) await opts.onStageA(doc, info);
     const glb = await finishGlb(doc);
-    last = { glb, ...info, textureMax: step.size, textureQuality: step.q };
+    // `nativeDims` is what the delivered file measures: stage A measured BEFORE simplification, quantisation and
+    // Meshopt, which move vertices a little. Measure the GLB that is shipped.
+    const dims = await measureGlb(glb, info.dims);
+    last = { glb, ...info, dims, textureMax: step.size, textureQuality: step.q };
     if (glb.length <= maxBytes || doc.getRoot().listTextures().length === 0) return last;
   }
   return last; // over budget: the caller fails with the numbers

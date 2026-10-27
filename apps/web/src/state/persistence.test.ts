@@ -146,6 +146,20 @@ describe('Autosaver', () => {
     expect(useDocumentStatus.getState().autosave).toBe('saved');
   });
 
+  it('refuses to write a document that carries a photo or model reference, and says why', async () => {
+    const adapter = memoryAdapter();
+    const bad = editedDoc();
+    const dirty = { ...bad, scene: { ...bad.scene, items: [{ id: 'x', assetId: 'product:mock', position: [1, 1], elevation: 0, rotation: 0, product: { photoUrl: 'https://cdn.example/bed.jpg' } }] } } as unknown as PersistedDoc;
+    const saver = new Autosaver(adapter, () => dirty);
+    saver.schedule();
+    await saver.flush();
+    expect(adapter.writes).toBe(0);
+    expect(useDocumentStatus.getState().autosave).toBe('unavailable');
+    expect(useDocumentStatus.getState().reason).toMatch(/Not saved.*photoUrl/);
+    saver.flushOnHide();
+    expect(adapter.writes).toBe(0);
+  });
+
   it('flush saves immediately and only when dirty', async () => {
     const adapter = memoryAdapter();
     const saver = new Autosaver(adapter, () => editedDoc());

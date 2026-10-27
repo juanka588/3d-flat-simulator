@@ -98,7 +98,28 @@ with a warning and cut. When the log reaches 1000 entries the snapshot is writte
   present and not in `ALLOWED_ORIGINS`. Browsers always send `Origin` on cross-site writes and WS
   upgrades, which is what blocks hostile web pages from driving a localhost server; non-browser
   clients (curl, MCP) send none and pass.
-- `FLAT_TOKEN` (optional) is compared in constant time; reads are not gated.
+- `FLAT_TOKEN` (optional) is compared in constant time; scene reads are not gated.
+- `author.kind` (`user` / `llm` / `planner`) in a command is taken from the request body: it selects the
+  guards (locked items, structural walls, "LLM items must reference a product"). It is a convention between
+  cooperating clients, not authentication. With `FLAT_TOKEN` set, every write (any author) needs the bearer
+  token. With it unset (the loopback default) any local process can claim any kind; that is accepted for a
+  single-user local tool, and it is why `HOST` other than loopback requires `FLAT_TOKEN`.
+- Product and local-asset routes (`/api/providers`, `/api/products/*`, `/api/assets/products/*`,
+  `/api/assets/meshes/*`) also guard READS: a request with an `Origin` must come from `ALLOWED_ORIGINS`; one
+  without `Origin` is refused when the browser marks it `cross-site` or `same-site` (a page on another
+  localhost port), so use `fetch()` from an allowed origin (not `<img src>`) from the web app. Responses are `no-store`.
+- Retailer traffic: GET only, honest UA, one request per host at a time (the slot is held until the body is
+  read, then 1.5 s gap), at most 20 queued per host, 10 s to the headers and 30 s to finish the body, robots.txt
+  (404/410 = allow, 403/429/other errors = refuse and, for 403/429, open the circuit; never cached as allow-all).
+  The circuit is re-checked inside the host slot before every attempt; half-open lets exactly one probe through.
+- Pasted URLs: https, port 443, public hosts only; the connection itself is pinned to the vetted address
+  (`providers/pinned.ts`), so DNS rebinding between check and connect is refused.
+- IKEA URLs taken from responses must be `https://www.ikea.com/fr/fr/p/...` (pages) or on `www.ikea.com` /
+  `web-api.ikea.com` (photos, models); anything else is replaced by a URL rebuilt from the SKU or dropped.
+- `GET /api/products/:id/photo`: product photo proxy (memory-cached 1 h, 2 MB, raster images sniffed from the bytes).
+- `GET /api/assets/meshes/catalog.json` and `GET /api/assets/meshes/:assetId.glb`: the local 3D-FUTURE pack
+  (`apps/server/local-assets/3d-future`, `LOCAL_ASSETS_DIR`; gitignored, research licence). `:assetId` is
+  `local:3dfuture:<model_id>` or the bare `<model_id>` (`[A-Za-z0-9][A-Za-z0-9_-]*`); only ids listed in the catalog are served.
 - 2 MB body limit (imports up to the 5 MB scene limit), 200 writes/s per client, 50 WebSocket clients.
 
 ## curl

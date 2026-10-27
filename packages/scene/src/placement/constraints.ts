@@ -1,7 +1,7 @@
 import { wallObstacles } from '../collision';
 import { roomCeilingHeight } from '../geometry/floors';
 import type { Dims, ItemMount } from '../primitives';
-import { HEAVY_MOUNT_KG } from '../products';
+import { HEAVY_MOUNT_KG, type ProductCategory } from '../products';
 import type { Room, Scene, Vec2, Wall } from '../schema';
 import { wallLength } from '../schema';
 import { structuralInfo } from '../structural';
@@ -10,6 +10,7 @@ import {
   boundsOf,
   boundsTouch,
   boxOfItem,
+  FLAT_MAX_H,
   footprintOf,
   frontOf,
   overlaps,
@@ -33,6 +34,10 @@ export const SILL_MARGIN = 0.02;
 export const HEIGHT_TOLERANCE = 0.01;
 /** A wall mount counts as mounted on the wall whose face is at most this far behind its back. */
 const MOUNT_REACH = 0.12;
+/** A wall mount further from every wall than `MOUNT_REACH` is still taken to hang on the nearest wall within this reach. */
+const MOUNT_FAR_REACH = 1;
+/** Wall-mounted categories that are typically heavier than `HEAVY_MOUNT_KG`: a missing weight deserves a warning. */
+export const TYPICALLY_HEAVY_CATEGORIES: readonly ProductCategory[] = ['wall_cabinet', 'shelf', 'tv_unit', 'sideboard', 'kitchen'];
 
 export interface RoomInfo {
   room: Room;
@@ -104,6 +109,8 @@ export interface Subject {
   dims: Dims;
   mount: ItemMount;
   weightKg?: number;
+  /** Product category, used to warn when a typically heavy wall mount has no weight. */
+  category?: ProductCategory;
   acknowledgeHeavyPartition?: boolean;
 }
 
@@ -221,15 +228,19 @@ export function checkZones(ctx: LayoutContext, s: Subject, box: Pick<ItemBox, 'f
   const windows: string[] = [];
   const glazing: string[] = [];
   const wallMount = s.mount === 'wall';
+  // ceiling lights hang far above any sill: the window rules are for things standing or hanging on walls
+  const ceilingMount = s.mount === 'ceiling';
   for (const z of ctx.zones) {
-    if (only === 'swing' && z.kind !== 'swing' && z.kind !== 'landing' && z.kind !== 'passage') continue;
-    if (z.kind === 'swing' || z.kind === 'landing' || z.kind === 'passage') {
+    const clear = z.kind === 'swing' || z.kind === 'landing' || z.kind === 'passage' || z.kind === 'approach' || z.kind === 'span';
+    if (only === 'swing' && !clear) continue;
+    if (clear) {
+      if (z.kind === 'span' && !wallMount) continue;
       if (box.flat || box.bottom >= z.hi - HEIGHT_TOLERANCE) continue;
       if (zoneHit(box, z) && !swing.includes(z.openingId)) swing.push(z.openingId);
     } else if (z.kind === 'window') {
       if (wallMount) {
         if (box.bottom < z.hi - HEIGHT_TOLERANCE && box.top > z.lo + HEIGHT_TOLERANCE && zoneHit(box, z) && !glazing.includes(z.openingId)) glazing.push(z.openingId);
-      } else if (!box.flat && box.top > z.lo - SILL_MARGIN + 1e-9 && box.bottom < z.hi - HEIGHT_TOLERANCE && zoneHit(box, z) && !windows.includes(z.openingId)) {
+      } else if (!ceilingMount && !box.flat && box.top > z.lo - SILL_MARGIN + 1e-9 && box.bottom < z.hi - HEIGHT_TOLERANCE && zoneHit(box, z) && !windows.includes(z.openingId)) {
         windows.push(z.openingId);
       }
     } else if (wallMount && box.bottom < z.hi - HEIGHT_TOLERANCE && box.top > z.lo + HEIGHT_TOLERANCE && zoneHit(box, z) && !glazing.includes(z.openingId)) {
@@ -238,7 +249,7 @@ export function checkZones(ctx: LayoutContext, s: Subject, box: Pick<ItemBox, 'f
   }
   const out: Violation[] = [];
   if (swing.length) {
-    out.push(violation('door_swing_blocked', `${label(s)} blocks the swing or landing of ${swing.map((x) => `"${x}"`).join(', ')}`, swing));
+    out.push(violation('door_swing_blocked', `${label(s)} blocks the swing, landing or doorway of ${swing.map((x) => `"${x}"`).join(', ')}`, swing));
   }
   if (windows.length) {
     out.push(
@@ -257,17 +268,17 @@ export function checkZones(ctx: LayoutContext, s: Subject, box: Pick<ItemBox, 'f
 }
 
 function zoneHit(box: Pick<ItemBox, 'footprint'>, z: Zone): boolean {
-  return overlaps(box.footprint, z.polygon);
+  return overlaps(box.footprint, z.polygon, z.tolerance);
 }
 
 // ---- heavy wall mounts -------------------------------------------------------------------------------
 
 /** The wall a wall-mounted item hangs on: the one whose face is closest behind its back (within `MOUNT_REACH`). */
-export function mountWall(scene: Scene, s: Pick<Subject, 'position' | 'rotation' | 'dims'>): Wall | undefined {
+export function mountWall(scene: Scene, s: Pick<Subject, 'position' | 'rotation' | 'dims'>, reach: number = MOUNT_REACH): Wall | undefined {
   const n = frontOf(s.rotation);
   const p: Vec2 = [s.position[0] - n[0] * (s.dims.d / 2 + 0.01), s.position[1] - n[1] * (s.dims.d / 2 + 0.01)];
   let best: Wall | undefined;
-  let bestD = MOUNT_REACH;
+  let bestD = reach;
   for (const w of scene.walls) {
     if (wallLength(w) < 1e-9) continue;
     const d = distanceToSegment(p, w.start, w.end) - w.thickness / 2;
@@ -280,8 +291,24 @@ export function mountWall(scene: Scene, s: Pick<Subject, 'position' | 'rotation'
 }
 
 export function checkHeavy(ctx: LayoutContext, s: Subject): { violations: Violation[]; warnings: Violation[] } {
-  if (s.mount !== 'wall' || s.weightKg === undefined || s.weightKg <= HEAVY_MOUNT_KG) return { violations: [], warnings: [] };
-  const wall = mountWall(ctx.scene, s);
+  if (s.mount !== 'wall') return { violations: [], warnings: [] };
+  if (s.weightKg === undefined) {
+    if (s.category === undefined || !TYPICALLY_HEAVY_CATEGORIES.includes(s.category)) return { violations: [], warnings: [] };
+    const near = mountWall(ctx.scene, s, MOUNT_FAR_REACH);
+    return {
+      violations: [],
+      warnings: [
+        violation(
+          'weight_unknown',
+          `${label(s)} is a wall-mounted ${s.category.replace('_', ' ')} with no weight: ${near ? `check that wall "${near.id}" can carry it` : 'check that its wall can carry it'} (items over ${HEAVY_MOUNT_KG} kg need a structural wall)`,
+          near ? [near.id] : [],
+        ),
+      ],
+    };
+  }
+  if (s.weightKg <= HEAVY_MOUNT_KG) return { violations: [], warnings: [] };
+  // a wall mount far from every wall (stand-off brackets, a mis-set depth) still hangs on the nearest one
+  const wall = mountWall(ctx.scene, s) ?? mountWall(ctx.scene, s, MOUNT_FAR_REACH);
   if (!wall) return { violations: [], warnings: [] };
   const info = structuralInfo(ctx.scene, wall);
   if (info.structural) return { violations: [], warnings: [] };
@@ -317,7 +344,7 @@ export function subjectBox(s: Subject): ItemBox {
     dims: s.dims,
     mount: s.mount,
     locked: false,
-    flat: s.dims.h <= 0.03,
+    flat: s.mount === 'floor' && s.dims.h <= FLAT_MAX_H,
     footprint: footprintOf(s.position, s.rotation, s.dims),
     bottom: s.elevation,
     top: s.elevation + s.dims.h,

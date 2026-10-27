@@ -25,8 +25,12 @@ test.afterAll(async () => {
 // A 1x1 PNG for the product photos (the mock products point at a host that does not exist).
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
 
+/** Requests the browser sent to the retailer's host: there must be none. */
+const hotlinked: string[] = [];
+
 async function prepare(page: Page): Promise<void> {
-  await page.route('https://shop.mock.example/**', (r) => r.fulfill({ status: 200, contentType: 'image/png', body: PNG }));
+  hotlinked.length = 0;
+  await page.route('https://shop.mock.example/**', (r) => (hotlinked.push(r.request().url()), r.fulfill({ status: 200, contentType: 'image/png', body: PNG })));
   await openConnected(page, server);
   await flat(page, (f) => f.setView({ mode: 'top' }));
 }
@@ -62,7 +66,8 @@ test('search, red ghost over the door swing, refused drop, valid drop, undo', as
   await expect(card).toContainText('TTC');
   await expect(card.getByTestId('card-dims')).toContainText('160 × 200 × 90 cm');
   await expect(card.locator('.badge-3d')).toHaveText('3D');
-  await expect(card.locator('img')).toHaveAttribute('referrerpolicy', 'no-referrer');
+  // photos only ever come through the local server (never hotlinked from the retailer's host)
+  expect(hotlinked).toEqual([]);
   await expect(page.getByTestId('product-card').filter({ hasText: 'Bedside' }).first()).toBeVisible();
   await page.screenshot({ path: '/tmp/catalog-search.png' });
 
@@ -163,14 +168,15 @@ test('the gizmo moves and rotates the selected item (one history entry per drag)
   await expect.poll(async () => (await get()).position[1]).toBeCloseTo(1.5, 2);
   expect(await entries(page)).toBe(h0 + 1);
 
-  // rotate: grab the ring (1.4 m east of the centre) and bring it to the south side
+  // rotate: grab the ring (1.4 m east of the centre) and bring it to the west side (half a turn)
   const ring0 = await screenOf(page, 5.4 + 1.4, 1.6);
   await page.mouse.move(ring0.x, ring0.y);
   await page.mouse.down();
-  const ring1 = await screenOf(page, 5.4, 1.5 + 1.4);
+  // (a quarter turn would stand the bed across the room's walkway to the window: the release is refused and the turn reverted, see placement.test.ts)
+  const ring1 = await screenOf(page, 5.4 - 1.4, 1.5);
   await page.mouse.move(ring1.x, ring1.y, { steps: 10 });
   await page.mouse.up();
-  await expect.poll(async () => (await get()).rotation).toBe(270);
+  await expect.poll(async () => (await get()).rotation).toBe(180);
   expect(await entries(page)).toBe(h0 + 2);
 
   // a wall mount: against the west wall of Chambre 2 (back flush), at a height that fits under the ceiling
@@ -193,12 +199,12 @@ test('the gizmo moves and rotates the selected item (one history entry per drag)
 test('paste a product URL (mock) and fill the missing size', async ({ page }) => {
   await prepare(page);
   await page.getByTestId('paste-url').fill('https://shop.mock.example/p/mock-desk-120');
-  await page.getByRole('button', { name: 'Add' }).click();
+  await page.getByRole('button', { name: 'Add', exact: true }).click();
   await expect(page.getByTestId('product-card').first()).toContainText('MOCK Desk 120x60');
   await expect(page.getByTestId('product-card').first()).toContainText('pasted');
   // an unknown page is refused with the server's message
   await page.getByTestId('paste-url').fill('https://shop.mock.example/p/nothing');
-  await page.getByRole('button', { name: 'Add' }).click();
+  await page.getByRole('button', { name: 'Add', exact: true }).click();
   await expect(page.getByTestId('paste-error')).toContainText(/not know|cannot|URL/i);
   // a page without sizes: the W/D/H form, then the card carries "your sizes"
   await page.route(`${server.url}/api/products/resolve`, (r) =>
@@ -213,7 +219,7 @@ test('paste a product URL (mock) and fill the missing size', async ({ page }) =>
     }),
   );
   await page.getByTestId('paste-url').fill('https://www.meubles-exemple.fr/p/canape');
-  await page.getByRole('button', { name: 'Add' }).click();
+  await page.getByRole('button', { name: 'Add', exact: true }).click();
   await expect(page.getByTestId('dims-form')).toBeVisible();
   await page.getByTestId('dims-w').fill('200');
   await page.getByTestId('dims-d').fill('90');
@@ -257,4 +263,30 @@ test.describe('mobile', () => {
     await sheet.getByTestId('remove-item').tap();
     await expect.poll(async () => (await items(page)).length).toBe(before);
   });
+});
+
+test('keyboard: "Add to room" places a card through the solver, and item keys leave fields alone', async ({ page }) => {
+  await prepare(page);
+  await search(page, 'bed');
+  const card = page.locator('[data-testid=product-card][data-product-id="mock:MOCK-BED-160"]');
+  const before = await items(page);
+  const add = card.getByTestId('add-to-room');
+  await add.focus();
+  await expect(add).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect.poll(async () => (await items(page)).length).toBe(before.length + 1);
+  const placed = (await items(page)).at(-1)!;
+  const item = await flat(page, (f) => f.getScene().items.at(-1)!);
+  expect(item.relation).toBeTruthy();
+  expect(item.roomId).toBeTruthy();
+  await expect(page.getByTestId('item-properties')).toBeVisible();
+  expect((await page.evaluate(() => window.__flat!.placement())).notice).toMatch(/Added/);
+
+  // focus in the search field: arrows and Delete belong to the field, the item stays
+  await page.getByTestId('catalog-search').focus();
+  const p0 = item.position;
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('Delete');
+  expect((await items(page)).includes(placed)).toBe(true);
+  expect((await flat(page, (f) => f.getScene().items.at(-1)!)).position).toEqual(p0);
 });

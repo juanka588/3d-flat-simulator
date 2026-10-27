@@ -1960,6 +1960,98 @@
             }
           ],
           "description": "Dimensions of the chosen variant when they differ; null clears them back to the product dimensions. Optional."
+        },
+        "mesh": {
+          "anyOf": [
+            {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "provider",
+                      "description": "Mesh source discriminator, always \"provider\": the provider's real model of productRef, streamed by the local server."
+                    }
+                  },
+                  "required": [
+                    "kind"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "lookalike",
+                      "description": "Mesh source discriminator, always \"lookalike\": a library model scaled to the exact dims."
+                    },
+                    "assetId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64,
+                      "description": "Id of the library asset (search_assets)."
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "assetId"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "parametric",
+                      "description": "Mesh source discriminator, always \"parametric\": a generator at the exact dims."
+                    },
+                    "generator": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64,
+                      "description": "Generator id (search_assets)."
+                    },
+                    "params": {
+                      "default": {},
+                      "description": "Scalar generator parameters; omitted keys use the generator defaults.",
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 32
+                      },
+                      "additionalProperties": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "string",
+                            "maxLength": 64
+                          },
+                          {
+                            "type": "boolean"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "generator"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Shape source to store with the variant; null clears it. Omitted: a parametric shape follows the new dimensions. Optional."
         }
       },
       "required": [
@@ -3968,6 +4060,98 @@
                       }
                     ],
                     "description": "Dimensions of the chosen variant when they differ; null clears them back to the product dimensions. Optional."
+                  },
+                  "mesh": {
+                    "anyOf": [
+                      {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "provider",
+                                "description": "Mesh source discriminator, always \"provider\": the provider's real model of productRef, streamed by the local server."
+                              }
+                            },
+                            "required": [
+                              "kind"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "lookalike",
+                                "description": "Mesh source discriminator, always \"lookalike\": a library model scaled to the exact dims."
+                              },
+                              "assetId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64,
+                                "description": "Id of the library asset (search_assets)."
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "assetId"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "parametric",
+                                "description": "Mesh source discriminator, always \"parametric\": a generator at the exact dims."
+                              },
+                              "generator": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64,
+                                "description": "Generator id (search_assets)."
+                              },
+                              "params": {
+                                "default": {},
+                                "description": "Scalar generator parameters; omitted keys use the generator defaults.",
+                                "type": "object",
+                                "propertyNames": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 32
+                                },
+                                "additionalProperties": {
+                                  "anyOf": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "string",
+                                      "maxLength": 64
+                                    },
+                                    {
+                                      "type": "boolean"
+                                    }
+                                  ]
+                                }
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "generator"
+                            ],
+                            "additionalProperties": false
+                          }
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Shape source to store with the variant; null clears it. Omitted: a parametric shape follows the new dimensions. Optional."
                   }
                 },
                 "required": [

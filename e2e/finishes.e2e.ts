@@ -326,6 +326,13 @@ test.describe('desktop', () => {
     await expect(properties(page).getByRole('region', { name: 'Finish' })).toHaveCount(0);
   });
 
+  test('a selected item shows no finish hint', async ({ page }) => {
+    await page.evaluate(() => window.__flat!.select('tv-sejour'));
+    await rendered(page);
+    await expect(properties(page).getByRole('heading')).toContainText('TV');
+    await expect(page.getByTestId('finish-note')).toHaveCount(0);
+  });
+
   test('structural badge and toggle are undoable; the top view draws the overlay with a legend', async ({ page }) => {
     test.slow();
     const scene = await getScene(page);

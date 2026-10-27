@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ProductCategory } from '../products';
 import { Clearance, Dims, EntityId, ItemMount, Vec2 } from '../primitives';
 
 /**
@@ -85,6 +86,7 @@ export const PlacementRequest = z.strictObject({
   /** Wall / ceiling mounts: height of the item bottom above the floor. Floor items are always at 0. */
   elevation: z.number().min(0).max(10).optional(),
   weightKg: z.number().positive().max(2000).optional().describe('Weight; wall mounts above 15 kg are only allowed on structural walls.'),
+  category: ProductCategory.optional().describe('Product category; a wall-mounted cabinet, shelf or TV unit without weightKg gets a weight_unknown warning.'),
   clearance: Clearance.optional(),
   relation: Relation,
   /** Extra rotation applied after the relation, in degrees (usually 0: relations already set the facing). */
@@ -105,6 +107,7 @@ export const VIOLATION_CODES = [
   'glazing_blocked',
   'walkway_too_narrow',
   'heavy_mount_partition',
+  'weight_unknown',
   'locked_item',
   'invalid_relation',
   'dims_mismatch',
@@ -132,6 +135,7 @@ export const VIOLATION_HINTS: Readonly<Record<ViolationCode, string>> = {
   glazing_blocked: 'Wall-mounted items cannot hang on a glazed opening; choose a solid stretch of wall.',
   walkway_too_narrow: 'Leave at least 0.8 m free for walking (0.9 m at the entry); move the item or remove another.',
   heavy_mount_partition: 'Heavy wall mounts (over 15 kg) belong on structural walls; pick one, or set acknowledgeHeavyPartition to accept the risk.',
+  weight_unknown: 'A wall-mounted cabinet, shelf or TV unit usually weighs over 15 kg: give its weightKg (from get_product) so the wall can be checked.',
   locked_item: 'The item is locked (existing furniture); plan around it instead of moving it.',
   invalid_relation: 'The relation refers to something that does not exist or cannot hold; check the ids and the side.',
   dims_mismatch: 'The item dimensions differ from the product / generator dimensions by more than 2%; use the product dimensions.',

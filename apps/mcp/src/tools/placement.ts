@@ -74,6 +74,9 @@ const Entry = z
   });
 type Entry = z.infer<typeof Entry>;
 
+/** Variant mode: switch a placed item to another variant of its product (price and dims come from the server record). */
+const VariantArgs = z.strictObject({ itemId: z.string().min(1).max(64), variantSku: Sku });
+
 const PlaceMany = z.strictObject({ items: z.array(Entry).min(1).max(MAX_PLACEMENTS) });
 
 const OptionsArgs = z.strictObject({ productId: ProductId, roomId: RoomId, relation: Relation, variantSku: Sku.optional() });
@@ -93,7 +96,7 @@ const DEFS = () => ({ relation: jsonSchema(Relation), mesh: jsonSchema(MeshSourc
 const ENTRY_PROPS: Json = {
   productId: { type: 'string', description: 'productId returned by search_products or get_product in this session, "<provider>:<sku>".' },
   roomId: { type: 'string', description: 'Room to place in (list_rooms).' },
-  relation: { ...RELATION_REF, description: 'Where, in designer terms (against_wall, in_corner, centered_in, facing, next_to, under_window). The server finds the exact position and rotation. Use this OR position.' },
+  relation: { ...RELATION_REF, description: 'Where, in designer terms (against_wall, in_corner, centered_in, facing, next_to, under_window). The server finds the exact position and rotation. Use this OR position. In items[], "$0" as the itemId of next_to (targetId of facing) means the item entry 0 of the same call places.' },
   position: { type: 'array', items: { type: 'number' }, minItems: 2, maxItems: 2, description: 'Explicit plan position [x, y] of the item centre, metres. Use this OR relation.' },
   rotation: { type: 'number', description: 'With position: degrees counter-clockwise seen from above (front faces plan +y at 0). With relation: an extra turn, usually omitted.' },
   elevation: { type: 'number', minimum: 0, maximum: 10, description: 'Wall or ceiling products only: height of the bottom above the floor, metres.' },
@@ -158,6 +161,27 @@ function requestFor(p: Prepared, roomId: string, relation: PlacementRequestInput
     ...(extra.acknowledge ? { acknowledgeHeavyPartition: true } : {}),
     maxCandidates: 3,
   };
+}
+
+const BACKREF = /^\$(\d{1,2})$/;
+
+/**
+ * In items[], "$N" as the itemId of next_to / the targetId of facing stands for the item entry N of the SAME call
+ * places (N before this entry). Replaced by that item's real id; anything else is left to the solver.
+ */
+function resolveBackRefs(e: Entry, placedIds: readonly string[], at: string): { ok: true; entry: Entry } | { ok: false; result: CallToolResult } {
+  const rel = e.relation;
+  if (!rel || (rel.kind !== 'next_to' && rel.kind !== 'facing')) return { ok: true, entry: e };
+  const key = rel.kind === 'next_to' ? 'itemId' : 'targetId';
+  const value = (rel as unknown as Record<string, string>)[key]!;
+  const m = BACKREF.exec(value);
+  if (!m) return { ok: true, entry: e };
+  const n = Number(m[1]);
+  const id = placedIds[n];
+  if (id === undefined) {
+    return { ok: false, result: toolError('invalid_command', `"${value}" in ${key}${at} must refer to an EARLIER entry of this items[] (0 to ${Math.max(0, placedIds.length - 1)} here)`, 'Put the entry it refers to before this one, or use a real item id.', { errors: [{ code: 'invalid_command', path: `relation/${key}`, message: 'back-reference to an entry that is not placed yet' }] }) };
+  }
+  return { ok: true, entry: { ...e, relation: { ...rel, [key]: id } as Entry['relation'] } };
 }
 
 /** The relation an entry asks for: its `relation`, or `at` for an explicit position. */
@@ -395,13 +419,17 @@ const getBillOfMaterials: ToolDef = {
 // ---------------------------------------------------------------------------------------------
 
 const PLACE_DESCRIPTION =
-  'Put a real product into a room. The productId must come from search_products or get_product in this session (else unknown_product); the name, price, dimensions and link are read from the server\'s own product record, never from you, so there are no such arguments. ' +
+  'Put a real product into a room. The productId must come from search_products or get_product in this session (else unknown_product); name, price, dimensions and link are read from the server\'s own product record, never from you, so there are no such arguments. ' +
   'Give a relation (against_wall, in_corner, centered_in, facing, next_to, under_window: the server finds a valid position and rotation) or an explicit position + rotation. ' +
-  'Several products at once: pass items[] (up to 12, one undo step, placed in order so later ones see earlier ones). If a spot is not valid you get placement_invalid with the violations and alternative candidates. ' +
-  'The shape defaults to the real 3D model, else a lookalike, else a parametric shape at the exact dims. Supports preview, render, ifRev and label like every write tool. Check the result with validate_layout.';
+  'Several products: pass items[] (up to 12, one undo step, placed in order). An invalid spot gives placement_invalid with the violations and alternative candidates. ' +
+  'The shape defaults to the real 3D model, else a lookalike, else a parametric shape at the exact dims. ' +
+  'To switch an already placed item to another colour or size, pass only itemId + variantSku (a variants[].sku from get_product): the server rebuilds its price and dims from the product record. ' +
+  'Check the result with validate_layout.';
 
 function placeSchema(): Json {
-  const base = obj({ ...ENTRY_PROPS, items: { type: 'array', minItems: 1, maxItems: MAX_PLACEMENTS, items: { $ref: '#/$defs/placement' }, description: `Several placements in one call (instead of the fields above), at most ${MAX_PLACEMENTS}.` } });
+  // Single mode: the fields are references into the placement definition (written once).
+  const single = Object.fromEntries(Object.keys(ENTRY_PROPS).map((k) => [k, { $ref: `#/$defs/placement/properties/${k}` }]));
+  const base = obj({ ...single, itemId: { type: 'string', description: 'Variant mode: id of a placed item (describe_room) to switch to variantSku. Give only itemId + variantSku.' }, items: { type: 'array', minItems: 1, maxItems: MAX_PLACEMENTS, items: { $ref: '#/$defs/placement' }, description: `Several placements in one call (instead of the single fields), at most ${MAX_PLACEMENTS}.` } });
   return withMcpExtras({ ...base, required: [], $defs: { ...DEFS(), placement: obj(ENTRY_PROPS, ENTRY_REQUIRED) } });
 }
 
@@ -430,6 +458,45 @@ function withPlaced(result: CallToolResult, placed: PlacedInfo[]): CallToolResul
   return { ...result, content, structuredContent: next };
 }
 
+/**
+ * Variant mode of `place_item`: the snapshot and dims are rebuilt from the SERVER record of the item's
+ * product (which this session must have seen) and dispatched as `item.setVariant`; nothing from the arguments but the SKU.
+ */
+async function setItemVariant(ctx: ToolContext, rest: Json, extras: { ifRev: number | undefined; preview: boolean }, plan: Parameters<typeof executeCommand>[2]['plan']): Promise<CallToolResult> {
+  const parsed = parseArgs(VariantArgs, rest);
+  if (!parsed.ok) return parsed.result;
+  const { itemId, variantSku } = parsed.data;
+  if (ctx.config.readOnly) return toolError('read_only', 'this MCP server is read-only (FLAT_MCP_READONLY)');
+  const sc = await fetchScene(ctx);
+  if (!sc.ok) return sc.result;
+  const found = sc.data.scene.items.find((i) => i.id === itemId);
+  if (!found) {
+    const ids = sc.data.scene.items.map((i) => i.id);
+    return toolError('unknown_entity', `no item "${itemId}"`, `Did you mean ${nearestIds(itemId, ids).map((x) => `"${x}"`).join(', ') || 'none'}? Items: ${ids.join(', ') || '(none)'} (describe_room).`);
+  }
+  const ref = found.productRef ?? (found.product ? { provider: found.product.provider, sku: found.product.sku } : undefined);
+  if (!ref) return toolError('precondition_failed', `item "${itemId}" is not a product (no productRef), it has no variants`, 'Place a real product with place_item instead.');
+  const productId = `${ref.provider}:${ref.sku}`;
+  const loaded = await loadSeenProduct(ctx, productId);
+  if (!loaded.ok) return loaded.result;
+  const prep = prepare(loaded.data, variantSku);
+  if (!prep.ok) return prep.result;
+  const { record, variant, dims } = prep.data;
+  if (!record.priceTtc) return toolError('invalid_command', `product ${productId} has a non-TTC price and cannot be placed`, 'Budgets count TTC prices only; pick another product.');
+  let snapshot;
+  try {
+    snapshot = productSnapshot({ ...record, price: variant?.price ?? record.price, dims, url: variant?.url ?? record.url }, record.fetchedAt, variant?.colour);
+  } catch (e) {
+    return toolError('invalid_command', e instanceof Error ? e.message : String(e));
+  }
+  const cmd = { type: 'item.setVariant', id: itemId, variant: variantSku, product: snapshot, dims } as unknown as Command;
+  const result = await executeCommand(ctx, cmd, { ifRev: extras.ifRev ?? sc.data.rev, preview: extras.preview, plan });
+  const body = result.structuredContent as Json | undefined;
+  if (result.isError || !body) return result;
+  const next = { ...body, variant: { itemId, name: snapshot.name, productId, variantSku, price: snapshot.price, currency: snapshot.currency, dims: dimsOf(dims) } };
+  return { ...result, content: result.content.map((c, i) => (i === 0 && c.type === 'text' ? { type: 'text' as const, text: JSON.stringify(next) } : c)), structuredContent: next };
+}
+
 async function placeItem(ctx: ToolContext, args: Json): Promise<CallToolResult> {
   if (Buffer.byteLength(JSON.stringify(args)) > ctx.limits.maxArgBytes) return toolError('invalid_command', `arguments exceed ${ctx.limits.maxArgBytes} bytes`);
   const split = splitExtras(args, { labelIsExtra: true });
@@ -437,6 +504,8 @@ async function placeItem(ctx: ToolContext, args: Json): Promise<CallToolResult> 
   const { extras, rest } = split;
   const planned = planRender(extras.render);
   if (!planned.ok) return planned.result;
+
+  if ('itemId' in rest) return setItemVariant(ctx, rest, extras, planned.plan);
 
   const parsed = 'items' in rest ? parseArgs(PlaceMany, rest) : parseArgs(Entry, rest);
   if (!parsed.ok) return parsed.result;
@@ -451,9 +520,13 @@ async function placeItem(ctx: ToolContext, args: Json): Promise<CallToolResult> 
   const providers: { list?: ProviderInfo[] } = {};
   const commands: Command[] = [];
   const placed: PlacedInfo[] = [];
+  const placedIds: string[] = [];
 
-  for (const [index, entry] of entries.entries()) {
+  for (const [index, raw] of entries.entries()) {
     const at = entries.length > 1 ? ` [items/${index}]` : '';
+    const backref = resolveBackRefs(raw, placedIds, at);
+    if (!backref.ok) return backref.result;
+    const entry = backref.entry;
     const loaded = await loadSeenProduct(ctx, entry.productId);
     if (!loaded.ok) return loaded.result;
     const prep = prepare(loaded.data, entry.variantSku);
@@ -501,6 +574,7 @@ async function placeItem(ctx: ToolContext, args: Json): Promise<CallToolResult> 
     const step = applyCommand(working, makeEnvelope(cmd, { id: ctx.clock.newId(), ts: ctx.clock.now(), author: ctx.author }), { rev: base.rev });
     if (!step.ok) return commandErrors(step.errors, base.rev);
     working = step.scene;
+    placedIds.push(step.changed.items?.[0] ?? working.items.at(-1)?.id ?? '');
     placed.push({
       name: snapshot.name,
       productId: entry.productId,

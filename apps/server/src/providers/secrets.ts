@@ -24,6 +24,7 @@ export function readEnvFile(path: string): Record<string, string> {
   }
 }
 
+// Any non-empty secret is redacted, however short: a short one is weak, but it must still never reach a log.
 const SECRET_NAME = /(TOKEN|KEY|SECRET|PASSWORD|PASSWD|CREDENTIAL|FEED_URL|AUTH)/i;
 const SECRET_QUERY = /([?&](?:token|key|apikey|api_key|secret|password|auth|access_token|signature)=)[^&\s"']+/gi;
 
@@ -38,7 +39,7 @@ export interface Secrets {
 export function createSecrets(env: Record<string, string | undefined>, fileValues: Record<string, string> = {}): Secrets {
   const merged: Record<string, string | undefined> = { ...fileValues, ...env };
   const values = Object.entries(merged)
-    .filter(([k, v]) => SECRET_NAME.test(k) && typeof v === 'string' && v.length >= 6)
+    .filter(([k, v]) => SECRET_NAME.test(k) && typeof v === 'string' && v.length >= 1)
     .map(([, v]) => v as string)
     .sort((a, b) => b.length - a.length);
   return {

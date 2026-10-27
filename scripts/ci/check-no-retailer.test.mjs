@@ -1,9 +1,10 @@
 import { execFileSync } from 'node:child_process';
+import { Buffer } from 'node:buffer';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { findHosts, gitFiles, globToRegExp, loadConfig, scanDist, scanTracked } from './check-no-retailer.mjs';
+import { findHosts, gitFiles, globToRegExp, isGltfContent, loadConfig, normaliseDots, scanDist, scanTracked } from './check-no-retailer.mjs';
 
 const cfg = loadConfig();
 
@@ -20,6 +21,85 @@ describe('helpers', () => {
     expect(findHosts('fetch("https://www.IKEA.com/fr/p/1")', cfg.hosts)).toEqual(['ikea.com']);
     expect(findHosts('https://sik.ikea-static.com/x', cfg.hosts)).toContain('ikea-static.com');
     expect(findHosts('about.fr, robut.fr, whatever.example', cfg.hosts)).toEqual([]);
+  });
+});
+
+describe('evasions: escaped dots, wasm, glTF under other names, .mts/.cts, .envrc', () => {
+  it('finds hosts written with escaped or encoded dots', () => {
+    for (const t of [
+      'new RegExp("www\\\\.ikea\\\\.com")', // "www\\.ikea\\.com" in source
+      '/www\\.ikea\\.com/',
+      'ikea\\u002ecom',
+      'ikea\\x2ecom',
+      'ikea&#46;com',
+      'ikea&#x2E;com',
+      'ikea&period;com',
+      'ikea%2Ecom',
+      'ikea[.]com',
+      'IKEA\\.COM',
+    ]) {
+      expect([t, findHosts(t, cfg.hosts)]).toEqual([t, ['ikea.com']]);
+    }
+    expect(normaliseDots('a\\.b')).toBe('a.b');
+    expect(findHosts('robut\\.fr and about&#46;fr', cfg.hosts)).toEqual([]);
+  });
+
+  const dist = (files) => {
+    const d = mkdtempSync(join(tmpdir(), 'dist-ev-'));
+    for (const [p, c] of Object.entries(files)) {
+      mkdirSync(join(d, p.split('/').slice(0, -1).join('/') || '.'), { recursive: true });
+      writeFileSync(join(d, p), c);
+    }
+    return d;
+  };
+  // a minimal wasm module: magic + version, then a data section that holds the host as plain bytes
+  const wasmWith = (text) => Buffer.concat([Buffer.from([0, 0x61, 0x73, 0x6d, 1, 0, 0, 0, 0x0b, text.length + 4, 1, 0, 0x41, 0, 0x0b]), Buffer.from(text, 'latin1')]);
+
+  it('flags a retailer host inside a .wasm module (dist and tracked)', () => {
+    expect(scanDist(dist({ 'assets/m.wasm': wasmWith('https://www.ikea.com/fr/fr/p/') }), cfg)).toEqual(['assets/m.wasm: mentions retailer host ikea.com']);
+    expect(scanDist(dist({ 'assets/m.wasm': wasmWith('nothing to see') }), cfg)).toEqual([]);
+    expect(scanTracked(['apps/web/src/m.wasm'], cfg, () => wasmWith('x.leroymerlin.fr/y').toString('latin1'))).toEqual(['apps/web/src/m.wasm: mentions retailer host leroymerlin.fr']);
+  });
+
+  it('flags a binary glTF whatever its name (.bin, .dat, no extension), but not the listed library', () => {
+    const glb = Buffer.concat([Buffer.from('glTF'), Buffer.from([2, 0, 0, 0, 20, 0, 0, 0, 0, 0, 0, 0, 0x4a, 0x53, 0x4f, 0x4e])]);
+    const p = scanDist(dist({ 'models/catalog.json': JSON.stringify([{ file: 'sofa.glb' }]), 'models/sofa.glb': glb, 'assets/leak.bin': glb, 'assets/leak.dat': glb, 'assets/noext': glb }), cfg);
+    expect(p.sort()).toEqual(['assets/leak.bin: glTF content under a non-model name (not in the models catalog)', 'assets/leak.dat: glTF content under a non-model name (not in the models catalog)', 'assets/noext: glTF content under a non-model name (not in the models catalog)']);
+  });
+
+  it('flags JSON glTF (asset + version) under any name, but not ordinary JSON or JS that mentions "asset"', () => {
+    const gltf = JSON.stringify({ asset: { version: '2.0', generator: 'x' }, scenes: [] });
+    expect(scanDist(dist({ 'assets/scene.bin': gltf, 'assets/scene.json': '  \n' + gltf, 'assets/trunc.dat': '{"asset": {"generator":"g", "version": "2.0"}, "scenes": [' }), cfg).map((x) => x.split(':')[0]).sort()).toEqual(['assets/scene.bin', 'assets/scene.json', 'assets/trunc.dat']);
+    expect(
+      scanDist(
+        dist({
+          'assets/app.js': 'if(!json.asset||!json.asset.version)throw 1;const k="asset",v="version";',
+          'assets/manifest.webmanifest': JSON.stringify({ name: 'x', version: '1.0', assets: ['a'] }),
+          'assets/cat.json': JSON.stringify([{ asset: 'a', version: 1 }]),
+          'assets/other.json': JSON.stringify({ asset: 'a-string', version: 1 }),
+        }),
+        cfg,
+      ),
+    ).toEqual([]);
+    expect(isGltfContent(Buffer.from('{"asset":{"version":"2.0"}}'))).toBe(true);
+    expect(isGltfContent(Buffer.from('{"asset":"x","version":"2.0"}'))).toBe(false);
+    expect(isGltfContent(Buffer.from('gltf'))).toBe(false);
+  });
+
+  it('scans escaped hosts in a bundle and .mts / .cts sources', () => {
+    expect(scanDist(dist({ 'assets/a.js': 'const r=/shop\\.leroymerlin\\.fr/' }), cfg)).toEqual(['assets/a.js: mentions retailer host leroymerlin.fr']);
+    const text = { 'apps/web/src/a.mts': 'fetch("https://www.castorama.fr/x")', 'apps/web/src/b.cts': 'const h = "conforama.fr"', 'apps/web/src/c.ts': 'maisonsdumonde.com' };
+    expect(scanTracked(Object.keys(text), cfg, (f) => text[f])).toEqual([
+      'apps/web/src/a.mts: mentions retailer host castorama.fr',
+      'apps/web/src/b.cts: mentions retailer host conforama.fr',
+      'apps/web/src/c.ts: mentions retailer host maisonsdumonde.com',
+    ]);
+  });
+
+  it('forbids .envrc (tracked) and any .env* file in the build, but not .env.example', () => {
+    expect(scanTracked(['.envrc', 'apps/server/.envrc', '.env.example'], cfg, () => 'FLAT_TOKEN=x').map((x) => x.split(':')[0])).toEqual(['.envrc', 'apps/server/.envrc']);
+    expect(scanDist(dist({ '.envrc': 'export A=1', '.env.local': 'A=1', 'assets/.env': 'A=1' }), cfg).map((x) => x.split(':')[0]).sort()).toEqual(['.env.local', '.envrc', 'assets/.env']);
+    expect(scanTracked(['.envrc'], cfg, () => 'export X=https://www.ikea.com')).toEqual(expect.arrayContaining(['.envrc: mentions retailer host ikea.com']));
   });
 });
 
