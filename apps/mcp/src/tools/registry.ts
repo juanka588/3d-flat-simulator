@@ -91,17 +91,34 @@ export function newSession(limits: Pick<McpLimits, 'writesPerMinute' | 'rendersP
  * the current scene. Errors are thrown as `RenderError`-like objects with a `code` of
  * `render_unavailable` | `render_timeout` (any other throw is reported as `render_unavailable`).
  */
+export type RenderMime = 'image/png' | 'image/jpeg';
+
+/** `RenderResult` with the real mime type, plus what the model needs to read the picture. */
+export type RenderMeta = Omit<RenderResult, 'mimeType'> & {
+  mimeType: RenderMime;
+  /** Ids of the lamps that were lit in the image. */
+  lampsLit: string[];
+  sun: { available: boolean; isUp?: boolean; azimuthDeg?: number; elevationDeg?: number };
+  warnings: string[];
+};
+
 export interface Renderer {
   render(
     spec: RenderSpecInput,
-    opts?: { scene?: SceneResponse },
+    opts?: {
+      scene?: SceneResponse;
+      /** Default png. */
+      format?: 'png' | 'jpeg';
+      /** The MCP session whose `set_sun_time` lighting sits under the call's own. */
+      session?: Pick<McpSession, 'lighting' | 'lastRenderedRev'>;
+    },
   ): Promise<{
-    /** Base64 PNG of the requested view (the "after" image with `compare`). */
+    /** Base64 image of the requested view (the "after" image with `compare`). */
     image: string;
-    mimeType: 'image/png';
-    meta: RenderResult;
+    mimeType: RenderMime;
+    meta: RenderMeta;
     /** With `compare: 'before_after'`: the "before" image (meta.compare.beforeRev). */
-    before?: { image: string; mimeType: 'image/png' };
+    before?: { image: string; mimeType: RenderMime };
   }>;
 }
 

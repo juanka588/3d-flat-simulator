@@ -14,11 +14,15 @@
     "test": "vitest run",
     "check": "pnpm lint && pnpm typecheck && pnpm test",
     "e2e": "playwright test",
+    "test:render": "MCP_RENDER=1 vitest run --project mcp src/render/render.test.ts src/render/latency.test.ts",
+    "mcp:demo": "node scripts/mcp-demo/llm-demo.mjs",
     "materials:build": "node scripts/materials/build.mjs",
     "materials:credits": "node scripts/materials/credits.mjs"
   },
   "devDependencies": {
+    "@anthropic-ai/sdk": "^1.3.0",
     "@eslint/js": "^10.0.1",
+    "@modelcontextprotocol/client": "^2.4.0",
     "@playwright/test": "^1.64.1",
     "@types/node": "^26.6.5",
     "eslint": "^10.13.0",

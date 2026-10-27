@@ -51,6 +51,9 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: true
     timeout-minutes: 20
+    env:
+      # Secrets cannot be tested in a step `if` directly; this flag can.
+      HAS_ANTHROPIC_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
     strategy:
       fail-fast: false
       matrix:
@@ -67,6 +70,21 @@ jobs:
       - run: pnpm e2e --shard=${{ matrix.shard }}
         env:
           E2E_STATIC: skip
+      # M4 render service (headless Chromium + real apps/server): one shard is enough, it is not sharded work.
+      - name: MCP render tests
+        if: matrix.shard == '1/3'
+        run: |
+          BASE_PATH=/ pnpm --filter @flat/web build
+          pnpm test:render
+      # M4.14 automated LLM demo: only when the repository has the secret (it spends real tokens; capped at $2 by default).
+      - name: MCP LLM demo (positive and negative)
+        if: matrix.shard == '1/3' && env.HAS_ANTHROPIC_KEY == 'true'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          FLAT_DEMO_MODEL: claude-sonnet-5-5
+        run: |
+          pnpm mcp:demo
+          pnpm mcp:demo -- --negative
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

@@ -267,14 +267,14 @@ describe('rate limits and session cap (M4.6)', () => {
 });
 
 describe('render argument', () => {
-  it('is accepted; the change still applies and the result says render_unavailable ("coming")', async () => {
+  it('is accepted; the change still applies and the result says render_unavailable (no renderer wired)', async () => {
     const { client, flat } = await connect();
     const r = await client.callTool({ name: 'room_set_floor', arguments: { roomId: 'sejour', materialId: 'floor-oak', render: true } });
     expect(r.isError).toBeFalsy();
     const body = json(r);
     expect(body.committed).toBe(true);
     expect(body.render).toMatchObject({ ok: false, code: 'render_unavailable' });
-    expect(body.render.message).toContain('coming');
+    expect(body.render.message).toContain('not wired');
     expect(flat.rev).toBe(1);
   });
 
@@ -307,7 +307,9 @@ describe('render argument', () => {
     const r = await client.callTool({ name: 'room_set_floor', arguments: { roomId: 'sejour', materialId: 'floor-oak', render: true } });
     expect((r.content as { type: string }[]).map((c) => c.type)).toEqual(['text', 'image']);
     expect(json(r).render).toMatchObject({ ok: true });
-    expect(calls).toEqual([{ spec: { view: 'room', roomId: 'sejour' }, opts: {} }]);
+    expect(calls).toEqual([{ spec: { view: 'room', roomId: 'sejour' }, opts: { session: expect.objectContaining({ clientName: 'unit-client' }) } }]);
+    // one render charged once
+    expect((calls[0] as { opts: { session: { renders: { tokens: number } } } }).opts.session.renders.tokens).toBe(9);
   });
 
   it('a preview render gets the uncommitted scene, and an explicit spec is passed through', async () => {

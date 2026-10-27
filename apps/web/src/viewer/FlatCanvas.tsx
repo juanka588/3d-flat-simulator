@@ -172,7 +172,7 @@ function Shell({ scene, view, onSelect }: { scene: Scene; view: ViewState; onSel
       <ShellMesh name="floors" data={roomMeshes.floors} materials={materials} receiveShadow onSelect={pick} />
       {/* Ceilings are hidden in orbit/top so the interior stays visible from above. */}
       {walk && <ShellMesh name="ceilings" data={roomMeshes.ceilings} materials={materials} onSelect={pick} />}
-      <ShellMesh name="fittings" data={roomMeshes.fittings} materials={materials} receiveShadow swap={walk ? WALK_SWAP : undefined} renderOrder={1} onSelect={pick} />
+      <ShellMesh name="fittings" data={roomMeshes.fittings} materials={materials} receiveShadow swap={walk && view.translucentDoors !== false ? WALK_SWAP : undefined} renderOrder={1} onSelect={pick} />
       <ShellMesh name="items" data={roomMeshes.items} materials={materials} receiveShadow onSelect={pick} />
       <ShellMesh name="glass" data={shell.glass} materials={materials} renderOrder={2} onSelect={pick} />
       {selectedId && meshes.map((m, i) => <SelectionHighlight key={i} mesh={m} entityId={selectedId} />)}

@@ -55,7 +55,7 @@ function confirmReplace(): boolean {
 export function App() {
   useUndoRedoKeys();
   const { scene, source, warnings, errors, loadText } = useSceneStore();
-  const { mode, selection, lighting, personHeightCm, walkLightsOn, camera, setMode, select } = useViewStore();
+  const { mode, selection, lighting, personHeightCm, walkLightsOn, translucentDoors, camera, setMode, select } = useViewStore();
   const viewport = useViewportStore((s) => s.forced);
   const clearCamera = useCallback(() => useViewStore.getState().setCamera(undefined), []);
   const [dragging, setDragging] = useState(false);
@@ -220,7 +220,7 @@ export function App() {
           <>
             <FlatCanvas
               scene={scene}
-              view={{ mode, selection, lighting: effectiveLighting(lighting, mode, walkLightsOn, scene.lights), personHeightCm, camera }}
+              view={{ mode, selection, lighting: effectiveLighting(lighting, mode, walkLightsOn, scene.lights), personHeightCm, camera, translucentDoors }}
               context={context}
               onSelect={select}
               onExitWalk={exitWalk}

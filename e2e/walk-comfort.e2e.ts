@@ -44,6 +44,16 @@ test('door leaves are translucent in walk mode and opaque in orbit and top', asy
   expect((await stats(page)).programs).toBe(programs);
 });
 
+test('setComfort({translucentDoors:false}) keeps door leaves opaque in walk mode (what renders use) and back', async ({ page }) => {
+  await page.evaluate(() => window.__flat!.setComfort({ translucentDoors: false }));
+  await mode(page, 'walk');
+  expect((await leaves(page)).map((x) => ({ id: x.id, transparent: x.transparent, opacity: x.opacity }))).toEqual([{ id: 'builtin:door', transparent: false, opacity: 1 }]);
+  await page.evaluate(() => window.__flat!.setComfort({ translucentDoors: true }));
+  const l = await leaves(page);
+  expect(l.map((x) => x.id)).toEqual(['builtin:door-walk']);
+  expect(l[0]!.transparent).toBe(true);
+});
+
 test('walk mode turns all lamps on (+0.5 EV); leaving restores the lamp states and EV exactly; the preference turns it off', async ({ page }) => {
   const lampIds = (await page.evaluate(() => window.__flat!.getScene())).lights.map((l) => l.id);
   expect(lampIds.length).toBeGreaterThan(2);

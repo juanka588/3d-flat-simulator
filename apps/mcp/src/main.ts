@@ -4,6 +4,7 @@ import { loadConfig } from './config';
 import { HttpFlatApi } from './flatApi';
 import { parseArgs } from './cli';
 import { startHttp } from './http';
+import { McpRenderer, closeSharedRenderer, sharedRenderer } from './render';
 import { createFlatMcpServer } from './server';
 
 /**
@@ -17,26 +18,34 @@ async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
   const config = loadConfig();
   const flat = new HttpFlatApi(config);
+  // Lazy: the browser (and Playwright) start at the first render, never at start-up.
+  const renderer = new McpRenderer(flat, sharedRenderer({ webUrl: config.webUrl, renderChannel: config.renderChannel, log: config.log }));
 
-  let close: () => Promise<void>;
+  let close: () => Promise<void> = async () => undefined;
+  let closing = false;
+  const shutdown = (): void => {
+    if (closing) return;
+    closing = true;
+    void close()
+      .catch(() => undefined)
+      .then(() => closeSharedRenderer())
+      .catch(() => undefined)
+      .finally(() => process.exit(0));
+  };
+
   if (args.http) {
-    const running = await startHttp({ config, flat, host: args.host, port: args.port, ...(process.env.FLAT_MCP_ALLOWED_HOSTS ? { allowedHosts: process.env.FLAT_MCP_ALLOWED_HOSTS.split(',').map((s) => s.trim()).filter(Boolean) } : {}) });
+    const running = await startHttp({ config, flat, renderer, host: args.host, port: args.port, ...(process.env.FLAT_MCP_ALLOWED_HOSTS ? { allowedHosts: process.env.FLAT_MCP_ALLOWED_HOSTS.split(',').map((s) => s.trim()).filter(Boolean) } : {}) });
     config.log('info', `http ready at ${running.url}; scene server ${config.serverUrl}${config.token ? '; bearer token required' : ''}${config.readOnly ? '; READ-ONLY' : ''}`);
     close = () => running.close();
   } else {
-    const handle = serveStdio(() => createFlatMcpServer({ config, flat }), { onerror: (e) => config.log('error', e.message) });
+    const handle = serveStdio(() => createFlatMcpServer({ config, flat, renderer }), { onerror: (e) => config.log('error', e.message) });
     config.log('info', `stdio ready; scene server ${config.serverUrl}${config.readOnly ? '; READ-ONLY' : ''}`);
     close = () => handle.close();
+    // The client going away (stdin EOF) ends the session.
+    process.stdin.once('close', () => shutdown());
   }
 
-  let closing = false;
-  for (const signal of ['SIGINT', 'SIGTERM'] as const) {
-    process.on(signal, () => {
-      if (closing) return;
-      closing = true;
-      void close().finally(() => process.exit(0));
-    });
-  }
+  for (const signal of ['SIGINT', 'SIGTERM'] as const) process.on(signal, shutdown);
 }
 
 main().catch((e: unknown) => {

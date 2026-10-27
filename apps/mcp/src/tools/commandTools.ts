@@ -22,7 +22,7 @@ import type { ToolContext, ToolDef } from './registry';
 const SETTERS = new Set(['wall.setFinish', 'wall.setStructural', 'room.setWallFinish', 'room.setFloor', 'room.setCeiling', 'scene.setDefaults', 'site.set', 'light.update', 'material.define']);
 const DESTRUCTIVE = new Set(['material.remove', 'light.remove']);
 
-const RENDER_COMING = 'rendering after a change is coming (M4.10); the change itself was handled. Use describe_room to verify for now.';
+const NO_RENDERER = 'rendering is not wired in this server; the change itself was handled. Use describe_room to verify.';
 
 const renderFailure = (code: 'render_unavailable' | 'render_timeout' | 'rate_limited', message: string, extra: Record<string, unknown> = {}) => ({ render: { ok: false, code, message, hint: MCP_ERROR_HINTS[code === 'rate_limited' ? 'rate_limited' : code], ...extra } });
 
@@ -33,13 +33,13 @@ const renderFailure = (code: 'render_unavailable' | 'render_timeout' | 'rate_lim
  */
 async function renderPart(ctx: ToolContext, extras: Extras, changed: Changed, preview?: SceneResponse): Promise<{ content: CallToolResult['content']; fields: Record<string, unknown> }> {
   if (extras.render === undefined) return { content: [], fields: {} };
-  if (!ctx.renderer) return { content: [], fields: renderFailure('render_unavailable', RENDER_COMING) };
+  if (!ctx.renderer) return { content: [], fields: renderFailure('render_unavailable', NO_RENDERER) };
   const t = ctx.session.renders.take();
   if (!t.ok) return { content: [], fields: renderFailure('rate_limited', `more than ${ctx.limits.rendersPerMinute} renders per minute`, { retryAfterMs: t.retryAfterMs }) };
   const room = changed.rooms[0];
   const spec: RenderSpecInput = extras.render === true ? (room ? { view: 'room', roomId: room } : { view: 'orbit' }) : (extras.render as RenderSpecInput);
   try {
-    const r = await ctx.renderer.render(spec, preview ? { scene: preview } : {});
+    const r = await ctx.renderer.render(spec, { session: ctx.session, ...(preview ? { scene: preview } : {}) });
     const content: CallToolResult['content'] = [{ type: 'image', data: r.image, mimeType: r.mimeType }, ...(r.before ? [{ type: 'image' as const, data: r.before.image, mimeType: r.before.mimeType }] : [])];
     return { content, fields: { render: { ok: true, ...r.meta } } };
   } catch (e) {

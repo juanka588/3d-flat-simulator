@@ -24,6 +24,18 @@ npx pnpm@10 e2e     # Playwright browser tests (first time: npx playwright insta
 
 `e2e` runs the whole suite on desktop Chromium, and `e2e/mobile.e2e.ts` only on two phone projects: `mobile-iphone` (iPhone 13 viewport, DPR, user agent and touch, in Chromium) and `mobile-pixel` (Pixel 7). To also run the mobile spec in real WebKit (`mobile-safari`, iPhone 13; works with WebGL on macOS, not verified on the Linux CI image): `npx playwright install webkit`, then `E2E_WEBKIT=1 npx pnpm@10 e2e`. `E2E_SHOTS=/tmp` additionally saves screenshots.
 
+## Let an assistant edit the flat (MCP)
+
+`apps/mcp` is an MCP server (stdio, or streamable HTTP on loopback) that lets Claude read the flat, change it and see it (`render_view`). Setup, one-time prerequisites, Claude Code / Claude Desktop configuration, troubleshooting and security notes are in [`apps/mcp/README.md`](apps/mcp/README.md). Short version:
+
+```sh
+BASE_PATH=/ npx pnpm@10 --filter @flat/web build && npx playwright install chromium   # once
+npx pnpm@10 dev:all                                                                    # scene server + web app
+claude mcp add flat -- pnpm --silent --dir "$PWD" mcp                                  # always pnpm --silent
+```
+
+`pnpm mcp:demo` runs an automated LLM twin of the demo (needs `ANTHROPIC_API_KEY`; `-- --dry` tests the harness without a key).
+
 ## Walk camera
 
 - **Eye height** = person height - 11 cm (the eyes sit below the top of the head): 1.55 m for the default 166 cm person. "Person height" (120-210 cm) is in the sidebar, applies live and is stored in localStorage (`flat.personHeightCm`); it is view state, not part of the Scene.

@@ -21,6 +21,9 @@ interface ViewStore extends ViewState {
   /** Preference: in walk mode all lamps are on and the exposure is raised (a derived overlay, see effectiveLighting). Default on. */
   walkLightsOn: boolean;
   setWalkLightsOn: (on: boolean) => void;
+  /** Walk-mode comfort: door leaves see-through. Default on, not persisted; the render service turns it off so renders show the doors as they are. */
+  translucentDoors: boolean;
+  setTranslucentDoors: (on: boolean) => void;
   /** Preference (persisted, default off): show the camera/lighting the assistant sends over the view channel. */
   followAssistant: boolean;
   setFollowAssistant: (on: boolean) => void;
@@ -41,6 +44,8 @@ export const useViewStore = create<ViewStore>((set) => ({
   lighting: { ...DEFAULT_LIGHTING, date: todayIso(), time: '12:00' },
   personHeightCm: initialPersonHeight(),
   walkLightsOn: readPref(WALK_LIGHTS_KEY) !== '0',
+  translucentDoors: true,
+  setTranslucentDoors: (on) => set((s) => (s.translucentDoors === on ? s : { translucentDoors: on })),
   followAssistant: readPref(FOLLOW_ASSISTANT_KEY) === '1',
   setFollowAssistant: (on) => {
     writePref(FOLLOW_ASSISTANT_KEY, on ? '1' : '0');

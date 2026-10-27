@@ -99,11 +99,19 @@ describe('write tools through the mock FlatApi', () => {
 });
 
 describe('stubs and modes', () => {
-  it('render_view is still a stub for lane E', async () => {
-    const { client } = await connect();
-    const r = await client.callTool({ name: 'render_view', arguments: {} });
-    expect(r.isError).toBe(true);
-    expect(json(r).code).toBe('not_implemented');
+  it('render_view goes through the installed renderer and returns an image', async () => {
+    const calls: unknown[] = [];
+    const renderer = {
+      render: async (spec: unknown, opts: unknown) => {
+        calls.push([spec, opts]);
+        return { image: 'AAAA', mimeType: 'image/png' as const, meta: { mimeType: 'image/png' as const, width: 8, height: 8, epoch: 'e', rev: 0, view: 'orbit' as const, renderMs: 1, warm: true, lampsLit: [], sun: { available: false }, warnings: [] } };
+      },
+    };
+    const { client } = await connect({}, undefined, { renderer: renderer as never });
+    const r = await client.callTool({ name: 'render_view', arguments: { view: 'orbit' } });
+    expect(r.isError).toBeFalsy();
+    expect((r.content as { type: string }[]).map((c) => c.type)).toContain('image');
+    expect(calls).toHaveLength(1);
   });
 
   it('FLAT_MCP_READONLY hides the scene-mutating tools', async () => {

@@ -26,4 +26,6 @@ export interface ViewState {
    * moves the camera. `mode` equals `camera.mode` while it is set.
    */
   camera?: CameraPose;
+  /** Walk mode draws door leaves see-through (default; `false` keeps them opaque, as renders for the assistant need). */
+  translucentDoors?: boolean;
 }

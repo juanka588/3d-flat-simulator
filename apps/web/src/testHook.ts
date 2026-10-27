@@ -85,13 +85,14 @@ function viewportReady(): boolean {
 
 function reflectsStores(): boolean {
   const { scene, rev } = useSceneStore.getState();
-  const { mode, selection, lighting, walkLightsOn, camera } = useViewStore.getState();
+  const { mode, selection, lighting, walkLightsOn, translucentDoors, camera } = useViewStore.getState();
   return (
     renderedFrame !== null &&
     (camera === undefined || renderedFrame.pose === camera) &&
     viewportReady() &&
     (scene === null || (renderedFrame.scene === scene && sceneRevs.get(scene) === rev)) &&
     renderedFrame.view.mode === mode &&
+    renderedFrame.view.translucentDoors === translucentDoors &&
     renderedFrame.view.selection === selection &&
     renderedFrame.view.lighting === effectiveLighting(lighting, mode, walkLightsOn, scene?.lights)
   );
@@ -351,6 +352,11 @@ export function installTestHook(): void {
     async setLighting(partial) {
       await canvasReady;
       useViewStore.getState().setLighting(partial);
+      await whenRendered();
+    },
+    async setComfort(partial) {
+      await canvasReady;
+      if (partial.translucentDoors !== undefined) useViewStore.getState().setTranslucentDoors(partial.translucentDoors);
       await whenRendered();
     },
     sunInfo() {

@@ -118,6 +118,11 @@ export interface FlatTestHook {
   select: (target: string | { wallId: string; side: 'left' | 'right'; roomId?: string } | null) => boolean;
   /** Merges into the lighting view; resolves after a frame reflecting it has been rendered. */
   setLighting: (partial: Partial<LightingView>) => Promise<void>;
+  /**
+   * M4: walk-mode comfort switches, for renders that must show reality. `translucentDoors: false` draws door
+   * leaves opaque in walk mode too. Not persisted; the user's tab never sets it. Resolves after a frame reflecting it.
+   */
+  setComfort: (partial: { translucentDoors?: boolean }) => Promise<void>;
   /** Sun position and daylight times for the current lighting view (or why they are unavailable). */
   sunInfo: () => SunInfo;
   /** Chooses the day-animation time source: `manual` advances only through `tick`. */
