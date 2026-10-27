@@ -11,7 +11,7 @@ import { PROVIDER_CATALOG, type ProviderMeta } from './catalog';
 import { createNetwork, readBytesCapped, type NetworkOptions, type ProviderNetwork } from './http';
 import { createPinnedFetch } from './pinned';
 import { createSecrets, type Secrets } from './secrets';
-import { ProviderError, isPartial, type ModelStream, type ProductProvider, type ProviderContext, type ProviderRegistry, type SearchOptions } from './types';
+import { ProviderError, isPartial, warningsOf, type ModelStream, type ProductProvider, type ProviderContext, type ProviderRegistry, type SearchOptions } from './types';
 
 /** Seen-products registry TTL (D9): ids a search returned to an MCP session stay placeable for an hour after the last touch. */
 export const SEEN_TTL_MS = 60 * 60_000;
@@ -228,7 +228,8 @@ function assembleRegistry(opts: RegistryOptions, providers: ReadonlyMap<string, 
               }));
             for (const r of recs) rememberRecord(r);
             lists[i] = { rank: i, recs };
-            statuses.push({ provider: p.id, ok: true });
+            const warnings = warningsOf(recs);
+            statuses.push({ provider: p.id, ok: true, ...(warnings.length ? { message: warnings.join('; ').slice(0, 300) } : {}) });
           } catch (e) {
             const pe = e instanceof ProviderError ? e : undefined;
             if (!pe) log('error', `${p.id}: search failed: ${e instanceof Error ? (e.stack ?? e.message) : String(e)}`);

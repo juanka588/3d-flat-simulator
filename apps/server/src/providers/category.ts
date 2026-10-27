@@ -5,6 +5,13 @@ export const fold = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toL
 
 /** First match wins, so the specific words (bedside table) come before the generic ones (table, bed). French and English. */
 const CATEGORY_RULES: [RegExp, ProductCategory][] = [
+  // Lamps first: "lampe de table" / "lampe de chevet" must not become a table / a bedside table.
+  [/\b(lampes?|lampadaires?|luminaires?|appliques?|suspension|liseuse|lamp|light)\b/, 'lamp'],
+  // Soft furnishings next: "coussin de chaise" is a cushion, not a chair; "rideau" and "store" before the generic words.
+  [/\b(coussins?|housses? de coussin|cushions?)\b/, 'cushion'],
+  [/\b(plaids?|jetes? de canape|couvertures?|throws?|blankets?)\b/, 'throw'],
+  [/\b(tringles?|rails? a rideaux)\b/, 'other'],
+  [/\b(rideaux?|voilages?|stores?|curtains?|blinds?|panneaux? japonais|panneaux? coulissants?)\b/, 'curtain'],
   [/\b(chevet|bedside|nightstand|night stand)\b/, 'bedside'],
   [/\b(lit|lits|cadre de lit|structure de lit|bed|bed frame|bedstead)\b/, 'bed'],
   [/\b(armoire|penderie|garde-robe|dressing|wardrobe|closet)\b/, 'wardrobe'],
@@ -17,13 +24,15 @@ const CATEGORY_RULES: [RegExp, ProductCategory][] = [
   [/\b(canape|canapes|banquette|sofa|couch|loveseat)\b/, 'sofa'],
   [/\b(chaises?|tabourets?|bancs?|chair|stool|bench)\b/, 'chair'],
   [/\b(tables?)\b/, 'table'],
-  [/\b(tapis|rug|carpet)\b/, 'rug'],
-  [/\b(lampes?|luminaires?|appliques?|suspension|lampadaire|lamp|light)\b/, 'lamp'],
+  [/\b(tapis|paillassons?|rug|carpet|doormat)\b/, 'rug'],
   [/\b(miroirs?|glaces?|mirror)\b/, 'mirror'],
+  [/\b(cadres?|frames?)\b/, 'frame'],
+  [/\b(vases?)\b/, 'vase'],
+  [/\b(plantes?|plants?|succulentes?|fleurs? artificielles?|bouquets?)\b/, 'plant'],
   [/\b(element mural|elements muraux|meuble mural|armoire murale|wall cabinet)\b/, 'wall_cabinet'],
   [/\b(cuisine|cuisines|meuble bas|meuble haut|kitchen)\b/, 'kitchen'],
   [/\b(four|refrigerateur|congelateur|lave-vaisselle|hotte|plaque|micro-ondes|lave-linge|fridge|oven|dishwasher)\b/, 'appliance'],
-  [/\b(decoration|cadre|vase|bougie|coussin|decor)\b/, 'decor'],
+  [/\b(decoration|bougie|cache-pots?|decor)\b/, 'decor'],
 ];
 
 /** Coarse category from a product type, a title or a category path (first rule that matches any of `texts`, in order). */
@@ -36,7 +45,7 @@ export function categoryOf(typeName: string, categoryPath: readonly string[] = [
 }
 
 /** Categories that hang on a wall. */
-export const WALL_CATEGORIES = new Set<ProductCategory>(['mirror', 'wall_cabinet']);
+export const WALL_CATEGORIES = new Set<ProductCategory>(['mirror', 'wall_cabinet', 'frame', 'curtain']);
 
 /** Names that say a product hangs on a wall although its shop category does not ("Étagère murale", "Wall shelf", "Applique murale"). */
 const WALL_NAME = /\b(murale?s?|muraux|mural|wall[- ]?mounted|wall[- ]?shelf|wall[- ]?shelves|wall lamp|a fixer au mur|suspendu au mur)\b/;

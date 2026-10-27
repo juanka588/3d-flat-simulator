@@ -161,12 +161,14 @@ const searchProducts: ToolDef = {
     const failed = await markSeen(ctx, results.map((p) => p.productId));
     if (failed) return failed;
     const problems = r.data.providers.filter((p) => !p.ok).map((p) => ({ provider: p.provider, code: p.code ?? 'provider_unavailable', ...(p.message ? { message: p.message.slice(0, 160) } : {}) }));
+    const warnings = r.data.providers.filter((p) => p.ok && p.message).map((p) => `${p.provider}: ${p.message!.slice(0, 200)}`);
     return toolOk({
       ok: true,
       count: results.length,
       truncated,
       results: results.map(searchLine),
       ...(problems.length ? { providerProblems: problems } : {}),
+      ...(warnings.length ? { providerWarnings: warnings } : {}),
       note: results.length ? 'Prices are indicative TTC shelf prices. Next: get_product for variants and weight, then get_placement_options / place_item.' : 'No match: loosen the filters or try another provider (list_providers).',
     });
   },

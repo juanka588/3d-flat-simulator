@@ -114,7 +114,7 @@ const DEFS = () => ({ relation: jsonSchema(Relation), mesh: jsonSchema(MeshSourc
 const ENTRY_PROPS: Json = {
   productId: { type: 'string', description: 'productId returned by search_products or get_product in this session, "<provider>:<sku>".' },
   roomId: { type: 'string', description: 'Room to place in (list_rooms).' },
-  relation: { ...RELATION_REF, description: 'Where, in designer terms (against_wall, in_corner, centered_in, facing, next_to, under_window). The server finds the exact position and rotation. Use this OR position. In items[], "$0" as the itemId of next_to (targetId of facing) means the item entry 0 of the same call places.' },
+  relation: { ...RELATION_REF, description: 'Where, in designer terms (against_wall, in_corner, centered_in, facing, next_to, under_window, on). The server finds the exact position and rotation. Use this OR position. In items[], "$0" as the itemId of next_to or on (targetId of facing) means the item entry 0 of the same call places.' },
   position: { type: 'array', items: { type: 'number' }, minItems: 2, maxItems: 2, description: 'Explicit plan position [x, y] of the item centre, metres. Use this OR relation.' },
   rotation: { type: 'number', description: 'With position: degrees counter-clockwise seen from above (front faces plan +y at 0). With relation: an extra turn, usually omitted.' },
   elevation: { type: 'number', minimum: 0, maximum: 10, description: 'Wall or ceiling products only: height of the bottom above the floor, metres. A product named "murale"/"wall" is hung automatically.' },
@@ -175,9 +175,11 @@ function requestFor(p: Prepared, roomId: string, relation: PlacementRequestInput
   return {
     roomId,
     dims: p.dims,
-    mount: p.mount,
-    ...(extra.elevation !== undefined && p.mount !== 'floor' ? { elevation: extra.elevation } : {}),
+    // standing on another item (a frame the shop hangs, stood on a shelf) is a floor-type pose at that item's height
+    mount: relation.kind === 'on' ? 'floor' : p.mount,
+    ...(extra.elevation !== undefined && p.mount !== 'floor' && relation.kind !== 'on' ? { elevation: extra.elevation } : {}),
     ...(p.record.weightKg !== undefined ? { weightKg: p.record.weightKg } : {}),
+    category: p.record.category,
     relation,
     ...(extra.rotation !== undefined ? { rotation: extra.rotation } : {}),
     ...(extra.acknowledge ? { acknowledgeHeavyPartition: true } : {}),
@@ -191,7 +193,9 @@ const HANGABLE: ReadonlySet<string> = new Set(['shelf', 'mirror', 'lamp', 'wall_
 const HUNG_BY_ELEVATION: ReadonlySet<string> = new Set(['shelf', 'mirror', 'wall_cabinet', 'tv_unit']);
 
 /** The mount of a placement: the product's, unless a floor product that can hang is asked to (`mount: "wall"`, or an elevation on a shelf, mirror, cabinet). */
-function effectiveMount(record: ProductRecord, entry: Pick<Entry, 'mount' | 'elevation'>): { ok: true; mount: ProductRecord['mount'] } | { ok: false; message: string } {
+function effectiveMount(record: ProductRecord, entry: Pick<Entry, 'mount' | 'elevation' | 'relation'>): { ok: true; mount: ProductRecord['mount'] } | { ok: false; message: string } {
+  // a frame the shop hangs, stood on a shelf: it stands (floor mount) on top of that item
+  if (entry.relation?.kind === 'on') return { ok: true, mount: 'floor' };
   if (record.mount !== 'floor' || entry.mount === 'floor') return { ok: true, mount: record.mount };
   if (entry.mount === 'wall') return HANGABLE.has(record.category) ? { ok: true, mount: 'wall' } : { ok: false, message: `"${record.name}" is a ${record.category}; it cannot be hung on a wall` };
   return HUNG_BY_ELEVATION.has(record.category) && (entry.elevation ?? 0) > 0 ? { ok: true, mount: 'wall' } : { ok: true, mount: 'floor' };
@@ -205,8 +209,8 @@ const BACKREF = /^\$(\d{1,2})$/;
  */
 function resolveBackRefs(e: Entry, placedIds: readonly string[], at: string): { ok: true; entry: Entry } | { ok: false; result: CallToolResult } {
   const rel = e.relation;
-  if (!rel || (rel.kind !== 'next_to' && rel.kind !== 'facing')) return { ok: true, entry: e };
-  const key = rel.kind === 'next_to' ? 'itemId' : 'targetId';
+  if (!rel || (rel.kind !== 'next_to' && rel.kind !== 'facing' && rel.kind !== 'on')) return { ok: true, entry: e };
+  const key = rel.kind === 'facing' ? 'targetId' : 'itemId';
   const value = (rel as unknown as Record<string, string>)[key]!;
   const m = BACKREF.exec(value);
   if (!m) return { ok: true, entry: e };
@@ -307,7 +311,7 @@ function parametric(generator: string, params: Record<string, number | string | 
 const getPlacementOptions: ToolDef = {
   name: 'get_placement_options',
   description:
-    'Dry run of the placement solver, nothing changes: where could this product go in this room for a relation (against_wall, in_corner, centered_in, facing, next_to, under_window, at)? Returns up to 3 candidate spots (position, rotation, elevation, the relation to pass to place_item) with reasons, or the violations (outside_room, overlap, door_swing_blocked, ...) with alternatives. The product must come from search_products in this session.',
+    'Dry run of the placement solver, nothing changes: where could this product go in this room for a relation (against_wall, in_corner, centered_in, facing, next_to, under_window, on, at)? Returns up to 3 candidate spots (position, rotation, elevation, the relation to pass to place_item) with reasons, or the violations (outside_room, overlap, door_swing_blocked, ...) with alternatives. The product must come from search_products in this session.',
   inputSchema: { ...obj({ productId: ENTRY_PROPS.productId!, roomId: ENTRY_PROPS.roomId!, relation: { ...RELATION_REF, description: 'The relation to try.' }, variantSku: ENTRY_PROPS.variantSku! }, ['productId', 'roomId', 'relation']), $defs: { relation: jsonSchema(Relation) } },
   annotations: READ,
   group: 'read',
@@ -456,6 +460,7 @@ const getBillOfMaterials: ToolDef = {
 const PLACE_DESCRIPTION =
   'Put a real product into a room. The productId must come from search_products or get_product in this session (else unknown_product); name, price, dimensions and link come from the server\'s product record, not from you. ' +
   'Give a relation (against_wall, in_corner, centered_in, facing, next_to, under_window: the server finds a valid position and rotation) or an explicit position + rotation. ' +
+  'Decor goes ON furniture with relation {kind:"on", itemId}: a table lamp, vase, plant or frame on a nightstand, table or shelf, a cushion or throw on a sofa or bed (elevation is the top of that item; it must fit). ' +
   'Several products: pass items[] (up to 12, one undo step, placed in order). An invalid spot gives placement_invalid with the violations and alternative candidates. ' +
   'The shape defaults to the real 3D model, else a lookalike, else a parametric shape at the exact dims. ' +
   'To switch a placed item to another colour or size, pass only itemId + variantSku (variants[].sku from get_product); price and dims are rebuilt. ' +

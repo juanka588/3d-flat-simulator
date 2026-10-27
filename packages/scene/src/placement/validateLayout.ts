@@ -64,10 +64,13 @@ export function validateLayout(scene: Scene, options: { roomId?: string } = {}):
     itemCount += mine.length;
     for (const box of mine) {
       if (box.locked) continue;
-      const s: Subject = { id: box.id, roomId: info.room.id, position: box.position, rotation: box.rotation, elevation: box.elevation, dims: box.dims, mount: box.mount };
+      const rel = ctx.scene.items[box.index]?.relation;
+      const supportId = rel?.kind === 'on' ? rel.itemId : undefined;
+      const category = ctx.scene.items[box.index]?.product?.category;
+      const s: Subject = { id: box.id, roomId: info.room.id, position: box.position, rotation: box.rotation, elevation: box.elevation, dims: box.dims, mount: box.mount, ...(category ? { category } : {}), ...(supportId ? { supportId } : {}) };
       violations.push(...checkInside(ctx, s, box.footprint).map((v) => ({ ...v, entityIds: [box.id, ...v.entityIds] })));
       const walls = wallsOverlapping(ctx, box.footprint, box.bounds, box.bottom);
-      const items = itemsOverlapping(ctx, box, box.id, (o) => o.locked || o.index < box.index);
+      const items = itemsOverlapping(ctx, box, box.id, (o) => (o.locked || o.index < box.index) && o.id !== supportId);
       if (walls.length || items.length) {
         const parts = [...walls.map((w) => `wall "${w}"`), ...items.map((i) => `item "${i}"`)];
         violations.push(violation('overlap', `"${box.id}" overlaps ${parts.join(', ')}`, [box.id, ...walls, ...items]));

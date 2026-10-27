@@ -5,6 +5,7 @@ import { roomCeilingHeight } from './geometry/floors';
 import { wallSideRooms } from './lighting/daylight';
 import { polygonCentroid } from './measure';
 import { footprintOf, insideConvex, itemDims } from './placement/footprint';
+import { doorSwingPolygon, openingFrame } from './placement/swing';
 import type { Room, Scene, Vec2, Wall } from './schema';
 import { wallLeftNormal, wallLength } from './schema';
 import { distanceToSegment, pointInPolygon } from './validate';
@@ -218,6 +219,48 @@ function rayToPolygon(p: Vec2, d: Vec2, polygon: readonly Vec2[]): number {
 
 const headingVec = (deg: number): Vec2 => [Math.sin(deg * DEG), -Math.cos(deg * DEG)];
 
+/** Distance a leaf or a tall item must keep from the eye so it does not fill the picture (m). */
+const LEAF_EYE_MARGIN = 0.35;
+/** Things nearer than this along a sight ray count as filling that part of the picture (m). */
+const NEAR_BLOCK_M = 2;
+/** Horizontal rays cast across the field of view to measure how much of the picture a near blocker covers. */
+const COVERAGE_RAYS = 9;
+/** A walk view with less than this free ahead is tilted down (m). */
+const SHORT_VIEW_M = 3;
+/** Most a short view is tilted down (degrees). */
+const MAX_TILT_DEG = 25;
+/** Items at least this tall (and standing below the eye) hide what is behind them from eye level (m). */
+const TALL_ITEM_M = 1.1;
+
+/** Open door leaves as drawn by `buildFittings` (unglazed doors, perpendicular to the wall, one leaf width long), as plan segments. */
+function openDoorLeaves(scene: Scene): [Vec2, Vec2][] {
+  const out: [Vec2, Vec2][] = [];
+  for (const o of scene.openings) {
+    if (o.type !== 'door' || (o.glazed ?? false)) continue;
+    const f = openingFrame(scene, o);
+    if (!f) continue;
+    const arc = doorSwingPolygon(f, o);
+    out.push([arc[0]!, arc[arc.length - 1]!]);
+  }
+  return out;
+}
+
+/**
+ * What can hide the view from eye level: open door leaves and items that rise above the eye line's lower reach.
+ * Polygons for `rayToPolygon` (a leaf is a two-point polygon).
+ */
+function viewBlockers(scene: Scene, room: Room, eyeHeight: number): { polys: Vec2[][]; leaves: [Vec2, Vec2][] } {
+  const leaves = openDoorLeaves(scene);
+  const polys: Vec2[][] = leaves.map(([a, b]) => [a, b]);
+  for (const i of scene.items) {
+    const d = itemDims(i);
+    if ((i.elevation ?? 0) >= eyeHeight || (i.elevation ?? 0) + d.h < TALL_ITEM_M) continue;
+    if (i.roomId !== undefined && i.roomId !== room.id) continue;
+    polys.push(footprintOf(i.position, i.rotation, d));
+  }
+  return { polys, leaves };
+}
+
 /**
  * Eye-level pose standing inside the room, looking `facing`:
  * - a compass point or degrees: the heading is exact, and the room spot is the one with the longest
@@ -236,6 +279,8 @@ export function walkPoseInRoom(
   opts?: { facing?: FacingTarget; eyeHeight?: number; fovDeg?: number },
 ): WalkPose {
   const room = findRoom(scene, roomId);
+  const eyeHeight = opts?.eyeHeight ?? 1.6;
+  const fov = opts?.fovDeg ?? 70;
   const aim = resolveAim(scene, room, opts?.facing);
   const obstacles = wallObstacles(scene);
   const inFlat = insideFlat(scene);
@@ -269,6 +314,16 @@ export function walkPoseInRoom(
     const free = cands.filter((c) => !bodies.some((b) => insideConvex(c.p, b)));
     if (free.length) cands.splice(0, cands.length, ...free);
   }
+  // Nor within reach of an open door leaf: drawn opaque, it fills half the picture (or all of it, in a small room).
+  const view = viewBlockers(scene, room, eyeHeight);
+  // What there is to look at: the furniture of the room (a view of bare walls says nothing, and a plain wall renders as one flat colour).
+  const content = scene.items
+    .filter((i) => (i.roomId === undefined || i.roomId === room.id) && (i.elevation ?? 0) < eyeHeight && (i.elevation ?? 0) + itemDims(i).h > 0.3)
+    .map((i) => footprintOf(i.position, i.rotation, itemDims(i)));
+  if (view.leaves.length) {
+    const away = cands.filter((c) => !view.leaves.some(([a, b]) => distanceToSegment(c.p, a, b) < LEAF_EYE_MARGIN));
+    if (away.length) cands.splice(0, cands.length, ...away);
+  }
   if (cands.length === 0) cands.push({ p: pointInPolygon(centre, poly, 0) ? centre : poly[0]!, clear: 0 });
   let pool = cands.filter((c) => c.clear >= DEFAULT_RADIUS);
   if (pool.length === 0) {
@@ -285,12 +340,35 @@ export function walkPoseInRoom(
     return true;
   };
 
+  /** Share of the field of view (0..1) that a near blocker fills when looking from `p` along `heading`, and whether the middle ray is free up to `reach`. */
+  const coverage = (p: Vec2, headingDeg: number, reach: number): { cover: number; centreClear: boolean; seen: number } => {
+    if (view.polys.length === 0 && content.length === 0) return { cover: 0, centreClear: true, seen: 0 };
+    let hits = 0;
+    let seenRays = 0;
+    let centreClear = true;
+    for (let k = 0; k < COVERAGE_RAYS; k++) {
+      const off = (k / (COVERAGE_RAYS - 1) - 0.5) * fov * 0.9;
+      const d = headingVec(headingDeg + off);
+      let t = Infinity;
+      for (const poly of view.polys) t = Math.min(t, rayToPolygon(p, d, poly));
+      const wall = Math.min(rayToPolygon(p, d, poly), 1e6);
+      if (t < Math.min(wall, NEAR_BLOCK_M)) hits++;
+      if (off === 0 && t < reach) centreClear = false;
+      let seen = Math.min(t, wall);
+      for (const poly of content) seen = Math.min(seen, rayToPolygon(p, d, poly));
+      if (seen < wall - 0.05) seenRays++;
+    }
+    return { cover: hits / COVERAGE_RAYS, centreClear, seen: seenRays / COVERAGE_RAYS };
+  };
+  /** From strictest to loosest: how much of the picture a blocker may fill. The last level accepts anything. */
+  const COVER_LEVELS = [0.12, 0.25, 0.5, 1.01];
+
   let pos: Vec2;
   let heading: number;
   if (aim.point) {
     const target = aim.point;
     // Aim at the surface a hair in front of the wall face so the line of sight stays in the room.
-    const score = (c: { p: Vec2; clear: number }, strict: boolean) => {
+    const score = (c: { p: Vec2; clear: number }, strict: boolean, maxCover: number) => {
       const dx = target[0] - c.p[0];
       const dy = target[1] - c.p[1];
       const dist = Math.hypot(dx, dy);
@@ -301,19 +379,26 @@ export function walkPoseInRoom(
       }
       const inFront: Vec2 = aim.surfaceNormal ? [target[0] + aim.surfaceNormal[0] * 0.1, target[1] + aim.surfaceNormal[1] * 0.1] : target;
       if (!lineClear(c.p, inFront)) return -Infinity;
-      return dist - 0.05 * Math.hypot(c.p[0] - centre[0], c.p[1] - centre[1]);
+      const heading0 = norm360((Math.atan2(dx, -dy) * 180) / Math.PI);
+      // the target must be seen: nothing in front of it, and no door leaf or tall piece filling the picture
+      const v = coverage(c.p, heading0, Math.max(0, dist - 0.15));
+      if (maxCover <= 1 && !v.centreClear) return -Infinity;
+      if (v.cover > maxCover) return -Infinity;
+      return dist - 0.05 * Math.hypot(c.p[0] - centre[0], c.p[1] - centre[1]) - 3 * v.cover + (aim.surfaceNormal ? 0 : 2 * v.seen);
     };
     let best = -Infinity;
     let pick = pool[0]!;
-    for (const strict of [true, false]) {
-      for (const c of pool) {
-        const s = score(c, strict);
-        if (s > best + 1e-9) {
-          best = s;
-          pick = c;
+    search: for (const maxCover of COVER_LEVELS) {
+      for (const strict of [true, false]) {
+        for (const c of pool) {
+          const sc = score(c, strict, maxCover);
+          if (sc > best + 1e-9) {
+            best = sc;
+            pick = c;
+          }
         }
+        if (best > -Infinity) break search;
       }
-      if (best > -Infinity) break;
     }
     if (best === -Infinity) pick = pool.reduce((a, b) => (Math.hypot(a.p[0] - target[0], a.p[1] - target[1]) > Math.hypot(b.p[0] - target[0], b.p[1] - target[1]) ? a : b));
     pos = pick.p;
@@ -325,23 +410,35 @@ export function walkPoseInRoom(
     const d = headingVec(heading);
     let best = -Infinity;
     let pick = pool[0]!;
-    for (const c of pool) {
-      const s = Math.min(rayToPolygon(c.p, d, poly), 1e6) - 0.05 * Math.hypot(c.p[0] - centre[0], c.p[1] - centre[1]);
-      if (s > best + 1e-9) {
-        best = s;
-        pick = c;
+    for (const maxCover of COVER_LEVELS) {
+      for (const c of pool) {
+        const v = coverage(c.p, heading, 1.5);
+        if (v.cover > maxCover) continue;
+        let free = Math.min(rayToPolygon(c.p, d, poly), 1e6);
+        for (const b of view.polys) free = Math.min(free, rayToPolygon(c.p, d, b));
+        const sc = free - 0.05 * Math.hypot(c.p[0] - centre[0], c.p[1] - centre[1]) - 3 * v.cover + 2 * v.seen;
+        if (sc > best + 1e-9) {
+          best = sc;
+          pick = c;
+        }
       }
+      if (best > -Infinity) break;
     }
     pos = pick.p;
   }
 
+  // A short view (a WC, a corridor end): tilt down so the floor and the furniture show, not just two plain walls.
+  let ahead = Math.min(rayToPolygon(pos, headingVec(heading), poly), 1e6);
+  for (const b of view.polys) ahead = Math.min(ahead, rayToPolygon(pos, headingVec(heading), b));
+  const pitchDeg = ahead < SHORT_VIEW_M ? -Math.round(Math.min(MAX_TILT_DEG, Math.atan((eyeHeight - 0.8) / Math.max(ahead, 0.5)) / DEG)) : 0;
+
   return {
     mode: 'walk',
     position: [Math.round(pos[0] * 1e4) / 1e4, Math.round(pos[1] * 1e4) / 1e4],
-    eyeHeight: opts?.eyeHeight ?? 1.6,
+    eyeHeight,
     headingDeg: heading,
-    pitchDeg: 0,
-    fovDeg: opts?.fovDeg ?? 70,
+    pitchDeg,
+    fovDeg: fov,
   };
 }
 

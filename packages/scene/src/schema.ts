@@ -215,8 +215,8 @@ type ItemFields = Omit<z.infer<typeof ItemBase>, 'id'>;
 /** Cross-field rules shared by `Item` and the `item.place` draft (where the id is optional). */
 export function checkItemRules(item: ItemFields, ctx: z.RefinementCtx): void {
   const issue = (path: (string | number)[], message: string) => ctx.addIssue({ code: 'custom', path, message });
-  if (item.mount === 'floor' && item.elevation !== 0) {
-    issue(['elevation'], `a floor-mounted item must have elevation 0 (got ${item.elevation}); use mount "wall" or "ceiling" for raised items`);
+  if (item.mount === 'floor' && item.elevation !== 0 && !(item.relation?.kind === 'on' && item.elevation > 0)) {
+    issue(['elevation'], `a floor-mounted item must have elevation 0 (got ${item.elevation}) unless it stands on another item (relation "on"); use mount "wall" or "ceiling" for raised items`);
   } else if ((item.mount === 'wall' || item.mount === 'ceiling') && item.elevation < 0) {
     issue(['elevation'], `a ${item.mount}-mounted item cannot have a negative elevation (${item.elevation})`);
   }

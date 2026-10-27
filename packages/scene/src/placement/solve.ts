@@ -5,6 +5,8 @@ import { checkSubject, layoutContext, subjectBox, violation, type LayoutContext,
 import { round4 } from './footprint';
 import { edgeOnWall, poseAgainst, resolveRelation, roomWallEdges, type Resolved, type WallEdge } from './relations';
 import { walkwayVerdict } from './walkways';
+import { fitOn } from './support';
+import { itemDims } from './footprint';
 import { PlacementRequest, type Placement, type PlacementRequestInput, type PlacementResult, type Relation, type Violation } from './types';
 
 /**
@@ -45,7 +47,7 @@ interface Pose {
 const normRot = (deg: number): number => round4(((deg % 360) + 360) % 360);
 
 function mountElevation(req: PlacementRequest, info: RoomInfo, atElevation: number | undefined): number {
-  if (req.mount === 'floor') return 0;
+  if (req.mount === 'floor') return req.relation.kind === 'on' && atElevation !== undefined ? round4(atElevation) : 0;
   if (req.elevation !== undefined) return round4(req.elevation);
   if (req.mount === 'wall') return round4(atElevation !== undefined && atElevation > 0 ? atElevation : DEFAULT_WALL_MOUNT_ELEVATION_M);
   const ceiling = Number.isFinite(info.ceiling) ? info.ceiling : OPEN_AIR_CEILING_M;
@@ -99,7 +101,7 @@ function sample(scene: Scene, room: Room, req: PlacementRequest, target: Resolve
   const poses: Pose[] = [];
   const rel = target.relation;
   const wallFamily = req.mount === 'wall' || rel.kind === 'against_wall' || rel.kind === 'under_window';
-  if (rel.kind === 'facing') return poses;
+  if (rel.kind === 'facing' || rel.kind === 'on') return poses;
   if (wallFamily) {
     const edges = roomWallEdges(scene, room);
     const first = rel.kind === 'against_wall' ? edgeOnWall(edges, rel.wallId) : undefined;
@@ -182,10 +184,23 @@ export function solvePlacement(scene: Scene, request: PlacementRequestInput): Pl
   const mismatch = dimsMismatch(scene, req);
   if (mismatch) return fail([mismatch]);
 
-  const resolved = resolveRelation({ scene, room, dims: req.dims, ...(req.itemId !== undefined ? { itemId: req.itemId } : {}), relation: req.relation });
+  const resolved = resolveRelation({
+    scene,
+    room,
+    dims: req.dims,
+    mount: req.mount,
+    ...(req.category !== undefined ? { category: req.category } : {}),
+    ...(req.itemId !== undefined ? { itemId: req.itemId } : {}),
+    relation: req.relation,
+  });
   if (!resolved.ok) return fail([resolved.violation]);
   const target = resolved.target;
   const rotation = normRot(target.rotation + (req.rotation ?? 0));
+  if (target.relation.kind === 'on') {
+    const support = scene.items.find((i) => i.id === (target.relation as { itemId: string }).itemId)!;
+    const misfit = fitOn(req.category, support, target.position, rotation, req.dims);
+    if (misfit) return fail([violation('invalid_relation', misfit, [support.id], `Support top is ${itemDims(support).w} x ${itemDims(support).d} m; pick a smaller product, or set offset to move it on the top.`)]);
+  }
   const elevation = mountElevation(req, info, target.elevation);
   const category = req.category ?? scene.items.find((i) => i.id === req.itemId)?.product?.category;
   const subjectAt = (position: Vec2, rot: number): Subject => ({
@@ -198,6 +213,7 @@ export function solvePlacement(scene: Scene, request: PlacementRequestInput): Pl
     mount: req.mount,
     ...(req.weightKg !== undefined ? { weightKg: req.weightKg } : {}),
     ...(category !== undefined ? { category } : {}),
+    ...(target.relation.kind === 'on' ? { supportId: target.relation.itemId } : {}),
     acknowledgeHeavyPartition: req.acknowledgeHeavyPartition,
   });
 

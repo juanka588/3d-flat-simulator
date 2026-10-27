@@ -193,7 +193,7 @@ describe('defaultParametricFor', () => {
       const dims = typical[category] ?? { w: 1.2, d: 0.6, h: 0.9 };
       const d = defaultParametricFor(category, dims);
       if (!d) {
-        expect(['lamp', 'appliance', 'decor', 'other']).toContain(category);
+        expect(['lamp', 'appliance', 'decor', 'other', 'curtain', 'plant', 'vase', 'frame', 'cushion', 'throw']).toContain(category);
         continue;
       }
       const g = GENERATORS.get(d.generator)!;

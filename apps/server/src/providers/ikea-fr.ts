@@ -3,8 +3,9 @@ import { IKEA_FR_META } from './catalog';
 import { readTextCapped } from './http';
 import { categoryOf, fold, mountOf } from './category';
 import { asArray, asPrice, extractJsonLd, hasType, isObj, str, type Json } from './jsonld';
+import { deriveDims, parseMeasurementMap } from './ikea-dims';
 import { htmlToText, parseLumens } from './lumens';
-import { ProviderError, markPartial, type ModelStream, type ProductProvider, type ProviderContext, type SearchOptions } from './types';
+import { ProviderError, addWarnings, markPartial, type ModelStream, type ProductProvider, type ProviderContext, type SearchOptions } from './types';
 import { parseLength, parseMeasureText } from './units';
 
 /**
@@ -101,21 +102,34 @@ const fail = (selector: string, what = 'not found') =>
     details: { selector },
   });
 
-/** `search-result-page` JSON -> hits. Throws `provider_parse_failed` naming the missing selector. */
-export function parseSearchResponse(json: unknown): IkeaHit[] {
+/**
+ * `search-result-page` JSON -> hits. Throws `provider_parse_failed` when the result list itself is missing (the API changed);
+ * one malformed hit never fails the search: it is skipped and described in `skipped`.
+ */
+export function parseSearchResponseDetailed(json: unknown): { hits: IkeaHit[]; skipped: string[] } {
   const items = (((json as Json | undefined)?.['searchResultPage'] as Json | undefined)?.['products'] as Json | undefined)?.['main'];
   const list = (items as Json | undefined)?.['items'];
   if (!Array.isArray(list)) throw fail('searchResultPage.products.main.items', 'is not an array');
   const hits: IkeaHit[] = [];
+  const skipped: string[] = [];
   for (const [i, it] of list.entries()) {
     const p = isObj(it) ? it['product'] : undefined;
     if (!isObj(p)) continue; // banners and breakouts have no product
-    const sku = str(p['itemNoGlobal']) ?? str(p['id']);
+    const pipUrl = str(p['pipUrl']);
     const sp = p['salesPrice'];
     const price = isObj(sp) ? asPrice(sp['numeral']) : undefined;
-    const pipUrl = str(p['pipUrl']);
-    if (!sku || !/^\d{8}$/.test(sku) || !pipUrl) throw fail(`searchResultPage.products.main.items[${i}].product.{id,pipUrl}`);
-    if (price === undefined) throw fail(`searchResultPage.products.main.items[${i}].product.salesPrice.numeral`);
+    // `id` is the number in the page URL; `itemNoGlobal` can differ from it (and then `/p/-<itemNoGlobal>/` is not a product page).
+    const numbers = [str(p['itemNoGlobal']), str(p['id'])].filter((x): x is string => x !== undefined && /^\d{8}$/.test(x));
+    const sku = numbers.find((x) => pipUrl !== undefined && safePageUrl(pipUrl)?.replace(/\/$/, '').endsWith(`-${x}`)) ?? numbers[0];
+    const label = `${str(p['name']) ?? '?'} ${str(p['typeName']) ?? ''}`.trim();
+    if (!sku || !pipUrl) {
+      skipped.push(`#${i} ${label}: no 8-digit article number or page link`);
+      continue;
+    }
+    if (price === undefined) {
+      skipped.push(`#${i} ${label} (${sku}): no price`);
+      continue;
+    }
     const name = str(p['name']) ?? '';
     const typeName = str(p['typeName']) ?? '';
     const colours = asArray(p['colors'] as unknown[]).flatMap((c) => (isObj(c) && str(c['name']) ? [str(c['name'])!] : []));
@@ -150,7 +164,12 @@ export function parseSearchResponse(json: unknown): IkeaHit[] {
       variants,
     });
   }
-  return hits;
+  return { hits, skipped };
+}
+
+/** `search-result-page` JSON -> hits (see `parseSearchResponseDetailed`). */
+export function parseSearchResponse(json: unknown): IkeaHit[] {
+  return parseSearchResponseDetailed(json).hits;
 }
 
 /** `"KALLAX Étagère, effet chêne blanchi, 77x147 cm"` -> `"effet chêne blanchi"`. */
@@ -298,16 +317,28 @@ export function parseProductPage(html: string, o: ParsePageOptions): ProductReco
   }
   if (price === undefined) throw fail('Product.offers.priceSpecification[].price');
 
-  // Assembled dimensions (NOT the package boxes): JSON-LD fields, then the page's dimension rows.
+  const byType = categoryOf(o.hit?.typeName ?? '', [str(product['category']) ?? '', ...(o.hit?.categoryPath ?? [])]);
+  const finalCategory = byType === 'other' ? categoryOf(name) : byType;
+
+  // Assembled dimensions (NOT the package boxes): JSON-LD fields, then the page's dimension rows, then (rugs, curtains,
+  // plants, frames, cushions...) the rows those product types list instead of width / depth / height.
   const ld = {
     w: typeof product['width'] === 'string' ? parseLength(product['width'], 'cm') : undefined,
     d: typeof product['depth'] === 'string' ? parseLength(product['depth'], 'cm') : undefined,
     h: typeof product['height'] === 'string' ? parseLength(product['height'], 'cm') : undefined,
   };
   const rows = parseMeasurementRows(html);
-  const w = ld.w ?? rows.w;
-  const d = ld.d ?? rows.d ?? rows.length;
-  const h = ld.h ?? rows.h;
+  let w = ld.w ?? rows.w;
+  let d = ld.d ?? rows.d ?? rows.length;
+  let h = ld.h ?? rows.h;
+  let dimsSource: 'structured' | 'text' = 'structured';
+  if (w === undefined || d === undefined || h === undefined) {
+    const derived = deriveDims(finalCategory, parseMeasurementMap(html), o.hit?.measureText ?? '');
+    if (derived) {
+      ({ w, d, h } = derived.dims);
+      dimsSource = derived.source;
+    }
+  }
   if (w === undefined || d === undefined || h === undefined) {
     const known: Record<string, number> = {};
     if (w !== undefined) known['w'] = w;
@@ -331,8 +362,6 @@ export function parseProductPage(html: string, o: ParsePageOptions): ProductReco
   const modelRef = pickModelRef(nodes.find((n) => hasType(n, '3DModel')));
   const mpnSku = (str(product['sku']) ?? str(product['mpn']) ?? '').replace(/\D/g, '');
   const sku = /^\d{8}$/.test(mpnSku) ? mpnSku : o.sku;
-  const byType = categoryOf(o.hit?.typeName ?? '', [str(product['category']) ?? '', ...(o.hit?.categoryPath ?? [])]);
-  const finalCategory = byType === 'other' ? categoryOf(name) : byType;
   // Lamps: the bulb flux when the page states it (else the viewer uses a default for the kind of lamp).
   const lumens = finalCategory === 'lamp' ? parseLumens(`${str(product['description']) ?? ''} ${htmlToText(html)}`) : undefined;
   const colour = str(product['color']);
@@ -353,7 +382,7 @@ export function parseProductPage(html: string, o: ParsePageOptions): ProductReco
     currency: currency ?? 'EUR',
     priceTtc: true, // IKEA FR shelf prices are TTC
     dims: { w, d, h },
-    dimsSource: 'structured',
+    dimsSource,
     category: finalCategory,
     mount: mountOf(name, finalCategory),
     styleTags: [],
@@ -435,6 +464,7 @@ export function createIkeaFrProvider(options: IkeaFrOptions = {}): ProductProvid
       const size = Math.min(48, Math.max(opts.limit * 2, 24));
       const key = `search:${q.toLowerCase()}|${size}`;
       let hits = ctx.cache.get<IkeaHit[]>(key);
+      let skippedHits = 0;
       if (!hits) {
         const url = `${SEARCH_URL}?${new URLSearchParams({ q, size: String(size), types: 'PRODUCT' })}`;
         const res = await ctx.fetch(url, { headers: { accept: 'application/json' }, ...(ctx.signal ? { signal: ctx.signal } : {}) });
@@ -449,7 +479,10 @@ export function createIkeaFrProvider(options: IkeaFrOptions = {}): ProductProvid
           if (e instanceof ProviderError) throw e;
           throw fail('search response', 'is not JSON');
         }
-        hits = parseSearchResponse(json);
+        const parsed = parseSearchResponseDetailed(json);
+        hits = parsed.hits;
+        if (parsed.skipped.length) ctx.log('warn', `ikea-fr: skipped ${parsed.skipped.length} malformed search hit(s): ${parsed.skipped.slice(0, 3).join('; ')}`);
+        skippedHits = parsed.skipped.length;
         ctx.cache.set(key, hits, TTL_HIT_MS, 64 * 1024);
       }
       for (const h of hits) ctx.cache.set(`hit:${h.sku}`, h, TTL_PRODUCT_MS, 1024);
@@ -463,6 +496,8 @@ export function createIkeaFrProvider(options: IkeaFrOptions = {}): ProductProvid
       const out: ProductRecord[] = [];
       let fetched = 0;
       let firstFailure: ProviderError | undefined;
+      let parseFailures = 0;
+      const noDims: string[] = [];
       const started = ctx.clock.now();
       const fits = (rec: ProductRecord) => {
         const m = opts.maxDims;
@@ -486,20 +521,29 @@ export function createIkeaFrProvider(options: IkeaFrOptions = {}): ProductProvid
           if (!(e instanceof ProviderError)) throw e;
           if (e.code === 'product_dims_missing' || e.code === 'product_not_found') {
             ctx.log('warn', `ikea-fr: skipped ${h.sku}: ${e.message}`);
+            if (e.code === 'product_dims_missing') noDims.push(h.sku);
             continue;
           }
           if (e.code === 'provider_parse_failed') {
+            ctx.log('warn', `ikea-fr: skipped ${h.sku}: ${e.message}`);
             firstFailure ??= e;
+            parseFailures++;
             continue;
           }
           if (out.length === 0) throw e; // blocked / unavailable / robots: nothing to show
           break;
         }
       }
-      if (out.length === 0 && firstFailure) throw firstFailure;
+      // Every page we read failed to parse: the site changed, say so. A few bad pages among good or merely size-less ones are skipped.
+      if (out.length === 0 && firstFailure && parseFailures === fetched) throw firstFailure;
+      const notes: string[] = [];
+      if (skippedHits > 0) notes.push(`${skippedHits} malformed search hit(s)`);
+      if (noDims.length > 0) notes.push(`${noDims.length} without usable dimensions (${noDims.slice(0, 4).join(', ')})`);
+      if (parseFailures > 0) notes.push(`${parseFailures} page(s) that could not be read (${firstFailure?.message ?? 'parse failure'})`);
+      const warn = (results: ProductRecord[]) => (notes.length ? addWarnings(results, [`skipped ${notes.join('; ')}`]) : results);
       // The candidates we did not reach: read their pages behind everything else, so the next search or get_product finds them cached.
       const rest = candidates.slice(at).filter((h) => ctx.cache.get<ProductRecord>(`product:${h.sku}`) === undefined).slice(0, Math.max(0, enrichMax - fetched));
-      if (out.length >= opts.limit || rest.length === 0) return out;
+      if (out.length >= opts.limit || rest.length === 0) return warn(out);
       const bg = ctx.background;
       if (bg) {
         void (async () => {
@@ -511,9 +555,9 @@ export function createIkeaFrProvider(options: IkeaFrOptions = {}): ProductProvid
             }
           }
         })();
-        return markPartial(out);
+        return markPartial(warn(out));
       }
-      return out;
+      return warn(out);
     },
 
     get: getRecord,

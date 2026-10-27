@@ -63,6 +63,13 @@ const UnderWindow = z.strictObject({
   gap: Gap.default(0),
 });
 
+/** Item standing on top of another item: a lamp, vase, plant or frame on furniture, a cushion or throw on a sofa or bed. */
+const On = z.strictObject({
+  kind: kind('on'),
+  itemId: Id.describe('The existing item to stand on (items[].id): nightstand, table, shelf, sofa, bed...'),
+  offset: Vec2.optional().describe('[dx, dz] m from the centre of that top, in its frame (dx right, dz front). Default: the centre.'),
+});
+
 /** Explicit position (the user's drag, or a solver result being stored). */
 const AtPosition = z.strictObject({
   kind: kind('at'),
@@ -71,7 +78,7 @@ const AtPosition = z.strictObject({
   elevation: z.number().min(0).default(0).describe('Height of the item bottom above the floor, in metres.'),
 });
 
-export const Relation = z.discriminatedUnion('kind', [AgainstWall, InCorner, CenteredIn, Facing, NextTo, UnderWindow, AtPosition]);
+export const Relation = z.discriminatedUnion('kind', [AgainstWall, InCorner, CenteredIn, Facing, NextTo, UnderWindow, On, AtPosition]);
 export type Relation = z.infer<typeof Relation>;
 export type RelationInput = z.input<typeof Relation>;
 export type RelationKind = Relation['kind'];

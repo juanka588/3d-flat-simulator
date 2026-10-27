@@ -6,6 +6,7 @@ import { pointInPolygon } from '../validate';
 import { itemDims } from './footprint';
 import { localToPlan, rotationFacing, round4 } from './footprint';
 import { openingFrame } from './swing';
+import { defaultOffset, spotOn, standsOnHint, supportTop, whyNotOn } from './support';
 import { violation } from './constraints';
 import type { Relation, Violation } from './types';
 
@@ -121,6 +122,10 @@ export interface ResolveInput {
   dims: Dims;
   /** The item being moved, when there is one (its pose is the base of `facing`, `centered_in` on one axis). */
   itemId?: string;
+  /** Product category of the item, for the rules of "on" (what may stand on what). */
+  category?: string;
+  /** How the item is fixed; only floor items stand on other items. */
+  mount?: string;
   relation: Relation;
 }
 
@@ -298,6 +303,27 @@ export function resolveRelation(input: ResolveInput): Resolution {
       return {
         ok: true,
         target: { ...pose, relation, rationale: [`under window "${opening.id}", against ${edge.wall.id}`, `window sill at ${round4(opening.sill)} m`] },
+      };
+    }
+    case 'on': {
+      const support = scene.items.find((i) => i.id === relation.itemId);
+      if (!support) return bad(`unknown item "${relation.itemId}" to stand on`, [relation.itemId], 'Use an item id from describe_room.');
+      if (support.id === input.itemId) return bad('an item cannot stand on itself', [support.id]);
+      if (input.mount !== undefined && input.mount !== 'floor') return bad(`a ${input.mount}-mounted item cannot stand on another item`, [support.id], 'Use mount floor (the default) with "on", or a wall relation.');
+      if (support.roomId !== undefined && support.roomId !== room.id) return bad(`"${support.id}" is in room "${support.roomId}", not in "${room.id}"`, [support.id, room.id], 'Place it in the room of the item it stands on.');
+      const why = whyNotOn(input.category, dims, support);
+      if (why) return bad(`cannot stand on "${support.id}": ${why}`, [support.id], standsOnHint(input.category));
+      const offset = relation.offset ?? defaultOffset(support);
+      const top = supportTop(support);
+      return {
+        ok: true,
+        target: {
+          position: spotOn(support, offset),
+          rotation: support.rotation,
+          elevation: top,
+          relation: { ...relation, offset },
+          rationale: [`on top of "${support.id}", ${round4(top)} m above the floor`],
+        },
       };
     }
     case 'at':

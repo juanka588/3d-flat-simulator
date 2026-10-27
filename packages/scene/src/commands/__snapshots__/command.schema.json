@@ -1091,6 +1091,12 @@
                     "rug",
                     "lamp",
                     "mirror",
+                    "curtain",
+                    "plant",
+                    "vase",
+                    "frame",
+                    "cushion",
+                    "throw",
                     "wall_cabinet",
                     "kitchen",
                     "appliance",
@@ -1514,6 +1520,42 @@
                   "required": [
                     "kind",
                     "openingId"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "on",
+                      "description": "Relation discriminator, always \"on\"."
+                    },
+                    "itemId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64,
+                      "description": "The existing item to stand on (items[].id): nightstand, table, shelf, sofa, bed..."
+                    },
+                    "offset": {
+                      "description": "[dx, dz] m from the centre of that top, in its frame (dx right, dz front). Default: the centre.",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "number"
+                        }
+                      ],
+                      "items": false,
+                      "minItems": 2,
+                      "maxItems": 2
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "itemId"
                   ],
                   "additionalProperties": false
                 },
@@ -2362,6 +2404,42 @@
                   "properties": {
                     "kind": {
                       "type": "string",
+                      "const": "on",
+                      "description": "Relation discriminator, always \"on\"."
+                    },
+                    "itemId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64,
+                      "description": "The existing item to stand on (items[].id): nightstand, table, shelf, sofa, bed..."
+                    },
+                    "offset": {
+                      "description": "[dx, dz] m from the centre of that top, in its frame (dx right, dz front). Default: the centre.",
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "number"
+                        }
+                      ],
+                      "items": false,
+                      "minItems": 2,
+                      "maxItems": 2
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "itemId"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
                       "const": "at",
                       "description": "Relation discriminator, always \"at\"."
                     },
@@ -2551,6 +2629,12 @@
                 "rug",
                 "lamp",
                 "mirror",
+                "curtain",
+                "plant",
+                "vase",
+                "frame",
+                "cushion",
+                "throw",
                 "wall_cabinet",
                 "kitchen",
                 "appliance",
@@ -3999,6 +4083,12 @@
                               "rug",
                               "lamp",
                               "mirror",
+                              "curtain",
+                              "plant",
+                              "vase",
+                              "frame",
+                              "cushion",
+                              "throw",
                               "wall_cabinet",
                               "kitchen",
                               "appliance",
@@ -4422,6 +4512,42 @@
                             "required": [
                               "kind",
                               "openingId"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "on",
+                                "description": "Relation discriminator, always \"on\"."
+                              },
+                              "itemId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64,
+                                "description": "The existing item to stand on (items[].id): nightstand, table, shelf, sofa, bed..."
+                              },
+                              "offset": {
+                                "description": "[dx, dz] m from the centre of that top, in its frame (dx right, dz front). Default: the centre.",
+                                "type": "array",
+                                "prefixItems": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "number"
+                                  }
+                                ],
+                                "items": false,
+                                "minItems": 2,
+                                "maxItems": 2
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "itemId"
                             ],
                             "additionalProperties": false
                           },
@@ -5270,6 +5396,42 @@
                             "properties": {
                               "kind": {
                                 "type": "string",
+                                "const": "on",
+                                "description": "Relation discriminator, always \"on\"."
+                              },
+                              "itemId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64,
+                                "description": "The existing item to stand on (items[].id): nightstand, table, shelf, sofa, bed..."
+                              },
+                              "offset": {
+                                "description": "[dx, dz] m from the centre of that top, in its frame (dx right, dz front). Default: the centre.",
+                                "type": "array",
+                                "prefixItems": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "number"
+                                  }
+                                ],
+                                "items": false,
+                                "minItems": 2,
+                                "maxItems": 2
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "itemId"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
                                 "const": "at",
                                 "description": "Relation discriminator, always \"at\"."
                               },
@@ -5459,6 +5621,12 @@
                           "rug",
                           "lamp",
                           "mirror",
+                          "curtain",
+                          "plant",
+                          "vase",
+                          "frame",
+                          "cushion",
+                          "throw",
                           "wall_cabinet",
                           "kitchen",
                           "appliance",

@@ -581,3 +581,65 @@ describe('describe_room with items (budget)', () => {
     expect(tokens(r)).toBeLessThan(4500);
   });
 });
+
+describe('place_item on top of furniture (relation "on")', () => {
+  const rec = (sku: string, name: string, category: string, dims: { w: number; d: number; h: number }, mount: 'floor' | 'wall' = 'floor') =>
+    ProductRecord.parse({ provider: 'mock', sku, name, url: `https://example.test/${sku}`, price: 20, currency: 'EUR', priceTtc: true, dims, dimsSource: 'structured', category, mount, fetchedAt: '2026-10-27T10:00:00.000Z', personalUseOnly: false });
+  const products = [
+    rec('NIGHT', 'Nightstand', 'bedside', { w: 0.45, d: 0.4, h: 0.55 }),
+    rec('LAMP', 'Table lamp', 'lamp', { w: 0.2, d: 0.2, h: 0.4 }),
+    rec('FLOORLAMP', 'Floor lamp', 'lamp', { w: 0.3, d: 0.3, h: 1.5 }),
+    rec('FRAME', 'Picture frame', 'frame', { w: 0.25, d: 0.03, h: 0.3 }, 'wall'),
+    rec('SOFA', 'Sofa', 'sofa', { w: 2, d: 0.9, h: 0.85 }),
+    rec('CUSHION', 'Cushion', 'cushion', { w: 0.4, d: 0.4, h: 0.12 }),
+  ];
+  const NORTH = { kind: 'against_wall', wallId: 'w-north', roomId: 'ch1' } as const;
+
+  it('a table lamp goes on a nightstand placed in the same call ($0), at the height of its top, and the lamp keeps its light', async () => {
+    const { call: c, search } = await setup({}, new MockFlatApi({ products }));
+    await search('');
+    const { j, r } = await c('place_item', { items: [{ productId: 'mock:NIGHT', roomId: 'ch1', relation: NORTH }, { productId: 'mock:LAMP', roomId: 'ch1', relation: { kind: 'on', itemId: '$0' } }] });
+    expect(r.isError, JSON.stringify(j)).toBeFalsy();
+    expect(j.placed).toHaveLength(2);
+    expect(j.placed[1].elevation).toBeCloseTo(0.55, 3);
+    expect(j.placed[1].position).toEqual(j.placed[0].position);
+    expect(j.placed[1].rationale.join(' ')).toMatch(/on top of/);
+    expect(j.placed[1].light).toBeDefined();
+    const v = await c('validate_layout', { roomId: 'ch1' });
+    expect(v.j.violations.filter((x: any) => x.code === 'overlap')).toEqual([]);
+  });
+
+  it('a later call can put a frame on a placed item by id; get_placement_options shows the spot; a floor lamp and a cushion on a nightstand are refused with a reason', async () => {
+    const { call: c, search } = await setup({}, new MockFlatApi({ products }));
+    await search('');
+    const first = await c('place_item', { productId: 'mock:NIGHT', roomId: 'ch1', relation: NORTH });
+    const id = first.j.placed[0].itemId as string;
+    const opt = await c('get_placement_options', { productId: 'mock:FRAME', roomId: 'ch1', relation: { kind: 'on', itemId: id } });
+    expect(opt.j).toMatchObject({ valid: true });
+    expect(opt.j.candidates[0].elevation).toBeCloseTo(0.55, 3);
+    const frame = await c('place_item', { productId: 'mock:FRAME', roomId: 'ch1', relation: { kind: 'on', itemId: id } });
+    expect(frame.r.isError, JSON.stringify(frame.j)).toBeFalsy();
+    const floorLamp = await c('place_item', { productId: 'mock:FLOORLAMP', roomId: 'ch1', relation: { kind: 'on', itemId: id } });
+    expect(floorLamp.r.isError).toBe(true);
+    expect(JSON.stringify(floorLamp.j)).toMatch(/floor lamp/);
+    const cushion = await c('place_item', { productId: 'mock:CUSHION', roomId: 'ch1', relation: { kind: 'on', itemId: id } });
+    expect(cushion.r.isError).toBe(true);
+    expect(JSON.stringify(cushion.j)).toMatch(/sofa/);
+  });
+
+  it('a cushion goes on a sofa', async () => {
+    const { call: c, search } = await setup({}, new MockFlatApi({ products }));
+    await search('');
+    const { j, r } = await c('place_item', { items: [{ productId: 'mock:SOFA', roomId: 'ch1', relation: EAST }, { productId: 'mock:CUSHION', roomId: 'ch1', relation: { kind: 'on', itemId: '$0' } }] });
+    expect(r.isError, JSON.stringify(j)).toBeFalsy();
+    expect(j.placed[1].elevation).toBeGreaterThan(0.3);
+    expect(j.placed[1].elevation).toBeLessThan(0.5);
+  });
+
+  it('the tool description tells the model about it', async () => {
+    const { client } = await connect();
+    const d = (await client.listTools()).tools.find((t) => t.name === 'place_item')!.description!;
+    expect(d).toMatch(/kind:"on"/);
+    expect(d).toMatch(/nightstand/);
+  });
+});

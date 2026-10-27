@@ -111,6 +111,8 @@ export interface Subject {
   weightKg?: number;
   /** Product category, used to warn when a typically heavy wall mount has no weight. */
   category?: ProductCategory;
+  /** The item this one stands on (relation "on"): its box is not an obstacle, the thing rests on it. */
+  supportId?: string;
   acknowledgeHeavyPartition?: boolean;
 }
 
@@ -215,7 +217,7 @@ export function itemsOverlapping(ctx: LayoutContext, subject: Pick<ItemBox, 'foo
 
 export function checkOverlap(ctx: LayoutContext, s: Subject, box: Pick<ItemBox, 'footprint' | 'bounds' | 'bottom' | 'top' | 'flat'>): Violation[] {
   const walls = wallsOverlapping(ctx, box.footprint, box.bounds, box.bottom);
-  const items = itemsOverlapping(ctx, box, s.id);
+  const items = itemsOverlapping(ctx, box, s.id, (b) => b.id !== s.supportId);
   if (walls.length === 0 && items.length === 0) return [];
   const parts = [...walls.map((w) => `wall "${w}"`), ...items.map((i) => `item "${i}"`)];
   return [violation('overlap', `${label(s)} overlaps ${parts.join(', ')}`, [...walls, ...items])];
@@ -230,6 +232,8 @@ export function checkZones(ctx: LayoutContext, s: Subject, box: Pick<ItemBox, 'f
   const wallMount = s.mount === 'wall';
   // ceiling lights hang far above any sill: the window rules are for things standing or hanging on walls
   const ceilingMount = s.mount === 'ceiling';
+  // curtains and blinds hang over windows (and glazed doors) on purpose
+  const covers = s.category === 'curtain';
   for (const z of ctx.zones) {
     const clear = z.kind === 'swing' || z.kind === 'landing' || z.kind === 'passage' || z.kind === 'approach' || z.kind === 'span';
     if (only === 'swing' && !clear) continue;
@@ -238,12 +242,13 @@ export function checkZones(ctx: LayoutContext, s: Subject, box: Pick<ItemBox, 'f
       if (box.flat || box.bottom >= z.hi - HEIGHT_TOLERANCE) continue;
       if (zoneHit(box, z) && !swing.includes(z.openingId)) swing.push(z.openingId);
     } else if (z.kind === 'window') {
+      if (covers) continue;
       if (wallMount) {
         if (box.bottom < z.hi - HEIGHT_TOLERANCE && box.top > z.lo + HEIGHT_TOLERANCE && zoneHit(box, z) && !glazing.includes(z.openingId)) glazing.push(z.openingId);
       } else if (!ceilingMount && !box.flat && box.top > z.lo - SILL_MARGIN + 1e-9 && box.bottom < z.hi - HEIGHT_TOLERANCE && zoneHit(box, z) && !windows.includes(z.openingId)) {
         windows.push(z.openingId);
       }
-    } else if (wallMount && box.bottom < z.hi - HEIGHT_TOLERANCE && box.top > z.lo + HEIGHT_TOLERANCE && zoneHit(box, z) && !glazing.includes(z.openingId)) {
+    } else if (wallMount && !covers && box.bottom < z.hi - HEIGHT_TOLERANCE && box.top > z.lo + HEIGHT_TOLERANCE && zoneHit(box, z) && !glazing.includes(z.openingId)) {
       glazing.push(z.openingId);
     }
   }
@@ -344,7 +349,7 @@ export function subjectBox(s: Subject): ItemBox {
     dims: s.dims,
     mount: s.mount,
     locked: false,
-    flat: s.mount === 'floor' && s.dims.h <= FLAT_MAX_H,
+    flat: s.mount === 'floor' && s.elevation === 0 && s.dims.h <= FLAT_MAX_H,
     footprint: footprintOf(s.position, s.rotation, s.dims),
     bottom: s.elevation,
     top: s.elevation + s.dims.h,

@@ -72,6 +72,7 @@ function placementErrors(scene: Scene, item: Item, path: string): CommandError[]
     elevation: item.elevation,
     dims: itemDims(item),
     mount: itemMountOf(item),
+    ...(item.relation?.kind === 'on' ? { supportId: item.relation.itemId } : {}),
   };
   // Existing furniture is built into the plan, not placed in a room: a locked item may stand outside its room's polygon
   // (the placard of Chambre 2 sits in the wall thickness and opens onto the Entrée), as `validateLayout` does not judge it either.

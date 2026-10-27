@@ -1,0 +1,599 @@
+{
+ "searchResultPage": {
+  "searchPhrase": "decor",
+  "products": {
+   "main": {
+    "items": [
+     {
+      "type": "PRODUCT",
+      "product": {
+       "id": "BAD",
+       "name": "BROKEN",
+       "typeName": "Tapis, poils ras",
+       "itemMeasureReferenceText": "160x235 cm",
+       "pipUrl": "https://www.ikea.com/fr/fr/p/broken-x/",
+       "categoryPath": [
+        {
+         "name": "Textiles & tapis",
+         "key": "tl001"
+        },
+        {
+         "name": "Tapis",
+         "key": "10653"
+        },
+        {
+         "name": "Moyens et grands tapis",
+         "key": "10692"
+        }
+       ],
+       "colors": [
+        {
+         "name": "multicolore",
+         "id": "10583"
+        }
+       ],
+       "salesPrice": {
+        "currencyCode": "EUR",
+        "numeral": 79.99,
+        "current": {
+         "prefix": "",
+         "wholeNumber": "79",
+         "separator": ",",
+         "decimals": "99",
+         "suffix": "€",
+         "isRegularCurrency": false,
+         "style": "SUPER"
+        },
+        "isBreathTaking": false,
+        "discount": "",
+        "tag": "NONE",
+        "priceText": "Prix",
+        "tags": [],
+        "tagWithText": {
+         "tag": "NONE"
+        }
+       }
+      }
+     },
+     {
+      "type": "PRODUCT",
+      "product": {
+       "id": "12345678",
+       "name": "NOPRICE",
+       "typeName": "Tapis tissé à plat",
+       "itemMeasureReferenceText": "160x230 cm",
+       "pipUrl": "https://www.ikea.com/fr/fr/p/lohals-tapis-tisse-a-plat-naturel-50277393/",
+       "categoryPath": [
+        {
+         "name": "Textiles & tapis",
+         "key": "tl001"
+        },
+        {
+         "name": "Tapis",
+         "key": "10653"
+        },
+        {
+         "name": "Moyens et grands tapis",
+         "key": "10692"
+        }
+       ],
+       "colors": [
+        {
+         "name": "beige",
+         "id": "10003",
+         "hex": "f4f3d7"
+        }
+       ]
+      }
+     },
+     {
+      "type": "PRODUCT",
+      "product": {
+       "id": "60497078",
+       "itemNoGlobal": "60497078",
+       "name": "ONSEVIG",
+       "typeName": "Tapis, poils ras",
+       "itemMeasureReferenceText": "160x235 cm",
+       "pipUrl": "https://www.ikea.com/fr/fr/p/onsevig-tapis-poils-ras-multicolore-60497078/",
+       "categoryPath": [
+        {
+         "name": "Textiles & tapis",
+         "key": "tl001"
+        },
+        {
+         "name": "Tapis",
+         "key": "10653"
+        },
+        {
+         "name": "Moyens et grands tapis",
+         "key": "10692"
+        }
+       ],
+       "colors": [
+        {
+         "name": "multicolore",
+         "id": "10583"
+        }
+       ],
+       "salesPrice": {
+        "currencyCode": "EUR",
+        "numeral": 79.99,
+        "current": {
+         "prefix": "",
+         "wholeNumber": "79",
+         "separator": ",",
+         "decimals": "99",
+         "suffix": "€",
+         "isRegularCurrency": false,
+         "style": "SUPER"
+        },
+        "isBreathTaking": false,
+        "discount": "",
+        "tag": "NONE",
+        "priceText": "Prix",
+        "tags": [],
+        "tagWithText": {
+         "tag": "NONE"
+        }
+       }
+      }
+     },
+     {
+      "type": "PRODUCT",
+      "product": {
+       "id": "50277393",
+       "itemNoGlobal": "50277393",
+       "name": "LOHALS",
+       "typeName": "Tapis tissé à plat",
+       "itemMeasureReferenceText": "160x230 cm",
+       "pipUrl": "https://www.ikea.com/fr/fr/p/lohals-tapis-tisse-a-plat-naturel-50277393/",
+       "categoryPath": [
+        {
+         "name": "Textiles & tapis",
+         "key": "tl001"
+        },
+        {
+         "name": "Tapis",
+         "key": "10653"
+        },
+        {
+         "name": "Moyens et grands tapis",
+         "key": "10692"
+        }
+       ],
+       "colors": [
+        {
+         "name": "beige",
+         "id": "10003",
+         "hex": "f4f3d7"
+        }
+       ],
+       "salesPrice": {
+        "currencyCode": "EUR",
+        "numeral": 99.95,
+        "current": {
+         "prefix": "",
+         "wholeNumber": "99",
+         "separator": ",",
+         "decimals": "95",
+         "suffix": "€",
+         "isRegularCurrency": false,
+         "style": "SUPER"
+        },
+        "isBreathTaking": false,
+        "discount": "",
+        "tag": "NONE",
+        "priceText": "Prix",
+        "tags": [],
+        "tagWithText": {
+         "tag": "NONE"
+        }
+       }
+      }
+     },
+     {
+      "type": "PRODUCT",
+      "product": {
+       "id": "60638714",
+       "itemNoGlobal": "60638714",
+       "name": "VÄXELFEL",
+       "typeName": "Tapis, poils ras",
+       "itemMeasureReferenceText": "133x195 cm",
+       "pipUrl": "https://www.ikea.com/fr/fr/p/vaexelfel-tapis-poils-ras-brun-jaune-60638714/",
+       "categoryPath": [
+        {
+         "name": "Textiles & tapis",
+         "key": "tl001"
+        },
+        {
+         "name": "Tapis",
+         "key": "10653"
+        },
+        {
+         "name": "Moyens et grands tapis",
+         "key": "10692"
+        }
+       ],
+       "colors": [
+        {
+         "name": "beige",
+         "id": "10003",
+         "hex": "f4f3d7"
+        },
+        {
+         "name": "jaune",
+         "id": "10042",
+         "hex": "ffdb00"
+        }
+       ],
+       "salesPrice": {
+        "currencyCode": "EUR",
+        "numeral": 39.99,
+        "current": {
+         "prefix": "",
+         "wholeNumber": "39",
+         "separator": ",",
+         "decimals": "99",
+         "suffix": "€",
+         "isRegularCurrency": false,
+         "style": "SUPER"
+        },
+        "isBreathTaking": false,
+        "discount": "",
+        "tag": "NEW_PRODUCT",
+        "tagText": "Nouveau",
+        "priceText": "Prix",
+        "tags": [
+         "NEW_PRODUCT"
+        ],
+        "tagWithText": {
+         "tag": "NEW_PRODUCT",
+         "text": "Nouveau"
+        }
+       }
+      }
+     },
+     {
+      "type": "PRODUCT",
+      "product": {
+       "id": "20426808",
+       "itemNoGlobal": "20426808",
+       "name": "STOENSE",
+       "typeName": "Tapis, poils ras",
+       "itemMeasureReferenceText": "200x300 cm",
+       "pipUrl": "https://www.ikea.com/fr/fr/p/stoense-tapis-poils-ras-blanc-casse-20426808/",
+       "categoryPath": [
+        {
+         "name": "Textiles & tapis",
+         "key": "tl001"
+        },
+        {
+         "name": "Tapis",
+         "key": "10653"
+        },
+        {
+         "name": "Moyens et grands tapis",
+         "key": "10692"
+        }
+       ],
+       "colors": [
+        {
+         "name": "beige",
+         "id": "10003",
+         "hex": "f4f3d7"
+        },
+        {
+         "name": "blanc",
+         "id": "10156",
+         "hex": "ffffff"
+        }
+       ],
+       "salesPrice": {
+        "currencyCode": "EUR",
+        "numeral": 149.0,
+        "current": {
+         "prefix": "",
+         "wholeNumber": "149",
+         "separator": "",
+         "decimals": "",
+         "suffix": "€",
+         "isRegularCurrency": false,
+         "style": "SUPER"
+        },
+        "isBreathTaking": false,
+        "discount": "",
+        "tag": "NONE",
+        "priceText": "Prix",
+        "tags": [],
+        "tagWithText": {
+         "tag": "NONE"
+        }
+       }
+      }
+     },
+     {
+      "type": "PRODUCT",
+      "product": {
+       "id": "60610606",
+       "itemNoGlobal": "60610606",
+       "name": "FEJKA",
+       "typeName": "Plante artificielle",
+       "itemMeasureReferenceText": "21 cm",
+       "pipUrl": "https://www.ikea.com/fr/fr/p/fejka-plante-artificielle-interieur-exterieur-kentia-60610606/",
+       "categoryPath": [
+        {
+         "name": "Décoration",
+         "key": "de001"
+        },
+        {
+         "name": "Plantes et fleurs",
+         "key": "pp003"
+        },
+        {
+         "name": "Plantes et fleurs artificielles",
+         "key": "20492"
+        },
+        {
+         "name": "Plantes artificielles pour le sol",
+         "key": "700520"
+        }
+       ],
+       "colors": [
+        {
+         "name": "vert",
+         "id": "10033",
+         "hex": "3b7d22"
+        }
+       ],
+       "salesPrice": {
+        "currencyCode": "EUR",
+        "numeral": 59.99,
+        "current": {
+         "prefix": "",
+         "wholeNumber": "59",
+         "separator": ",",
+         "decimals": "99",
+         "suffix": "€",
+         "isRegularCurrency": false,
+         "style": "SUPER"
+        },
+        "isBreathTaking": false,
+        "discount": "",
+        "tag": "NONE",
+        "priceText": "Prix",
+        "tags": [],
+        "tagWithText": {
+         "tag": "NONE"
+        }
+       }
+      }
+     },
+     {
+      "type": "PRODUCT",
+      "product": {
+       "id": "10615258",
+       "itemNoGlobal": "10615258",
+       "name": "FEJKA",
+       "typeName": "Plante artificielle",
+       "itemMeasureReferenceText": "9 cm",
+       "pipUrl": "https://www.ikea.com/fr/fr/p/fejka-plante-artificielle-interieur-exterieur-a-accrocher-10615258/",
+       "categoryPath": [
+        {
+         "name": "Décoration",
+         "key": "de001"
+        },
+        {
+         "name": "Plantes et fleurs",
+         "key": "pp003"
+        },
+        {
+         "name": "Plantes et fleurs artificielles",
+         "key": "20492"
+        },
+        {
+         "name": "Plantes artificielles de bureau",
+         "key": "700521"
+        }
+       ],
+       "colors": [
+        {
+         "name": "vert",
+         "id": "10033",
+         "hex": "3b7d22"
+        }
+       ],
+       "salesPrice": {
+        "currencyCode": "EUR",
+        "numeral": 4.99,
+        "current": {
+         "prefix": "",
+         "wholeNumber": "4",
+         "separator": ",",
+         "decimals": "99",
+         "suffix": "€",
+         "isRegularCurrency": false,
+         "style": "SUPER"
+        },
+        "isBreathTaking": false,
+        "discount": "",
+        "tag": "NONE",
+        "priceText": "Prix",
+        "tags": [],
+        "tagWithText": {
+         "tag": "NONE"
+        }
+       }
+      }
+     },
+     {
+      "type": "PRODUCT",
+      "product": {
+       "id": "60566401",
+       "itemNoGlobal": "60566401",
+       "name": "RÖDALM",
+       "typeName": "Cadre",
+       "itemMeasureReferenceText": "50x70 cm",
+       "pipUrl": "https://www.ikea.com/fr/fr/p/roedalm-cadre-motif-chene-60566401/",
+       "categoryPath": [
+        {
+         "name": "Décoration",
+         "key": "de001"
+        },
+        {
+         "name": "Cadres et affiches",
+         "key": "10757"
+        },
+        {
+         "name": "Cadres photo",
+         "key": "18746"
+        }
+       ],
+       "colors": [
+        {
+         "name": "beige",
+         "id": "10003",
+         "hex": "f4f3d7"
+        },
+        {
+         "name": "brun",
+         "id": "10019",
+         "hex": "814820"
+        }
+       ],
+       "salesPrice": {
+        "currencyCode": "EUR",
+        "numeral": 19.99,
+        "current": {
+         "prefix": "",
+         "wholeNumber": "19",
+         "separator": ",",
+         "decimals": "99",
+         "suffix": "€",
+         "isRegularCurrency": false,
+         "style": "SUPER"
+        },
+        "isBreathTaking": false,
+        "discount": "",
+        "tag": "NONE",
+        "priceText": "Prix",
+        "tags": [],
+        "tagWithText": {
+         "tag": "NONE"
+        }
+       }
+      }
+     },
+     {
+      "type": "PRODUCT",
+      "product": {
+       "id": "80597171",
+       "itemNoGlobal": "80597171",
+       "name": "GINSTMOTT",
+       "typeName": "Rideaux, 2 pièces",
+       "itemMeasureReferenceText": "145x250 cm",
+       "pipUrl": "https://www.ikea.com/fr/fr/p/ginstmott-rideaux-2-pieces-beige-ruflette-80597171/",
+       "categoryPath": [
+        {
+         "name": "Rideaux, tringles & stores",
+         "key": "tl002"
+        },
+        {
+         "name": "Rideaux",
+         "key": "10700"
+        },
+        {
+         "name": "Rideaux filtrant la lumière",
+         "key": "700220"
+        }
+       ],
+       "colors": [
+        {
+         "name": "beige",
+         "id": "10003",
+         "hex": "f4f3d7"
+        }
+       ],
+       "salesPrice": {
+        "currencyCode": "EUR",
+        "numeral": 24.99,
+        "current": {
+         "prefix": "",
+         "wholeNumber": "24",
+         "separator": ",",
+         "decimals": "99",
+         "suffix": "€",
+         "isRegularCurrency": false,
+         "style": "SUPER"
+        },
+        "isBreathTaking": false,
+        "discount": "",
+        "tag": "NONE",
+        "priceText": "Prix",
+        "tags": [],
+        "tagWithText": {
+         "tag": "NONE"
+        }
+       }
+      }
+     },
+     {
+      "type": "PRODUCT",
+      "product": {
+       "id": "80587921",
+       "itemNoGlobal": "80587921",
+       "name": "JORDKASTANJ",
+       "typeName": "Coussin",
+       "itemMeasureReferenceText": "40x40 cm",
+       "pipUrl": "https://www.ikea.com/fr/fr/p/jordkastanj-coussin-gris-80587921/",
+       "categoryPath": [
+        {
+         "name": "Textiles & tapis",
+         "key": "tl001"
+        },
+        {
+         "name": "Coussins et housses de coussins",
+         "key": "10659"
+        },
+        {
+         "name": "Coussins",
+         "key": "18902"
+        }
+       ],
+       "colors": [
+        {
+         "name": "gris",
+         "id": "10028",
+         "hex": "949494"
+        }
+       ],
+       "salesPrice": {
+        "currencyCode": "EUR",
+        "numeral": 1.79,
+        "current": {
+         "prefix": "",
+         "wholeNumber": "1",
+         "separator": ",",
+         "decimals": "79",
+         "suffix": "€",
+         "isRegularCurrency": false,
+         "style": "SUPER"
+        },
+        "isBreathTaking": true,
+        "discount": "",
+        "tag": "NONE",
+        "priceText": "Prix",
+        "tags": [],
+        "tagWithText": {
+         "tag": "NONE"
+        }
+       }
+      }
+     },
+     {
+      "type": "CONTENT_BANNER"
+     }
+    ]
+   }
+  }
+ }
+}

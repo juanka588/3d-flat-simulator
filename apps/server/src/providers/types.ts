@@ -36,6 +36,14 @@ export function markPartial<T extends object>(results: T): T {
 }
 export const isPartial = (results: object): boolean => partialResults.has(results);
 
+const resultWarnings = new WeakMap<object, string[]>();
+/** Attaches warnings to a search result ("skipped 3 hits without dimensions"): shown next to the results, they do not fail the search. */
+export function addWarnings<T extends object>(results: T, warnings: readonly string[]): T {
+  if (warnings.length) resultWarnings.set(results, [...(resultWarnings.get(results) ?? []), ...warnings]);
+  return results;
+}
+export const warningsOf = (results: object): readonly string[] => resultWarnings.get(results) ?? [];
+
 /** Everything a provider needs from its host. Injected so tests run without network, clock or disk. */
 export interface ProviderContext {
   /** The only way to reach the network: the framework wraps it with the UA, 1 req/host, 1.5 s gap, robots.txt, GET-only and the circuit breaker. */

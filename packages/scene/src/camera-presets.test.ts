@@ -1,12 +1,15 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_RADIUS, insideFlat } from './collision';
+import { DEFAULT_RADIUS, distanceToObstacle, insideFlat, wallObstacles } from './collision';
+import { doorSwingPolygon, openingFrame } from './placement/swing';
+import { footprintOf, insideConvex } from './placement/footprint';
+import { parseScene } from './parse';
 import { FIXTURES } from './commands/testUtil';
 import { type Facing, type FacingTarget, UnknownFacingError, UnknownRoomError, facingToHeadingDeg, orbitPose, roomOverviewPose, topPose, walkPoseInRoom } from './camera-presets';
 import { sceneBounds3, type Point3 } from './camera';
-import { wallLength, type Scene } from './schema';
+import { wallLength, type Scene, type SceneInput } from './schema';
 import { CameraPose, type OrbitPose, type TopPose } from './view';
-import { pointInPolygon } from './validate';
+import { distanceToSegment, pointInPolygon } from './validate';
 
 const sub = (a: Point3, b: Point3): Point3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 const dot = (a: Point3, b: Point3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
@@ -201,3 +204,106 @@ describe('camera presets', () => {
     expect(n.position[1]).toBeGreaterThan(2.5);
   });
 });
+
+describe('walkPoseInRoom avoids what hides the view (open door leaves, tall items)', () => {
+  /** Distance from p to the open leaf of every unglazed door of the scene. */
+  const leafDistances = (scene: Scene, p: [number, number]): number[] =>
+    scene.openings
+      .filter((o) => o.type === 'door' && !(o.glazed ?? false))
+      .map((o) => {
+        const arc = doorSwingPolygon(openingFrame(scene, o)!, o);
+        return distanceToSegment(p, arc[0]!, arc[arc.length - 1]!);
+      });
+
+  it.each(Object.entries(FIXTURES))('%s: the eye is never within 0.35 m of an open door leaf when the room has another spot', (_name, scene) => {
+    for (const room of scene.rooms) {
+      for (const facing of [undefined, 'N', 'E', 'S', 'W'] as (Facing | undefined)[]) {
+        const pose = walkPoseInRoom(scene, room.id, facing === undefined ? {} : { facing });
+        const d = leafDistances(scene, pose.position);
+        // a leaf of this room: only judged when it opens into this room's polygon (the leaf a room "owns")
+        const near = d.filter((x) => x < 0.349);
+        if (near.length > 0) {
+          // allowed only if no spot of the room at all is clear (tiny room): check by brute force
+          const poly = room.polygon;
+          let anyClear = false;
+          for (let x = Math.min(...poly.map((p) => p[0])); x <= Math.max(...poly.map((p) => p[0])) && !anyClear; x += 0.1) {
+            for (let y = Math.min(...poly.map((p) => p[1])); y <= Math.max(...poly.map((p) => p[1])); y += 0.1) {
+              const p: [number, number] = [x, y];
+              if (pointInPolygon(p, poly, 0) && insideFlat(scene)(p) && leafDistances(scene, p).every((v) => v >= 0.349) && wallClear(scene, p) >= DEFAULT_RADIUS) {
+                anyClear = true;
+                break;
+              }
+            }
+          }
+          expect(anyClear, `${room.id} facing ${String(facing)} stands at ${pose.position} next to a door leaf`).toBe(false);
+        }
+      }
+    }
+  });
+
+  it('a hall: the pose looks along the hall past an open door leaf, not into it', () => {
+    // 5 x 1.4 m hall, a door at the east end whose leaf opens into the hall (swing left of the wall normal), a wardrobe on the north wall.
+    const scene = hallScene();
+    const pose = walkPoseInRoom(scene, 'hall');
+    const leaf = doorSwingPolygon(openingFrame(scene, scene.openings[0]!)!, scene.openings[0]!);
+    expect(Math.min(...leafDistances(scene, pose.position))).toBeGreaterThanOrEqual(0.349);
+    expect(distanceToSegment(pose.position, leaf[0]!, leaf[leaf.length - 1]!)).toBeGreaterThanOrEqual(0.349);
+    // the middle of the view is free of the leaf for at least 1.5 m
+    const d: [number, number] = [Math.sin((pose.headingDeg * Math.PI) / 180), -Math.cos((pose.headingDeg * Math.PI) / 180)];
+    for (let t = 0.2; t < 1.5; t += 0.1) {
+      const q: [number, number] = [pose.position[0] + d[0] * t, pose.position[1] + d[1] * t];
+      expect(distanceToSegment(q, leaf[0]!, leaf[leaf.length - 1]!)).toBeGreaterThan(0.03);
+    }
+  });
+
+  it('a short view in a small room is tilted down so the floor and the furniture show', () => {
+    const scene = hallScene();
+    const wc = walkPoseInRoom(scene, 'closet');
+    expect(wc.pitchDeg).toBeLessThan(0);
+    expect(wc.pitchDeg).toBeGreaterThanOrEqual(-25);
+    const hall = walkPoseInRoom(scene, 'hall', { facing: 'W' });
+    expect(hall.pitchDeg).toBeLessThanOrEqual(0);
+  });
+
+  it('a tall piece right in front of the eye is avoided when another spot has a clear view', () => {
+    const scene = hallScene();
+    const pose = walkPoseInRoom(scene, 'hall', { facing: { wallId: 'hw' } });
+    const wardrobe = scene.items[0]!;
+    const fp = footprintOf(wardrobe.position, wardrobe.rotation, wardrobe.dims!);
+    expect(insideConvex(pose.position, fp)).toBe(false);
+    expect(Math.hypot(pose.position[0] - wardrobe.position[0], pose.position[1] - wardrobe.position[1])).toBeGreaterThan(0.6);
+  });
+});
+
+function wallClear(scene: Scene, p: [number, number]): number {
+  let c = Infinity;
+  for (const o of wallObstacles(scene)) c = Math.min(c, distanceToObstacle(p, o));
+  return c;
+}
+
+/** A 5 x 1.4 m hall "hall" with a door leaf at its east end, a wardrobe on the north wall, and a 1.2 x 1.4 m closet "closet" to its south. */
+function hallScene(): Scene {
+  const input: SceneInput = {
+    version: 1,
+    name: 'hall',
+    site: { latitude: 0, longitude: 0 },
+    walls: [
+      { id: 'hn', start: [-0.05, -0.05], end: [5.05, -0.05], thickness: 0.1 },
+      { id: 'hs', start: [5.05, 1.45], end: [-0.05, 1.45], thickness: 0.1 },
+      { id: 'hw', start: [-0.05, 1.45], end: [-0.05, -0.05], thickness: 0.1 },
+      { id: 'he', start: [5.05, -0.05], end: [5.05, 1.45], thickness: 0.1 },
+      { id: 'cs', start: [-0.05, 3.0], end: [1.25, 3.0], thickness: 0.1 },
+      { id: 'cw', start: [-0.05, 1.45], end: [-0.05, 3.0], thickness: 0.1 },
+      { id: 'ce', start: [1.25, 1.45], end: [1.25, 3.0], thickness: 0.1 },
+    ],
+    openings: [{ id: 'door-e', wallId: 'he', type: 'door', offset: 0.7, width: 0.9, height: 2.04, hinge: 'start', swing: 'right' }],
+    rooms: [
+      { id: 'hall', name: 'Hall', type: 'hallway', polygon: [[0, 0], [5, 0], [5, 1.4], [0, 1.4]] },
+      { id: 'closet', name: 'Closet', type: 'bathroom', polygon: [[0, 1.5], [1.2, 1.5], [1.2, 2.95], [0, 2.95]] },
+    ],
+    items: [{ id: 'wardrobe', assetId: 'param:test', position: [3.2, 0.3], rotation: 0, elevation: 0, roomId: 'hall', dims: { w: 1.4, d: 0.6, h: 2.2 } }],
+  };
+  const r = parseScene(input);
+  if (!r.ok) throw new Error(r.errors.join('\n'));
+  return r.scene;
+}

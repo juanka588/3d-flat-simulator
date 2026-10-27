@@ -1553,6 +1553,36 @@ exports[`snapshots (the contract) > tools/list 1`] = `
                 {
                   "additionalProperties": false,
                   "properties": {
+                    "itemId": {
+                      "description": "The existing item to stand on (items[].id): nightstand, table, shelf, sofa, bed...",
+                      "maxLength": 64,
+                      "minLength": 1,
+                      "type": "string",
+                    },
+                    "kind": {
+                      "const": "on",
+                      "description": "Relation discriminator, always "on".",
+                      "type": "string",
+                    },
+                    "offset": {
+                      "description": "[dx, dz] m from the centre of that top, in its frame (dx right, dz front). Default: the centre.",
+                      "items": {
+                        "type": "number",
+                      },
+                      "maxItems": 2,
+                      "minItems": 2,
+                      "type": "array",
+                    },
+                  },
+                  "required": [
+                    "kind",
+                    "itemId",
+                  ],
+                  "type": "object",
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
                     "elevation": {
                       "default": 0,
                       "description": "Height of the item bottom above the floor, in metres.",
@@ -2178,6 +2208,33 @@ exports[`snapshots (the contract) > tools/list 1`] = `
                       "required": [
                         "kind",
                         "openingId",
+                      ],
+                      "type": "object",
+                    },
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "itemId": {
+                          "maxLength": 64,
+                          "minLength": 1,
+                          "type": "string",
+                        },
+                        "kind": {
+                          "const": "on",
+                          "type": "string",
+                        },
+                        "offset": {
+                          "items": {
+                            "type": "number",
+                          },
+                          "maxItems": 2,
+                          "minItems": 2,
+                          "type": "array",
+                        },
+                      },
+                      "required": [
+                        "kind",
+                        "itemId",
                       ],
                       "type": "object",
                     },
@@ -3242,7 +3299,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "openWorldHint": false,
       "readOnlyHint": false,
     },
-    "description": "Put a real product into a room. The productId must come from search_products or get_product in this session (else unknown_product); name, price, dimensions and link come from the server's product record, not from you. Give a relation (against_wall, in_corner, centered_in, facing, next_to, under_window: the server finds a valid position and rotation) or an explicit position + rotation. Several products: pass items[] (up to 12, one undo step, placed in order). An invalid spot gives placement_invalid with the violations and alternative candidates. The shape defaults to the real 3D model, else a lookalike, else a parametric shape at the exact dims. To switch a placed item to another colour or size, pass only itemId + variantSku (variants[].sku from get_product); price and dims are rebuilt. A lamp comes with a light (placed[].light, switch or dim it with light_update). Check the result with validate_layout.",
+    "description": "Put a real product into a room. The productId must come from search_products or get_product in this session (else unknown_product); name, price, dimensions and link come from the server's product record, not from you. Give a relation (against_wall, in_corner, centered_in, facing, next_to, under_window: the server finds a valid position and rotation) or an explicit position + rotation. Decor goes ON furniture with relation {kind:"on", itemId}: a table lamp, vase, plant or frame on a nightstand, table or shelf, a cushion or throw on a sofa or bed (elevation is the top of that item; it must fit). Several products: pass items[] (up to 12, one undo step, placed in order). An invalid spot gives placement_invalid with the violations and alternative candidates. The shape defaults to the real 3D model, else a lookalike, else a parametric shape at the exact dims. To switch a placed item to another colour or size, pass only itemId + variantSku (variants[].sku from get_product); price and dims are rebuilt. A lamp comes with a light (placed[].light, switch or dim it with light_update). Check the result with validate_layout.",
     "inputSchema": {
       "$defs": {
         "mesh": {
@@ -3367,7 +3424,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
             },
             "relation": {
               "$ref": "#/$defs/relation",
-              "description": "Where, in designer terms (against_wall, in_corner, centered_in, facing, next_to, under_window). The server finds the exact position and rotation. Use this OR position. In items[], "$0" as the itemId of next_to (targetId of facing) means the item entry 0 of the same call places.",
+              "description": "Where, in designer terms (against_wall, in_corner, centered_in, facing, next_to, under_window, on). The server finds the exact position and rotation. Use this OR position. In items[], "$0" as the itemId of next_to or on (targetId of facing) means the item entry 0 of the same call places.",
             },
             "roomId": {
               "description": "Room to place in (list_rooms).",
@@ -3601,6 +3658,42 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "required": [
                 "kind",
                 "openingId",
+              ],
+              "type": "object",
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "itemId": {
+                  "description": "The existing item to stand on (items[].id): nightstand, table, shelf, sofa, bed...",
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string",
+                },
+                "kind": {
+                  "const": "on",
+                  "description": "Relation discriminator, always "on".",
+                  "type": "string",
+                },
+                "offset": {
+                  "description": "[dx, dz] m from the centre of that top, in its frame (dx right, dz front). Default: the centre.",
+                  "items": false,
+                  "maxItems": 2,
+                  "minItems": 2,
+                  "prefixItems": [
+                    {
+                      "type": "number",
+                    },
+                    {
+                      "type": "number",
+                    },
+                  ],
+                  "type": "array",
+                },
+              },
+              "required": [
+                "kind",
+                "itemId",
               ],
               "type": "object",
             },
@@ -3877,6 +3970,12 @@ exports[`snapshots (the contract) > tools/list 1`] = `
             "rug",
             "lamp",
             "mirror",
+            "curtain",
+            "plant",
+            "vase",
+            "frame",
+            "cushion",
+            "throw",
             "wall_cabinet",
             "kitchen",
             "appliance",
@@ -3985,6 +4084,12 @@ exports[`snapshots (the contract) > tools/list 1`] = `
             "rug",
             "lamp",
             "mirror",
+            "curtain",
+            "plant",
+            "vase",
+            "frame",
+            "cushion",
+            "throw",
             "wall_cabinet",
             "kitchen",
             "appliance",
@@ -4036,7 +4141,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "openWorldHint": false,
       "readOnlyHint": true,
     },
-    "description": "Dry run of the placement solver, nothing changes: where could this product go in this room for a relation (against_wall, in_corner, centered_in, facing, next_to, under_window, at)? Returns up to 3 candidate spots (position, rotation, elevation, the relation to pass to place_item) with reasons, or the violations (outside_room, overlap, door_swing_blocked, ...) with alternatives. The product must come from search_products in this session.",
+    "description": "Dry run of the placement solver, nothing changes: where could this product go in this room for a relation (against_wall, in_corner, centered_in, facing, next_to, under_window, on, at)? Returns up to 3 candidate spots (position, rotation, elevation, the relation to pass to place_item) with reasons, or the violations (outside_room, overlap, door_swing_blocked, ...) with alternatives. The product must come from search_products in this session.",
     "inputSchema": {
       "$defs": {
         "relation": {
@@ -4252,6 +4357,42 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "required": [
                 "kind",
                 "openingId",
+              ],
+              "type": "object",
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "itemId": {
+                  "description": "The existing item to stand on (items[].id): nightstand, table, shelf, sofa, bed...",
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string",
+                },
+                "kind": {
+                  "const": "on",
+                  "description": "Relation discriminator, always "on".",
+                  "type": "string",
+                },
+                "offset": {
+                  "description": "[dx, dz] m from the centre of that top, in its frame (dx right, dz front). Default: the centre.",
+                  "items": false,
+                  "maxItems": 2,
+                  "minItems": 2,
+                  "prefixItems": [
+                    {
+                      "type": "number",
+                    },
+                    {
+                      "type": "number",
+                    },
+                  ],
+                  "type": "array",
+                },
+              },
+              "required": [
+                "kind",
+                "itemId",
               ],
               "type": "object",
             },

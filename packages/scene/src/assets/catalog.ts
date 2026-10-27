@@ -423,6 +423,12 @@ export function defaultParametricFor(category: ProductCategory, dims: Dims, name
     case 'lamp':
     case 'appliance':
     case 'decor':
+    case 'curtain':
+    case 'plant':
+    case 'vase':
+    case 'frame':
+    case 'cushion':
+    case 'throw':
     case 'other':
       return undefined;
   }

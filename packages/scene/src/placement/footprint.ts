@@ -206,7 +206,7 @@ export function makeBox(
     dims,
     mount,
     locked,
-    flat: mount === 'floor' && dims.h <= FLAT_MAX_H,
+    flat: mount === 'floor' && elevation === 0 && dims.h <= FLAT_MAX_H,
     footprint,
     bounds: boundsOf(footprint),
     bottom: elevation,
