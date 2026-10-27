@@ -10,6 +10,8 @@ const STATIC_SPEC = '**/static.e2e.ts';
 const MOBILE_SPEC = '**/mobile.e2e.ts';
 /** Specs that also run on the mobile projects (they skip the tests that do not fit the layout). */
 const MOBILE_SPECS = [MOBILE_SPEC, '**/finishes.e2e.ts'];
+// e2e/sync.e2e.ts (live sync) is picked up by the desktop `chromium` project only: it boots its own
+// apps/server per test (node --import tsx, a devDependency of @flat/server), so CI needs no extra step.
 /** Software WebGL so the suite runs on machines/CI without a GPU. */
 const SOFTWARE_GL = { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] };
 

@@ -10,18 +10,23 @@ export interface TextureSet {
 
 export const MAP_NAMES = ['color', 'normal', 'roughness'] as const;
 
-/** Loaded sets kept at most; beyond this the least recently used one is evicted. */
+/**
+ * Loaded sets kept at most (in use or idle). Beyond this, idle sets (no user) are evicted first, least
+ * recently used first; only when more sets than this are in use at once is an in-use set evicted too.
+ */
 export const MAX_LOADED_SETS = 16;
 /** Anisotropy cap (also limited by the renderer). */
 export const MAX_ANISOTROPY = 8;
 
 export interface TextureStats {
-  /** Texture sets currently loaded. */
+  /** Texture sets loaded and in use by at least one material. */
   loaded: number;
   /** Texture sets (and catalog lookups) still loading. */
   pending: number;
-  /** Slugs of the loaded sets. */
+  /** Slugs of the loaded, in-use sets. */
   slugs: string[];
+  /** Loaded sets nobody uses right now, kept so that going back to them needs no download (evicted first). */
+  idle: number;
 }
 
 /** `lib:<slug>` -> slug; anything else (other schemes, relative paths) is not loadable and returns undefined. */
@@ -72,18 +77,37 @@ export interface SetLoad {
 }
 export type SetLoader = (slug: string) => SetLoad;
 
-/** Loads a slug's three maps with the three.js TextureLoader. Image loads cannot be aborted, so cancel discards the result. */
-export function defaultSetLoader(base?: string): SetLoader {
+/** The part of `TextureLoader` the set loader uses (a seam for tests). */
+export interface MapLoader {
+  load: (url: string, onLoad: (t: Texture) => void, onProgress: undefined, onError: () => void) => unknown;
+}
+
+/**
+ * Loads a slug's three maps with the three.js TextureLoader. Image loads cannot be aborted, so cancel discards
+ * the result. Maps that did load are disposed whenever the set as a whole is not delivered (one map failed, or
+ * the load was cancelled), including maps that finish after the failure.
+ */
+export function defaultSetLoader(base?: string, makeLoader: () => MapLoader = () => new TextureLoader()): SetLoader {
   return (slug) => {
     const urls = textureFileUrls(slug, base);
-    const loader = new TextureLoader();
+    const loader = makeLoader();
     const loaded: Texture[] = [];
     let cancelled = false;
+    let abandoned = false;
+    const abandon = () => {
+      abandoned = true;
+      loaded.splice(0).forEach((t) => t.dispose());
+    };
     const one = (url: string) =>
       new Promise<Texture>((resolve, reject) =>
         loader.load(
           url,
           (t) => {
+            if (abandoned) {
+              t.dispose(); // a sibling already failed
+              reject(new Error('abandoned'));
+              return;
+            }
             loaded.push(t);
             resolve(t);
           },
@@ -91,13 +115,19 @@ export function defaultSetLoader(base?: string): SetLoader {
           () => reject(new Error(`failed to load ${url}`)),
         ),
       );
-    const promise = Promise.all([one(urls.color), one(urls.normal), one(urls.roughness)]).then(([color, normal, roughness]) => {
-      if (cancelled) {
-        loaded.forEach((t) => t.dispose());
-        throw new Error('cancelled');
-      }
-      return { color: color!, normal: normal!, roughness: roughness! };
-    });
+    const promise = Promise.all([one(urls.color), one(urls.normal), one(urls.roughness)]).then(
+      ([color, normal, roughness]) => {
+        if (cancelled) {
+          abandon();
+          throw new Error('cancelled');
+        }
+        return { color: color!, normal: normal!, roughness: roughness! };
+      },
+      (error: unknown) => {
+        abandon();
+        throw error;
+      },
+    );
     return {
       promise,
       cancel: () => {
@@ -129,7 +159,8 @@ export interface TextureCache {
 interface Entry {
   slug: string;
   subs: Set<(set: TextureSet | null) => void>;
-  state: 'pending' | 'loaded' | 'failed';
+  /** 'evicted': taken away while in use (more sets in use than the cap); reloaded when room frees up. */
+  state: 'pending' | 'loaded' | 'failed' | 'evicted';
   set?: TextureSet;
   load?: SetLoad;
   lastUsed: number;
@@ -141,7 +172,9 @@ export function createTextureCache(loader: SetLoader, maxLoaded = MAX_LOADED_SET
   let tracked = 0;
   let waiters: (() => void)[] = [];
 
-  const pendingCount = () => tracked + [...entries.values()].filter((e) => e.state === 'pending').length;
+  const all = () => [...entries.values()];
+  const loadedEntries = () => all().filter((e) => e.state === 'loaded');
+  const pendingCount = () => tracked + all().filter((e) => e.state === 'pending').length;
   const flush = () => {
     if (pendingCount() > 0) return;
     const ready = waiters;
@@ -156,20 +189,43 @@ export function createTextureCache(loader: SetLoader, maxLoaded = MAX_LOADED_SET
     e.set = undefined;
   };
 
+  /** Over the cap: idle sets go first (LRU); an in-use set is taken away only when everything loaded is in use. */
   const evictIfNeeded = (keep: Entry) => {
     for (;;) {
-      const loaded = [...entries.values()].filter((e) => e.state === 'loaded');
+      const loaded = loadedEntries();
       if (loaded.length <= maxLoaded) return;
-      const victim = loaded.filter((e) => e !== keep).sort((a, b) => a.lastUsed - b.lastUsed)[0];
+      const candidates = loaded.filter((e) => e !== keep).sort((a, b) => a.lastUsed - b.lastUsed);
+      const idle = candidates.find((e) => e.subs.size === 0);
+      if (idle) {
+        drop(idle);
+        continue;
+      }
+      const victim = candidates[0];
       if (!victim) return;
-      const subs = [...victim.subs];
-      drop(victim);
-      victim.state = 'failed'; // detached: later releases are no-ops
-      subs.forEach((cb) => cb(null));
+      if (victim.set) disposeSet(victim.set);
+      victim.set = undefined;
+      victim.state = 'evicted';
+      [...victim.subs].forEach((cb) => cb(null));
     }
   };
 
-  const start = (e: Entry) => {
+  /** Room freed up: bring back evicted in-use sets, most recently used first (idle sets make room, they are only a cache). */
+  const revive = () => {
+    const evicted = all()
+      .filter((e) => e.state === 'evicted' && e.subs.size > 0)
+      .sort((a, b) => b.lastUsed - a.lastUsed);
+    for (const e of evicted) {
+      const inUse = all().filter((x) => x.subs.size > 0 && (x.state === 'loaded' || x.state === 'pending')).length;
+      if (inUse >= maxLoaded) return;
+      const idle = loadedEntries()
+        .filter((x) => x.subs.size === 0)
+        .sort((a, b) => a.lastUsed - b.lastUsed);
+      while (idle.length > 0 && loadedEntries().length + all().filter((x) => x.state === 'pending').length >= maxLoaded) drop(idle.shift()!);
+      start(e);
+    }
+  };
+
+  function start(e: Entry): void {
     e.state = 'pending';
     const load = loader(e.slug);
     e.load = load;
@@ -196,7 +252,7 @@ export function createTextureCache(loader: SetLoader, maxLoaded = MAX_LOADED_SET
         flush();
       },
     );
-  };
+  }
 
   return {
     acquire(slug, onSet) {
@@ -210,15 +266,18 @@ export function createTextureCache(loader: SetLoader, maxLoaded = MAX_LOADED_SET
         e.subs.add(onSet);
         e.lastUsed = ++clock;
         if (e.state === 'loaded' && e.set) onSet(e.set);
+        else if (e.state === 'evicted') revive();
       }
       const entry = e;
       return {
         release() {
           if (!entry.subs.delete(onSet)) return;
-          if (entry.subs.size === 0 && entries.get(entry.slug) === entry) {
-            drop(entry);
-            flush();
-          }
+          if (entry.subs.size > 0 || entries.get(entry.slug) !== entry) return;
+          // Last user gone: a loaded set stays as idle (evicted first); anything else is not worth keeping.
+          if (entry.state !== 'loaded') drop(entry);
+          else evictIfNeeded(entry);
+          revive();
+          flush();
         },
       };
     },
@@ -232,21 +291,23 @@ export function createTextureCache(loader: SetLoader, maxLoaded = MAX_LOADED_SET
       return promise;
     },
     stats() {
-      const loaded = [...entries.values()].filter((e) => e.state === 'loaded');
-      return { loaded: loaded.length, pending: pendingCount(), slugs: loaded.map((e) => e.slug).sort() };
+      const loaded = loadedEntries();
+      const inUse = loaded.filter((e) => e.subs.size > 0);
+      return { loaded: inUse.length, pending: pendingCount(), slugs: inUse.map((e) => e.slug).sort(), idle: loaded.length - inUse.length };
     },
     settled() {
       return pendingCount() === 0 ? Promise.resolve() : new Promise<void>((resolve) => waiters.push(resolve));
     },
     reset() {
-      for (const e of [...entries.values()]) {
+      for (const e of all()) {
         const subs = [...e.subs];
         if (e.state === 'pending') e.load?.cancel();
         if (e.set) disposeSet(e.set);
         e.set = undefined;
-        subs.forEach((cb) => cb(null));
-        if (e.subs.size > 0) start(e);
-        else entries.delete(e.slug);
+        if (e.subs.size > 0) {
+          subs.forEach((cb) => cb(null));
+          start(e);
+        } else entries.delete(e.slug);
       }
       flush();
     },

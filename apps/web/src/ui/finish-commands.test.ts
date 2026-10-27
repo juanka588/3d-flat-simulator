@@ -63,6 +63,48 @@ describe('buildFinishCommand', () => {
     }
   });
 
+  describe('room-scoped wall scopes', () => {
+    const names = { rooms: { sejour: 'Séjour', alcove: 'Alcôve' } };
+
+    it('"This wall (Séjour side)" dispatches wall.setFinish with the clicked room', () => {
+      const cmd = buildFinishCommand({ kind: 'wallSide', wallId: 'w-west', side: 'right', roomId: 'sejour' }, sage, names);
+      expect(cmd.label).toBe('Paint wall w-west right side in Séjour Sage');
+      expect(cmd.commands[1]).toEqual({ type: 'wall.setFinish', wallId: 'w-west', side: 'right', roomId: 'sejour', materialId: 'paint-a3ae93-matt' });
+    });
+
+    it('"Both faces here" batches one room-scoped wall.setFinish per face', () => {
+      const scope: FinishScope = {
+        kind: 'wallFaces',
+        wallId: 'w-alcove',
+        faces: [
+          { side: 'left', roomId: 'alcove' },
+          { side: 'right', roomId: 'sejour' },
+        ],
+      };
+      const cmd = buildFinishCommand(scope, sage, names);
+      expect(cmd.label).toBe('Paint wall w-alcove both faces here (Alcôve / Séjour) Sage');
+      expect(cmd.commands).toHaveLength(3);
+      expect(cmd.commands.slice(1)).toEqual([
+        { type: 'wall.setFinish', wallId: 'w-alcove', side: 'left', roomId: 'alcove', materialId: 'paint-a3ae93-matt' },
+        { type: 'wall.setFinish', wallId: 'w-alcove', side: 'right', roomId: 'sejour', materialId: 'paint-a3ae93-matt' },
+      ]);
+    });
+
+    it('a face no room sees is painted whole (no roomId)', () => {
+      const cmd = buildFinishCommand({ kind: 'wallFaces', wallId: 'w1', faces: [{ side: 'left' }, { side: 'right', roomId: 'sejour' }] }, sage, names);
+      expect(cmd.commands[1]).not.toHaveProperty('roomId');
+      expect(cmd.commands[2]).toHaveProperty('roomId', 'sejour');
+    });
+
+    it('reset clears only the scoped stretches (materialId null, same roomIds), without material.define', () => {
+      const cmd = buildFinishCommand({ kind: 'wallSide', wallId: 'w-west', side: 'right', roomId: 'sejour' }, { kind: 'reset' }, names);
+      expect(cmd.commands).toEqual([{ type: 'wall.setFinish', wallId: 'w-west', side: 'right', roomId: 'sejour', materialId: null }]);
+      const both = buildFinishCommand({ kind: 'wallFaces', wallId: 'w', faces: [{ side: 'left', roomId: 'a' }, { side: 'right', roomId: 'b' }] }, { kind: 'reset' });
+      expect(both.commands).toHaveLength(2);
+      expect(both.label).toBe('Reset wall w both faces here (a / b) to default');
+    });
+  });
+
   it('rejects invalid hex', () => {
     expect(() => buildFinishCommand({ kind: 'floor', roomId: 'r1' }, { kind: 'paint', hex: 'zzz', sheen: 'matt' })).toThrow();
   });

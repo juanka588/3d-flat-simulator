@@ -16,21 +16,25 @@ function reject(socket: Duplex, status: string): void {
 /** Serves `/ws`: `hello` on connect, `applied` / `reset` broadcasts, `ping` -> `pong`. */
 export function attachWebSocket(server: Server, store: SceneStore, config: ServerConfig): { close(): void } {
   const wss = new WebSocketServer({ noServer: true, maxPayload: 64 * 1024 });
-  const send = (ws: WebSocket, msg: ServerMsg) => {
+  const alive = new WeakSet<WebSocket>();
+  const sendRaw = (ws: WebSocket, data: string) => {
     if (ws.readyState !== ws.OPEN) return;
     if (ws.bufferedAmount > MAX_BUFFERED) return void ws.terminate(); // too slow; it will reconnect and resync
-    ws.send(JSON.stringify(msg));
+    ws.send(data);
   };
+  const send = (ws: WebSocket, msg: ServerMsg) => sendRaw(ws, JSON.stringify(msg));
 
   server.on('upgrade', (req: IncomingMessage, socket: Duplex, head: Buffer) => {
     const url = new URL(req.url ?? '/', 'http://localhost');
     if (url.pathname !== '/ws') return reject(socket, '404 Not Found');
-    if (!hostAllowed(req.headers.host) || !originAllowed(req.headers.origin, config.allowedOrigins)) return reject(socket, '403 Forbidden');
+    if (!hostAllowed(req.headers.host, config.allowedHosts) || !originAllowed(req.headers.origin, config.allowedOrigins)) return reject(socket, '403 Forbidden');
     if (wss.clients.size >= config.maxWsClients) return reject(socket, '503 Service Unavailable');
     wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req));
   });
 
   wss.on('connection', (ws) => {
+    alive.add(ws);
+    ws.on('pong', () => alive.add(ws));
     send(ws, store.helloMessage());
     ws.on('message', (data) => {
       try {
@@ -44,12 +48,31 @@ export function attachWebSocket(server: Server, store: SceneStore, config: Serve
   });
 
   const unsubscribe = store.subscribe((msg) => {
-    for (const ws of wss.clients) send(ws, msg);
+    const data = JSON.stringify(msg); // once, not per client
+    for (const ws of wss.clients) sendRaw(ws, data);
   });
+
+  // Half-open sockets never error; ping them and drop the ones that stay silent so slots free up.
+  const heartbeat = setInterval(() => {
+    for (const ws of wss.clients) {
+      if (!alive.has(ws)) {
+        ws.terminate();
+        continue;
+      }
+      alive.delete(ws);
+      try {
+        ws.ping();
+      } catch {
+        ws.terminate();
+      }
+    }
+  }, config.wsHeartbeatMs);
+  heartbeat.unref?.();
 
   return {
     close() {
       unsubscribe();
+      clearInterval(heartbeat);
       for (const ws of wss.clients) ws.terminate();
       wss.close();
     },

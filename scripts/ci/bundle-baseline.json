@@ -1,0 +1,17 @@
+{
+  "milestone": "M3",
+  "budgetBytes": {
+    "js": 30000,
+    "css": 5000
+  },
+  "baseline": {
+    "js": 432727,
+    "css": 4235
+  },
+  "previous": {
+    "milestone": "M2",
+    "js": 400740,
+    "source": "M2 QA report: dist JS 400.74 kB gzip as printed by `vite build`. Vite's figure runs about 1% above this script's (Node default-level gzip), so M2 is not directly comparable with `baseline`; with Vite's own numbers M3 was 436.53 kB, 35.8 kB above M2."
+  },
+  "notes": "The budget is per milestone: CI fails when the built JS (or CSS) gzip is more than budgetBytes above `baseline`, the size recorded when the milestone shipped. M3 (commands, history, sync client, finish UI, persistence, wall room scoping) shipped about 36 kB above M2 by Vite's numbers; that exceeded the original 30 kB story budget and was accepted at M3 sign-off, so M3's size is the new baseline and M4 may add 30 kB on top of it. Re-record with `node scripts/ci/bundle-size.mjs --update` after a build with BASE_PATH set."
+}

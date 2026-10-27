@@ -10,6 +10,8 @@ export interface ServerConfig {
   sceneFile: string;
   materialsFile: string;
   allowedOrigins: string[];
+  /** Extra `Host` names accepted besides loopback (needed for `HOST=0.0.0.0` LAN mode). */
+  allowedHosts: string[];
   /** When set, writes need `Authorization: Bearer <token>`. */
   token?: string;
   /** Request body limit for commands/undo/redo, in bytes. */
@@ -17,6 +19,8 @@ export interface ServerConfig {
   /** Write requests allowed per client per second. */
   rateLimitPerSec: number;
   maxWsClients: number;
+  /** WebSocket ping interval; a client that misses a pong is terminated. */
+  wsHeartbeatMs: number;
   snapshotDebounceMs: number;
   /** Compact (snapshot + truncate the log) once the log holds this many entries. */
   compactAfter: number;
@@ -36,10 +40,15 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
       .split(',')
       .map((s) => s.trim())
       .filter(Boolean),
+    allowedHosts: (env.ALLOWED_HOSTS ?? '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean),
     token: env.FLAT_TOKEN || undefined,
     bodyLimit: 2 * 1024 * 1024,
     rateLimitPerSec: env.RATE_LIMIT ? Number(env.RATE_LIMIT) : 200,
     maxWsClients: 50,
+    wsHeartbeatMs: 30_000,
     snapshotDebounceMs: 500,
     compactAfter: 1000,
     log: (level, message) => console[level === 'info' ? 'log' : level](`[flat-server] ${message}`),

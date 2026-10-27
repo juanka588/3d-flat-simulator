@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
 import { unzipSync } from 'fflate';
 import { renderCredits, creditsPath } from './credits.mjs';
+import { LICENCE_POLICIES, assertAssetLicence, assertPolicyPage, assetLicenceField, checkPins, licenceEvidence, stableTimestamp } from './lib.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..', '..');
@@ -50,27 +51,21 @@ async function cached(name, loader) {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // ---- licence assertion --------------------------------------------------------------------
-// Neither API exposes a per-asset licence field (verified in the spike); both sites publish a single
-// site-wide CC0 policy. We assert (a) the API knows the asset and (b) the site's licence page still says CC0.
-const licenceChecks = {
-  ambientcg: { url: 'https://docs.ambientcg.com/license/', needle: 'CC0 1.0 Universal' },
-  polyhaven: { url: 'https://polyhaven.com/license', needle: 'CC0' },
-};
+// Neither API exposes a per-asset licence field (see lib.mjs), so each entry records `licenseEvidence`:
+// the API knows the asset (it is fetched below), and the site's licence page links the CC0 1.0 deed
+// (strict needle `creativecommons.org/publicdomain/zero`). Should an API start returning a per-asset
+// licence field, it is asserted CC0 and recorded as `assetField`.
 const licenceOk = new Set();
 async function assertLicence(source) {
   if (licenceOk.has(source)) return;
-  const { url, needle } = licenceChecks[source];
-  const html = await http(url, { text: true });
-  if (!html.includes(needle)) throw new Error(`Licence page ${url} no longer mentions "${needle}"; refusing to build.`);
+  assertPolicyPage(source, await http(LICENCE_POLICIES[source].url, { text: true }));
   licenceOk.add(source);
 }
 
-// ---- source fetchers: return { color, normal, roughness|null, tileSizeApiM|null, sourceUrl } ---
+// ---- source fetchers: return { color, normal, roughness|null, tileSizeApiM|null, sourceUrl, sourceHashes, assetApiUrl, assetField } ---
 async function fetchAmbientCg(entry) {
-  const meta = await http(
-    `https://ambientcg.com/api/v2/full_json?id=${encodeURIComponent(entry.sourceId)}&include=downloadData`,
-    { json: true },
-  );
+  const assetApiUrl = `https://ambientcg.com/api/v2/full_json?id=${encodeURIComponent(entry.sourceId)}&include=downloadData`;
+  const meta = await http(assetApiUrl, { json: true });
   const asset = meta.foundAssets?.find((a) => a.assetId.toLowerCase() === entry.sourceId.toLowerCase());
   if (!asset) throw new Error(`ambientCG has no asset "${entry.sourceId}"`);
   if (asset.dataType !== 'Material') throw new Error(`${entry.sourceId} is a ${asset.dataType}, not a Material`);
@@ -87,26 +82,47 @@ async function fetchAmbientCg(entry) {
   const normal = find(/_NormalGL\.(jpg|png)$/i);
   if (!color || !normal) throw new Error(`${entry.sourceId}: zip lacks Color/NormalGL (${Object.keys(files).join(', ')})`);
   const dim = asset.dimensionX > 0 ? asset.dimensionX / 100 : null; // API gives centimetres
-  return { color, normal, roughness: find(/_Roughness\.(jpg|png)$/i), tileSizeApiM: dim, sourceUrl: asset.shortLink };
+  return {
+    color,
+    normal,
+    roughness: find(/_Roughness\.(jpg|png)$/i),
+    tileSizeApiM: dim,
+    sourceUrl: asset.shortLink,
+    sourceHashes: { zip: sha256(zip) },
+    assetApiUrl,
+    assetField: assetLicenceField(asset),
+  };
 }
 
 async function fetchPolyHaven(entry) {
   const id = entry.sourceId;
-  const info = await http(`https://api.polyhaven.com/info/${id}`, { json: true });
+  const assetApiUrl = `https://api.polyhaven.com/info/${id}`;
+  const info = await http(assetApiUrl, { json: true });
   if (info.type !== 1) throw new Error(`Poly Haven "${id}" is not a texture (type ${info.type})`);
   const files = await http(`https://api.polyhaven.com/files/${id}`, { json: true });
+  const sourceHashes = {};
   const get = async (map) => {
     const f = files[map]?.['1k']?.jpg;
     if (!f) return null;
     const buf = await cached(`polyhaven/${id}/${map}_1k.jpg`, () => http(f.url));
     const md5 = createHash('md5').update(buf).digest('hex');
     if (md5 !== f.md5) throw new Error(`${id}/${map}: md5 mismatch (${md5} != ${f.md5})`);
+    sourceHashes[map] = sha256(buf);
     return buf;
   };
   const [color, normal, roughness] = [await get('Diffuse'), await get('nor_gl'), await get('Rough')];
   if (!color || !normal) throw new Error(`${id}: missing Diffuse/nor_gl 1k`);
   const dim = info.dimensions?.[0] > 0 ? info.dimensions[0] / 1000 : null; // API gives millimetres
-  return { color, normal, roughness, tileSizeApiM: dim, sourceUrl: `https://polyhaven.com/a/${id}` };
+  return {
+    color,
+    normal,
+    roughness,
+    tileSizeApiM: dim,
+    sourceUrl: `https://polyhaven.com/a/${id}`,
+    sourceHashes,
+    assetApiUrl,
+    assetField: assetLicenceField(info),
+  };
 }
 
 // ---- image processing ---------------------------------------------------------------------
@@ -167,7 +183,17 @@ async function processEntry(entry, src, dir) {
 
 // ---- main ---------------------------------------------------------------------------------
 async function main() {
-  const manifest = JSON.parse(readFileSync(join(here, 'manifest.json'), 'utf8'));
+  const manifestPath = join(here, 'manifest.json');
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+  const updatePins = process.argv.includes('--update-pins');
+  // The committed catalog: an entry whose output hashes do not change keeps its timestamps (reproducible rebuilds).
+  const previous = new Map();
+  try {
+    for (const e of JSON.parse(readFileSync(join(outDir, 'catalog.json'), 'utf8'))) previous.set(e.id, e);
+  } catch {
+    // first build
+  }
+  let pinsChanged = false;
   const slugs = new Set();
   for (const e of manifest) {
     if (slugs.has(e.slug)) throw new Error(`duplicate slug ${e.slug}`);
@@ -175,7 +201,7 @@ async function main() {
   }
   rmSync(stagingDir, { recursive: true, force: true });
   mkdirSync(stagingDir, { recursive: true });
-  const retrievedAt = new Date().toISOString();
+  const now = new Date().toISOString();
   const catalog = [];
   let total = 0;
 
@@ -188,9 +214,16 @@ async function main() {
       if (Math.abs(src.tileSizeApiM - entry.tileSizeM) / entry.tileSizeM > 0.02)
         throw new Error(`${entry.slug}: manifest tileSizeM ${entry.tileSizeM} != API ${src.tileSizeApiM}`);
     }
+    assertAssetLicence(entry.slug, src.assetField);
+    const pinned = checkPins(entry.slug, entry.sourceSha256, src.sourceHashes, { update: updatePins });
+    if (pinned.changed) {
+      entry.sourceSha256 = pinned.pins;
+      pinsChanged = true;
+    }
     const res = await processEntry(entry, src, join(stagingDir, entry.slug));
     const mc = await meanColor(src.color);
     total += res.bytes;
+    const retrievedAt = stableTimestamp(previous.get(entry.slug), { source: entry.source, sourceId: entry.sourceId, sha256: res.sha256 }, now);
     catalog.push({
       id: entry.slug,
       name: entry.name,
@@ -208,6 +241,8 @@ async function main() {
       sourceId: entry.sourceId,
       sourceUrl: src.sourceUrl,
       license: 'CC0-1.0',
+      licenseEvidence: licenceEvidence({ source: entry.source, assetApiUrl: src.assetApiUrl, assetField: src.assetField, checkedAt: retrievedAt }),
+      sourceSha256: entry.sourceSha256,
       retrievedAt,
       sha256: res.sha256,
     });
@@ -230,6 +265,10 @@ async function main() {
   }
   rmSync(backup, { recursive: true, force: true });
   writeFileSync(creditsPath, renderCredits(catalog));
+  if (pinsChanged) {
+    writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
+    console.log('manifest.json: sourceSha256 pins written (commit them)');
+  }
   console.log(`\n${catalog.length} materials, ${(total / 1024 / 1024).toFixed(2)} MB -> ${outDir}`);
 }
 

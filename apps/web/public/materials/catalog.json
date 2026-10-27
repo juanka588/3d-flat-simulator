@@ -30,6 +30,18 @@
     "sourceId": "herringbone_parquet",
     "sourceUrl": "https://polyhaven.com/a/herringbone_parquet",
     "license": "CC0-1.0",
+    "licenseEvidence": {
+      "basis": "site-policy",
+      "policyUrl": "https://polyhaven.com/license",
+      "needle": "creativecommons.org/publicdomain/zero",
+      "assetApiUrl": "https://api.polyhaven.com/info/herringbone_parquet",
+      "checkedAt": "2026-10-26T17:32:07.196Z"
+    },
+    "sourceSha256": {
+      "Diffuse": "d6c66492a6c4cfd4e8ed18c9cdd4e0303f3de4e04613d2adca8bc2b8f2dd2350",
+      "nor_gl": "af6a822100fd6369bb75e43bb764f4a71ca41f521538ac796e92e681e3ad38f5",
+      "Rough": "6058f5a1d27cef64f40057370188fec65c34998868d202a944f346ad9866ed62"
+    },
     "retrievedAt": "2026-10-26T17:32:07.196Z",
     "sha256": {
       "color": "51dc52f710c89ef192efc5f58fe329acbe98d54594062448aaf5862ab1bb9e90",
@@ -69,6 +81,16 @@
     "sourceId": "WoodFloor051",
     "sourceUrl": "https://ambientcg.com/a/WoodFloor051",
     "license": "CC0-1.0",
+    "licenseEvidence": {
+      "basis": "site-policy",
+      "policyUrl": "https://docs.ambientcg.com/license/",
+      "needle": "creativecommons.org/publicdomain/zero",
+      "assetApiUrl": "https://ambientcg.com/api/v2/full_json?id=WoodFloor051&include=downloadData",
+      "checkedAt": "2026-10-26T17:32:07.196Z"
+    },
+    "sourceSha256": {
+      "zip": "3f493484eab1ec5e1c466b90e515003b286fc6d7f84ff8ff6485900bfc26cef5"
+    },
     "retrievedAt": "2026-10-26T17:32:07.196Z",
     "sha256": {
       "color": "ccfd709bddadb1dd10658993d38893a87c89fbec6789a0dce5c4d94a271e6eb8",
@@ -108,6 +130,18 @@
     "sourceId": "oak_wood_planks",
     "sourceUrl": "https://polyhaven.com/a/oak_wood_planks",
     "license": "CC0-1.0",
+    "licenseEvidence": {
+      "basis": "site-policy",
+      "policyUrl": "https://polyhaven.com/license",
+      "needle": "creativecommons.org/publicdomain/zero",
+      "assetApiUrl": "https://api.polyhaven.com/info/oak_wood_planks",
+      "checkedAt": "2026-10-26T17:32:07.196Z"
+    },
+    "sourceSha256": {
+      "Diffuse": "f715ed3e4346e94f971ef8dd61221ff6cc774886c20f65381e01e1dc0bb0a634",
+      "nor_gl": "b4272cb2818f8f33f2620a2dc093c962f34920e9d485a4e132eb6d69de1ba950",
+      "Rough": "10ced559145df3c537bf1ccef6dc767ef6c47e134c21a9650bab261fa95ecacf"
+    },
     "retrievedAt": "2026-10-26T17:32:07.196Z",
     "sha256": {
       "color": "1491b72dd8e4246d6bd8e6689c7af3ca51993d24131c48d04004c911f5b8a256",
@@ -147,6 +181,18 @@
     "sourceId": "rectangular_parquet",
     "sourceUrl": "https://polyhaven.com/a/rectangular_parquet",
     "license": "CC0-1.0",
+    "licenseEvidence": {
+      "basis": "site-policy",
+      "policyUrl": "https://polyhaven.com/license",
+      "needle": "creativecommons.org/publicdomain/zero",
+      "assetApiUrl": "https://api.polyhaven.com/info/rectangular_parquet",
+      "checkedAt": "2026-10-26T17:32:07.196Z"
+    },
+    "sourceSha256": {
+      "Diffuse": "e700a99972e3c9bb523b9cfaf436d0d77a9b65df3d3d347c980e4bf5b4ae22b4",
+      "nor_gl": "e2e1dea2c3536652ec57e1a1e6f85e1f35ae1c97b74665bc2cac74281a95a879",
+      "Rough": "f13fab0466b815cde176991b508c2bdea0e2e4b1d0007932b1161ac2bc2b4109"
+    },
     "retrievedAt": "2026-10-26T17:32:07.196Z",
     "sha256": {
       "color": "4e5574e4bed5c4b12ccc3db387fa04646fc6e2c01dd5659f356e83c8935ef1a9",
@@ -186,6 +232,16 @@
     "sourceId": "WoodFloor070",
     "sourceUrl": "https://ambientcg.com/a/WoodFloor070",
     "license": "CC0-1.0",
+    "licenseEvidence": {
+      "basis": "site-policy",
+      "policyUrl": "https://docs.ambientcg.com/license/",
+      "needle": "creativecommons.org/publicdomain/zero",
+      "assetApiUrl": "https://ambientcg.com/api/v2/full_json?id=WoodFloor070&include=downloadData",
+      "checkedAt": "2026-10-26T17:32:07.196Z"
+    },
+    "sourceSha256": {
+      "zip": "a8b11f1d6632faa674a5dcd903d7a932fd328e1239ef598f2b38014424547137"
+    },
     "retrievedAt": "2026-10-26T17:32:07.196Z",
     "sha256": {
       "color": "6ca929206b1123fc28d2d0f3dd77800974fec82a62d9248e32785268904751b2",
@@ -225,6 +281,18 @@
     "sourceId": "walnut_veneer_02",
     "sourceUrl": "https://polyhaven.com/a/walnut_veneer_02",
     "license": "CC0-1.0",
+    "licenseEvidence": {
+      "basis": "site-policy",
+      "policyUrl": "https://polyhaven.com/license",
+      "needle": "creativecommons.org/publicdomain/zero",
+      "assetApiUrl": "https://api.polyhaven.com/info/walnut_veneer_02",
+      "checkedAt": "2026-10-26T17:32:07.196Z"
+    },
+    "sourceSha256": {
+      "Diffuse": "0e066c9876dc2517f2571f3d177e892b5631020d27b16cfd385a80a69493fdea",
+      "nor_gl": "a54e8a4b23ab99d0029255bb7e36f56f71769a78bd236736819c5541b4829dc1",
+      "Rough": "a105351706d9d9e74a315309004bb38447eccf0ef13223be18f16530d2777d44"
+    },
     "retrievedAt": "2026-10-26T17:32:07.196Z",
     "sha256": {
       "color": "368be342e127e8171fff36fb12b552e00d26ddfc78e80873b1d2005a23a3755e",
@@ -264,6 +332,18 @@
     "sourceId": "terracotta_floor_tiles",
     "sourceUrl": "https://polyhaven.com/a/terracotta_floor_tiles",
     "license": "CC0-1.0",
+    "licenseEvidence": {
+      "basis": "site-policy",
+      "policyUrl": "https://polyhaven.com/license",
+      "needle": "creativecommons.org/publicdomain/zero",
+      "assetApiUrl": "https://api.polyhaven.com/info/terracotta_floor_tiles",
+      "checkedAt": "2026-10-26T17:32:07.196Z"
+    },
+    "sourceSha256": {
+      "Diffuse": "966ff423065e4a4ce9490864fba61fdb491985d4a2c60eb2b85181c7e7edcd5d",
+      "nor_gl": "7d9a6935951f3b2c1f6ae372dd512969dd5c7c27efbbfe6941ed3ec1b7da9758",
+      "Rough": "df263e7205e36a6249db10e85f4d55b93b3f6793871fc79d2d10531433de109e"
+    },
     "retrievedAt": "2026-10-26T17:32:07.196Z",
     "sha256": {
       "color": "0316107033008093338b126d365b9359d03901d317bef6c0ab1b619bb3dfc584",
@@ -303,6 +383,16 @@
     "sourceId": "Tiles036",
     "sourceUrl": "https://ambientcg.com/a/Tiles036",
     "license": "CC0-1.0",
+    "licenseEvidence": {
+      "basis": "site-policy",
+      "policyUrl": "https://docs.ambientcg.com/license/",
+      "needle": "creativecommons.org/publicdomain/zero",
+      "assetApiUrl": "https://ambientcg.com/api/v2/full_json?id=Tiles036&include=downloadData",
+      "checkedAt": "2026-10-26T17:32:07.196Z"
+    },
+    "sourceSha256": {
+      "zip": "247cd994a4376d6bc3136f122f218d0833d597ee43e13147a4c99ddf6615ef14"
+    },
     "retrievedAt": "2026-10-26T17:32:07.196Z",
     "sha256": {
       "color": "7d1bd7b43c2e9040b9eb7434fce2ad9acd9a981a4984a6170823636f8394d4f5",
@@ -342,6 +432,18 @@
     "sourceId": "large_floor_tiles_02",
     "sourceUrl": "https://polyhaven.com/a/large_floor_tiles_02",
     "license": "CC0-1.0",
+    "licenseEvidence": {
+      "basis": "site-policy",
+      "policyUrl": "https://polyhaven.com/license",
+      "needle": "creativecommons.org/publicdomain/zero",
+      "assetApiUrl": "https://api.polyhaven.com/info/large_floor_tiles_02",
+      "checkedAt": "2026-10-26T17:32:07.196Z"
+    },
+    "sourceSha256": {
+      "Diffuse": "3865ed2510bad61c7c62fe9f854d5af57f1bc37e4b6d8931f03b12d033f9e17c",
+      "nor_gl": "80eed7cdd3eedaf0e348f0388eb47bed183b025165433ba0eef2bf2bd2546e47",
+      "Rough": "b1b6f5ebdf29610065ad69f75df37b84da3b384ddd3d394547ddcbb95f4cea33"
+    },
     "retrievedAt": "2026-10-26T17:32:07.196Z",
     "sha256": {
       "color": "d95f1dba3367e5d4d7a0fc48c19a43ee8fe06b2a082fdfcdb205b2046815b942",
@@ -381,6 +483,16 @@
     "sourceId": "Marble012",
     "sourceUrl": "https://ambientcg.com/a/Marble012",
     "license": "CC0-1.0",
+    "licenseEvidence": {
+      "basis": "site-policy",
+      "policyUrl": "https://docs.ambientcg.com/license/",
+      "needle": "creativecommons.org/publicdomain/zero",
+      "assetApiUrl": "https://ambientcg.com/api/v2/full_json?id=Marble012&include=downloadData",
+      "checkedAt": "2026-10-26T17:32:07.196Z"
+    },
+    "sourceSha256": {
+      "zip": "b04384c6d49ce73baeb70db7ea4abfe9948fc9b74b9fd92c3766970662bf2c43"
+    },
     "retrievedAt": "2026-10-26T17:32:07.196Z",
     "sha256": {
       "color": "16db2b14e76d249675a4cf1515de5c659462b49c082f97b3b4e4f94f081ab29c",
@@ -420,6 +532,16 @@
     "sourceId": "Tiles074",
     "sourceUrl": "https://ambientcg.com/a/Tiles074",
     "license": "CC0-1.0",
+    "licenseEvidence": {
+      "basis": "site-policy",
+      "policyUrl": "https://docs.ambientcg.com/license/",
+      "needle": "creativecommons.org/publicdomain/zero",
+      "assetApiUrl": "https://ambientcg.com/api/v2/full_json?id=Tiles074&include=downloadData",
+      "checkedAt": "2026-10-26T17:32:07.196Z"
+    },
+    "sourceSha256": {
+      "zip": "28a40cb36d3c265f17c798c52aa3ea7cdcb8c949b80c49692b0a855e9637c677"
+    },
     "retrievedAt": "2026-10-26T17:32:07.196Z",
     "sha256": {
       "color": "b09d14be6eaac1c873ffed41795b2d1ed238fae48cdb87a3705caffac6419ce5",
@@ -459,6 +581,16 @@
     "sourceId": "Tiles139",
     "sourceUrl": "https://ambientcg.com/a/Tiles139",
     "license": "CC0-1.0",
+    "licenseEvidence": {
+      "basis": "site-policy",
+      "policyUrl": "https://docs.ambientcg.com/license/",
+      "needle": "creativecommons.org/publicdomain/zero",
+      "assetApiUrl": "https://ambientcg.com/api/v2/full_json?id=Tiles139&include=downloadData",
+      "checkedAt": "2026-10-26T17:32:07.196Z"
+    },
+    "sourceSha256": {
+      "zip": "0ac4f6e094874948027a1477ad4b9e4986d48ccede608ae59874672ab46265db"
+    },
     "retrievedAt": "2026-10-26T17:32:07.196Z",
     "sha256": {
       "color": "6825f6199af71584fba097aa2256b82bbb98b9ec02309c0b1cb4f19349031f3a",
@@ -498,6 +630,16 @@
     "sourceId": "PaintedPlaster017",
     "sourceUrl": "https://ambientcg.com/a/PaintedPlaster017",
     "license": "CC0-1.0",
+    "licenseEvidence": {
+      "basis": "site-policy",
+      "policyUrl": "https://docs.ambientcg.com/license/",
+      "needle": "creativecommons.org/publicdomain/zero",
+      "assetApiUrl": "https://ambientcg.com/api/v2/full_json?id=PaintedPlaster017&include=downloadData",
+      "checkedAt": "2026-10-26T17:32:07.196Z"
+    },
+    "sourceSha256": {
+      "zip": "bae0380d82b6ccac8943b4980417cb3c9de5c896218339c108056f1dfb8e886c"
+    },
     "retrievedAt": "2026-10-26T17:32:07.196Z",
     "sha256": {
       "color": "b9b6958f883fd018e65dc72292b53aa66c38e4c3a02a77b4e1210a350ca6075f",
@@ -537,6 +679,18 @@
     "sourceId": "beige_wall_001",
     "sourceUrl": "https://polyhaven.com/a/beige_wall_001",
     "license": "CC0-1.0",
+    "licenseEvidence": {
+      "basis": "site-policy",
+      "policyUrl": "https://polyhaven.com/license",
+      "needle": "creativecommons.org/publicdomain/zero",
+      "assetApiUrl": "https://api.polyhaven.com/info/beige_wall_001",
+      "checkedAt": "2026-10-26T17:32:07.196Z"
+    },
+    "sourceSha256": {
+      "Diffuse": "72104704d0b9bd3713c5f6238971252b63eccf6e61263059c674caa8f3d0fa6d",
+      "nor_gl": "cec747be50f91da0693986080b6f59ef868d53cb2ab7d577982165ece63ed75e",
+      "Rough": "fc8328f47f4d2d82d5311a75bcb5c8cd8979d171a0ee097ad9e44ca9c5a00d60"
+    },
     "retrievedAt": "2026-10-26T17:32:07.196Z",
     "sha256": {
       "color": "8b9d221e2ada831f7d03c221db8fa6f917ed2f86ec1329ee41ae9d6f38f807f6",
@@ -576,6 +730,18 @@
     "sourceId": "white_stucco",
     "sourceUrl": "https://polyhaven.com/a/white_stucco",
     "license": "CC0-1.0",
+    "licenseEvidence": {
+      "basis": "site-policy",
+      "policyUrl": "https://polyhaven.com/license",
+      "needle": "creativecommons.org/publicdomain/zero",
+      "assetApiUrl": "https://api.polyhaven.com/info/white_stucco",
+      "checkedAt": "2026-10-26T17:32:07.196Z"
+    },
+    "sourceSha256": {
+      "Diffuse": "5f2d11f5675ffe679155d8e38ed8eaa9b9972126675641e4977c8a4f905f276b",
+      "nor_gl": "f0d4f34b30093ceca5e58d5168fc06c2f0cd0b81289708aa3eac7d0801bd069d",
+      "Rough": "04866e5a27a96148a744c526babad0abc27fe8c1b4c0c7edae65583d1ed6afb1"
+    },
     "retrievedAt": "2026-10-26T17:32:07.196Z",
     "sha256": {
       "color": "20b03c4f4adafa577d906a9c5309ac6ad309ad87c83964ff9cab9eefa6948500",
@@ -615,6 +781,16 @@
     "sourceId": "Plaster003",
     "sourceUrl": "https://ambientcg.com/a/Plaster003",
     "license": "CC0-1.0",
+    "licenseEvidence": {
+      "basis": "site-policy",
+      "policyUrl": "https://docs.ambientcg.com/license/",
+      "needle": "creativecommons.org/publicdomain/zero",
+      "assetApiUrl": "https://ambientcg.com/api/v2/full_json?id=Plaster003&include=downloadData",
+      "checkedAt": "2026-10-26T17:32:07.196Z"
+    },
+    "sourceSha256": {
+      "zip": "3a47249643273c82c53d8d31c9caef43aec940a4c926cf0c74858a8e96631bf1"
+    },
     "retrievedAt": "2026-10-26T17:32:07.196Z",
     "sha256": {
       "color": "e337d1bdb9287709ad7276a5107999dc2ed3c38eaf0ad7a9e7626e3b650e1876",
@@ -654,6 +830,16 @@
     "sourceId": "Concrete034",
     "sourceUrl": "https://ambientcg.com/a/Concrete034",
     "license": "CC0-1.0",
+    "licenseEvidence": {
+      "basis": "site-policy",
+      "policyUrl": "https://docs.ambientcg.com/license/",
+      "needle": "creativecommons.org/publicdomain/zero",
+      "assetApiUrl": "https://ambientcg.com/api/v2/full_json?id=Concrete034&include=downloadData",
+      "checkedAt": "2026-10-26T17:32:07.196Z"
+    },
+    "sourceSha256": {
+      "zip": "5839d284d94ffb8d2a56df742ec522b13dd311c52dbd42b8fd33f0409ceedb81"
+    },
     "retrievedAt": "2026-10-26T17:32:07.196Z",
     "sha256": {
       "color": "213ce512722dbc9d2bf10ff7de4f668e13e16f5974f30718991a0130990ff045",
@@ -693,6 +879,18 @@
     "sourceId": "terrazzo_tiles",
     "sourceUrl": "https://polyhaven.com/a/terrazzo_tiles",
     "license": "CC0-1.0",
+    "licenseEvidence": {
+      "basis": "site-policy",
+      "policyUrl": "https://polyhaven.com/license",
+      "needle": "creativecommons.org/publicdomain/zero",
+      "assetApiUrl": "https://api.polyhaven.com/info/terrazzo_tiles",
+      "checkedAt": "2026-10-26T17:32:07.196Z"
+    },
+    "sourceSha256": {
+      "Diffuse": "462e3e719cda0472a33152523cf5ca2fc660e1c5869348be1609ba3dca12a2ef",
+      "nor_gl": "56bbe2d960b47ddb2dc538be2953a1ad07083b017cdada1cdc7958421a6cfcd9",
+      "Rough": "cf0cb8525674adeb7da551ed1846c8c4edfd0377a35c6fe94d5f1cb2142c6152"
+    },
     "retrievedAt": "2026-10-26T17:32:07.196Z",
     "sha256": {
       "color": "7d457bfed91ab2a4484bc5f23ae861d6f1ffb5eb54c522b46f2bd8a5af1ce276",
@@ -732,6 +930,16 @@
     "sourceId": "Travertine009",
     "sourceUrl": "https://ambientcg.com/a/Travertine009",
     "license": "CC0-1.0",
+    "licenseEvidence": {
+      "basis": "site-policy",
+      "policyUrl": "https://docs.ambientcg.com/license/",
+      "needle": "creativecommons.org/publicdomain/zero",
+      "assetApiUrl": "https://ambientcg.com/api/v2/full_json?id=Travertine009&include=downloadData",
+      "checkedAt": "2026-10-26T17:32:07.196Z"
+    },
+    "sourceSha256": {
+      "zip": "09fa1ce1cd590e87ed4053864ebaf0186718fba6373559a8458eb4fa6146fdb7"
+    },
     "retrievedAt": "2026-10-26T17:32:07.196Z",
     "sha256": {
       "color": "5c4977bd974fc5978cb0f7de060fa2e712540b06dff0cdb3aafa904130d56d4c",
@@ -771,6 +979,18 @@
     "sourceId": "rough_linen",
     "sourceUrl": "https://polyhaven.com/a/rough_linen",
     "license": "CC0-1.0",
+    "licenseEvidence": {
+      "basis": "site-policy",
+      "policyUrl": "https://polyhaven.com/license",
+      "needle": "creativecommons.org/publicdomain/zero",
+      "assetApiUrl": "https://api.polyhaven.com/info/rough_linen",
+      "checkedAt": "2026-10-26T17:32:07.196Z"
+    },
+    "sourceSha256": {
+      "Diffuse": "04897d7611d7390ddf5b2c6f7273f448dfc48341fdbd1f4f207fa30b331d7f57",
+      "nor_gl": "e2402166d1a489f7414814e69e1836ab672aa24e30bec2d41fea356f81687e53",
+      "Rough": "734ad6718841a6e296aacaa6e9ee2e1686eed5f62bb8d71c915c5605e162bcb4"
+    },
     "retrievedAt": "2026-10-26T17:32:07.196Z",
     "sha256": {
       "color": "60a0dfb875c477e0e430d6839ad5580677b8ba57878eaa791d4449e94faccbf0",
@@ -810,6 +1030,18 @@
     "sourceId": "terlenka",
     "sourceUrl": "https://polyhaven.com/a/terlenka",
     "license": "CC0-1.0",
+    "licenseEvidence": {
+      "basis": "site-policy",
+      "policyUrl": "https://polyhaven.com/license",
+      "needle": "creativecommons.org/publicdomain/zero",
+      "assetApiUrl": "https://api.polyhaven.com/info/terlenka",
+      "checkedAt": "2026-10-26T17:32:07.196Z"
+    },
+    "sourceSha256": {
+      "Diffuse": "74c4333ed05e133928b0cf6d52e732135c8c0ce6dc8623efa590fb31b90f15c0",
+      "nor_gl": "05d7152ff680a6699018f5c37456a14e16eb1e70014a79d4d500dfd2e099c8f9",
+      "Rough": "ec726afa814ff6bb92ae27e916bcbfc4d467acb5203d324355531a57cba4910d"
+    },
     "retrievedAt": "2026-10-26T17:32:07.196Z",
     "sha256": {
       "color": "44a215849e6343c1943dc888e352aad3dfdf282bc85b0e9a84a997e7eda5e8a7",
@@ -849,6 +1081,18 @@
     "sourceId": "floral_jacquard",
     "sourceUrl": "https://polyhaven.com/a/floral_jacquard",
     "license": "CC0-1.0",
+    "licenseEvidence": {
+      "basis": "site-policy",
+      "policyUrl": "https://polyhaven.com/license",
+      "needle": "creativecommons.org/publicdomain/zero",
+      "assetApiUrl": "https://api.polyhaven.com/info/floral_jacquard",
+      "checkedAt": "2026-10-26T17:32:07.196Z"
+    },
+    "sourceSha256": {
+      "Diffuse": "4534bf28534ebd8f24544c389a76f42630bca7621ae55feabbb8da32f98e6bf4",
+      "nor_gl": "30defdd06c3afbfac3a22b98c2027d24dc739fee9dbb70281e23b8f7889af5f7",
+      "Rough": "08070e242615135bc2420e3859659a5533325cb07c78a9decffe3e0373ec6ef7"
+    },
     "retrievedAt": "2026-10-26T17:32:07.196Z",
     "sha256": {
       "color": "1c2c31ad1476d39fb02e25661cc67a648c5279d973c86cf7d728ecd74490755e",
@@ -888,6 +1132,18 @@
     "sourceId": "brown_planks_09",
     "sourceUrl": "https://polyhaven.com/a/brown_planks_09",
     "license": "CC0-1.0",
+    "licenseEvidence": {
+      "basis": "site-policy",
+      "policyUrl": "https://polyhaven.com/license",
+      "needle": "creativecommons.org/publicdomain/zero",
+      "assetApiUrl": "https://api.polyhaven.com/info/brown_planks_09",
+      "checkedAt": "2026-10-26T17:32:07.196Z"
+    },
+    "sourceSha256": {
+      "Diffuse": "6a890d75d48787518ccf32cb44e7557d1695e8a9180e813f79f7bfed075896ed",
+      "nor_gl": "a42c35ecd2104765e1e06e7370be6673c6c7b8527d9abf3f34cf3cd444ea9e16",
+      "Rough": "48eca07057e5a2ba9a4de92f71f660620bcaa8e142b4c57ed7bf65e6deb5270c"
+    },
     "retrievedAt": "2026-10-26T17:32:07.196Z",
     "sha256": {
       "color": "271c8a977fe6b514b667031ff40da5c5bbba34e37d660f4f2113bc14dcc6f1b5",
@@ -927,6 +1183,18 @@
     "sourceId": "stone_pavers",
     "sourceUrl": "https://polyhaven.com/a/stone_pavers",
     "license": "CC0-1.0",
+    "licenseEvidence": {
+      "basis": "site-policy",
+      "policyUrl": "https://polyhaven.com/license",
+      "needle": "creativecommons.org/publicdomain/zero",
+      "assetApiUrl": "https://api.polyhaven.com/info/stone_pavers",
+      "checkedAt": "2026-10-26T17:32:07.196Z"
+    },
+    "sourceSha256": {
+      "Diffuse": "1e13349b9b6f956ba6ec8bf5443addde1ad31813879bf646918e7943684bba25",
+      "nor_gl": "b06868bf171c9ffdaee50d08ee65ce8b36cb660ea772d711095a47890ee81deb",
+      "Rough": "801a4bb6878e9584c3b56fc7eb06c4ba96a424b642560832868cc244d8724528"
+    },
     "retrievedAt": "2026-10-26T17:32:07.196Z",
     "sha256": {
       "color": "665ab3491ca4bf562604c622ad168518be4463e201bee7011b493251a06d14c8",

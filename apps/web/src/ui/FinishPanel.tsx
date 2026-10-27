@@ -4,8 +4,9 @@ import type { ApplyResult, Material, Scene, Sheen } from '@flat/scene';
 import { useSceneStore } from '../state/sceneStore';
 import type { Selection } from '../viewer/view-types';
 import { ColorPicker } from './ColorPicker';
+import { wallRoomsAt } from '../viewer/selection';
 import { buildFinishCommand, materialLabel } from './finish-commands';
-import type { FinishScope, FinishSource } from './finish-commands';
+import type { FinishNames, FinishScope, FinishSource } from './finish-commands';
 import { thumbUrl, useFinishCatalog } from './useFinishCatalog';
 
 type ScopeKey = 'side' | 'both' | 'room' | 'floor' | 'ceiling';
@@ -42,25 +43,57 @@ function sideRoom(scene: Scene, wallId: string, side: 'left' | 'right'): string 
   return best?.roomId;
 }
 
-function scopeOptions(scene: Scene, selection: Selection): { options: ScopeOption[]; roomName?: string } {
+/** "Séjour / Cuisine" -> "Séjour": the first name of a combined room, for compact labels. */
+function shortName(name: string): string {
+  return name.split(' / ')[0]!.trim() || name;
+}
+
+/** Rooms on the clicked wall stretch: from the click point when known, else the room owning most of each side. */
+function clickedRooms(scene: Scene, selection: Selection): { left?: string; right?: string } {
+  if (selection.along !== undefined) return wallRoomsAt(scene, selection.entityId, selection.along);
+  const left = sideRoom(scene, selection.entityId, 'left');
+  const right = sideRoom(scene, selection.entityId, 'right');
+  return { ...(left ? { left } : {}), ...(right ? { right } : {}) };
+}
+
+function scopeOptions(scene: Scene, selection: Selection): { options: ScopeOption[]; roomName?: string; names: FinishNames } {
+  const names: FinishNames = { rooms: Object.fromEntries(scene.rooms.map((r) => [r.id, r.name])) };
   if (selection.kind === 'wall' && (selection.face === 'left' || selection.face === 'right')) {
     const side = selection.face;
-    const roomId = sideRoom(scene, selection.entityId, side);
+    const rooms = clickedRooms(scene, selection);
+    // The click's own room wins (the face under the pointer); a face with no room here has none.
+    const roomId = selection.roomId ?? rooms[side];
     const room = scene.rooms.find((r) => r.id === roomId);
+    const wallId = selection.entityId;
     const options: ScopeOption[] = [
-      { key: 'side', label: `This ${side} side`, scope: { kind: 'wallSide', wallId: selection.entityId, side } },
-      { key: 'both', label: 'Both sides', scope: { kind: 'wallSide', wallId: selection.entityId, side: 'both' } },
+      {
+        key: 'side',
+        label: room ? `This wall (${shortName(room.name)} side)` : `This ${side} side`,
+        scope: { kind: 'wallSide', wallId, side, ...(room ? { roomId: room.id } : {}) },
+      },
+      {
+        key: 'both',
+        label: 'Both faces here',
+        scope: {
+          kind: 'wallFaces',
+          wallId,
+          faces: (['left', 'right'] as const).map((f) => {
+            const id = f === side ? room?.id : rooms[f];
+            return id ? { side: f, roomId: id } : { side: f };
+          }),
+        },
+      },
     ];
     if (room) options.push({ key: 'room', label: `All walls of ${room.name}`, scope: { kind: 'roomWalls', roomId: room.id } });
-    return { options, roomName: room?.name };
+    return { options, roomName: room?.name, names };
   }
   const room = scene.rooms.find((r) => r.id === selection.entityId);
-  if (!room) return { options: [] };
+  if (!room) return { options: [], names };
   const options: ScopeOption[] = [{ key: 'floor', label: 'Floor', scope: { kind: 'floor', roomId: room.id } }];
   // Ceilings are hidden in orbit and top view, so they are offered from the room selection.
   if (room.type !== 'balcony') options.push({ key: 'ceiling', label: 'Ceiling', scope: { kind: 'ceiling', roomId: room.id } });
   options.push({ key: 'room', label: `All walls of ${room.name}`, scope: { kind: 'roomWalls', roomId: room.id } });
-  return { options, roomName: room.name };
+  return { options, roomName: room.name, names };
 }
 
 function defaultScope(selection: Selection): ScopeKey {
@@ -69,13 +102,29 @@ function defaultScope(selection: Selection): ScopeKey {
   return 'side';
 }
 
-/** Material id currently on a scope's primary target (mid-span of a side), or undefined when mixed/none. */
-function scopeMaterialId(scene: Scene, scope: FinishScope): string | undefined {
+/** Material of one room's stretch of a wall face (the stretch containing `along` when it has several); the face's mid-span when no room. */
+function stretchMaterial(scene: Scene, wallId: string, side: 'left' | 'right', roomId: string | undefined, along: number | undefined): string | undefined {
+  const stats = wallStats(scene, wallId);
+  if (!stats) return undefined;
+  if (!roomId && along === undefined) return stats.finish[side];
+  const faces = stats.faces[side].filter((f) => !roomId || f.roomId === roomId);
+  const hit = along === undefined ? undefined : faces.find((f) => f.from - 1e-6 <= along && along <= f.to + 1e-6);
+  return (hit ?? faces[0])?.material;
+}
+
+/** Material id currently on a scope's primary target (the clicked stretch of a wall side), or undefined when mixed/none. */
+function scopeMaterialId(scene: Scene, scope: FinishScope, along?: number): string | undefined {
   switch (scope.kind) {
     case 'wallSide': {
-      const stats = wallStats(scene, scope.wallId);
-      if (!stats) return undefined;
-      return scope.side === 'both' ? (stats.finish.left === stats.finish.right ? stats.finish.left : undefined) : stats.finish[scope.side];
+      if (scope.side === 'both') {
+        const l = stretchMaterial(scene, scope.wallId, 'left', scope.roomId, along);
+        return l === stretchMaterial(scene, scope.wallId, 'right', scope.roomId, along) ? l : undefined;
+      }
+      return stretchMaterial(scene, scope.wallId, scope.side, scope.roomId, along);
+    }
+    case 'wallFaces': {
+      const ids = new Set(scope.faces.map((f) => stretchMaterial(scene, scope.wallId, f.side, f.roomId, along)));
+      return ids.size === 1 ? [...ids][0] : undefined;
     }
     case 'roomWalls':
       return scene.rooms.find((r) => r.id === scope.roomId)?.wallFinish;
@@ -118,8 +167,18 @@ function CurrentFinish({ scene, selection }: { scene: Scene; selection: Selectio
   if (selection.kind === 'wall') {
     const stats = wallStats(scene, selection.entityId);
     if (!stats) return null;
+    const hereRoomId = selection.roomId ?? (selection.face === 'left' || selection.face === 'right' ? clickedRooms(scene, selection)[selection.face] : undefined);
+    const here = { room: scene.rooms.find((r) => r.id === hereRoomId) };
     return (
       <dl className="current-finish" aria-label="Current finish">
+        {selection.face && (selection.face === 'left' || selection.face === 'right') && (
+          <div>
+            <dt>{here.room ? `${shortName(here.room.name)} side (here)` : `${selection.face === 'left' ? 'Left' : 'Right'} side (here)`}</dt>
+            <dd data-testid="finish-here">
+              <MaterialChip scene={scene} id={stretchMaterial(scene, selection.entityId, selection.face, here.room?.id, selection.along)} />
+            </dd>
+          </div>
+        )}
         {(['left', 'right'] as const).map((side) => (
           <div key={side}>
             <dt>{side === 'left' ? 'Left side' : 'Right side'}</dt>
@@ -181,6 +240,12 @@ function sheenOf(material: Material | undefined): Sheen | undefined {
   return s as Sheen | undefined;
 }
 
+/** Name of the room a room-level scope targets, plus the room-name table for wall scopes. */
+function roomLevelNames(scope: FinishScope, names: FinishNames): FinishNames {
+  const name = 'roomId' in scope && scope.roomId ? names.rooms?.[scope.roomId] : undefined;
+  return { ...names, ...(name ? { room: name } : {}) };
+}
+
 function FinishPanelBody({ scene, selection }: { scene: Scene; selection: Selection }) {
   const dispatch = useSceneStore((s) => s.dispatch);
   const preview = useSceneStore((s) => s.preview);
@@ -188,7 +253,7 @@ function FinishPanelBody({ scene, selection }: { scene: Scene; selection: Select
   const cancelPreview = useSceneStore((s) => s.cancelPreview);
   const lastErrors = useSceneStore((s) => s.lastErrors);
 
-  const { options, roomName } = useMemo(() => scopeOptions(scene, selection), [scene, selection]);
+  const { options, names } = useMemo(() => scopeOptions(scene, selection), [scene, selection]);
   const [scopeKey, setScopeKey] = useState<ScopeKey>(defaultScope(selection));
   const option = options.find((o) => o.key === scopeKey) ?? options[0];
   const [tab, setTab] = useState<'paint' | 'textures'>('paint');
@@ -197,7 +262,7 @@ function FinishPanelBody({ scene, selection }: { scene: Scene; selection: Select
   const toastTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const id = useId();
 
-  const currentId = option ? scopeMaterialId(scene, option.scope) : undefined;
+  const currentId = option ? scopeMaterialId(scene, option.scope, selection.along) : undefined;
   const current = describeMaterial(scene, currentId);
   const activePaint = current.material?.kind === 'paint' ? current.material : undefined;
   const [sheen, setSheen] = useState<Sheen>(sheenOf(activePaint) ?? 'matt');
@@ -219,8 +284,7 @@ function FinishPanelBody({ scene, selection }: { scene: Scene; selection: Select
   };
 
   if (!option) return null;
-  const names = { ...(roomName ? { room: roomName } : {}) };
-  const build = (source: FinishSource) => buildFinishCommand(option.scope, source, names);
+  const build = (source: FinishSource) => buildFinishCommand(option.scope, source, roomLevelNames(option.scope, names));
   const apply = (source: FinishSource) => {
     const cmd = build(source);
     report(dispatch(cmd, { label: cmd.label }));
@@ -367,6 +431,6 @@ export function FinishPanel({ scene, selection }: { scene: Scene; selection: Sel
       </p>
     );
   }
-  const key = `${selection.kind}:${selection.entityId}:${selection.face ?? ''}`;
+  const key = `${selection.kind}:${selection.entityId}:${selection.face ?? ''}:${selection.roomId ?? ''}`;
   return <FinishPanelBody key={key} scene={scene} selection={selection} />;
 }

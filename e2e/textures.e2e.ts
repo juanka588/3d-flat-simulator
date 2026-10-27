@@ -9,6 +9,12 @@ const slugs = catalog.map((e) => e.id);
 
 const texStats = (page: Page) => page.evaluate(() => window.__flat!.stats().textureSets);
 
+/** Nothing is loading any more and a frame reflecting that has been drawn (a deterministic "no more requests" point). */
+async function idle(page: Page): Promise<void> {
+  await page.waitForFunction(() => window.__flat!.stats().textureSets.pending === 0);
+  await rendered(page);
+}
+
 /** The hook's `whenRendered` waits for pending textures and then for a frame that shows them. */
 async function settle(page: Page): Promise<void> {
   await rendered(page);
@@ -103,8 +109,7 @@ const steadyCalls = async (page: Page) => {
 };
 
 test('the default Charme load makes zero texture requests', async ({ page }) => {
-  await rendered(page);
-  await page.waitForTimeout(500);
+  await idle(page);
   expect(webpRequests).toEqual([]);
   expect((await texStats(page)).loaded).toBe(0);
 });
@@ -127,34 +132,82 @@ test('a library floor loads exactly its three maps and is visibly textured', asy
   expect(await steadyCalls(page)).toBeLessThanOrEqual(MAX_DRAW_CALLS);
 });
 
-test('an unknown or relative texture makes no request and falls back to paint', async ({ page }) => {
+test('an unknown library texture makes no request and falls back to paint', async ({ page }) => {
   const warnings: string[] = [];
   page.on('console', (m) => {
     if (m.type() === 'warning') warnings.push(m.text());
   });
   const json = withTextures({}) as SceneJson;
   json.materials.push({ id: 'bad', name: 'bad', kind: 'texture', color: '#ff0000', roughness: 0.8, textureUrl: 'lib:no-such-material' });
-  json.materials.push({ id: 'rel', name: 'rel', kind: 'texture', color: '#00ff00', roughness: 0.8, textureUrl: 'materials/parquet-light-oak/' });
   const sejour = json.rooms.find((r) => r.id === 'sejour')!;
   sejour.floorMaterial = 'bad';
-  json.rooms.find((r) => r.id === 'ch1')!.floorMaterial = 'rel';
   await page.evaluate(() => window.__flat!.setView({ mode: 'top' }));
   expect(await loadScene(page, json)).toBe(true);
-  await settle(page);
-  await page.waitForTimeout(300);
+  await idle(page);
   expect(webpRequests).toEqual([]);
   expect((await texStats(page)).loaded).toBe(0);
   expect(warnings.some((w) => w.includes('no-such-material'))).toBe(true);
 });
 
-test('twenty textures loaded one after another never keep more than 16 sets', async ({ page }) => {
-  test.setTimeout(180_000);
-  for (const slug of slugs.slice(0, 20)) {
+test('eighteen textures loaded one after another (two more than the cap) never keep more than 16 sets', async ({ page }) => {
+  test.slow();
+  // 18 = cap + 2 is enough to force evictions; each step is a full scene load plus three downloads.
+  for (const slug of slugs.slice(0, 18)) {
     expect(await loadScene(page, withTextures({ floor: slug }))).toBe(true);
     await settle(page);
-    expect((await texStats(page)).loaded).toBeLessThanOrEqual(16);
+    const stats = await texStats(page);
+    expect(stats.loaded + (stats.idle ?? 0)).toBeLessThanOrEqual(16);
   }
-  expect((await texStats(page)).loaded).toBe(1);
+  // Only the last one is in use; the earlier ones stay cached as idle (evicted first), never more than 16 in all.
+  const last = await texStats(page);
+  expect(last.loaded).toBe(1);
+  expect(last.loaded + (last.idle ?? 0)).toBeLessThanOrEqual(16);
+});
+
+test('A -> B -> A does not download A again', async ({ page }) => {
+  expect(await loadScene(page, withTextures({ floor: 'parquet-light-oak' }))).toBe(true);
+  await settle(page);
+  expect(await loadScene(page, withTextures({ floor: 'plaster-rough-white' }))).toBe(true);
+  await settle(page);
+  expect(await texStats(page)).toMatchObject({ loaded: 1, slugs: ['plaster-rough-white'], idle: 1 });
+  expect(await loadScene(page, withTextures({ floor: 'parquet-light-oak' }))).toBe(true);
+  await settle(page);
+  await idle(page);
+  const oak = webpRequests.filter((p) => p.includes('/parquet-light-oak/'));
+  expect(oak).toHaveLength(3);
+  expect(await texStats(page)).toMatchObject({ loaded: 1, slugs: ['parquet-light-oak'] });
+});
+
+test('edits (swatch clicks, drag frames) neither re-fetch the textures nor flash the textured floor back to paint', async ({ page }) => {
+  await page.evaluate(() => window.__flat!.setView({ mode: 'top' }));
+  expect(await loadScene(page, withTextures({ floor: 'parquet-light-oak' }))).toBe(true);
+  await settle(page);
+  const texturedStd = await lumaStd(page, FLOOR_POINT);
+  const requests = webpRequests.length;
+  expect(requests).toBe(3);
+  for (let i = 0; i < 12; i++) {
+    const hex = `#${(0x405060 + i * 0x0a0b0c).toString(16)}`;
+    const id = `paint-edit-${i}`;
+    const res = await page.evaluate(
+      ([mid, color]) =>
+        window.__flat!.applyCommand({
+          type: 'batch',
+          label: 'edit',
+          commands: [
+            { type: 'material.define', material: { id: mid, name: mid, kind: 'paint', color, roughness: 0.9 } },
+            { type: 'room.setWallFinish', roomId: 'ch1', materialId: mid },
+          ],
+        }),
+      [id, hex],
+    );
+    expect(res.ok).toBe(true);
+    // The frame that shows the edit must still show the textured floor.
+    await rendered(page);
+    expect((await texStats(page)).slugs).toEqual(['parquet-light-oak']);
+    if (i % 4 === 3) expect(await lumaStd(page, FLOOR_POINT)).toBeGreaterThan(texturedStd - 2);
+  }
+  await idle(page);
+  expect(webpRequests).toHaveLength(requests);
 });
 
 test('twenty textures in use at once stay within the LRU cap and the draw-call budget', async ({ page }) => {

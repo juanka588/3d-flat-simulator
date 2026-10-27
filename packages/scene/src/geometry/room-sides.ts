@@ -17,10 +17,11 @@ export interface RoomWallSide {
   side: WallSideName;
   /**
    * `full` when the room is the only room on this wall side. `partial` when other rooms share
-   * the same side. A whole-side finish (`wall.setFinish`) would show in those rooms too, so
-   * `room.setWallFinish` leaves partial sides alone and paints the room's stretch via `Room.wallFinish`.
+   * the same side. A whole-side finish (`wall.setFinish` without a room) would show in those rooms too.
    */
   coverage: 'full' | 'partial';
+  /** The other rooms that see the same wall side (empty when `coverage` is `full`), in scene order. */
+  otherRoomIds: string[];
 }
 
 export interface SharedWallSideWarning {
@@ -103,12 +104,37 @@ function roomCovers(walls: readonly Wall[], room: Room): Map<SideKey, Cover> {
   return covers;
 }
 
-const index = new WeakMap<object, Map<SideKey, Cover[]>>();
+interface IndexEntry {
+  walls: readonly Wall[];
+  map: Map<SideKey, Cover[]>;
+}
+/** Keyed by the `rooms` array: batches replace `walls` (finishes) far more often than geometry. */
+const index = new WeakMap<readonly Room[], IndexEntry[]>();
 
-/** Every wall side with the rooms (in scene order) that see it. Cached per scene object. */
+const sameGeometry = (a: Wall, b: Wall): boolean =>
+  a === b ||
+  (a.id === b.id && a.thickness === b.thickness && a.start[0] === b.start[0] && a.start[1] === b.start[1] && a.end[0] === b.end[0] && a.end[1] === b.end[1]);
+
+function sameWalls(a: readonly Wall[], b: readonly Wall[]): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (!sameGeometry(a[i]!, b[i]!)) return false;
+  return true;
+}
+
+/**
+ * Every wall side with the rooms (in scene order) that see it. Cached by `rooms` identity and
+ * wall geometry (id, endpoints, thickness), so intermediate scenes of a batch that only change
+ * finishes reuse one index.
+ */
 function sideIndex(scene: Pick<Scene, 'walls' | 'rooms'>): Map<SideKey, Cover[]> {
-  const cached = index.get(scene);
-  if (cached) return cached;
+  const entries = index.get(scene.rooms) ?? [];
+  for (const e of entries) {
+    if (sameWalls(e.walls, scene.walls)) {
+      e.walls = scene.walls;
+      return e.map;
+    }
+  }
   const all = new Map<SideKey, Cover[]>();
   for (const room of scene.rooms) {
     for (const [key, cover] of roomCovers(scene.walls, room)) {
@@ -117,7 +143,9 @@ function sideIndex(scene: Pick<Scene, 'walls' | 'rooms'>): Map<SideKey, Cover[]>
       all.set(key, list);
     }
   }
-  index.set(scene, all);
+  entries.push({ walls: scene.walls, map: all });
+  if (entries.length > 4) entries.shift();
+  index.set(scene.rooms, entries);
   return all;
 }
 
@@ -143,7 +171,7 @@ export function analyzeRoomWallSides(scene: Pick<Scene, 'walls' | 'rooms'>, room
       const covers = all.get(`${wall.id}|${side}`);
       if (!covers?.some((c) => c.roomId === roomId)) continue;
       const others = covers.filter((c) => c.roomId !== roomId).map((c) => c.roomId);
-      sides.push({ wallId: wall.id, side, coverage: others.length ? 'partial' : 'full' });
+      sides.push({ wallId: wall.id, side, coverage: others.length ? 'partial' : 'full', otherRoomIds: others });
       if (others.length) {
         warnings.push({
           code: 'shared_wall_side',

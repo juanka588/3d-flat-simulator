@@ -195,6 +195,129 @@ test.describe('desktop', () => {
     expect((await getScene(page)).rooms.find((r) => r.id === ROOM)!.floorMaterial).toBe('paint-123456-gloss');
   });
 
+  /** Fires `input` for each colour (a drag in the native picker), then optionally `change` (the dialog closing). */
+  const dragColour = (finish: Locator, colours: string[], change: boolean, fireInput = true) =>
+    finish.getByLabel('Custom colour').evaluate(
+      (el: HTMLInputElement, a) => {
+        const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
+        for (const c of a.colours) {
+          set.call(el, c);
+          if (a.fireInput) el.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        if (a.change) el.dispatchEvent(new Event('change', { bubbles: true }));
+      },
+      { colours, change, fireInput },
+    );
+  const floorOf = async (page: Page) => (await getScene(page)).rooms.find((r) => r.id === ROOM)!.floorMaterial ?? null;
+  const historyLabels = (page: Page) => page.evaluate(() => window.__flat!.history().labels);
+
+  test('a colour drag is one history entry; cancel, Esc and unmounting mid-drag are handled; change alone applies', async ({ page }) => {
+    test.slow();
+    await page.evaluate(() => window.__flat!.select('sejour'));
+    await rendered(page);
+    const finish = properties(page).getByRole('region', { name: 'Finish' });
+
+    // A drag through several colours previews live and records exactly one entry on release.
+    await dragColour(finish, ['#112233', '#223344', '#334455'], false);
+    await rendered(page);
+    expect(await historyLabels(page)).toHaveLength(0);
+    await expect(finish.getByLabel('Hex')).toHaveValue('#334455'); // the live preview follows the drag
+    await dragColour(finish, [], true);
+    await rendered(page);
+    expect(await historyLabels(page)).toHaveLength(1);
+    expect(await floorOf(page)).toBe('paint-334455-matt');
+    await page.evaluate(() => window.__flat!.undo());
+    expect(await floorOf(page)).toBeNull();
+    expect(await historyLabels(page)).toHaveLength(0);
+
+    // Esc cancels: no entry, the original colour is back.
+    await dragColour(finish, ['#445566', '#556677'], false);
+    await rendered(page);
+    await expect(finish.getByLabel('Hex')).toHaveValue('#556677');
+    await finish.getByLabel('Custom colour').focus();
+    await page.keyboard.press('Escape');
+    await rendered(page);
+    await expect(finish.getByLabel('Hex')).toHaveValue('#334455'); // back to where the drag started
+    expect(await floorOf(page)).toBeNull();
+    expect(await historyLabels(page)).toHaveLength(0);
+    expect(await page.evaluate(() => window.__flat!.history().canUndo)).toBe(false);
+    expect((await getScene(page)).materials.some((m) => m.id === 'paint-556677-matt')).toBe(false);
+
+    // A picker that fires only `change` still applies the colour (one undoable step).
+    await dragColour(finish, ['#665544'], true, false);
+    await rendered(page);
+    expect(await historyLabels(page)).toHaveLength(1);
+    expect(await floorOf(page)).toBe('paint-665544-matt');
+    await page.evaluate(() => window.__flat!.undo());
+
+    // Unmounting mid-drag (here: switching to the Textures tab) commits the previewed colour once.
+    await dragColour(finish, ['#778899', '#8899aa'], false);
+    await rendered(page);
+    await finish.getByRole('tab', { name: 'Textures' }).click();
+    await rendered(page);
+    expect(await historyLabels(page)).toHaveLength(1);
+    expect(await floorOf(page)).toBe('paint-8899aa-matt');
+    expect(await page.evaluate(() => window.__flat!.history().canRedo)).toBe(false);
+  });
+
+  test('changing the selection mid-drag leaves no dangling preview', async ({ page }) => {
+    await page.evaluate(() => window.__flat!.select('sejour'));
+    await rendered(page);
+    const finish = properties(page).getByRole('region', { name: 'Finish' });
+    await dragColour(finish, ['#102030', '#203040'], false);
+    const ch1Before = (await getScene(page)).rooms.find((r) => r.id === 'ch1')!.floorMaterial ?? null;
+    await page.evaluate(() => window.__flat!.select('ch1'));
+    await rendered(page);
+    // Committed once, to the room it was started on; the new selection is untouched and nothing is left in preview.
+    expect(await historyLabels(page)).toHaveLength(1);
+    expect(await floorOf(page)).toBe('paint-203040-matt');
+    const scene = await getScene(page);
+    expect(scene.rooms.find((r) => r.id === 'ch1')!.floorMaterial ?? null).toBe(ch1Before);
+    expect(await page.evaluate(() => window.__flat!.undo())).toMatchObject({ ok: true, canUndo: false });
+    expect(await floorOf(page)).toBeNull();
+  });
+
+  test('swatch radiogroups follow the roving tabindex and have unique generated ids', async ({ page }) => {
+    await page.evaluate(() => window.__flat!.select('sejour'));
+    await rendered(page);
+    const finish = properties(page).getByRole('region', { name: 'Finish' });
+    const group = finish.getByRole('radiogroup').first();
+    const radios = group.getByRole('radio');
+    await radios.first().focus();
+    await page.keyboard.press('ArrowRight');
+    await page.keyboard.press('ArrowRight');
+    await expect(radios.nth(2)).toBeFocused();
+    await expect(radios.nth(2)).toHaveAttribute('tabindex', '0');
+    await expect(radios.first()).toHaveAttribute('tabindex', '-1');
+    await page.keyboard.press('End');
+    await expect(radios.last()).toBeFocused();
+    await page.keyboard.press('Home');
+    await expect(radios.first()).toBeFocused();
+    // Arrows only move focus: nothing was applied.
+    expect(await historyLabels(page)).toHaveLength(0);
+    // Group labels are wired to their groups through generated ids, none of them hard-coded.
+    const ids = await finish.locator('[id^="swatches-"], #hex-error').count();
+    expect(ids).toBe(0);
+    const labelled = await finish.getByRole('radiogroup').evaluateAll((els) => els.map((el) => document.getElementById(el.getAttribute('aria-labelledby')!)?.textContent ?? null));
+    expect(labelled.every((t) => t)).toBe(true);
+  });
+
+  test('the History popover takes focus, closes on Esc and on an outside press', async ({ page }) => {
+    await page.evaluate(() => window.__flat!.applyCommand({ type: 'room.setFloor', roomId: 'sejour', materialId: 'floor-tile' }));
+    const button = page.getByRole('button', { name: 'History' });
+    const list = page.getByTestId('history-list');
+    await button.click();
+    await expect(list).toBeVisible();
+    await expect(list).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(list).toHaveCount(0);
+    await expect(button).toBeFocused();
+    await button.click();
+    await expect(list).toBeVisible();
+    await page.mouse.click(5, 400);
+    await expect(list).toHaveCount(0);
+  });
+
   test('openings and wall edges explain that only wall sides, floors and ceilings take finishes', async ({ page }) => {
     const scene = await getScene(page);
     await page.evaluate((id) => window.__flat!.select(id), scene.openings[0]!.id);

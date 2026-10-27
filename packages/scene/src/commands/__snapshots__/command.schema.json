@@ -6,41 +6,51 @@
       "properties": {
         "type": {
           "type": "string",
-          "const": "material.define"
+          "const": "material.define",
+          "description": "Command discriminator, always \"material.define\"."
         },
         "material": {
           "type": "object",
           "properties": {
             "id": {
               "type": "string",
-              "minLength": 1
+              "minLength": 1,
+              "maxLength": 64,
+              "description": "Material id (1-64 characters), unique across all entities. Reference it from finishes and defaults."
             },
             "name": {
-              "type": "string"
+              "type": "string",
+              "maxLength": 120,
+              "description": "Human-readable name, at most 120 characters."
             },
             "kind": {
               "type": "string",
               "enum": [
                 "paint",
                 "texture"
-              ]
+              ],
+              "description": "\"paint\" is a flat colour; \"texture\" adds a PBR texture set (needs textureUrl). Cannot change once defined."
             },
             "color": {
               "type": "string",
-              "pattern": "^#[0-9a-fA-F]{6}$"
+              "pattern": "^#[0-9a-fA-F]{6}$",
+              "description": "Base colour as #rrggbb. For textures it is the fallback and tint colour."
             },
             "roughness": {
               "default": 0.9,
+              "description": "Surface roughness from 0 (mirror) to 1 (matte). Defaults to 0.9.",
               "type": "number",
               "minimum": 0,
               "maximum": 1
             },
             "textureUrl": {
-              "type": "string"
+              "type": "string",
+              "description": "Texture set as \"lib:<slug>\"; read materials://list for the available slugs. Required when kind is \"texture\"."
             },
             "textureScale": {
               "type": "number",
-              "exclusiveMinimum": 0
+              "exclusiveMinimum": 0,
+              "description": "Size in metres of one texture tile. Optional."
             }
           },
           "required": [
@@ -49,12 +59,14 @@
             "kind",
             "color"
           ],
-          "additionalProperties": false
+          "additionalProperties": false,
+          "description": "The complete material. An existing id is fully replaced (omitted optional fields are cleared); kind cannot change."
         },
         "index": {
           "type": "integer",
           "minimum": 0,
-          "maximum": 9007199254740991
+          "maximum": 9007199254740991,
+          "description": "Internal (used by undo): insert position. Do not send."
         }
       },
       "required": [
@@ -68,12 +80,14 @@
       "properties": {
         "type": {
           "type": "string",
-          "const": "material.remove"
+          "const": "material.remove",
+          "description": "Command discriminator, always \"material.remove\"."
         },
         "id": {
           "type": "string",
           "minLength": 1,
-          "maxLength": 200
+          "maxLength": 64,
+          "description": "Id of the material to delete. Fails with precondition_failed while any wall, room or default uses it."
         }
       },
       "required": [
@@ -87,12 +101,14 @@
       "properties": {
         "type": {
           "type": "string",
-          "const": "wall.setFinish"
+          "const": "wall.setFinish",
+          "description": "Command discriminator, always \"wall.setFinish\"."
         },
         "wallId": {
           "type": "string",
           "minLength": 1,
-          "maxLength": 200
+          "maxLength": 64,
+          "description": "Id of the wall (walls[].id from get_scene_summary)."
         },
         "side": {
           "type": "string",
@@ -100,19 +116,27 @@
             "left",
             "right",
             "both"
-          ]
+          ],
+          "description": "Which face of the wall. \"left\" is the left of someone walking from the wall start to its end on the plan (plan y grows down; see wallLeftNormal), \"right\" the other face, \"both\" both faces. With roomId, \"both\" means every face of this wall that the room adjoins."
         },
         "materialId": {
           "anyOf": [
             {
               "type": "string",
               "minLength": 1,
-              "maxLength": 200
+              "maxLength": 64
             },
             {
               "type": "null"
             }
-          ]
+          ],
+          "description": "Id of a defined material (materials[].id in get_scene_summary), or null to clear back to the default. To use a library texture first call material.define with textureUrl \"lib:<slug>\" (slugs: materials://list)."
+        },
+        "roomId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "description": "The room whose stretch of this wall side to paint (from list_rooms or describe_room). Strongly recommended: a wall side can be shared by several rooms (e.g. the alcove and the sejour) and without roomId the whole side is painted for all of them. Fails with precondition_failed if the room does not border that side. A room-scoped finish beats the whole-side finish and room.setWallFinish."
         }
       },
       "required": [
@@ -128,14 +152,17 @@
       "properties": {
         "type": {
           "type": "string",
-          "const": "wall.setStructural"
+          "const": "wall.setStructural",
+          "description": "Command discriminator, always \"wall.setStructural\"."
         },
         "wallId": {
           "type": "string",
           "minLength": 1,
-          "maxLength": 200
+          "maxLength": 64,
+          "description": "Id of the wall (walls[].id from get_scene_summary)."
         },
         "structural": {
+          "description": "true marks the wall structural (cannot be removed); false marks it removable; null clears the explicit mark so it is derived (exterior or at least 15 cm thick means structural). Only a user may set false on a wall that is structural by default.",
           "type": [
             "boolean",
             "null"
@@ -154,24 +181,27 @@
       "properties": {
         "type": {
           "type": "string",
-          "const": "room.setWallFinish"
+          "const": "room.setWallFinish",
+          "description": "Command discriminator, always \"room.setWallFinish\"."
         },
         "roomId": {
           "type": "string",
           "minLength": 1,
-          "maxLength": 200
+          "maxLength": 64,
+          "description": "Id of the room (from list_rooms or get_scene_summary)."
         },
         "materialId": {
           "anyOf": [
             {
               "type": "string",
               "minLength": 1,
-              "maxLength": 200
+              "maxLength": 64
             },
             {
               "type": "null"
             }
-          ]
+          ],
+          "description": "Id of a defined material (materials[].id in get_scene_summary), or null to clear back to the default. To use a library texture first call material.define with textureUrl \"lib:<slug>\" (slugs: materials://list)."
         }
       },
       "required": [
@@ -186,24 +216,27 @@
       "properties": {
         "type": {
           "type": "string",
-          "const": "room.setFloor"
+          "const": "room.setFloor",
+          "description": "Command discriminator, always \"room.setFloor\"."
         },
         "roomId": {
           "type": "string",
           "minLength": 1,
-          "maxLength": 200
+          "maxLength": 64,
+          "description": "Id of the room (from list_rooms or get_scene_summary)."
         },
         "materialId": {
           "anyOf": [
             {
               "type": "string",
               "minLength": 1,
-              "maxLength": 200
+              "maxLength": 64
             },
             {
               "type": "null"
             }
-          ]
+          ],
+          "description": "Id of a defined material (materials[].id in get_scene_summary), or null to clear back to the default. To use a library texture first call material.define with textureUrl \"lib:<slug>\" (slugs: materials://list)."
         }
       },
       "required": [
@@ -218,24 +251,27 @@
       "properties": {
         "type": {
           "type": "string",
-          "const": "room.setCeiling"
+          "const": "room.setCeiling",
+          "description": "Command discriminator, always \"room.setCeiling\"."
         },
         "roomId": {
           "type": "string",
           "minLength": 1,
-          "maxLength": 200
+          "maxLength": 64,
+          "description": "Id of the room (from list_rooms or get_scene_summary)."
         },
         "materialId": {
           "anyOf": [
             {
               "type": "string",
               "minLength": 1,
-              "maxLength": 200
+              "maxLength": 64
             },
             {
               "type": "null"
             }
-          ]
+          ],
+          "description": "Id of a defined material (materials[].id in get_scene_summary), or null to clear back to the default. To use a library texture first call material.define with textureUrl \"lib:<slug>\" (slugs: materials://list)."
         }
       },
       "required": [
@@ -250,43 +286,47 @@
       "properties": {
         "type": {
           "type": "string",
-          "const": "scene.setDefaults"
+          "const": "scene.setDefaults",
+          "description": "Command discriminator, always \"scene.setDefaults\"."
         },
         "wall": {
           "anyOf": [
             {
               "type": "string",
               "minLength": 1,
-              "maxLength": 200
+              "maxLength": 64
             },
             {
               "type": "null"
             }
-          ]
+          ],
+          "description": "Default wall material for faces without a finish. Omit to leave unchanged, null to clear."
         },
         "floor": {
           "anyOf": [
             {
               "type": "string",
               "minLength": 1,
-              "maxLength": 200
+              "maxLength": 64
             },
             {
               "type": "null"
             }
-          ]
+          ],
+          "description": "Default floor material. Omit to leave unchanged, null to clear."
         },
         "ceiling": {
           "anyOf": [
             {
               "type": "string",
               "minLength": 1,
-              "maxLength": 200
+              "maxLength": 64
             },
             {
               "type": "null"
             }
-          ]
+          ],
+          "description": "Default ceiling material. Omit to leave unchanged, null to clear."
         }
       },
       "required": [
@@ -299,7 +339,8 @@
       "properties": {
         "type": {
           "type": "string",
-          "const": "site.set"
+          "const": "site.set",
+          "description": "Command discriminator, always \"site.set\"."
         },
         "site": {
           "type": "object",
@@ -307,30 +348,42 @@
             "latitude": {
               "type": "number",
               "minimum": -90,
-              "maximum": 90
+              "maximum": 90,
+              "description": "Latitude in degrees, -90 to 90 (north positive)."
             },
             "longitude": {
               "type": "number",
               "minimum": -180,
-              "maximum": 180
+              "maximum": 180,
+              "description": "Longitude in degrees, -180 to 180 (east positive)."
             },
             "northAngle": {
-              "type": "number"
+              "type": "number",
+              "description": "Clockwise angle in degrees from plan \"up\" (-y) to true north."
             },
             "timezone": {
-              "type": "string"
+              "type": "string",
+              "description": "IANA time zone such as \"Europe/Paris\"."
             },
             "floorElevation": {
-              "type": "number"
+              "type": "number",
+              "description": "Height of the flat floor above street level, in metres."
             },
             "address": {
-              "type": [
-                "string",
-                "null"
-              ]
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 300
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Postal address (at most 300 characters); null clears it."
             }
           },
-          "additionalProperties": false
+          "additionalProperties": false,
+          "description": "Fields to change; omitted fields stay as they are."
         }
       },
       "required": [
@@ -344,7 +397,8 @@
       "properties": {
         "type": {
           "type": "string",
-          "const": "light.add"
+          "const": "light.add",
+          "description": "Command discriminator, always \"light.add\"."
         },
         "light": {
           "oneOf": [
@@ -354,14 +408,19 @@
                 "id": {
                   "type": "string",
                   "minLength": 1,
-                  "maxLength": 200
+                  "maxLength": 64,
+                  "description": "Optional light id; derived as \"light-N\" when omitted."
                 },
                 "name": {
-                  "type": "string"
+                  "type": "string",
+                  "maxLength": 120,
+                  "description": "Optional label, at most 120 characters."
                 },
                 "roomId": {
                   "type": "string",
-                  "minLength": 1
+                  "minLength": 1,
+                  "maxLength": 64,
+                  "description": "Room the light belongs to (from list_rooms). Optional."
                 },
                 "position": {
                   "type": "array",
@@ -375,29 +434,35 @@
                   ],
                   "items": false,
                   "minItems": 2,
-                  "maxItems": 2
+                  "maxItems": 2,
+                  "description": "Plan position [x, y] in metres; plan y grows down the page."
                 },
                 "elevation": {
                   "type": "number",
-                  "minimum": 0
+                  "minimum": 0,
+                  "description": "Height of the light source above the floor, in metres."
                 },
                 "lumens": {
                   "type": "number",
-                  "minimum": 0
+                  "minimum": 0,
+                  "description": "Luminous flux in lumens (a 60 W-equivalent bulb is about 800)."
                 },
                 "kelvin": {
                   "default": 2700,
+                  "description": "Colour temperature in kelvin, 1000-12000 (2700 warm, 6500 daylight). Defaults to 2700.",
                   "type": "number",
                   "minimum": 1000,
                   "maximum": 12000
                 },
                 "on": {
                   "default": true,
+                  "description": "Whether the light is switched on. Defaults to true.",
                   "type": "boolean"
                 },
                 "type": {
                   "type": "string",
-                  "const": "point"
+                  "const": "point",
+                  "description": "A point light radiates in all directions. Discriminator: \"point\"."
                 }
               },
               "required": [
@@ -414,14 +479,19 @@
                 "id": {
                   "type": "string",
                   "minLength": 1,
-                  "maxLength": 200
+                  "maxLength": 64,
+                  "description": "Optional light id; derived as \"light-N\" when omitted."
                 },
                 "name": {
-                  "type": "string"
+                  "type": "string",
+                  "maxLength": 120,
+                  "description": "Optional label, at most 120 characters."
                 },
                 "roomId": {
                   "type": "string",
-                  "minLength": 1
+                  "minLength": 1,
+                  "maxLength": 64,
+                  "description": "Room the light belongs to (from list_rooms). Optional."
                 },
                 "position": {
                   "type": "array",
@@ -435,32 +505,39 @@
                   ],
                   "items": false,
                   "minItems": 2,
-                  "maxItems": 2
+                  "maxItems": 2,
+                  "description": "Plan position [x, y] in metres; plan y grows down the page."
                 },
                 "elevation": {
                   "type": "number",
-                  "minimum": 0
+                  "minimum": 0,
+                  "description": "Height of the light source above the floor, in metres."
                 },
                 "lumens": {
                   "type": "number",
-                  "minimum": 0
+                  "minimum": 0,
+                  "description": "Luminous flux in lumens (a 60 W-equivalent bulb is about 800)."
                 },
                 "kelvin": {
                   "default": 2700,
+                  "description": "Colour temperature in kelvin, 1000-12000 (2700 warm, 6500 daylight). Defaults to 2700.",
                   "type": "number",
                   "minimum": 1000,
                   "maximum": 12000
                 },
                 "on": {
                   "default": true,
+                  "description": "Whether the light is switched on. Defaults to true.",
                   "type": "boolean"
                 },
                 "type": {
                   "type": "string",
-                  "const": "spot"
+                  "const": "spot",
+                  "description": "A spot light shines straight down in a cone. Discriminator: \"spot\"."
                 },
                 "angle": {
                   "default": 60,
+                  "description": "Spot cone angle in degrees (1-179). Defaults to 60.",
                   "type": "number",
                   "minimum": 1,
                   "maximum": 179
@@ -480,14 +557,19 @@
                 "id": {
                   "type": "string",
                   "minLength": 1,
-                  "maxLength": 200
+                  "maxLength": 64,
+                  "description": "Optional light id; derived as \"light-N\" when omitted."
                 },
                 "name": {
-                  "type": "string"
+                  "type": "string",
+                  "maxLength": 120,
+                  "description": "Optional label, at most 120 characters."
                 },
                 "roomId": {
                   "type": "string",
-                  "minLength": 1
+                  "minLength": 1,
+                  "maxLength": 64,
+                  "description": "Room the light belongs to (from list_rooms). Optional."
                 },
                 "position": {
                   "type": "array",
@@ -501,40 +583,49 @@
                   ],
                   "items": false,
                   "minItems": 2,
-                  "maxItems": 2
+                  "maxItems": 2,
+                  "description": "Plan position [x, y] in metres; plan y grows down the page."
                 },
                 "elevation": {
                   "type": "number",
-                  "minimum": 0
+                  "minimum": 0,
+                  "description": "Height of the light source above the floor, in metres."
                 },
                 "lumens": {
                   "type": "number",
-                  "minimum": 0
+                  "minimum": 0,
+                  "description": "Luminous flux in lumens (a 60 W-equivalent bulb is about 800)."
                 },
                 "kelvin": {
                   "default": 2700,
+                  "description": "Colour temperature in kelvin, 1000-12000 (2700 warm, 6500 daylight). Defaults to 2700.",
                   "type": "number",
                   "minimum": 1000,
                   "maximum": 12000
                 },
                 "on": {
                   "default": true,
+                  "description": "Whether the light is switched on. Defaults to true.",
                   "type": "boolean"
                 },
                 "type": {
                   "type": "string",
-                  "const": "area"
+                  "const": "area",
+                  "description": "A rectangular panel facing down. Discriminator: \"area\"."
                 },
                 "width": {
                   "type": "number",
-                  "exclusiveMinimum": 0
+                  "exclusiveMinimum": 0,
+                  "description": "Panel width in metres along plan x before rotation."
                 },
                 "depth": {
                   "type": "number",
-                  "exclusiveMinimum": 0
+                  "exclusiveMinimum": 0,
+                  "description": "Panel depth in metres along plan y before rotation."
                 },
                 "rotation": {
                   "default": 0,
+                  "description": "Panel rotation in degrees, counter-clockwise seen from above. Defaults to 0.",
                   "type": "number"
                 }
               },
@@ -548,12 +639,14 @@
               ],
               "additionalProperties": false
             }
-          ]
+          ],
+          "description": "The light to add: point, spot or area, discriminated by its \"type\"."
         },
         "index": {
           "type": "integer",
           "minimum": 0,
-          "maximum": 9007199254740991
+          "maximum": 9007199254740991,
+          "description": "Internal (used by undo): insert position. Do not send."
         }
       },
       "required": [
@@ -567,33 +660,42 @@
       "properties": {
         "type": {
           "type": "string",
-          "const": "light.update"
+          "const": "light.update",
+          "description": "Command discriminator, always \"light.update\"."
         },
         "id": {
           "type": "string",
           "minLength": 1,
-          "maxLength": 200
+          "maxLength": 64,
+          "description": "Id of the light (lights[].id from get_scene_summary)."
         },
         "patch": {
           "type": "object",
           "properties": {
             "name": {
-              "type": [
-                "string",
-                "null"
-              ]
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 120
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Label (at most 120 characters); null clears it."
             },
             "roomId": {
               "anyOf": [
                 {
                   "type": "string",
                   "minLength": 1,
-                  "maxLength": 200
+                  "maxLength": 64
                 },
                 {
                   "type": "null"
                 }
-              ]
+              ],
+              "description": "Room the light belongs to (from list_rooms); null clears it."
             },
             "position": {
               "type": "array",
@@ -607,42 +709,52 @@
               ],
               "items": false,
               "minItems": 2,
-              "maxItems": 2
+              "maxItems": 2,
+              "description": "Plan position [x, y] in metres; plan y grows down the page."
             },
             "elevation": {
               "type": "number",
-              "minimum": 0
+              "minimum": 0,
+              "description": "Height of the light source above the floor, in metres."
             },
             "lumens": {
               "type": "number",
-              "minimum": 0
+              "minimum": 0,
+              "description": "Luminous flux in lumens."
             },
             "kelvin": {
               "type": "number",
               "minimum": 1000,
-              "maximum": 12000
+              "maximum": 12000,
+              "description": "Colour temperature in kelvin, 1000-12000."
             },
             "on": {
-              "type": "boolean"
+              "type": "boolean",
+              "description": "Whether the light is switched on."
             },
             "angle": {
               "type": "number",
               "minimum": 1,
-              "maximum": 179
+              "maximum": 179,
+              "description": "Spot lights only: cone angle in degrees (1-179)."
             },
             "width": {
               "type": "number",
-              "exclusiveMinimum": 0
+              "exclusiveMinimum": 0,
+              "description": "Area lights only: width in metres."
             },
             "depth": {
               "type": "number",
-              "exclusiveMinimum": 0
+              "exclusiveMinimum": 0,
+              "description": "Area lights only: depth in metres."
             },
             "rotation": {
-              "type": "number"
+              "type": "number",
+              "description": "Area lights only: rotation in degrees, counter-clockwise seen from above."
             }
           },
-          "additionalProperties": false
+          "additionalProperties": false,
+          "description": "Fields to change; omitted fields stay as they are, null clears name and roomId. A light cannot take fields of another light type."
         }
       },
       "required": [
@@ -657,12 +769,14 @@
       "properties": {
         "type": {
           "type": "string",
-          "const": "light.remove"
+          "const": "light.remove",
+          "description": "Command discriminator, always \"light.remove\"."
         },
         "id": {
           "type": "string",
           "minLength": 1,
-          "maxLength": 200
+          "maxLength": 64,
+          "description": "Id of the light to remove."
         }
       },
       "required": [
@@ -676,12 +790,14 @@
       "properties": {
         "type": {
           "type": "string",
-          "const": "batch"
+          "const": "batch",
+          "description": "Command discriminator, always \"batch\"."
         },
         "label": {
           "type": "string",
           "minLength": 1,
-          "maxLength": 200
+          "maxLength": 200,
+          "description": "Short description of the whole change, shown in the undo history (at most 200 characters)."
         },
         "commands": {
           "maxItems": 500,
@@ -693,41 +809,51 @@
                 "properties": {
                   "type": {
                     "type": "string",
-                    "const": "material.define"
+                    "const": "material.define",
+                    "description": "Command discriminator, always \"material.define\"."
                   },
                   "material": {
                     "type": "object",
                     "properties": {
                       "id": {
                         "type": "string",
-                        "minLength": 1
+                        "minLength": 1,
+                        "maxLength": 64,
+                        "description": "Material id (1-64 characters), unique across all entities. Reference it from finishes and defaults."
                       },
                       "name": {
-                        "type": "string"
+                        "type": "string",
+                        "maxLength": 120,
+                        "description": "Human-readable name, at most 120 characters."
                       },
                       "kind": {
                         "type": "string",
                         "enum": [
                           "paint",
                           "texture"
-                        ]
+                        ],
+                        "description": "\"paint\" is a flat colour; \"texture\" adds a PBR texture set (needs textureUrl). Cannot change once defined."
                       },
                       "color": {
                         "type": "string",
-                        "pattern": "^#[0-9a-fA-F]{6}$"
+                        "pattern": "^#[0-9a-fA-F]{6}$",
+                        "description": "Base colour as #rrggbb. For textures it is the fallback and tint colour."
                       },
                       "roughness": {
                         "default": 0.9,
+                        "description": "Surface roughness from 0 (mirror) to 1 (matte). Defaults to 0.9.",
                         "type": "number",
                         "minimum": 0,
                         "maximum": 1
                       },
                       "textureUrl": {
-                        "type": "string"
+                        "type": "string",
+                        "description": "Texture set as \"lib:<slug>\"; read materials://list for the available slugs. Required when kind is \"texture\"."
                       },
                       "textureScale": {
                         "type": "number",
-                        "exclusiveMinimum": 0
+                        "exclusiveMinimum": 0,
+                        "description": "Size in metres of one texture tile. Optional."
                       }
                     },
                     "required": [
@@ -736,12 +862,14 @@
                       "kind",
                       "color"
                     ],
-                    "additionalProperties": false
+                    "additionalProperties": false,
+                    "description": "The complete material. An existing id is fully replaced (omitted optional fields are cleared); kind cannot change."
                   },
                   "index": {
                     "type": "integer",
                     "minimum": 0,
-                    "maximum": 9007199254740991
+                    "maximum": 9007199254740991,
+                    "description": "Internal (used by undo): insert position. Do not send."
                   }
                 },
                 "required": [
@@ -755,12 +883,14 @@
                 "properties": {
                   "type": {
                     "type": "string",
-                    "const": "material.remove"
+                    "const": "material.remove",
+                    "description": "Command discriminator, always \"material.remove\"."
                   },
                   "id": {
                     "type": "string",
                     "minLength": 1,
-                    "maxLength": 200
+                    "maxLength": 64,
+                    "description": "Id of the material to delete. Fails with precondition_failed while any wall, room or default uses it."
                   }
                 },
                 "required": [
@@ -774,12 +904,14 @@
                 "properties": {
                   "type": {
                     "type": "string",
-                    "const": "wall.setFinish"
+                    "const": "wall.setFinish",
+                    "description": "Command discriminator, always \"wall.setFinish\"."
                   },
                   "wallId": {
                     "type": "string",
                     "minLength": 1,
-                    "maxLength": 200
+                    "maxLength": 64,
+                    "description": "Id of the wall (walls[].id from get_scene_summary)."
                   },
                   "side": {
                     "type": "string",
@@ -787,19 +919,27 @@
                       "left",
                       "right",
                       "both"
-                    ]
+                    ],
+                    "description": "Which face of the wall. \"left\" is the left of someone walking from the wall start to its end on the plan (plan y grows down; see wallLeftNormal), \"right\" the other face, \"both\" both faces. With roomId, \"both\" means every face of this wall that the room adjoins."
                   },
                   "materialId": {
                     "anyOf": [
                       {
                         "type": "string",
                         "minLength": 1,
-                        "maxLength": 200
+                        "maxLength": 64
                       },
                       {
                         "type": "null"
                       }
-                    ]
+                    ],
+                    "description": "Id of a defined material (materials[].id in get_scene_summary), or null to clear back to the default. To use a library texture first call material.define with textureUrl \"lib:<slug>\" (slugs: materials://list)."
+                  },
+                  "roomId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64,
+                    "description": "The room whose stretch of this wall side to paint (from list_rooms or describe_room). Strongly recommended: a wall side can be shared by several rooms (e.g. the alcove and the sejour) and without roomId the whole side is painted for all of them. Fails with precondition_failed if the room does not border that side. A room-scoped finish beats the whole-side finish and room.setWallFinish."
                   }
                 },
                 "required": [
@@ -815,14 +955,17 @@
                 "properties": {
                   "type": {
                     "type": "string",
-                    "const": "wall.setStructural"
+                    "const": "wall.setStructural",
+                    "description": "Command discriminator, always \"wall.setStructural\"."
                   },
                   "wallId": {
                     "type": "string",
                     "minLength": 1,
-                    "maxLength": 200
+                    "maxLength": 64,
+                    "description": "Id of the wall (walls[].id from get_scene_summary)."
                   },
                   "structural": {
+                    "description": "true marks the wall structural (cannot be removed); false marks it removable; null clears the explicit mark so it is derived (exterior or at least 15 cm thick means structural). Only a user may set false on a wall that is structural by default.",
                     "type": [
                       "boolean",
                       "null"
@@ -841,24 +984,27 @@
                 "properties": {
                   "type": {
                     "type": "string",
-                    "const": "room.setWallFinish"
+                    "const": "room.setWallFinish",
+                    "description": "Command discriminator, always \"room.setWallFinish\"."
                   },
                   "roomId": {
                     "type": "string",
                     "minLength": 1,
-                    "maxLength": 200
+                    "maxLength": 64,
+                    "description": "Id of the room (from list_rooms or get_scene_summary)."
                   },
                   "materialId": {
                     "anyOf": [
                       {
                         "type": "string",
                         "minLength": 1,
-                        "maxLength": 200
+                        "maxLength": 64
                       },
                       {
                         "type": "null"
                       }
-                    ]
+                    ],
+                    "description": "Id of a defined material (materials[].id in get_scene_summary), or null to clear back to the default. To use a library texture first call material.define with textureUrl \"lib:<slug>\" (slugs: materials://list)."
                   }
                 },
                 "required": [
@@ -873,24 +1019,27 @@
                 "properties": {
                   "type": {
                     "type": "string",
-                    "const": "room.setFloor"
+                    "const": "room.setFloor",
+                    "description": "Command discriminator, always \"room.setFloor\"."
                   },
                   "roomId": {
                     "type": "string",
                     "minLength": 1,
-                    "maxLength": 200
+                    "maxLength": 64,
+                    "description": "Id of the room (from list_rooms or get_scene_summary)."
                   },
                   "materialId": {
                     "anyOf": [
                       {
                         "type": "string",
                         "minLength": 1,
-                        "maxLength": 200
+                        "maxLength": 64
                       },
                       {
                         "type": "null"
                       }
-                    ]
+                    ],
+                    "description": "Id of a defined material (materials[].id in get_scene_summary), or null to clear back to the default. To use a library texture first call material.define with textureUrl \"lib:<slug>\" (slugs: materials://list)."
                   }
                 },
                 "required": [
@@ -905,24 +1054,27 @@
                 "properties": {
                   "type": {
                     "type": "string",
-                    "const": "room.setCeiling"
+                    "const": "room.setCeiling",
+                    "description": "Command discriminator, always \"room.setCeiling\"."
                   },
                   "roomId": {
                     "type": "string",
                     "minLength": 1,
-                    "maxLength": 200
+                    "maxLength": 64,
+                    "description": "Id of the room (from list_rooms or get_scene_summary)."
                   },
                   "materialId": {
                     "anyOf": [
                       {
                         "type": "string",
                         "minLength": 1,
-                        "maxLength": 200
+                        "maxLength": 64
                       },
                       {
                         "type": "null"
                       }
-                    ]
+                    ],
+                    "description": "Id of a defined material (materials[].id in get_scene_summary), or null to clear back to the default. To use a library texture first call material.define with textureUrl \"lib:<slug>\" (slugs: materials://list)."
                   }
                 },
                 "required": [
@@ -937,43 +1089,47 @@
                 "properties": {
                   "type": {
                     "type": "string",
-                    "const": "scene.setDefaults"
+                    "const": "scene.setDefaults",
+                    "description": "Command discriminator, always \"scene.setDefaults\"."
                   },
                   "wall": {
                     "anyOf": [
                       {
                         "type": "string",
                         "minLength": 1,
-                        "maxLength": 200
+                        "maxLength": 64
                       },
                       {
                         "type": "null"
                       }
-                    ]
+                    ],
+                    "description": "Default wall material for faces without a finish. Omit to leave unchanged, null to clear."
                   },
                   "floor": {
                     "anyOf": [
                       {
                         "type": "string",
                         "minLength": 1,
-                        "maxLength": 200
+                        "maxLength": 64
                       },
                       {
                         "type": "null"
                       }
-                    ]
+                    ],
+                    "description": "Default floor material. Omit to leave unchanged, null to clear."
                   },
                   "ceiling": {
                     "anyOf": [
                       {
                         "type": "string",
                         "minLength": 1,
-                        "maxLength": 200
+                        "maxLength": 64
                       },
                       {
                         "type": "null"
                       }
-                    ]
+                    ],
+                    "description": "Default ceiling material. Omit to leave unchanged, null to clear."
                   }
                 },
                 "required": [
@@ -986,7 +1142,8 @@
                 "properties": {
                   "type": {
                     "type": "string",
-                    "const": "site.set"
+                    "const": "site.set",
+                    "description": "Command discriminator, always \"site.set\"."
                   },
                   "site": {
                     "type": "object",
@@ -994,30 +1151,42 @@
                       "latitude": {
                         "type": "number",
                         "minimum": -90,
-                        "maximum": 90
+                        "maximum": 90,
+                        "description": "Latitude in degrees, -90 to 90 (north positive)."
                       },
                       "longitude": {
                         "type": "number",
                         "minimum": -180,
-                        "maximum": 180
+                        "maximum": 180,
+                        "description": "Longitude in degrees, -180 to 180 (east positive)."
                       },
                       "northAngle": {
-                        "type": "number"
+                        "type": "number",
+                        "description": "Clockwise angle in degrees from plan \"up\" (-y) to true north."
                       },
                       "timezone": {
-                        "type": "string"
+                        "type": "string",
+                        "description": "IANA time zone such as \"Europe/Paris\"."
                       },
                       "floorElevation": {
-                        "type": "number"
+                        "type": "number",
+                        "description": "Height of the flat floor above street level, in metres."
                       },
                       "address": {
-                        "type": [
-                          "string",
-                          "null"
-                        ]
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 300
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Postal address (at most 300 characters); null clears it."
                       }
                     },
-                    "additionalProperties": false
+                    "additionalProperties": false,
+                    "description": "Fields to change; omitted fields stay as they are."
                   }
                 },
                 "required": [
@@ -1031,7 +1200,8 @@
                 "properties": {
                   "type": {
                     "type": "string",
-                    "const": "light.add"
+                    "const": "light.add",
+                    "description": "Command discriminator, always \"light.add\"."
                   },
                   "light": {
                     "oneOf": [
@@ -1041,14 +1211,19 @@
                           "id": {
                             "type": "string",
                             "minLength": 1,
-                            "maxLength": 200
+                            "maxLength": 64,
+                            "description": "Optional light id; derived as \"light-N\" when omitted."
                           },
                           "name": {
-                            "type": "string"
+                            "type": "string",
+                            "maxLength": 120,
+                            "description": "Optional label, at most 120 characters."
                           },
                           "roomId": {
                             "type": "string",
-                            "minLength": 1
+                            "minLength": 1,
+                            "maxLength": 64,
+                            "description": "Room the light belongs to (from list_rooms). Optional."
                           },
                           "position": {
                             "type": "array",
@@ -1062,29 +1237,35 @@
                             ],
                             "items": false,
                             "minItems": 2,
-                            "maxItems": 2
+                            "maxItems": 2,
+                            "description": "Plan position [x, y] in metres; plan y grows down the page."
                           },
                           "elevation": {
                             "type": "number",
-                            "minimum": 0
+                            "minimum": 0,
+                            "description": "Height of the light source above the floor, in metres."
                           },
                           "lumens": {
                             "type": "number",
-                            "minimum": 0
+                            "minimum": 0,
+                            "description": "Luminous flux in lumens (a 60 W-equivalent bulb is about 800)."
                           },
                           "kelvin": {
                             "default": 2700,
+                            "description": "Colour temperature in kelvin, 1000-12000 (2700 warm, 6500 daylight). Defaults to 2700.",
                             "type": "number",
                             "minimum": 1000,
                             "maximum": 12000
                           },
                           "on": {
                             "default": true,
+                            "description": "Whether the light is switched on. Defaults to true.",
                             "type": "boolean"
                           },
                           "type": {
                             "type": "string",
-                            "const": "point"
+                            "const": "point",
+                            "description": "A point light radiates in all directions. Discriminator: \"point\"."
                           }
                         },
                         "required": [
@@ -1101,14 +1282,19 @@
                           "id": {
                             "type": "string",
                             "minLength": 1,
-                            "maxLength": 200
+                            "maxLength": 64,
+                            "description": "Optional light id; derived as \"light-N\" when omitted."
                           },
                           "name": {
-                            "type": "string"
+                            "type": "string",
+                            "maxLength": 120,
+                            "description": "Optional label, at most 120 characters."
                           },
                           "roomId": {
                             "type": "string",
-                            "minLength": 1
+                            "minLength": 1,
+                            "maxLength": 64,
+                            "description": "Room the light belongs to (from list_rooms). Optional."
                           },
                           "position": {
                             "type": "array",
@@ -1122,32 +1308,39 @@
                             ],
                             "items": false,
                             "minItems": 2,
-                            "maxItems": 2
+                            "maxItems": 2,
+                            "description": "Plan position [x, y] in metres; plan y grows down the page."
                           },
                           "elevation": {
                             "type": "number",
-                            "minimum": 0
+                            "minimum": 0,
+                            "description": "Height of the light source above the floor, in metres."
                           },
                           "lumens": {
                             "type": "number",
-                            "minimum": 0
+                            "minimum": 0,
+                            "description": "Luminous flux in lumens (a 60 W-equivalent bulb is about 800)."
                           },
                           "kelvin": {
                             "default": 2700,
+                            "description": "Colour temperature in kelvin, 1000-12000 (2700 warm, 6500 daylight). Defaults to 2700.",
                             "type": "number",
                             "minimum": 1000,
                             "maximum": 12000
                           },
                           "on": {
                             "default": true,
+                            "description": "Whether the light is switched on. Defaults to true.",
                             "type": "boolean"
                           },
                           "type": {
                             "type": "string",
-                            "const": "spot"
+                            "const": "spot",
+                            "description": "A spot light shines straight down in a cone. Discriminator: \"spot\"."
                           },
                           "angle": {
                             "default": 60,
+                            "description": "Spot cone angle in degrees (1-179). Defaults to 60.",
                             "type": "number",
                             "minimum": 1,
                             "maximum": 179
@@ -1167,14 +1360,19 @@
                           "id": {
                             "type": "string",
                             "minLength": 1,
-                            "maxLength": 200
+                            "maxLength": 64,
+                            "description": "Optional light id; derived as \"light-N\" when omitted."
                           },
                           "name": {
-                            "type": "string"
+                            "type": "string",
+                            "maxLength": 120,
+                            "description": "Optional label, at most 120 characters."
                           },
                           "roomId": {
                             "type": "string",
-                            "minLength": 1
+                            "minLength": 1,
+                            "maxLength": 64,
+                            "description": "Room the light belongs to (from list_rooms). Optional."
                           },
                           "position": {
                             "type": "array",
@@ -1188,40 +1386,49 @@
                             ],
                             "items": false,
                             "minItems": 2,
-                            "maxItems": 2
+                            "maxItems": 2,
+                            "description": "Plan position [x, y] in metres; plan y grows down the page."
                           },
                           "elevation": {
                             "type": "number",
-                            "minimum": 0
+                            "minimum": 0,
+                            "description": "Height of the light source above the floor, in metres."
                           },
                           "lumens": {
                             "type": "number",
-                            "minimum": 0
+                            "minimum": 0,
+                            "description": "Luminous flux in lumens (a 60 W-equivalent bulb is about 800)."
                           },
                           "kelvin": {
                             "default": 2700,
+                            "description": "Colour temperature in kelvin, 1000-12000 (2700 warm, 6500 daylight). Defaults to 2700.",
                             "type": "number",
                             "minimum": 1000,
                             "maximum": 12000
                           },
                           "on": {
                             "default": true,
+                            "description": "Whether the light is switched on. Defaults to true.",
                             "type": "boolean"
                           },
                           "type": {
                             "type": "string",
-                            "const": "area"
+                            "const": "area",
+                            "description": "A rectangular panel facing down. Discriminator: \"area\"."
                           },
                           "width": {
                             "type": "number",
-                            "exclusiveMinimum": 0
+                            "exclusiveMinimum": 0,
+                            "description": "Panel width in metres along plan x before rotation."
                           },
                           "depth": {
                             "type": "number",
-                            "exclusiveMinimum": 0
+                            "exclusiveMinimum": 0,
+                            "description": "Panel depth in metres along plan y before rotation."
                           },
                           "rotation": {
                             "default": 0,
+                            "description": "Panel rotation in degrees, counter-clockwise seen from above. Defaults to 0.",
                             "type": "number"
                           }
                         },
@@ -1235,12 +1442,14 @@
                         ],
                         "additionalProperties": false
                       }
-                    ]
+                    ],
+                    "description": "The light to add: point, spot or area, discriminated by its \"type\"."
                   },
                   "index": {
                     "type": "integer",
                     "minimum": 0,
-                    "maximum": 9007199254740991
+                    "maximum": 9007199254740991,
+                    "description": "Internal (used by undo): insert position. Do not send."
                   }
                 },
                 "required": [
@@ -1254,33 +1463,42 @@
                 "properties": {
                   "type": {
                     "type": "string",
-                    "const": "light.update"
+                    "const": "light.update",
+                    "description": "Command discriminator, always \"light.update\"."
                   },
                   "id": {
                     "type": "string",
                     "minLength": 1,
-                    "maxLength": 200
+                    "maxLength": 64,
+                    "description": "Id of the light (lights[].id from get_scene_summary)."
                   },
                   "patch": {
                     "type": "object",
                     "properties": {
                       "name": {
-                        "type": [
-                          "string",
-                          "null"
-                        ]
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 120
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Label (at most 120 characters); null clears it."
                       },
                       "roomId": {
                         "anyOf": [
                           {
                             "type": "string",
                             "minLength": 1,
-                            "maxLength": 200
+                            "maxLength": 64
                           },
                           {
                             "type": "null"
                           }
-                        ]
+                        ],
+                        "description": "Room the light belongs to (from list_rooms); null clears it."
                       },
                       "position": {
                         "type": "array",
@@ -1294,42 +1512,52 @@
                         ],
                         "items": false,
                         "minItems": 2,
-                        "maxItems": 2
+                        "maxItems": 2,
+                        "description": "Plan position [x, y] in metres; plan y grows down the page."
                       },
                       "elevation": {
                         "type": "number",
-                        "minimum": 0
+                        "minimum": 0,
+                        "description": "Height of the light source above the floor, in metres."
                       },
                       "lumens": {
                         "type": "number",
-                        "minimum": 0
+                        "minimum": 0,
+                        "description": "Luminous flux in lumens."
                       },
                       "kelvin": {
                         "type": "number",
                         "minimum": 1000,
-                        "maximum": 12000
+                        "maximum": 12000,
+                        "description": "Colour temperature in kelvin, 1000-12000."
                       },
                       "on": {
-                        "type": "boolean"
+                        "type": "boolean",
+                        "description": "Whether the light is switched on."
                       },
                       "angle": {
                         "type": "number",
                         "minimum": 1,
-                        "maximum": 179
+                        "maximum": 179,
+                        "description": "Spot lights only: cone angle in degrees (1-179)."
                       },
                       "width": {
                         "type": "number",
-                        "exclusiveMinimum": 0
+                        "exclusiveMinimum": 0,
+                        "description": "Area lights only: width in metres."
                       },
                       "depth": {
                         "type": "number",
-                        "exclusiveMinimum": 0
+                        "exclusiveMinimum": 0,
+                        "description": "Area lights only: depth in metres."
                       },
                       "rotation": {
-                        "type": "number"
+                        "type": "number",
+                        "description": "Area lights only: rotation in degrees, counter-clockwise seen from above."
                       }
                     },
-                    "additionalProperties": false
+                    "additionalProperties": false,
+                    "description": "Fields to change; omitted fields stay as they are, null clears name and roomId. A light cannot take fields of another light type."
                   }
                 },
                 "required": [
@@ -1344,12 +1572,14 @@
                 "properties": {
                   "type": {
                     "type": "string",
-                    "const": "light.remove"
+                    "const": "light.remove",
+                    "description": "Command discriminator, always \"light.remove\"."
                   },
                   "id": {
                     "type": "string",
                     "minLength": 1,
-                    "maxLength": 200
+                    "maxLength": 64,
+                    "description": "Id of the light to remove."
                   }
                 },
                 "required": [
@@ -1359,7 +1589,8 @@
                 "additionalProperties": false
               }
             ]
-          }
+          },
+          "description": "Commands applied in order and atomically: all succeed or none apply. At most 500; batches cannot nest."
         }
       },
       "required": [

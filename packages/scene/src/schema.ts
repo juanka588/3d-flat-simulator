@@ -34,21 +34,31 @@ export const LIMITS = {
 export const Vec2 = z.tuple([z.number(), z.number()]);
 export type Vec2 = z.infer<typeof Vec2>;
 
-const Id = z.string().min(1);
+/** Entity id: 1-64 characters. The same bound applies wherever an id is defined or referenced. */
+export const EntityId = z.string().min(1).max(64);
+const Id = EntityId;
+/** Maximum length of human-readable names. */
+export const NAME_MAX = 120;
+/** Maximum length of the postal address. */
+export const ADDRESS_MAX = 300;
 const HexColor = z.string().regex(/^#[0-9a-fA-F]{6}$/, 'expected a hex colour like #a1b2c3');
 const TimeZone = z.string().refine(isTimeZone, 'unknown IANA time zone');
 
 export const Material = z
   .strictObject({
-    id: Id,
-    name: z.string(),
-    kind: z.enum(['paint', 'texture']),
-    color: HexColor,
-    roughness: z.number().min(0).max(1).default(0.9),
-    /** Base URL of a PBR texture set (M3+). Required when `kind` is "texture". */
-    textureUrl: z.string().refine(isTextureUrl, 'expected "lib:<slug>" or a relative path without a scheme or ".."').optional(),
+    id: Id.describe('Material id (1-64 characters), unique across all entities. Reference it from finishes and defaults.'),
+    name: z.string().max(NAME_MAX).describe('Human-readable name, at most 120 characters.'),
+    kind: z.enum(['paint', 'texture']).describe('"paint" is a flat colour; "texture" adds a PBR texture set (needs textureUrl). Cannot change once defined.'),
+    color: HexColor.describe('Base colour as #rrggbb. For textures it is the fallback and tint colour.'),
+    roughness: z.number().min(0).max(1).default(0.9).describe('Surface roughness from 0 (mirror) to 1 (matte). Defaults to 0.9.'),
+    /** Texture set reference (M3+). Required when `kind` is "texture". Only the "lib:<slug>" scheme exists. */
+    textureUrl: z
+      .string()
+      .refine(isTextureUrl, 'expected "lib:<slug>" (see materials://list)')
+      .describe('Texture set as "lib:<slug>"; read materials://list for the available slugs. Required when kind is "texture".')
+      .optional(),
     /** Texture tile size in metres. */
-    textureScale: z.number().positive().optional(),
+    textureScale: z.number().positive().describe('Size in metres of one texture tile. Optional.').optional(),
   })
   .refine((m) => m.kind !== 'texture' || m.textureUrl !== undefined, {
     path: ['textureUrl'],
@@ -67,6 +77,13 @@ export const Wall = z.strictObject({
    * See `wallLeftNormal` for the exact definition.
    */
   finish: z.strictObject({ left: Id.optional(), right: Id.optional() }).default({}),
+  /**
+   * Finishes of one room's stretch of a wall side: `roomFinishes[roomId][side]`. Stored as a record
+   * keyed by room id (rooms are few per wall, and ids are unique). Resolution, most specific first:
+   * `roomFinishes[room][side]`, then the whole-side `finish[side]`, then `Room.wallFinish`, then
+   * `defaults.wall`, then a builtin (see `wallFaceMaterial`). Empty entries are never stored.
+   */
+  roomFinishes: z.record(Id, z.strictObject({ left: Id.optional(), right: Id.optional() })).optional(),
   /**
    * Whether the wall is structural (load-bearing, facade, party wall) and so can never be
    * removed. When absent it is resolved by `isStructural` (exterior/party or >= 15 cm thick).
@@ -110,12 +127,12 @@ export type RoomType = z.infer<typeof RoomType>;
 
 export const Room = z.strictObject({
   id: Id,
-  name: z.string(),
+  name: z.string().max(NAME_MAX),
   type: RoomType,
   polygon: z.array(Vec2).min(3).max(LIMITS.polygonVertices, `too many polygon vertices (max ${LIMITS.polygonVertices})`),
   /**
    * Finish of this room's wall faces. Applies to the stretches of wall faces that border this room
-   * unless the wall side has its own explicit `finish` (see `wallFaceMaterial`).
+   * unless the wall has a room-scoped or whole-side `finish` for that side (see `wallFaceMaterial`).
    */
   wallFinish: Id.optional(),
   floorMaterial: Id.optional(),
@@ -137,32 +154,32 @@ export const Item = z.strictObject({
 export type Item = z.infer<typeof Item>;
 
 const lightBase = {
-  id: Id,
-  name: z.string().optional(),
-  roomId: Id.optional(),
-  position: Vec2,
+  id: Id.describe('Light id (1-64 characters), unique across all entities.'),
+  name: z.string().max(NAME_MAX).describe('Optional label, at most 120 characters.').optional(),
+  roomId: Id.describe('Room the light belongs to (from list_rooms). Optional.').optional(),
+  position: Vec2.describe('Plan position [x, y] in metres; plan y grows down the page.'),
   /** Height of the light source above the floor. */
-  elevation: z.number().nonnegative(),
-  lumens: z.number().nonnegative(),
-  kelvin: z.number().min(1000).max(12000).default(2700),
-  on: z.boolean().default(true),
+  elevation: z.number().nonnegative().describe('Height of the light source above the floor, in metres.'),
+  lumens: z.number().nonnegative().describe('Luminous flux in lumens (a 60 W-equivalent bulb is about 800).'),
+  kelvin: z.number().min(1000).max(12000).default(2700).describe('Colour temperature in kelvin, 1000-12000 (2700 warm, 6500 daylight). Defaults to 2700.'),
+  on: z.boolean().default(true).describe('Whether the light is switched on. Defaults to true.'),
 };
 
 export const Light = z.discriminatedUnion('type', [
-  z.strictObject({ ...lightBase, type: z.literal('point') }),
+  z.strictObject({ ...lightBase, type: z.literal('point').describe('A point light radiates in all directions. Discriminator: "point".') }),
   z.strictObject({
     ...lightBase,
-    type: z.literal('spot'),
+    type: z.literal('spot').describe('A spot light shines straight down in a cone. Discriminator: "spot".'),
     /** Full cone angle in degrees. Spots point straight down. */
-    angle: z.number().min(1).max(179).default(60),
+    angle: z.number().min(1).max(179).default(60).describe('Spot cone angle in degrees (1-179). Defaults to 60.'),
   }),
   z.strictObject({
     ...lightBase,
-    type: z.literal('area'),
+    type: z.literal('area').describe('A rectangular panel facing down. Discriminator: "area".'),
     /** Rectangular panel facing down; `width` runs along plan x before rotation. */
-    width: z.number().positive(),
-    depth: z.number().positive(),
-    rotation: z.number().default(0),
+    width: z.number().positive().describe('Panel width in metres along plan x before rotation.'),
+    depth: z.number().positive().describe('Panel depth in metres along plan y before rotation.'),
+    rotation: z.number().default(0).describe('Panel rotation in degrees, counter-clockwise seen from above. Defaults to 0.'),
   }),
 ]);
 export type Light = z.infer<typeof Light>;
@@ -176,13 +193,13 @@ export const Site = z.strictObject({
   /** Height of the flat's floor above street level, in metres (e.g. 2nd floor ≈ 5.8). */
   floorElevation: z.number().default(0),
   /** Postal address, used to fetch site context such as neighbouring buildings. */
-  address: z.string().optional(),
+  address: z.string().max(ADDRESS_MAX).optional(),
 });
 export type Site = z.infer<typeof Site>;
 
 export const SceneBase = z.strictObject({
   version: z.literal(1),
-  name: z.string(),
+  name: z.string().max(NAME_MAX),
   units: z.literal('m').default('m'),
   site: Site,
   materials: z.array(Material).max(LIMITS.materials, `too many materials (max ${LIMITS.materials})`).default([]),
@@ -230,6 +247,11 @@ export const Scene = SceneBase.superRefine((scene, ctx) => {
     if (wallLength(wall) < EPSILON) issue(['walls', i], 'wall has zero length');
     checkMaterial(wall.finish.left, ['walls', i, 'finish', 'left']);
     checkMaterial(wall.finish.right, ['walls', i, 'finish', 'right']);
+    for (const [roomId, sides] of Object.entries(wall.roomFinishes ?? {})) {
+      checkRoom(roomId, ['walls', i, 'roomFinishes', roomId]);
+      checkMaterial(sides.left, ['walls', i, 'roomFinishes', roomId, 'left']);
+      checkMaterial(sides.right, ['walls', i, 'roomFinishes', roomId, 'right']);
+    }
   });
 
   const spansByWall = new Map<string, { index: number; from: number; to: number }[]>();
@@ -306,11 +328,9 @@ export function wallLeftNormal(wall: Pick<Wall, 'start' | 'end'>): Vec2 {
   return [dy / length, -dx / length];
 }
 
-/** Texture set reference: a library slug (`lib:oak-parquet`) or a relative path (`materials/x/`). */
+/** Texture set reference: a library slug, `lib:<slug>` (e.g. `lib:oak-parquet`). Nothing else is accepted. */
 export function isTextureUrl(url: string): boolean {
-  if (/^lib:[a-z0-9][a-z0-9-]*$/.test(url)) return true;
-  if (url === '' || /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(url) || url.startsWith('/') || url.includes('\\')) return false;
-  return !url.split('/').some((part) => part === '..');
+  return /^lib:[a-z0-9][a-z0-9-]*$/.test(url);
 }
 
 function isTimeZone(tz: string): boolean {

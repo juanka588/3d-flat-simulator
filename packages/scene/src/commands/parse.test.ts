@@ -53,6 +53,57 @@ describe('parseCommand', () => {
   });
 });
 
+describe('validation bounds (C6)', () => {
+  const cmd = (c: unknown, extra: object = {}) => parseCommand({ ...base, ...extra, cmd: c });
+  const long = (n: number) => 'x'.repeat(n);
+  const green = { id: 'm', name: 'm', kind: 'paint', color: '#00aa00', roughness: 0.5 };
+
+  it('prototype-chain type names give a clean invalid_command, not a crash or not_supported', () => {
+    for (const type of ['constructor', '__proto__', 'toString', 'hasOwnProperty', 'valueOf']) {
+      const r = cmd({ type });
+      expect(r.ok, type).toBe(false);
+      if (!r.ok) {
+        expect(r.errors).toHaveLength(1);
+        expect(r.errors[0]).toMatchObject({ code: 'invalid_command', path: 'cmd/type' });
+        expect(r.errors[0]!.message).toContain('unknown command type');
+      }
+    }
+  });
+
+  it('ids are at most 64 characters, on definition and on reference alike', () => {
+    expect(cmd({ type: 'wall.setFinish', wallId: long(64), side: 'both', materialId: long(64) }).ok).toBe(true);
+    expect(cmd({ type: 'wall.setFinish', wallId: long(65), side: 'both', materialId: null }).ok).toBe(false);
+    expect(cmd({ type: 'wall.setFinish', wallId: 'w', side: 'both', materialId: long(65) }).ok).toBe(false);
+    expect(cmd({ type: 'wall.setFinish', wallId: 'w', side: 'both', materialId: null, roomId: long(65) }).ok).toBe(false);
+    expect(cmd({ type: 'material.define', material: { ...green, id: long(65) } }).ok).toBe(false);
+    expect(cmd({ type: 'material.define', material: { ...green, id: long(64) } }).ok).toBe(true);
+    expect(cmd({ type: 'light.add', light: { type: 'point', id: long(65), position: [0, 0], elevation: 1, lumens: 1 } }).ok).toBe(false);
+    expect(cmd({ type: 'light.update', id: long(65), patch: {} }).ok).toBe(false);
+    expect(cmd({ type: 'light.update', id: 'l', patch: { roomId: long(65) } }).ok).toBe(false);
+    expect(cmd({ type: 'room.setFloor', roomId: long(65), materialId: null }).ok).toBe(false);
+    expect(parseCommand({ ...base, id: long(65), cmd: { type: 'batch', label: 'x', commands: [] } }).ok).toBe(false);
+    expect(cmd({ type: 'batch', label: 'x', commands: [] }, { undoOf: long(65) }).ok).toBe(false);
+    expect(cmd({ type: 'batch', label: 'x', commands: [] }, { redoOf: long(65) }).ok).toBe(false);
+    expect(cmd({ type: 'batch', label: 'x', commands: [] }, { undoOf: long(64) }).ok).toBe(true);
+  });
+
+  it('names are at most 120 characters and the address at most 300', () => {
+    expect(cmd({ type: 'material.define', material: { ...green, name: long(120) } }).ok).toBe(true);
+    expect(cmd({ type: 'material.define', material: { ...green, name: long(121) } }).ok).toBe(false);
+    expect(cmd({ type: 'light.update', id: 'l', patch: { name: long(121) } }).ok).toBe(false);
+    expect(cmd({ type: 'light.add', light: { type: 'point', name: long(121), position: [0, 0], elevation: 1, lumens: 1 } }).ok).toBe(false);
+    expect(cmd({ type: 'site.set', site: { address: long(300) } }).ok).toBe(true);
+    expect(cmd({ type: 'site.set', site: { address: long(301) } }).ok).toBe(false);
+  });
+
+  it('textureUrl takes lib:<slug> only', () => {
+    const tex = (u: string) => cmd({ type: 'material.define', material: { ...green, kind: 'texture', textureUrl: u } }).ok;
+    expect(tex('lib:oak-parquet')).toBe(true);
+    expect(tex('materials/oak/')).toBe(false);
+    expect(tex('oak.png')).toBe(false);
+  });
+});
+
 describe('commandJsonSchema', () => {
   it('matches the committed contract snapshot and mentions structural', async () => {
     const json = JSON.stringify(commandJsonSchema(), null, 2) + '\n';

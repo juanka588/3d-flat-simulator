@@ -3,7 +3,10 @@ import type { BatchCommand, CatalogEntry, LeafCommand, Material, Sheen } from '@
 
 /** What a finish applies to. */
 export type FinishScope =
-  | { kind: 'wallSide'; wallId: string; side: 'left' | 'right' | 'both' }
+  /** One wall side; with `roomId` only that room's stretch of it (a side can be shared by several rooms). */
+  | { kind: 'wallSide'; wallId: string; side: 'left' | 'right' | 'both'; roomId?: string }
+  /** Both faces of a wall at one spot, each within its adjoining room (`roomId` absent: a face no room sees, painted whole). */
+  | { kind: 'wallFaces'; wallId: string; faces: { side: 'left' | 'right'; roomId?: string }[] }
   | { kind: 'roomWalls'; roomId: string }
   | { kind: 'floor'; roomId: string }
   | { kind: 'ceiling'; roomId: string };
@@ -16,7 +19,10 @@ export type FinishSource =
 
 /** Display names used in labels (ids are used when absent). */
 export interface FinishNames {
+  /** Name of the room a room-level scope (walls, floor, ceiling) targets. */
   room?: string;
+  /** Names of rooms by id, for room-scoped wall scopes. */
+  rooms?: Record<string, string>;
 }
 
 /** Colour name of a hex: the palette swatch name when it is one, else the normalised hex. */
@@ -36,8 +42,14 @@ export function materialLabel(material: Pick<Material, 'name' | 'kind' | 'color'
 export function scopeLabel(scope: FinishScope, names: FinishNames = {}): string {
   const room = (id: string) => names.room ?? id;
   switch (scope.kind) {
-    case 'wallSide':
-      return scope.side === 'both' ? `wall ${scope.wallId} both sides` : `wall ${scope.wallId} ${scope.side} side`;
+    case 'wallSide': {
+      const where = scope.roomId ? ` in ${names.rooms?.[scope.roomId] ?? scope.roomId}` : '';
+      return scope.side === 'both' ? `wall ${scope.wallId} both sides${where}` : `wall ${scope.wallId} ${scope.side} side${where}`;
+    }
+    case 'wallFaces': {
+      const rooms = scope.faces.flatMap((f) => (f.roomId ? [names.rooms?.[f.roomId] ?? f.roomId] : []));
+      return `wall ${scope.wallId} both faces here${rooms.length ? ` (${rooms.join(' / ')})` : ''}`;
+    }
     case 'roomWalls':
       return `${room(scope.roomId)} walls`;
     case 'floor':
@@ -47,16 +59,18 @@ export function scopeLabel(scope: FinishScope, names: FinishNames = {}): string 
   }
 }
 
-function finishCommand(scope: FinishScope, materialId: string | null): LeafCommand {
+function finishCommands(scope: FinishScope, materialId: string | null): LeafCommand[] {
   switch (scope.kind) {
     case 'wallSide':
-      return { type: 'wall.setFinish', wallId: scope.wallId, side: scope.side, materialId };
+      return [{ type: 'wall.setFinish', wallId: scope.wallId, side: scope.side, materialId, ...(scope.roomId ? { roomId: scope.roomId } : {}) }];
+    case 'wallFaces':
+      return scope.faces.map((f) => ({ type: 'wall.setFinish', wallId: scope.wallId, side: f.side, materialId, ...(f.roomId ? { roomId: f.roomId } : {}) }));
     case 'roomWalls':
-      return { type: 'room.setWallFinish', roomId: scope.roomId, materialId };
+      return [{ type: 'room.setWallFinish', roomId: scope.roomId, materialId }];
     case 'floor':
-      return { type: 'room.setFloor', roomId: scope.roomId, materialId };
+      return [{ type: 'room.setFloor', roomId: scope.roomId, materialId }];
     case 'ceiling':
-      return { type: 'room.setCeiling', roomId: scope.roomId, materialId };
+      return [{ type: 'room.setCeiling', roomId: scope.roomId, materialId }];
   }
 }
 
@@ -75,13 +89,13 @@ export function buildFinishCommand(scope: FinishScope, source: FinishSource, nam
   const where = scopeLabel(scope, names);
   const material = sourceMaterial(source);
   if (!material) {
-    return { type: 'batch', label: `Reset ${where} to default`, commands: [finishCommand(scope, null)] };
+    return { type: 'batch', label: `Reset ${where} to default`, commands: finishCommands(scope, null) };
   }
   const what = source.kind === 'paint' ? colourName(source.hex) : material.name;
   const verb = source.kind === 'paint' ? 'Paint' : 'Texture';
   return {
     type: 'batch',
     label: `${verb} ${where} ${what}`,
-    commands: [{ type: 'material.define', material }, finishCommand(scope, material.id)],
+    commands: [{ type: 'material.define', material }, ...finishCommands(scope, material.id)],
   };
 }

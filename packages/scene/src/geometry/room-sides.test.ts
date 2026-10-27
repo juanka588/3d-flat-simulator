@@ -57,3 +57,20 @@ describe('isStructural defaults', () => {
     for (const w of s.walls) expect(typeof structuralInfo(s, w).structural).toBe('boolean');
   });
 });
+
+describe('side index cache', () => {
+  it('is reused across scenes that only change finishes, and invalidated by geometry changes', () => {
+    const before = roomWallSides(charme, 'alcove');
+    // finish-only change: new walls array, same geometry
+    const painted = { ...charme, walls: charme.walls.map((w) => (w.id === 'w-north' ? { ...w, finish: { ...w.finish, right: 'paint-white' } } : w)) };
+    expect(painted.walls).not.toBe(charme.walls);
+    expect(roomWallSides(painted, 'alcove')).toStrictEqual(before);
+    // geometry change: the wall between the alcove and the sejour moves away, so the alcove loses it
+    const moved = { ...charme, walls: charme.walls.map((w) => (w.id === 'w-alcove' ? { ...w, start: [w.start[0] + 5, w.start[1]] as [number, number], end: [w.end[0] + 5, w.end[1]] as [number, number] } : w)) };
+    expect(roomWallSides(moved, 'alcove').some((x) => x.wallId === 'w-alcove')).toBe(false);
+    // and the original still answers as before (no cross-contamination)
+    expect(roomWallSides(charme, 'alcove')).toStrictEqual(before);
+    expect(before.find((x) => x.wallId === 'w-north')!.otherRoomIds).toStrictEqual(['ch2', 'ch1', 'balcon']);
+  });
+});
+

@@ -13,11 +13,16 @@ export function isTypingTarget(target: EventTarget | null): boolean {
 }
 
 /** Maps a key event to a history action: Ctrl/Cmd+Z undo, Shift+Ctrl/Cmd+Z or Ctrl+Y redo. */
-export function undoRedoAction(e: Pick<KeyboardEvent, 'key' | 'ctrlKey' | 'metaKey' | 'shiftKey' | 'altKey'>): 'undo' | 'redo' | null {
+export function undoRedoAction(e: Pick<KeyboardEvent, 'key' | 'ctrlKey' | 'metaKey' | 'shiftKey' | 'altKey'> & { code?: string }): 'undo' | 'redo' | null {
   if (e.altKey || !(e.ctrlKey || e.metaKey)) return null;
+  // `key` follows the layout (a Cyrillic or Greek layout types other letters), `code` is the physical key:
+  // fall back to it when `key` is not a Latin letter, so Ctrl+Z works on the Z position of any layout.
   const key = e.key.toLowerCase();
-  if (key === 'z') return e.shiftKey ? 'redo' : 'undo';
-  if (key === 'y' && e.ctrlKey && !e.shiftKey) return 'redo';
+  const latin = /^[a-z]$/.test(key);
+  const isZ = key === 'z' || (!latin && e.code === 'KeyZ');
+  const isY = key === 'y' || (!latin && e.code === 'KeyY');
+  if (isZ) return e.shiftKey ? 'redo' : 'undo';
+  if (isY && e.ctrlKey && !e.shiftKey) return 'redo';
   return null;
 }
 

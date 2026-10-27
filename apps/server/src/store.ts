@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import {
   applyCommand,
@@ -23,13 +23,54 @@ import {
   type ServerMsg,
 } from '@flat/scene';
 import type { ServerConfig } from './config';
-import { Persistence, type Snapshot } from './persistence';
+import { Persistence, type IdempotencyRecord, type Snapshot } from './persistence';
+
+/** An outcome that may still be waiting for its log write to reach disk. */
+interface Staged {
+  outcome: Outcome;
+  after?: Promise<void>;
+}
 
 export type Outcome =
   | { status: 200; body: PostCommandResponse }
   | { status: 404 | 409 | 422 | 500; body: ErrorResponse };
 
 const IDEMPOTENCY_CAP = 10_000;
+/** How many recent idempotency records are persisted in the snapshot. */
+const IDEMPOTENCY_PERSISTED = 1000;
+
+interface Remembered {
+  hash: string;
+  response: PostCommandResponse;
+}
+
+/** Key-sorted JSON so equal envelopes hash equally regardless of property order. */
+function canonical(v: unknown): string {
+  if (Array.isArray(v)) return `[${v.map(canonical).join(',')}]`;
+  if (v && typeof v === 'object') {
+    const o = v as Record<string, unknown>;
+    return `{${Object.keys(o)
+      .filter((k) => o[k] !== undefined)
+      .sort()
+      .map((k) => `${JSON.stringify(k)}:${canonical(o[k])}`)
+      .join(',')}}`;
+  }
+  return JSON.stringify(v) ?? 'null';
+}
+
+/** Hash of an envelope without its timestamp: a retry may carry a new `ts`, a different body is a different request. */
+const hashEnvelope = (env: CommandEnvelope): string => {
+  const rest: Record<string, unknown> = { ...env };
+  delete rest.ts;
+  return createHash('sha256').update(canonical(rest)).digest('hex');
+};
+const STEP_HASH = 'step';
+
+/** Undo/redo ids live in their own namespace so they never collide with command ids. */
+const stepKey = (kind: 'undo' | 'redo', id: string) => `${kind}:${id}`;
+const entryKey = (e: LogEntry): string =>
+  e.undoOf !== undefined ? stepKey('undo', e.envelope.id) : e.redoOf !== undefined ? stepKey('redo', e.envelope.id) : e.envelope.id;
+const entryHash = (e: LogEntry): string => (e.undoOf !== undefined || e.redoOf !== undefined ? STEP_HASH : hashEnvelope(e.envelope));
 const SERVER_AUTHOR: Author = { kind: 'user', name: 'server' };
 
 const fail = (status: 404 | 409 | 422 | 500, code: string, message: string, extra: Partial<ErrorResponse> = {}, path = ''): Outcome => ({
@@ -76,12 +117,14 @@ export class SceneStore {
   history: History = createHistory();
 
   private readonly listeners = new Set<(msg: ServerMsg) => void>();
-  private readonly idempotent = new Map<string, PostCommandResponse>();
+  private readonly idempotent = new Map<string, Remembered>();
   /** Entries currently in log.ndjson, in order. */
   private logEntries: LogEntry[] = [];
   private tail: Promise<unknown> = Promise.resolve();
   private snapshotTimer: NodeJS.Timeout | undefined;
   private dirty = false;
+  /** A log sync failed after the state advanced: refuse writes until restart (memory is ahead of disk). */
+  private failed = false;
 
   private constructor(
     private readonly config: ServerConfig,
@@ -98,11 +141,35 @@ export class SceneStore {
   }
 
   private async recover(): Promise<void> {
-    const { snapshot, problem } = await this.disk.readSnapshot();
-    const log = await this.disk.readLog();
-    if (problem) this.config.log('warn', `${problem}; starting from the initial scene and discarding the log`);
+    const cur = await this.disk.readSnapshotFile(this.disk.snapshotPath); // throws on EACCES/EIO: never a first boot
+    let base: Snapshot | undefined;
+    let fromPrev = false;
+    if (cur.kind === 'ok') base = cur.snapshot;
+    else {
+      const prev = await this.disk.readSnapshotFile(this.disk.prevPath);
+      if (prev.kind === 'ok') {
+        if (cur.kind === 'corrupt') {
+          const moved = await this.disk.quarantineSnapshot();
+          this.config.log('error', `state.json is unreadable (${cur.problem}); moved to ${moved}; recovering from state.json.prev plus the log`);
+        } else this.config.log('warn', 'state.json is missing; recovering from state.json.prev plus the log');
+        base = prev.snapshot;
+        fromPrev = true;
+      } else {
+        const { logEntries } = await this.disk.hasData();
+        const corrupt = await this.disk.listCorrupt();
+        if (cur.kind === 'corrupt') {
+          throw new Error(`${this.disk.snapshotPath} is unreadable (${cur.problem}) and there is no usable state.json.prev. Refusing to start so no data is lost; the log (${logEntries} entries) and the file are untouched. Restore a backup or remove the file deliberately.`);
+        }
+        if (prev.kind === 'corrupt') {
+          throw new Error(`${this.disk.prevPath} is unreadable (${prev.problem}) and state.json is missing. Refusing to start; remove the file deliberately to initialise from ${this.config.sceneFile}.`);
+        }
+        if (logEntries > 0 || corrupt.length > 0) {
+          throw new Error(`state.json is missing but ${this.disk.dir} holds ${logEntries} log entries${corrupt.length ? ` and quarantined snapshots (${corrupt.join(', ')})` : ''}. Refusing to initialise over them; restore state.json or move those files away.`);
+        }
+      }
+    }
 
-    if (!snapshot) {
+    if (!base) {
       this.epoch = randomUUID();
       this.rev = this.seq = 0;
       this.scene = await this.loadInitialScene();
@@ -114,45 +181,67 @@ export class SceneStore {
       return;
     }
 
-    this.epoch = snapshot.epoch;
-    this.rev = snapshot.rev;
-    this.seq = snapshot.seq;
-    this.scene = snapshot.scene;
-    this.history = snapshot.history;
-    if (log.dropped > 0) this.config.log('warn', `ignored ${log.dropped} unreadable log line(s) (torn write after a crash?)`);
+    const log = await this.disk.readLog();
+    const all = fromPrev ? [...(await this.disk.readLog(this.disk.prevLogPath)).entries, ...log.entries] : log.entries;
+    this.epoch = base.epoch;
+    this.rev = base.rev;
+    this.seq = base.seq;
+    this.scene = base.scene;
+    this.history = base.history;
+    for (const r of base.idempotency ?? []) this.remember(r.key, r.hash, r.response);
+    if (log.dropped > 0) this.config.log('warn', `ignored ${log.dropped} unreadable trailing log line (torn write after a crash?)`);
 
     let replayed = 0;
     let stopped = false;
     const kept: LogEntry[] = [];
-    for (const entry of log.entries) {
+    const leftover: LogEntry[] = [];
+    const seen = new Set<number>();
+    for (const entry of all) {
       if (entry.epoch !== this.epoch) continue; // leftovers of a replaced scene
-      kept.push(entry);
-      this.remember(entry.envelope.id, this.responseOf(entry));
-      if (entry.seq <= snapshot.seq || stopped) continue;
+      if (seen.has(entry.seq)) continue;
+      seen.add(entry.seq);
+      if (entry.seq <= base.seq) {
+        kept.push(entry); // already part of the snapshot
+        this.remember(entryKey(entry), entryHash(entry), this.responseOf(entry));
+        continue;
+      }
+      if (stopped) {
+        leftover.push(entry);
+        continue;
+      }
       if (entry.seq !== this.seq + 1) {
         this.config.log('warn', `log gap at seq ${entry.seq} (expected ${this.seq + 1}); stopping replay`);
         stopped = true;
+        leftover.push(entry);
         continue;
       }
       const r = advance(this.scene, this.history, entry.envelope);
       if (!r.ok) {
         this.config.log('warn', `log entry ${entry.seq} no longer applies (${r.errors[0]?.message}); stopping replay`);
         stopped = true;
+        leftover.push(entry);
         continue;
       }
       this.scene = r.scene;
       this.history = r.history;
       this.seq = entry.seq;
       this.rev = entry.rev;
+      kept.push(entry);
+      this.remember(entryKey(entry), entryHash(entry), this.responseOf(entry));
       replayed++;
     }
-    this.logEntries = kept.filter((e) => e.seq <= this.seq);
-    if (log.dropped > 0 || kept.length !== log.entries.length || this.logEntries.length !== kept.length) {
+    this.logEntries = kept;
+    if (leftover.length > 0) {
+      const path = await this.disk.archiveEntries(leftover);
+      this.config.log('error', `${leftover.length} log entries could not be replayed; kept in ${path}`);
+    }
+    if (fromPrev || log.dropped > 0 || log.unterminated || leftover.length > 0 || kept.length !== log.entries.length) {
       await this.disk.rewriteLog(this.logEntries);
     }
+    if (fromPrev) await this.disk.writeSnapshot(this.snapshot());
     if (replayed > 0) {
       this.config.log('info', `replayed ${replayed} log entries; at rev ${this.rev}`);
-      this.scheduleSnapshot();
+      if (!fromPrev) this.scheduleSnapshot();
     }
   }
 
@@ -212,19 +301,41 @@ export class SceneStore {
     return run;
   }
 
+  /** Waits for the staged outcome's durability outside the queue so concurrent commands share fsyncs. */
+  private async settle(staged: Promise<Staged>): Promise<Outcome> {
+    const s = await staged;
+    if (!s.after) return s.outcome;
+    try {
+      await s.after;
+    } catch (e) {
+      this.failed = true;
+      this.config.log('error', `log fsync failed; refusing writes until restart: ${String(e)}`);
+      return fail(500, 'internal_error', 'could not persist the command');
+    }
+    return s.outcome;
+  }
+
   applyEnvelope(input: unknown): Promise<Outcome> {
-    return this.enqueue(async () => {
-      const parsed = parseCommand(input);
-      if (!parsed.ok) return { status: 422, body: { ok: false, errors: parsed.errors } } satisfies Outcome;
-      const env = parsed.envelope;
-      if (env.undoOf !== undefined || env.redoOf !== undefined) {
-        return fail(422, 'invalid_command', 'undoOf/redoOf are set by the server; use POST /api/undo or /api/redo', {}, env.undoOf !== undefined ? 'undoOf' : 'redoOf');
-      }
-      const dup = this.idempotent.get(env.id);
-      if (dup) return { status: 200, body: dup } satisfies Outcome;
-      const r = advance(this.scene, this.history, env, this.rev);
-      return this.commit(env, r);
-    });
+    return this.settle(
+      this.enqueue(async (): Promise<Staged> => {
+        const parsed = parseCommand(input);
+        if (!parsed.ok) return { outcome: { status: 422, body: { ok: false, errors: parsed.errors } } };
+        const env = parsed.envelope;
+        if (env.undoOf !== undefined || env.redoOf !== undefined) {
+          return { outcome: fail(422, 'invalid_command', 'undoOf/redoOf are set by the server; use POST /api/undo or /api/redo', {}, env.undoOf !== undefined ? 'undoOf' : 'redoOf') };
+        }
+        const hash = hashEnvelope(env);
+        const dup = this.idempotent.get(env.id);
+        if (dup) {
+          if (dup.hash !== hash) {
+            return { outcome: fail(409, 'idempotency_conflict', `id ${env.id} was already used with a different command`, { rev: this.rev, epoch: this.epoch }, 'id') };
+          }
+          return { outcome: { status: 200, body: dup.response }, after: this.disk.barrier() };
+        }
+        const r = advance(this.scene, this.history, env, this.rev);
+        return this.commit(env, r, env.id, hash);
+      }),
+    );
   }
 
   undo(body: { id?: string; author?: Author; ifRev?: number }): Promise<Outcome> {
@@ -236,32 +347,39 @@ export class SceneStore {
   }
 
   private step(kind: 'undo' | 'redo', body: { id?: string; author?: Author; ifRev?: number }): Promise<Outcome> {
-    return this.enqueue(async () => {
-      const id = body.id ?? `srv-${randomUUID()}`;
-      const dup = this.idempotent.get(id);
-      if (dup) return { status: 200, body: dup } satisfies Outcome;
-      if (body.ifRev !== undefined && body.ifRev !== this.rev) {
-        return fail(409, 'precondition_failed', `scene is at revision ${this.rev}, request expected ${body.ifRev}`, { rev: this.rev, epoch: this.epoch }, 'ifRev');
-      }
-      const target = kind === 'undo' ? this.history.past.at(-1) : this.history.future.at(-1);
-      if (!target) return fail(409, 'invalid_command', `nothing to ${kind}`, { rev: this.rev, epoch: this.epoch });
-      const ctx = { id, ts: Date.now(), author: body.author ?? SERVER_AUTHOR };
-      const s = kind === 'undo' ? undo(this.history, this.scene, ctx) : redo(this.history, this.scene, ctx);
-      if (!s.ok) return { status: 422, body: { ok: false, errors: stepErrors(s) } } satisfies Outcome;
-      return this.commit(s.envelope, { ok: true, scene: s.scene, history: s.history, result: s.result });
-    });
+    return this.settle(
+      this.enqueue(async (): Promise<Staged> => {
+        const id = body.id ?? `srv-${randomUUID()}`;
+        const key = stepKey(kind, id);
+        const dup = this.idempotent.get(key);
+        if (dup) return { outcome: { status: 200, body: dup.response }, after: this.disk.barrier() };
+        if (body.ifRev !== undefined && body.ifRev !== this.rev) {
+          return { outcome: fail(409, 'precondition_failed', `scene is at revision ${this.rev}, request expected ${body.ifRev}`, { rev: this.rev, epoch: this.epoch }, 'ifRev') };
+        }
+        const target = kind === 'undo' ? this.history.past.at(-1) : this.history.future.at(-1);
+        if (!target) return { outcome: fail(409, 'invalid_command', `nothing to ${kind}`, { rev: this.rev, epoch: this.epoch }) };
+        const ctx = { id, ts: Date.now(), author: body.author ?? SERVER_AUTHOR };
+        const s = kind === 'undo' ? undo(this.history, this.scene, ctx) : redo(this.history, this.scene, ctx);
+        if (!s.ok) return { outcome: { status: 422, body: { ok: false, errors: stepErrors(s) } } };
+        return this.commit(s.envelope, { ok: true, scene: s.scene, history: s.history, result: s.result }, key, STEP_HASH);
+      }),
+    );
   }
 
-  /** Logs first, then commits state and notifies; a failed log write leaves the state untouched. */
-  private async commit(env: CommandEnvelope, r: ReturnType<typeof advance>): Promise<Outcome> {
+  /**
+   * Writes the log entry, then commits state in memory (in queue order). The caller acknowledges
+   * and broadcasts only after the entry is fsync'ed (`after`); fsyncs are shared between commands.
+   */
+  private async commit(env: CommandEnvelope, r: ReturnType<typeof advance>, key: string, hash: string): Promise<Staged> {
     if (!r.ok) {
       const stale = r.errors.find((e) => e.code === 'precondition_failed');
-      return { status: stale ? 409 : 422, body: { ok: false, errors: r.errors, ...(stale ? { rev: this.rev, epoch: this.epoch } : {}) } };
+      return { outcome: { status: stale ? 409 : 422, body: { ok: false, errors: r.errors, ...(stale ? { rev: this.rev, epoch: this.epoch } : {}) } } };
     }
+    if (this.failed) return { outcome: fail(500, 'internal_error', 'storage failed earlier; restart the server') };
     if (r.result.noop) {
       const response = this.response(this.rev, this.seq, r.result);
-      this.remember(env.id, response);
-      return { status: 200, body: response };
+      this.remember(key, hash, response);
+      return { outcome: { status: 200, body: response }, after: this.disk.barrier() };
     }
     const entry: LogEntry = {
       epoch: this.epoch,
@@ -274,19 +392,21 @@ export class SceneStore {
       result: outcomeOf(r.result),
     };
     try {
-      await this.disk.append(entry);
+      await this.disk.write(entry);
     } catch (e) {
       this.config.log('error', `log append failed: ${String(e)}`);
-      return fail(500, 'internal_error', 'could not persist the command');
+      return { outcome: fail(500, 'internal_error', 'could not persist the command') };
     }
+    const durable = this.disk.durable();
+    durable.catch(() => {}); // surfaced through `after`
     this.scene = r.scene;
     this.history = r.history;
     this.seq = entry.seq;
     this.rev = entry.rev;
     this.logEntries.push(entry);
     const response = this.responseOf(entry);
-    this.remember(env.id, response);
-    this.broadcast({
+    this.remember(key, hash, response);
+    const msg: ServerMsg = {
       type: 'applied',
       epoch: entry.epoch,
       seq: entry.seq,
@@ -295,23 +415,30 @@ export class SceneStore {
       inverse: entry.inverse,
       ...(entry.undoOf !== undefined ? { undoOf: entry.undoOf } : {}),
       ...(entry.redoOf !== undefined ? { redoOf: entry.redoOf } : {}),
-    });
+    };
+    // Registered in queue order and durable promises resolve in order, so broadcasts stay ordered.
+    const after = durable.then(() => this.broadcast(msg));
     if (this.logEntries.length >= this.config.compactAfter) {
       await this.snapshotNow(true).catch((e) => this.config.log('error', `compaction failed: ${String(e)}`));
     } else this.scheduleSnapshot();
-    return { status: 200, body: response };
+    return { outcome: { status: 200, body: response }, after };
   }
 
-  /** Replaces the scene: new epoch, history and log reset. */
+  /** Replaces the scene: new epoch, history and log reset. Disk first, then memory. */
   importScene(scene: Scene): Promise<{ epoch: string; rev: number }> {
     return this.enqueue(async () => {
-      this.epoch = randomUUID();
+      const epoch = randomUUID();
+      const history = createHistory();
+      await this.disk.writeSnapshot({ format: 1, epoch, rev: 0, seq: 0, scene, history, idempotency: [] }, { rotate: false });
+      await this.disk.discardHistory();
+      await this.disk.rewriteLog([]);
+      this.epoch = epoch;
       this.scene = scene;
       this.rev = this.seq = 0;
-      this.history = createHistory();
+      this.history = history;
       this.idempotent.clear();
       this.logEntries = [];
-      await this.snapshotNow(true);
+      this.dirty = false;
       this.broadcast({ type: 'reset', epoch: this.epoch, rev: 0, scene });
       return { epoch: this.epoch, rev: 0 };
     });
@@ -320,7 +447,11 @@ export class SceneStore {
   // ---- persistence ----------------------------------------------------------------------------
 
   private snapshot(): Snapshot {
-    return { format: 1, epoch: this.epoch, rev: this.rev, seq: this.seq, scene: this.scene, history: this.history };
+    return { format: 1, epoch: this.epoch, rev: this.rev, seq: this.seq, scene: this.scene, history: this.history, idempotency: this.idempotencyRecords() };
+  }
+
+  private idempotencyRecords(): IdempotencyRecord[] {
+    return [...this.idempotent].slice(-IDEMPOTENCY_PERSISTED).map(([key, v]) => ({ key, hash: v.hash, response: v.response }));
   }
 
   private scheduleSnapshot(): void {
@@ -338,7 +469,7 @@ export class SceneStore {
     await this.disk.writeSnapshot(this.snapshot());
     this.dirty = false;
     if (truncate) {
-      await this.disk.rewriteLog([]);
+      await this.disk.rotateLog();
       this.logEntries = [];
     }
   }
@@ -350,6 +481,7 @@ export class SceneStore {
     await this.enqueue(async () => {
       if (this.dirty) await this.snapshotNow(false);
     });
+    await this.disk.close();
   }
 
   // ---- helpers ----------------------------------------------------------------------------------
@@ -362,8 +494,9 @@ export class SceneStore {
     return { ok: true, epoch: e.epoch, rev: e.rev, seq: e.seq, result: e.result };
   }
 
-  private remember(id: string, response: PostCommandResponse): void {
-    this.idempotent.set(id, response);
+  private remember(key: string, hash: string, response: PostCommandResponse): void {
+    this.idempotent.delete(key);
+    this.idempotent.set(key, { hash, response });
     if (this.idempotent.size > IDEMPOTENCY_CAP) this.idempotent.delete(this.idempotent.keys().next().value!);
   }
 

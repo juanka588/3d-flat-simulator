@@ -12,23 +12,69 @@ test.beforeEach(async ({ page }) => {
   await openApp(page);
 });
 
-test('a valid finish applies, undoes and redoes without moving the camera', async ({ page }) => {
-  const before = await flat(page, (f) => f.stats());
+type Pose = { camera: [number, number, number]; yawDeg: number; mode: string };
+
+const readPose = async (page: Page): Promise<Pose> => {
+  const { camera, yawDeg, mode } = await flat(page, (f) => f.stats());
+  return { camera, yawDeg, mode };
+};
+
+/** Lets orbit damping run out deterministically: the hook applies the remaining motion at once (no frame counting). */
+async function spinDown(page: Page): Promise<void> {
+  await page.evaluate(() => window.__flat!.settleCamera());
+}
+
+function expectSamePose(actual: Pose, expected: Pose): void {
+  expect(actual.mode).toBe(expected.mode);
+  actual.camera.forEach((c, k) => expect(c).toBeCloseTo(expected.camera[k]!, 1));
+  expect(actual.yawDeg).toBeCloseTo(expected.yawDeg, 0);
+}
+
+async function orbitAway(page: Page): Promise<void> {
+  const box = (await page.locator('canvas').boundingBox())!;
+  const x = box.x + box.width / 2;
+  const y = box.y + box.height / 2;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x + 140, y + 60, { steps: 8 });
+  await page.mouse.up();
+}
+
+async function editUndoRedoKeepsPose(page: Page): Promise<void> {
+  const before = await readPose(page);
   expect(await floorOf(page)).toBeNull();
 
-  const result = await apply(page, FLOOR);
-  expect(result.ok).toBe(true);
+  expect((await apply(page, FLOOR)).ok).toBe(true);
   expect(await floorOf(page)).toBe('floor-tile');
-  expect((await flat(page, (f) => f.stats())).camera).toEqual(before.camera);
+  expectSamePose(await readPose(page), before);
   expect(await flat(page, (f) => f.history())).toMatchObject({ canUndo: true, canRedo: false });
 
   expect(await page.evaluate(() => window.__flat!.undo())).toEqual({ ok: true, canUndo: false, canRedo: true });
   expect(await floorOf(page)).toBeNull();
-  expect((await flat(page, (f) => f.stats())).camera).toEqual(before.camera);
+  expectSamePose(await readPose(page), before);
 
   expect(await page.evaluate(() => window.__flat!.redo())).toEqual({ ok: true, canUndo: true, canRedo: false });
   expect(await floorOf(page)).toBe('floor-tile');
+  expectSamePose(await readPose(page), before);
   expect(await page.evaluate(() => window.__flat!.undo().then(() => window.__flat!.undo()))).toMatchObject({ ok: false });
+}
+
+test('a valid finish applies, undoes and redoes without moving an orbited camera', async ({ page }) => {
+  test.slow();
+  const initial = await readPose(page);
+  await orbitAway(page);
+  await spinDown(page);
+  const orbited = await readPose(page);
+  expect(orbited.camera).not.toEqual(initial.camera); // a non-default pose, so "unchanged" means something
+  await editUndoRedoKeepsPose(page);
+});
+
+test('a valid finish applies, undoes and redoes without moving a walker', async ({ page }) => {
+  await flat(page, (f) => f.setView({ mode: 'walk' }));
+  await page.evaluate((p) => window.__flat!.setWalkPose(p), { x: 2.2, z: 6.1, yawDeg: 37 });
+  const walking = await readPose(page);
+  expect(walking.yawDeg).toBeCloseTo(37, 0);
+  await editUndoRedoKeepsPose(page);
 });
 
 test('an invalid command returns errors and leaves the scene unchanged', async ({ page }) => {
@@ -53,6 +99,47 @@ test('an edit survives a reload through the autosave', async ({ page }) => {
   // The history came back too.
   expect(await page.evaluate(() => window.__flat!.undo())).toMatchObject({ ok: true });
   expect(await floorOf(page)).toBeNull();
+});
+
+test('a corrupt save is kept aside and autosave stays paused until the user chooses', async ({ page }) => {
+  await page.evaluate(() => localStorage.setItem('flat.autosave.v1', '{this is not json'));
+  await page.reload();
+  await page.evaluate(() => window.__flat!.ready);
+  expect((await apply(page, FLOOR)).ok).toBe(true);
+  await flat(page, (f) => f.flushAutosave());
+  // Nothing was written over the saved flat, and a copy of it was kept.
+  const stored = await page.evaluate(() => ({
+    current: localStorage.getItem('flat.autosave.v1'),
+    rejected: Object.keys(localStorage).filter((k) => k.startsWith('flat.autosave.rejected.')),
+  }));
+  expect(stored.current).toBe('{this is not json');
+  expect(stored.rejected).toHaveLength(1);
+  await page.reload();
+  await page.evaluate(() => window.__flat!.ready);
+  expect(await floorOf(page)).toBeNull(); // the edit was never saved
+});
+
+test('"Keep editing (overwrite)" resumes autosave and saves the open flat', async ({ page }) => {
+  await page.evaluate(() => localStorage.setItem('flat.autosave.v1', '{this is not json'));
+  await page.reload();
+  await page.evaluate(() => window.__flat!.ready);
+  await apply(page, FLOOR);
+  await page.getByTestId('boot-keep-editing').click();
+  await expect(page.getByTestId('boot-banner')).toHaveCount(0);
+  await flat(page, (f) => f.flushAutosave());
+  await page.reload();
+  await page.evaluate(() => window.__flat!.ready);
+  expect(await floorOf(page)).toBe('floor-tile');
+});
+
+test('"Start fresh" reopens the sample and resumes autosave', async ({ page }) => {
+  await page.evaluate(() => localStorage.setItem('flat.autosave.v1', '{this is not json'));
+  await page.reload();
+  await page.evaluate(() => window.__flat!.ready);
+  await apply(page, FLOOR);
+  await page.getByTestId('boot-start-fresh').click();
+  expect(await floorOf(page)).toBeNull();
+  await expect(page.getByTestId('boot-banner')).toHaveCount(0);
 });
 
 test('a corrupt save falls back to the sample with a banner', async ({ page }) => {

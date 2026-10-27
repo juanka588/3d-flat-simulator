@@ -111,7 +111,11 @@ export function WalkControls({ scene, personHeightCm, onExit }: WalkControlsProp
         exit.current();
         return;
       }
-      if (isTypingTarget(e.target) || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.metaKey || e.code.startsWith('Meta')) {
+        pressed.current.clear(); // e.g. Cmd+Z while walking: the held key's keyup will never arrive
+        return;
+      }
+      if (isTypingTarget(e.target) || e.ctrlKey || e.altKey) return;
       if (e.code in KEY_DIRECTIONS || e.code.startsWith('Shift')) {
         if (e.code in KEY_DIRECTIONS) e.preventDefault();
         pressed.current.add(e.code);
@@ -119,16 +123,25 @@ export function WalkControls({ scene, personHeightCm, onExit }: WalkControlsProp
       }
     };
     // Releases are never filtered, so a key can not stay stuck if focus moved while it was held.
-    const up = (e: KeyboardEvent) => pressed.current.delete(e.code);
+    // On macOS a key held while Cmd is down never gets its keyup, so any meta-key event clears everything.
+    const up = (e: KeyboardEvent) => {
+      if (e.metaKey || e.code.startsWith('Meta')) pressed.current.clear();
+      else pressed.current.delete(e.code);
+    };
     const blur = () => pressed.current.clear();
+    const hidden = () => {
+      if (document.visibilityState === 'hidden') pressed.current.clear();
+    };
     window.addEventListener('keydown', down);
     window.addEventListener('keyup', up);
     window.addEventListener('blur', blur);
+    document.addEventListener('visibilitychange', hidden);
     const keys = pressed.current;
     return () => {
       window.removeEventListener('keydown', down);
       window.removeEventListener('keyup', up);
       window.removeEventListener('blur', blur);
+      document.removeEventListener('visibilitychange', hidden);
       keys.clear();
     };
   }, [invalidate]);

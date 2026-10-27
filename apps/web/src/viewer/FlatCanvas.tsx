@@ -2,6 +2,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import type { RootState } from '@react-three/fiber';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
+import { BUILTIN_MATERIALS } from '@flat/scene';
 import type { Scene, SiteContext } from '@flat/scene';
 import { CameraRig } from './CameraRig';
 import { CompassDriver, CompassOverlay } from './Compass';
@@ -10,10 +11,11 @@ import { StructuralOverlay } from './StructuralOverlay';
 import { ShellMesh, CLICK_DRAG_TOLERANCE_PX } from './ShellMesh';
 import { VIEWER_ELEMENT_ID, WalkControls } from './WalkControls';
 import { WalkOverlay } from './WalkOverlay';
-import { createMaterialLibrary } from './materials';
+import { DOOR_WALK_MATERIAL, createMaterialLibrary } from './materials';
 import { getPerfProfile } from './perf';
 import { createRoomAmbient, withRoomAmbient } from './room-ambient';
 import { shellFor } from './shell-cache';
+import { withHitContext } from './selection';
 import { MAX_ANISOTROPY, textureCache } from './texture-cache';
 import { shadowCasterGeometry } from './derived-geometry';
 import { LightingRig } from './LightingRig';
@@ -96,6 +98,9 @@ function FrameReporter({ scene, view, onFrame }: { scene: Scene; view: ViewState
   return null;
 }
 
+/** Walk mode draws door leaves see-through (see DOOR_WALK_MATERIAL). */
+const WALK_SWAP = { [BUILTIN_MATERIALS.door]: DOOR_WALK_MATERIAL } as const;
+
 function Shell({ scene, view, onSelect }: { scene: Scene; view: ViewState; onSelect: (s: Selection) => void }) {
   const shell = useMemo(() => shellFor(scene), [scene]);
   // Per-room sky ambient (windowless rooms get less): an aoMap on the shell materials, see room-ambient.ts.
@@ -103,18 +108,27 @@ function Shell({ scene, view, onSelect }: { scene: Scene; view: ViewState; onSel
   useEffect(() => () => ambient.dispose(), [ambient]);
   const gl = useThree((s) => s.gl);
   const invalidate = useThree((s) => s.invalidate);
-  const materials = useMemo(
+  // One material library per canvas, kept in step with the scene: an edit updates changed materials in place
+  // (the same objects, so no texture is released, re-fetched or re-uploaded); it is never rebuilt per scene.
+  const library = useMemo(
     () =>
-      createMaterialLibrary(scene, ambient.texture, {
+      createMaterialLibrary(null, undefined, {
         anisotropy: Math.min(MAX_ANISOTROPY, gl.capabilities.getMaxAnisotropy()),
         onChange: () => invalidate(),
       }),
-    [scene, ambient, gl, invalidate],
+    [gl, invalidate],
   );
+  // Updated while rendering (idempotent) so that meshes rendered below already see the new materials.
+  const materials = useMemo(() => {
+    library.update(scene.materials, ambient.texture);
+    return library.snapshot();
+  }, [library, scene.materials, ambient]);
+  // Materials the update removed are disposed once the render that stopped using them is committed.
+  useEffect(() => library.commit());
   useEffect(() => {
-    materials.resume();
-    return () => materials.dispose();
-  }, [materials]);
+    library.resume();
+    return () => library.dispose();
+  }, [library]);
   // After a lost WebGL context everything is re-uploaded: drop the cached sets and reload the used ones.
   useEffect(() => {
     const canvas = gl.domElement;
@@ -134,7 +148,7 @@ function Shell({ scene, view, onSelect }: { scene: Scene; view: ViewState; onSel
   );
 
   const walk = view.mode === 'walk';
-  const pick = walk ? undefined : onSelect;
+  const pick = walk ? undefined : (sel: Selection, point: [number, number]) => onSelect(withHitContext(scene, sel, point));
   const selectedId = view.selection?.entityId;
   const casters = useMemo(() => shadowCasterGeometry(shell), [shell]);
   useEffect(() => () => casters.dispose(), [casters]);
@@ -150,9 +164,9 @@ function Shell({ scene, view, onSelect }: { scene: Scene; view: ViewState; onSel
       <ShellMesh name="floors" data={roomMeshes.floors} materials={materials} receiveShadow onSelect={pick} />
       {/* Ceilings are hidden in orbit/top so the interior stays visible from above. */}
       {walk && <ShellMesh name="ceilings" data={roomMeshes.ceilings} materials={materials} onSelect={pick} />}
-      <ShellMesh name="fittings" data={roomMeshes.fittings} materials={materials} receiveShadow onSelect={pick} />
+      <ShellMesh name="fittings" data={roomMeshes.fittings} materials={materials} receiveShadow swap={walk ? WALK_SWAP : undefined} renderOrder={1} onSelect={pick} />
       <ShellMesh name="items" data={roomMeshes.items} materials={materials} receiveShadow onSelect={pick} />
-      <ShellMesh name="glass" data={shell.glass} materials={materials} onSelect={pick} />
+      <ShellMesh name="glass" data={shell.glass} materials={materials} renderOrder={2} onSelect={pick} />
       {selectedId && meshes.map((m, i) => <SelectionHighlight key={i} mesh={m} entityId={selectedId} />)}
     </group>
   );

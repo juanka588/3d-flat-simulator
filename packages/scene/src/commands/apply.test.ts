@@ -4,6 +4,7 @@ import { canCutOpening, canRemoveWall } from './guards';
 import { FIXTURES, deepFreeze, env } from './testUtil';
 import type { Command } from './schema';
 import { Scene } from '../schema';
+import { wallFaceMaterial } from '../geometry/materials';
 
 const charme = FIXTURES.charme!;
 const ok = (scene: typeof charme, cmd: Command): ApplyOk => {
@@ -21,7 +22,7 @@ describe('applyCommand', () => {
     expect(r.scene.rooms).toBe(charme.rooms);
     expect(r.changed.walls).toEqual(['w-north']);
     const back = ok(r.scene, r.inverse);
-    expect(back.scene).toEqual(charme);
+    expect(back.scene).toStrictEqual(charme);
   });
 
   it('reports unknown ids with nearest suggestions', () => {
@@ -48,46 +49,79 @@ describe('applyCommand', () => {
     expect(a.scene.materials).toHaveLength(charme.materials.length + 1);
     expect(ok(a.scene, { type: 'material.define', material: green }).noop).toBe(true);
     const upd = ok(a.scene, { type: 'material.define', material: { ...green, color: '#112233' } });
-    expect(ok(upd.scene, upd.inverse).scene).toEqual(a.scene);
+    expect(ok(upd.scene, upd.inverse).scene).toStrictEqual(a.scene);
     const bad = applyCommand(a.scene, env({ type: 'material.define', material: { ...green, kind: 'texture', textureUrl: 'lib:oak' } }));
     expect(!bad.ok && bad.errors[0]!.code).toBe('precondition_failed');
-    expect(ok(a.scene, a.inverse).scene).toEqual(charme);
+    expect(ok(a.scene, a.inverse).scene).toStrictEqual(charme);
   });
 
-  it('material.remove refuses used materials', () => {
+  it('material.remove refuses used materials and names the user', () => {
+    expect(charme.defaults.wall).toBe('paint-white');
     const r = applyCommand(charme, env({ type: 'material.remove', id: 'paint-white' }));
-    expect(r.ok === false || charme.defaults.wall !== 'paint-white').toBe(true);
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.errors[0]!.code).toBe('precondition_failed');
+      expect(r.errors[0]!.message).toContain('defaults.wall');
+    }
   });
 
-  it('textureUrl accepts lib: and relative paths only', () => {
+  it('material.remove refuses a material used only as Room.wallFinish, naming the room', () => {
+    const withGreen = ok(charme, { type: 'material.define', material: green });
+    const painted = ok(withGreen.scene, { type: 'room.setWallFinish', roomId: 'sejour', materialId: 'paint-green' });
+    const r = applyCommand(painted.scene, env({ type: 'material.remove', id: 'paint-green' }));
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.errors[0]!.code).toBe('precondition_failed');
+      expect(r.errors[0]!.message).toContain('room sejour');
+    }
+    // once unused it can go
+    const cleared = ok(painted.scene, { type: 'room.setWallFinish', roomId: 'sejour', materialId: null });
+    expect(ok(cleared.scene, { type: 'material.remove', id: 'paint-green' }).scene.materials.some((m) => m.id === 'paint-green')).toBe(false);
+  });
+
+  it('material.remove refuses a material used by a room-scoped wall finish', () => {
+    const withGreen = ok(charme, { type: 'material.define', material: green });
+    const scoped = ok(withGreen.scene, { type: 'wall.setFinish', wallId: 'w-west', side: 'right', materialId: 'paint-green', roomId: 'sejour' });
+    const r = applyCommand(scoped.scene, env({ type: 'material.remove', id: 'paint-green' }));
+    expect(!r.ok && r.errors[0]!.message).toContain('wall w-west');
+  });
+
+  it('textureUrl accepts only lib:<slug>', () => {
     const t = (u: string) => applyCommand(charme, env({ type: 'material.define', material: { ...green, kind: 'texture', textureUrl: u } })).ok;
     expect(t('lib:oak-parquet')).toBe(true);
-    expect(t('materials/oak/')).toBe(true);
+    expect(t('materials/oak/')).toBe(false);
+    expect(t('lib:Bad_Slug')).toBe(false);
     expect(t('https://evil.example/x')).toBe(false);
     expect(t('/abs/path')).toBe(false);
     expect(t('../up')).toBe(false);
     expect(t('data:image/png;base64,AAAA')).toBe(false);
   });
 
-  it('room.setWallFinish sets room.wallFinish, clears full sides, leaves shared sides, undoes exactly', () => {
+  it('room.setWallFinish sets room.wallFinish, converts shared-side finishes for the other rooms, undoes exactly', () => {
     const pre = ok(charme, { type: 'wall.setFinish', wallId: 'w-north', side: 'right', materialId: 'paint-white' });
     const r = ok(pre.scene, { type: 'room.setWallFinish', roomId: 'ch2', materialId: 'floor-tile' });
+    const north = r.scene.walls.find((w) => w.id === 'w-north')!;
     expect(r.scene.rooms.find((x) => x.id === 'ch2')!.wallFinish).toBe('floor-tile');
-    expect(r.warnings.map((w) => w.code)).toEqual(['shared_wall_side_override']);
-    // shared side untouched, other rooms untouched
-    expect(r.scene.walls.find((w) => w.id === 'w-north')!.finish.right).toBe('paint-white');
+    expect(r.warnings).toStrictEqual([]);
+    // the whole-side finish is gone; the other rooms keep it as their own scoped finish
+    expect(north.finish.right).toBeUndefined();
+    expect(north.roomFinishes).toStrictEqual({
+      alcove: { right: 'paint-white' }, ch1: { right: 'paint-white' }, balcon: { right: 'paint-white' },
+    });
+    expect(wallFaceMaterial(r.scene, north, 'right', 'ch2')).toBe('floor-tile');
+    for (const other of ['alcove', 'ch1', 'balcon']) expect(wallFaceMaterial(r.scene, north, 'right', other)).toBe('paint-white');
     expect(r.scene.rooms.find((x) => x.id === 'sejour')!.wallFinish).toBeUndefined();
-    expect(ok(r.scene, r.inverse).scene).toEqual(pre.scene);
+    expect(ok(r.scene, r.inverse).scene).toStrictEqual(pre.scene);
     // explicit finish on a full side is cleared, and restored on undo
     const withFull = ok(charme, { type: 'wall.setFinish', wallId: 'w-ch2-ch1', side: 'right', materialId: 'paint-white' });
     const r2 = ok(withFull.scene, { type: 'room.setWallFinish', roomId: 'ch2', materialId: 'floor-tile' });
     expect(r2.scene.walls.find((w) => w.id === 'w-ch2-ch1')!.finish.right).toBeUndefined();
     expect(r2.changed.walls).toContain('w-ch2-ch1');
-    expect(ok(r2.scene, r2.inverse).scene).toEqual(withFull.scene);
+    expect(ok(r2.scene, r2.inverse).scene).toStrictEqual(withFull.scene);
     // clearing
     const cleared = ok(r2.scene, { type: 'room.setWallFinish', roomId: 'ch2', materialId: null });
     expect(cleared.scene.rooms.find((x) => x.id === 'ch2')!.wallFinish).toBeUndefined();
-    expect(ok(cleared.scene, cleared.inverse).scene).toEqual(r2.scene);
+    expect(ok(cleared.scene, cleared.inverse).scene).toStrictEqual(r2.scene);
   });
 
   it('room.setWallFinish on an unwalled room gives no_wall_sides', () => {
@@ -107,7 +141,7 @@ describe('applyCommand', () => {
     ] as Command[]) {
       const r = ok(charme, cmd);
       expect(r.noop, JSON.stringify(cmd)).toBeUndefined();
-      expect(ok(r.scene, r.inverse).scene).toEqual(charme);
+      expect(ok(r.scene, r.inverse).scene).toStrictEqual(charme);
       expect(Scene.safeParse(r.scene).success).toBe(true);
     }
   });
@@ -117,15 +151,15 @@ describe('applyCommand', () => {
     const a = ok(charme, cmd);
     const id = a.scene.lights.at(-1)!.id;
     expect(id).toBe(`light-${charme.lights.length + 1}`);
-    expect(ok(charme, cmd).scene).toEqual(a.scene);
-    expect(ok(a.scene, a.inverse).scene).toEqual(charme);
+    expect(ok(charme, cmd).scene).toStrictEqual(a.scene);
+    expect(ok(a.scene, a.inverse).scene).toStrictEqual(charme);
     const u = ok(a.scene, { type: 'light.update', id, patch: { on: false, name: 'x' } });
-    expect(ok(u.scene, u.inverse).scene).toEqual(a.scene);
+    expect(ok(u.scene, u.inverse).scene).toStrictEqual(a.scene);
     const bad = applyCommand(a.scene, env({ type: 'light.update', id, patch: { width: 2 } }));
     expect(bad.ok).toBe(false);
     const first = charme.lights[0]!;
     const rm = ok(charme, { type: 'light.remove', id: first.id });
-    expect(ok(rm.scene, rm.inverse).scene).toEqual(charme);
+    expect(ok(rm.scene, rm.inverse).scene).toStrictEqual(charme);
   });
 
   it('batch is atomic with commands/N paths, one inverse', () => {
@@ -135,7 +169,7 @@ describe('applyCommand', () => {
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.errors[0]!.path).toMatch(/^commands\/1\//);
     const g = ok(charme, { type: 'batch', label: 'b', commands: [good, { type: 'room.setFloor', roomId: 'sejour', materialId: 'floor-oak' }] });
-    expect(ok(g.scene, g.inverse).scene).toEqual(charme);
+    expect(ok(g.scene, g.inverse).scene).toStrictEqual(charme);
   });
 
   it('ifRev mismatch fails', () => {

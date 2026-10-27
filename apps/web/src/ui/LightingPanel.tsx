@@ -4,6 +4,7 @@ import type { LampOverride, PresetName, Scene } from '@flat/scene';
 import { SPEEDS, useClockStore } from '../state/dayClock';
 import { fromMinutes, instantToLocal, toMinutes } from '../state/localTime';
 import { sunInfoFor } from '../state/sunInfo';
+import { WALK_LIGHTS_EV } from '../state/effectiveLighting';
 import { useViewStore } from '../state/viewStore';
 import { NumberField } from './NumberField';
 
@@ -24,6 +25,10 @@ interface LightingPanelProps {
 export function LightingPanel({ scene, hasContext }: LightingPanelProps) {
   const lighting = useViewStore((s) => s.lighting);
   const setLighting = useViewStore((s) => s.setLighting);
+  const walkLightsOn = useViewStore((s) => s.walkLightsOn);
+  const setWalkLightsOn = useViewStore((s) => s.setWalkLightsOn);
+  // While walking with the preference on, the viewer lights every lamp (see effectiveLighting): the stored toggles are kept, just not shown as editable.
+  const walkOverride = useViewStore((s) => s.mode === 'walk') && walkLightsOn;
   const { playing, speed, setPlaying, setSpeed } = useClockStore();
   const ids = { date: useId(), time: useId(), clock: useId(), ev: useId() };
   const info = sunInfoFor(scene, lighting);
@@ -175,16 +180,25 @@ export function LightingPanel({ scene, hasContext }: LightingPanelProps) {
 
       <fieldset>
         <legend>Lamps</legend>
+        <label className="check">
+          <input type="checkbox" data-testid="walk-lights-toggle" checked={walkLightsOn} onChange={(e) => setWalkLightsOn(e.target.checked)} />
+          Lights on in walk mode
+        </label>
+        {walkOverride && (
+          <p className="hint" data-testid="walk-lights-note">
+            Walking: all lamps are on and exposure is +{WALK_LIGHTS_EV} EV. Your own settings return when you leave walk mode.
+          </p>
+        )}
         {scene.lights.length === 0 && <p className="hint">This flat has no lamps.</p>}
         <ul className="lamps">
           {scene.lights.map((light) => {
             const o = lighting.lamps[light.id] ?? {};
-            const on = o.on ?? light.on;
+            const on = walkOverride || (o.on ?? light.on);
             const name = light.name ?? light.id;
             return (
               <li key={light.id} data-testid={`lamp-${light.id}`}>
                 <label className="check">
-                  <input type="checkbox" checked={on} aria-label={`${name} on`} onChange={(e) => setLamp(light.id, { on: e.target.checked })} />
+                  <input type="checkbox" checked={on} disabled={walkOverride} aria-label={`${name} on`} onChange={(e) => setLamp(light.id, { on: e.target.checked })} />
                   {name}
                 </label>
                 <div className="lamp-fields">

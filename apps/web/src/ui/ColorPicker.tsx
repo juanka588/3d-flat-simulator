@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 import { PALETTE, SHEENS, normalizeHex } from '@flat/scene';
 import type { Sheen } from '@flat/scene';
@@ -46,7 +46,7 @@ interface ColorPickerProps {
   onCancel: () => void;
 }
 
-function Swatch({ name, hex, active, tabbable, onPick }: { name: string; hex: string; active: boolean; tabbable: boolean; onPick: () => void }) {
+function Swatch({ name, hex, active, tabbable, onPick, onFocus }: { name: string; hex: string; active: boolean; tabbable: boolean; onPick: () => void; onFocus: () => void }) {
   return (
     <button
       type="button"
@@ -58,6 +58,7 @@ function Swatch({ name, hex, active, tabbable, onPick }: { name: string; hex: st
       className="swatch"
       style={{ background: hex }}
       onClick={onPick}
+      onFocus={onFocus}
     />
   );
 }
@@ -81,16 +82,41 @@ function arrowNav(e: KeyboardEvent<HTMLElement>) {
   items[to]?.focus();
 }
 
+/**
+ * One radiogroup of swatches (WAI-ARIA radio pattern, "focus follows arrows" variant): the arrow keys move
+ * focus without applying (every apply is an undo step), and the roving tabindex follows the focus, so
+ * Tab out and back returns to the swatch you left on.
+ */
+function SwatchGroup({ labelId, swatches, active, onPick }: { labelId: string; swatches: { name: string; hex: string }[]; active: string | null; onPick: (hex: string) => void }) {
+  const [roving, setRoving] = useState<string | null>(null);
+  const known = swatches.some((s) => s.hex === roving) ? roving : null;
+  const tabbableHex = known ?? swatches.find((s) => s.hex === active)?.hex ?? swatches[0]?.hex;
+  return (
+    <div role="radiogroup" aria-labelledby={labelId} className="swatch-row" onKeyDown={arrowNav}>
+      {swatches.map((s) => (
+        <Swatch key={s.hex} name={s.name} hex={s.hex} active={s.hex === active} tabbable={s.hex === tabbableHex} onPick={() => onPick(s.hex)} onFocus={() => setRoving(s.hex)} />
+      ))}
+    </div>
+  );
+}
+
 export function ColorPicker({ activeHex, sheen, onSheen, onApply, onPreview, onCommit, onCancel }: ColorPickerProps) {
   const [recent, setRecent] = useState<string[]>(readRecentColours);
   const [custom, setCustom] = useState(activeHex ?? '#a3ae93');
   const [hexText, setHexText] = useState(activeHex ?? '#a3ae93');
   const [invalid, setInvalid] = useState(false);
   const previewing = useRef(false);
+  const uid = useId();
   const input = useRef<HTMLInputElement>(null);
   const commitRef = useRef(onCommit);
+  const cancelRef = useRef(onCancel);
+  /** The colour shown before a drag started, restored when the drag is cancelled. */
+  const dragFrom = useRef(custom);
+  const customRef = useRef(custom);
   useEffect(() => {
     commitRef.current = onCommit;
+    cancelRef.current = onCancel;
+    customRef.current = custom;
   });
 
   const remember = (hex: string) => setRecent(addRecentColour(hex));
@@ -99,22 +125,15 @@ export function ColorPicker({ activeHex, sheen, onSheen, onApply, onPreview, onC
     if (!previewing.current) return;
     previewing.current = false;
     commitRef.current();
-    remember(custom);
+    remember(customRef.current);
   };
-  const finishDragRef = useRef(finishDrag);
-  useEffect(() => {
-    finishDragRef.current = finishDrag;
-  });
-
-  // The native `change` event fires when the colour dialog closes (React's onChange is `input`).
-  useEffect(() => {
-    const el = input.current;
-    if (!el) return;
-    const onChange = () => finishDragRef.current();
-    el.addEventListener('change', onChange);
-    return () => el.removeEventListener('change', onChange);
-  }, []);
-
+  const cancelDrag = () => {
+    if (!previewing.current) return;
+    previewing.current = false;
+    cancelRef.current();
+    setCustom(dragFrom.current);
+    setHexText(dragFrom.current);
+  };
   const apply = (hex: string) => {
     setCustom(hex);
     setHexText(hex);
@@ -122,6 +141,35 @@ export function ColorPicker({ activeHex, sheen, onSheen, onApply, onPreview, onC
     remember(hex);
     onApply(hex);
   };
+  const latest = useRef({ finishDrag, apply });
+  useEffect(() => {
+    latest.current = { finishDrag, apply };
+  });
+
+  // The native `change` event fires when the colour dialog closes (React's onChange is `input`). Normally it
+  // follows one or more `input` events (commit the preview); a picker that only fires `change` applies the value.
+  useEffect(() => {
+    const el = input.current;
+    if (!el) return;
+    const onChange = () => {
+      if (previewing.current) latest.current.finishDrag();
+      else latest.current.apply(el.value.toLowerCase());
+    };
+    el.addEventListener('change', onChange);
+    return () => el.removeEventListener('change', onChange);
+  }, []);
+
+  // Unmounting mid-drag (selection change, tab switch, panel closed) COMMITS the previewed colour as one history
+  // entry: the user saw it applied, and the preview is bound to the target it started on. Esc cancels instead.
+  useEffect(
+    () => () => {
+      if (!previewing.current) return;
+      previewing.current = false;
+      commitRef.current();
+      addRecentColour(customRef.current);
+    },
+    [],
+  );
 
   const submitHex = () => {
     const hex = parseHexInput(hexText);
@@ -133,27 +181,21 @@ export function ColorPicker({ activeHex, sheen, onSheen, onApply, onPreview, onC
   };
 
   const active = activeHex?.toLowerCase() ?? null;
-  const firstActive = PALETTE.flatMap((g) => g.swatches).find((s) => s.hex === active);
 
   return (
-    <div className="color-picker">
+    <div
+      className="color-picker"
+      onKeyDown={(e) => {
+        // Esc during a colour drag drops the preview and restores the colour the drag started from.
+        if (e.key === 'Escape' && previewing.current) cancelDrag();
+      }}
+    >
       {PALETTE.map((group) => (
         <div key={group.group} className="swatch-group">
-          <div className="swatch-group-label" id={`swatches-${group.group}`}>
+          <div className="swatch-group-label" id={`${uid}-${group.group}`}>
             {group.label}
           </div>
-          <div role="radiogroup" aria-labelledby={`swatches-${group.group}`} className="swatch-row" onKeyDown={arrowNav}>
-            {group.swatches.map((s, i) => (
-              <Swatch
-                key={s.hex}
-                name={s.name}
-                hex={s.hex}
-                active={s.hex === active}
-                tabbable={firstActive ? s.hex === firstActive.hex : i === 0}
-                onPick={() => apply(s.hex)}
-              />
-            ))}
-          </div>
+          <SwatchGroup labelId={`${uid}-${group.group}`} swatches={group.swatches} active={active} onPick={apply} />
         </div>
       ))}
 
@@ -166,6 +208,7 @@ export function ColorPicker({ activeHex, sheen, onSheen, onApply, onPreview, onC
             value={custom}
             onInput={(e) => {
               const hex = e.currentTarget.value.toLowerCase();
+              if (!previewing.current) dragFrom.current = customRef.current;
               setCustom(hex);
               setHexText(hex);
               setInvalid(false);
@@ -174,12 +217,6 @@ export function ColorPicker({ activeHex, sheen, onSheen, onApply, onPreview, onC
             }}
             onChange={() => undefined}
             onBlur={finishDrag}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape' && previewing.current) {
-                previewing.current = false;
-                onCancel();
-              }
-            }}
           />
         </label>
         <label className="field-inline">
@@ -192,7 +229,7 @@ export function ColorPicker({ activeHex, sheen, onSheen, onApply, onPreview, onC
             maxLength={7}
             value={hexText}
             aria-invalid={invalid}
-            aria-describedby={invalid ? 'hex-error' : undefined}
+            aria-describedby={invalid ? `${uid}-hex-error` : undefined}
             className="hex-field"
             onChange={(e) => {
               setHexText(e.target.value);
@@ -210,7 +247,7 @@ export function ColorPicker({ activeHex, sheen, onSheen, onApply, onPreview, onC
           Apply colour
         </button>
         {invalid && (
-          <p id="hex-error" role="alert" className="field-error">
+          <p id={`${uid}-hex-error`} role="alert" className="field-error">
             Enter a hex colour like #a3ae93 or #abc.
           </p>
         )}
@@ -231,14 +268,10 @@ export function ColorPicker({ activeHex, sheen, onSheen, onApply, onPreview, onC
 
       {recent.length > 0 && (
         <div className="swatch-group">
-          <div className="swatch-group-label" id="swatches-recent">
+          <div className="swatch-group-label" id={`${uid}-recent`}>
             Recent colours
           </div>
-          <div role="radiogroup" aria-labelledby="swatches-recent" className="swatch-row" onKeyDown={arrowNav}>
-            {recent.map((hex, i) => (
-              <Swatch key={hex} name="Recent" hex={hex} active={hex === active} tabbable={i === 0} onPick={() => apply(hex)} />
-            ))}
-          </div>
+          <SwatchGroup labelId={`${uid}-recent`} swatches={recent.map((hex) => ({ name: 'Recent', hex }))} active={active} onPick={apply} />
         </div>
       )}
     </div>

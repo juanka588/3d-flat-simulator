@@ -1,4 +1,5 @@
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { Material } from '../schema';
@@ -46,6 +47,37 @@ describe('material catalog.json', () => {
       total += sum;
     }
     expect(total).toBeLessThanOrEqual(8 * 1024 * 1024);
+  });
+
+  it('has the sha256 of every file recorded in the catalog', () => {
+    for (const e of catalog) {
+      for (const [map, file] of Object.entries(e.files)) {
+        const digest = createHash('sha256').update(readFileSync(resolve(dir, e.id, file))).digest('hex');
+        expect(digest, `${e.id}/${map}`).toBe(e.sha256[map as keyof typeof e.sha256]);
+      }
+    }
+  });
+
+  it('ships no file the catalog does not list', () => {
+    const listed = new Set<string>(['catalog.json']);
+    for (const e of catalog) for (const file of Object.values(e.files)) listed.add(`${e.id}/${file}`);
+    const found: string[] = [];
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (entry.isDirectory()) for (const f of readdirSync(resolve(dir, entry.name))) found.push(`${entry.name}/${f}`);
+      else found.push(entry.name);
+    }
+    expect(found.filter((f) => !listed.has(f))).toEqual([]);
+  });
+
+  it('records what was checked for the licence and pins the downloaded originals', () => {
+    for (const e of catalog) {
+      expect(e.licenseEvidence, e.id).toBeDefined();
+      expect(e.licenseEvidence!.needle).toContain('creativecommons.org/publicdomain/zero');
+      expect(e.licenseEvidence!.assetApiUrl, e.id).toContain(encodeURIComponent(e.sourceId));
+      expect(Object.keys(e.sourceSha256 ?? {}).length, e.id).toBeGreaterThan(0);
+    }
+    const manifest = JSON.parse(readFileSync(resolve(repo, 'scripts/materials/manifest.json'), 'utf8')) as { slug: string; sourceSha256?: Record<string, string> }[];
+    for (const m of manifest) expect(m.sourceSha256, m.slug).toEqual(catalog.find((e) => e.id === m.slug)?.sourceSha256);
   });
 
   it('is credited with source URL and licence in docs/MATERIALS-CREDITS.md', () => {

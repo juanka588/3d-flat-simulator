@@ -3,11 +3,13 @@ import type { DragEvent } from 'react';
 import { MAX_SCENE_BYTES } from '@flat/scene';
 import { beginLoad, isLatestLoad, useSceneStore } from './state/sceneStore';
 import { DEFAULT_FIXTURE, FIXTURES } from './state/fixtures';
-import { useDocumentStatus } from './state/persistence';
+import { isDocumentDirty } from './state/persistence';
+import { effectiveLighting } from './state/effectiveLighting';
 import { alignContext, contextFor } from './state/siteContext';
 import { readPref, writePref } from './state/prefs';
 import { useViewStore } from './state/viewStore';
 import { noteFrame, registerCanvas, testHookEnabled } from './testHook';
+import { BootBanner } from './ui/BootBanner';
 import { DocumentMenu } from './ui/DocumentMenu';
 import { ErrorPanel } from './ui/ErrorPanel';
 import { LightingPanel } from './ui/LightingPanel';
@@ -15,6 +17,10 @@ import { ModeToolbar } from './ui/ModeToolbar';
 import { PropertiesPanel } from './ui/PropertiesPanel';
 import { SceneLoader } from './ui/SceneLoader';
 import { SitePanel } from './ui/SitePanel';
+import { SyncConflictDialog } from './ui/SyncConflictDialog';
+import { SyncNotices } from './ui/SyncNotices';
+import { SyncStatus } from './ui/SyncStatus';
+import { useSyncStore } from './sync/sync-store';
 import { useMobileLayout } from './ui/useMobileLayout';
 import { useUndoRedoKeys } from './ui/useUndoRedoKeys';
 import { ViewSettings } from './ui/ViewSettings';
@@ -29,17 +35,26 @@ export const CONTEXT_ATTRIBUTION = '© IGN – BD TOPO, Licence Ouverte 2.0';
 /** Desktop: whether the sidebar is collapsed ('1') or shown ('0'). Remembered across visits. */
 export const SIDEBAR_COLLAPSED_KEY = 'flat.sidebarCollapsed';
 
-/** Asks before discarding edits (a document with undo history). True when it is fine to replace it. */
+/**
+ * Asks before discarding edits: a document that differs from the pristine sample (edits, an import, a
+ * restored save). Connected to a scene server, loading also does `PUT /api/scene`, which replaces the
+ * shared scene for every tab, so that always asks.
+ */
 function confirmReplace(): boolean {
-  if (!useSceneStore.getState().canUndo) return true;
-  return window.confirm('Replace the open flat? Your edits to it will be lost (export it first to keep them).');
+  const sync = useSyncStore.getState();
+  const shared = sync.mode === 'server' && sync.status === 'connected';
+  if (!shared && !isDocumentDirty()) return true;
+  return window.confirm(
+    shared
+      ? 'Replace the shared flat on the scene server? Every connected tab will switch to the new one (export the current one first to keep it).'
+      : 'Replace the open flat? Your edits to it will be lost (export it first to keep them).',
+  );
 }
 
 export function App() {
   useUndoRedoKeys();
-  const bootNotice = useDocumentStatus((s) => s.bootNotice);
   const { scene, source, warnings, errors, loadText } = useSceneStore();
-  const { mode, selection, lighting, personHeightCm, setMode, select } = useViewStore();
+  const { mode, selection, lighting, personHeightCm, walkLightsOn, setMode, select } = useViewStore();
   const [dragging, setDragging] = useState(false);
   const mobile = useMobileLayout();
   // Desktop: a collapsible column (remembered). Mobile: an overlay drawer that always starts closed.
@@ -178,6 +193,7 @@ export function App() {
         aria-label={mobile ? 'Menu' : undefined}
       >
         <h1>{scene?.name ?? '3D Flat Simulator'}</h1>
+        <SyncStatus />
         <ModeToolbar mode={mode} onChange={changeMode} />
         {mode === 'walk' && (
           <p className="hint">Click the view to look around, WASD or arrows to move, Esc to leave.</p>
@@ -196,19 +212,12 @@ export function App() {
         )}
       </header>
       <main className="stage">
-        {bootNotice && (
-          <div className="boot-banner" role="status" data-testid="boot-banner">
-            <span>{bootNotice}</span>
-            <button type="button" className="link" onClick={() => useDocumentStatus.getState().dismissBootNotice()}>
-              Dismiss
-            </button>
-          </div>
-        )}
+        <BootBanner />
         {scene && (
           <>
             <FlatCanvas
               scene={scene}
-              view={{ mode, selection, lighting, personHeightCm }}
+              view={{ mode, selection, lighting: effectiveLighting(lighting, mode, walkLightsOn, scene.lights), personHeightCm }}
               context={context}
               onSelect={select}
               onExitWalk={exitWalk}
@@ -229,6 +238,8 @@ export function App() {
           </>
         )}
       </main>
+      <SyncNotices />
+      <SyncConflictDialog />
       <div className="drop-overlay" aria-hidden="true">
         Drop a .flat.json to load it
       </div>

@@ -2,7 +2,8 @@ import { addAfterEffect } from '@react-three/fiber';
 import type { RootState } from '@react-three/fiber';
 import { NeutralToneMapping, Vector3 } from 'three';
 import type { Camera, Light, Mesh, Object3D, PerspectiveCamera } from 'three';
-import { committedScene, useSceneStore } from './state/sceneStore';
+import { committedScene, getTransport, useSceneStore } from './state/sceneStore';
+import { connectionInfo } from './sync/sync-store';
 import { exportSceneText, flushAutosave } from './state/persistence';
 import { alignContext, contextFor } from './state/siteContext';
 import { setClockSource, tickClock, useClockStore } from './state/dayClock';
@@ -11,7 +12,8 @@ import { useViewStore } from './state/viewStore';
 import type { FlatStats, FlatTestHook, HistoryInfo } from './test-hook-types';
 import { textureStats, texturesSettled } from './viewer/texture-cache';
 import { stepWalker } from './viewer/walk-input';
-import { selectionForId } from './viewer/selection';
+import { effectiveLighting } from './state/effectiveLighting';
+import { selectionForId, selectionForWallFace } from './viewer/selection';
 import type { ViewState } from './viewer/view-types';
 import { sunPatches } from '@flat/scene';
 import type { Command, Scene } from '@flat/scene';
@@ -70,13 +72,13 @@ const sceneRevs = new WeakMap<Scene, number>();
 
 function reflectsStores(): boolean {
   const { scene, rev } = useSceneStore.getState();
-  const { mode, selection, lighting } = useViewStore.getState();
+  const { mode, selection, lighting, walkLightsOn } = useViewStore.getState();
   return (
     renderedFrame !== null &&
     (scene === null || (renderedFrame.scene === scene && sceneRevs.get(scene) === rev)) &&
     renderedFrame.view.mode === mode &&
     renderedFrame.view.selection === selection &&
-    renderedFrame.view.lighting === lighting
+    renderedFrame.view.lighting === effectiveLighting(lighting, mode, walkLightsOn, scene?.lights)
   );
 }
 
@@ -162,7 +164,9 @@ function cameraYawDeg(camera: Camera): number {
 }
 
 async function stepAndRender(kind: 'undo' | 'redo'): Promise<{ ok: boolean; canUndo: boolean; canRedo: boolean }> {
-  const ok = useSceneStore.getState()[kind]();
+  const transport = getTransport();
+  // Server mode: the step is a server call; wait until its `applied` entry is shown.
+  const ok = transport?.step ? transport.canStep?.(kind) === true && (await transport.step(kind)) : useSceneStore.getState()[kind]();
   if (ok) {
     await canvasReady;
     await whenRendered();
@@ -193,6 +197,30 @@ export function installTestHook(): void {
     ready: canvasReady.then(whenRendered),
     whenRendered: async () => {
       await canvasReady;
+      await whenRendered();
+    },
+    doorLeaves() {
+      const out: ReturnType<FlatTestHook['doorLeaves']> = [];
+      canvas?.().scene.traverse((o) => {
+        const mesh = o as Mesh;
+        if (!mesh.isMesh || o.name !== 'fittings') return;
+        for (const m of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
+          if (m.name.startsWith('builtin:door')) out.push({ id: m.name, transparent: m.transparent, opacity: m.opacity, depthWrite: m.depthWrite });
+        }
+      });
+      return out;
+    },
+    async settleCamera() {
+      await canvasReady;
+      // Orbit damping keeps coasting for ~100 frames after a drag. Applying the rest of the motion at once lands on the
+      // same pose the coasting converges to (the damped steps sum to the whole delta), so tests need not wait frames.
+      const controls = canvas?.().controls as { enableDamping?: boolean; update?: () => unknown } | null | undefined;
+      if (controls?.update) {
+        const damping = controls.enableDamping;
+        controls.enableDamping = false;
+        controls.update();
+        controls.enableDamping = damping;
+      }
       await whenRendered();
     },
     stats() {
@@ -325,8 +353,10 @@ export function installTestHook(): void {
         canUndo: s.canUndo,
         canRedo: s.canRedo,
         labels: [...s.historyLabels],
-        entries: s.history.past.map((e) => ({ id: e.envelope.id, type: e.envelope.cmd.type, author: e.envelope.author.kind })),
-        redoCount: s.history.future.length,
+        entries: s.remoteHistory
+          ? s.remoteHistory.past.map((e) => ({ id: e.id, type: e.type, author: e.author }))
+          : s.history.past.map((e) => ({ id: e.envelope.id, type: e.envelope.cmd.type, author: e.envelope.author.kind })),
+        redoCount: s.remoteHistory ? s.remoteHistory.futureCount : s.history.future.length,
         rev: s.rev,
       };
       return info;
@@ -342,12 +372,12 @@ export function installTestHook(): void {
       return text;
     },
     flushAutosave: () => flushAutosave(),
-    connection: () => ({ mode: 'local' }),
-    select(id) {
+    connection: () => connectionInfo(),
+    select(target) {
       const scene = useSceneStore.getState().scene;
-      const selection = scene && id ? selectionForId(scene, id) : null;
+      const selection = !scene || !target ? null : typeof target === 'string' ? selectionForId(scene, target) : selectionForWallFace(scene, target);
       useViewStore.getState().select(selection);
-      return id === null || selection !== null;
+      return target === null || selection !== null;
     },
   };
   window.__flat = hook;

@@ -7,6 +7,10 @@ export interface Selection {
   kind: OwnerKind;
   entityId: string;
   face?: WallFace;
+  /** Wall face clicks only: the room on the clicked face at the click point (absent for a face with no room). */
+  roomId?: string;
+  /** Wall face clicks only: metres along the wall (from its start) where the face was hit. */
+  along?: number;
 }
 
 /** Everything the viewer needs besides the Scene. Not part of undo/redo or autosave. */

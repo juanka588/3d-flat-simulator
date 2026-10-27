@@ -1,3 +1,15 @@
+/**
+ * - `invalid_command`: the envelope or command is malformed (unknown type, bad field, too long).
+ * - `unknown_entity` / `unknown_material`: an id does not exist; the hint lists the nearest ids.
+ * - `limit_exceeded`: a collection would exceed its `LIMITS` bound.
+ * - `precondition_failed`: valid command, but the scene state or the author forbids it (stale
+ *   `ifRev`, material still in use, room does not border the wall side, structural wall rules).
+ * - `not_supported`: a command reserved for a later milestone.
+ * - `scene_invalid`: the result would not be a valid scene.
+ * - `no_wall_sides`: `room.setWallFinish` on a room none of whose edges run along a wall face
+ *   (an unwalled room); there is nothing to paint. Paint the floor/ceiling instead, or fix the room
+ *   polygon so its edges follow wall faces.
+ */
 export type ErrorCode =
   | 'invalid_command'
   | 'unknown_entity'

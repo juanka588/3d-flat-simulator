@@ -18,7 +18,7 @@ import { selectionForId } from '../viewer/selection';
 import { newId } from './ids';
 import { instantToLocal } from './localTime';
 import { useViewStore } from './viewStore';
-import type { CommandApi, CommandTransport, DispatchOptions } from './commands-api';
+import type { CommandApi, CommandTransport, DispatchOptions, RemoteHistory } from './commands-api';
 
 /** Today's date (YYYY-MM-DD) in a time zone, or null if the zone is unknown. */
 function localDate(timezone: string): string | null {
@@ -58,6 +58,12 @@ interface SceneStore extends CommandApi {
   fail: (errors: string[]) => void;
   /** Replaces the undo stack (used when restoring an autosaved document). */
   restoreHistory: (past: HistoryEntry[]) => void;
+  /** Server mode: the shared history as reported by the server (null = local mode). */
+  remoteHistory: RemoteHistory | null;
+  /** Server mode: sets the undo/redo flags and labels from the server's history (null leaves server mode). */
+  setRemoteHistory: (h: (RemoteHistory & { canUndo: boolean; canRedo: boolean }) | null) => void;
+  /** Server mode: sets only the flags (between history fetches). */
+  setHistoryFlags: (canUndo: boolean, canRedo: boolean) => void;
 }
 
 /** The committed scene (never a preview). */
@@ -69,6 +75,14 @@ const NO_SCENE: ApplyResult = { ok: false, errors: [{ code: 'invalid_command', p
 
 const labels = new Map<string, string>();
 let transport: CommandTransport | null = null;
+
+/** The plugged-in sync transport, if any (server mode). */
+export function getTransport(): CommandTransport | null {
+  return transport;
+}
+
+/** In server mode the server owns the history: nothing is recorded locally. */
+const serverHistory = () => transport?.step !== undefined;
 
 function labelOf(env: CommandEnvelope): string {
   return labels.get(env.id) ?? (env.cmd.type === 'batch' ? env.cmd.label : env.cmd.type);
@@ -149,8 +163,8 @@ export const useSceneStore = create<SceneStore>((set, get) => ({
       return result;
     }
     adopt(s.scene, result.scene, result.changed);
-    const history = recordCommand(s.history, env, result);
-    set({ scene: result.scene, history, ...flagsOf(history), previewBase: null, previewEnv: null, lastErrors: [], rev: s.rev + 1 });
+    const history = serverHistory() ? s.history : recordCommand(s.history, env, result);
+    set({ scene: result.scene, history, ...(serverHistory() ? {} : flagsOf(history)), previewBase: null, previewEnv: null, lastErrors: [], rev: s.rev + 1 });
     keepSelection(result.scene);
     send(env);
     return result;
@@ -181,8 +195,8 @@ export const useSceneStore = create<SceneStore>((set, get) => ({
       set({ scene: s.previewBase, previewBase: null, previewEnv: null, rev: s.rev + 1 });
       return;
     }
-    const history = recordCommand(s.history, s.previewEnv, result);
-    set({ history, ...flagsOf(history), previewBase: null, previewEnv: null, lastErrors: [] });
+    const history = serverHistory() ? s.history : recordCommand(s.history, s.previewEnv, result);
+    set({ history, ...(serverHistory() ? {} : flagsOf(history)), previewBase: null, previewEnv: null, lastErrors: [] });
     send(s.previewEnv);
   },
 
@@ -201,16 +215,30 @@ export const useSceneStore = create<SceneStore>((set, get) => ({
     transport = t;
   },
 
-  receiveRemote: (_env, result) => {
+  receiveRemote: (_env, result, opts) => {
     const s = get();
     if (!result.ok || !s.scene) return;
     const next = result.scene;
-    adopt(s.scene, next, result.changed);
+    // A different flat (other walls/rooms) re-frames the camera like a load; edits never do.
+    const sameFlat = !opts?.replace || (JSON.stringify(s.scene.walls) === JSON.stringify(next.walls) && JSON.stringify(s.scene.rooms) === JSON.stringify(next.rooms));
+    if (sameFlat) adopt(s.scene, next, result.changed);
     set({ scene: next, previewBase: null, previewEnv: null, rev: s.rev + 1 });
     keepSelection(next);
   },
 
   fail: (errors) => set({ errors }),
+
+  remoteHistory: null,
+  setRemoteHistory: (h) =>
+    set(
+      h
+        ? { remoteHistory: { past: h.past, futureCount: h.futureCount }, canUndo: h.canUndo, canRedo: h.canRedo, historyLabels: h.past.map((e) => e.label) }
+        : { remoteHistory: null },
+    ),
+  setHistoryFlags: (canUndo, canRedo) => {
+    const s = get();
+    if (s.canUndo !== canUndo || s.canRedo !== canRedo) set({ canUndo, canRedo });
+  },
 
   restoreHistory: (past) => {
     const history = { ...createHistory(), past };
@@ -240,6 +268,11 @@ export const useSceneStore = create<SceneStore>((set, get) => ({
       }));
       const view = useViewStore.getState();
       view.select(null);
+      try {
+        transport?.replaceScene?.(result.scene);
+      } catch {
+        // a failing transport must never break local editing
+      }
       // The app opens in daytime (12:00): start from the 'day' preset so lamps are off, not glowing at noon.
       if (first) {
         // "Today" is the date at the flat, not on the user's machine (they can be a day apart).
@@ -254,6 +287,12 @@ export const useSceneStore = create<SceneStore>((set, get) => ({
 }));
 
 function stepHistory(kind: 'undo' | 'redo'): boolean {
+  if (transport?.step) {
+    // Server mode: the shared stack lives on the server; the result arrives as an `applied` entry.
+    if (!transport.canStep?.(kind)) return false;
+    void transport.step(kind);
+    return true;
+  }
   const s = useSceneStore.getState();
   const base = committedScene(s);
   if (!base || !s.scene) return false;

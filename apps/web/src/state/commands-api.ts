@@ -1,4 +1,4 @@
-import type { ApplyResult, Command, CommandEnvelope, CommandError } from '@flat/scene';
+import type { ApplyResult, Command, CommandEnvelope, CommandError, Scene } from '@flat/scene';
 
 /**
  * Web-side command API (M3.5 contract). Every scene edit goes through `dispatch`, which applies
@@ -16,6 +16,24 @@ export interface DispatchOptions {
  */
 export interface CommandTransport {
   send: (envelope: CommandEnvelope) => void;
+  /**
+   * Server mode (M3.12): undo/redo are server calls on the one shared stack. When present, the store
+   * keeps no local history (dispatch records nothing) and `undo`/`redo` call this instead.
+   * Resolves true once the step is applied and shown.
+   */
+  step?: (kind: 'undo' | 'redo') => Promise<boolean>;
+  /** Whether `step(kind)` can run now (connected and something to undo/redo). */
+  canStep?: (kind: 'undo' | 'redo') => boolean;
+  /** A scene was loaded locally (file, fixture, reset): the shared server scene is replaced by it. */
+  replaceScene?: (scene: Scene) => void;
+}
+
+/** History as the server reports it (server mode). */
+export interface RemoteHistory {
+  /** Oldest first. */
+  past: { id: string; label: string; type: string; author: string }[];
+  /** Entries available to redo. */
+  futureCount: number;
 }
 
 export interface CommandApi {
@@ -47,7 +65,8 @@ export interface CommandApi {
    * Additive: applies an envelope that originated elsewhere (the server), with the result the
    * caller computed from the same reducer. Replaces the committed scene (cancelling any preview),
    * bumps `rev`, keeps the camera, is NOT recorded in the local undo history and is NOT re-sent.
-   * Failed results are ignored.
+   * Failed results are ignored. `replace` marks a whole-scene swap (hello, resync): the camera is
+   * kept unless the walls/rooms differ from the displayed scene.
    */
-  receiveRemote: (envelope: CommandEnvelope, result: ApplyResult) => void;
+  receiveRemote: (envelope: CommandEnvelope, result: ApplyResult, opts?: { replace?: boolean }) => void;
 }

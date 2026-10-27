@@ -4,7 +4,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { NoColorSpace, RepeatWrapping, SRGBColorSpace, Texture } from 'three';
 import { createCatalogSource } from './catalog';
 import { createMaterialLibrary, textureTint } from './materials';
-import { createTextureCache, disposeSet, instantiateSet, libSlug, textureFileUrls } from './texture-cache';
+import { createTextureCache, defaultSetLoader, disposeSet, instantiateSet, libSlug, textureFileUrls } from './texture-cache';
+import type { MapLoader } from './texture-cache';
 import type { SetLoad, TextureSet } from './texture-cache';
 
 const makeSet = (): TextureSet => ({ color: new Texture(), normal: new Texture(), roughness: new Texture() });
@@ -40,30 +41,65 @@ describe('texture cache', () => {
     cache.acquire('a', (s) => got.push(s));
     cache.acquire('a', (s) => got.push(s));
     expect(m.calls).toEqual(['a']);
-    expect(cache.stats()).toEqual({ loaded: 0, pending: 1, slugs: [] });
+    expect(cache.stats()).toEqual({ loaded: 0, pending: 1, slugs: [], idle: 0 });
     const set = await m.finish('a');
     expect(got).toEqual([set, set]);
     cache.acquire('a', (s) => got.push(s));
     expect(got).toHaveLength(3);
     expect(m.calls).toEqual(['a']);
-    expect(cache.stats()).toEqual({ loaded: 1, pending: 0, slugs: ['a'] });
+    expect(cache.stats()).toEqual({ loaded: 1, pending: 0, slugs: ['a'], idle: 0 });
   });
 
-  it('disposes a set when its last user releases it, and reloads on the next acquire', async () => {
+  it('keeps a released set idle (no re-download) and disposes it only when evicted', async () => {
     const m = mockLoader();
-    const cache = createTextureCache(m.loader);
+    const cache = createTextureCache(m.loader, 2);
     const s1 = cache.acquire('a', () => undefined);
     const s2 = cache.acquire('a', () => undefined);
-    const set = await m.finish('a');
-    const spy = vi.spyOn(set.color, 'dispose');
+    const setA = await m.finish('a');
+    const spy = vi.spyOn(setA.color, 'dispose');
     s1.release();
     expect(spy).not.toHaveBeenCalled();
     s2.release();
     s2.release();
-    expect(spy).toHaveBeenCalledTimes(1);
-    expect(cache.stats().loaded).toBe(0);
-    cache.acquire('a', () => undefined);
-    expect(m.calls).toEqual(['a', 'a']);
+    expect(spy).not.toHaveBeenCalled();
+    expect(cache.stats()).toEqual({ loaded: 0, pending: 0, slugs: [], idle: 1 });
+    // A -> B -> A: coming back to A needs no download
+    cache.acquire('b', () => undefined);
+    await m.finish('b');
+    const got: (TextureSet | null)[] = [];
+    cache.acquire('a', (set) => got.push(set));
+    expect(got).toEqual([setA]);
+    expect(m.calls).toEqual(['a', 'b']);
+    // idle sets are evicted before any in-use set
+    cache.acquire('c', () => undefined); // 3 loaded > cap 2 once it arrives; idle ones go first
+    await m.finish('c');
+    expect(cache.stats().loaded).toBe(2);
+  });
+
+  it('evicts idle sets first, then the least recently used in-use set, and brings it back when room frees', async () => {
+    const m = mockLoader();
+    const cache = createTextureCache(m.loader, 2);
+    const events: Record<string, (TextureSet | null)[]> = { a: [], b: [], c: [] };
+    const subs: Record<string, { release: () => void }> = {};
+    for (const slug of ['a', 'b']) {
+      subs[slug] = cache.acquire(slug, (set) => events[slug]!.push(set));
+      await m.finish(slug);
+    }
+    subs.b!.release(); // b idle
+    subs.c = cache.acquire('c', (set) => events.c!.push(set));
+    await m.finish('c');
+    expect(cache.stats()).toMatchObject({ slugs: ['a', 'c'], idle: 0 });
+    expect(events.a!.at(-1)).not.toBeNull(); // the in-use a was spared: idle b went
+    // now three in use at once: a (older) is taken away from its user...
+    const b2 = cache.acquire('b', (set) => events.b!.push(set));
+    await m.finish('b', 1);
+    expect(events.a!.at(-1)).toBeNull();
+    expect(cache.stats().loaded).toBe(2);
+    // ...and returns once somebody lets go
+    b2.release();
+    await m.finish('a', 1);
+    expect(events.a!.at(-1)).not.toBeNull();
+    expect(cache.stats().slugs).toEqual(['a', 'c']);
   });
 
   it('ignores a load that was superseded (released, then re-acquired) and frees its result', async () => {
@@ -94,7 +130,7 @@ describe('texture cache', () => {
       if (slug === 'c') cache.acquire('a', () => undefined); // touch a: b becomes the oldest
       await m.finish(slug);
     }
-    expect(cache.stats()).toEqual({ loaded: 2, pending: 0, slugs: ['a', 'c'] });
+    expect(cache.stats()).toEqual({ loaded: 2, pending: 0, slugs: ['a', 'c'], idle: 0 });
     expect(events.b!.at(-1)).toBeNull();
     expect(events.a!.at(-1)).not.toBeNull();
   });
@@ -134,6 +170,43 @@ describe('texture cache', () => {
     await m.finish('a');
     await Promise.resolve();
     expect(done).toBe(true);
+  });
+});
+
+describe('default set loader', () => {
+  /** A loader whose maps finish when the test says so. */
+  function fakeMapLoader() {
+    const jobs: { url: string; ok: () => Texture; fail: () => void }[] = [];
+    const loader: MapLoader = {
+      load: (url, onLoad, _p, onError) => {
+        jobs.push({ url, ok: () => { const t = new Texture(); onLoad(t); return t; }, fail: onError });
+      },
+    };
+    return { loader, jobs };
+  }
+
+  it('disposes the maps that did load when another map fails, even if they finish after the failure', async () => {
+    const f = fakeMapLoader();
+    const load = defaultSetLoader('/m/', () => f.loader)('oak');
+    const failed = load.promise.catch((e: Error) => e.message);
+    const color = f.jobs[0]!.ok();
+    const colorSpy = vi.spyOn(color, 'dispose');
+    f.jobs[1]!.fail();
+    expect(await failed).toMatch(/normal\.webp/);
+    expect(colorSpy).toHaveBeenCalledTimes(1);
+    // the roughness map arriving after the failure is freed on arrival
+    const late = f.jobs[2]!.ok();
+    expect(late).toBeInstanceOf(Texture);
+  });
+
+  it('frees every map of a cancelled load', async () => {
+    const f = fakeMapLoader();
+    const load = defaultSetLoader('/m/', () => f.loader)('oak');
+    load.cancel();
+    const maps = f.jobs.map((j) => j.ok());
+    const spies = maps.map((t) => vi.spyOn(t, 'dispose'));
+    await expect(load.promise).rejects.toThrow('cancelled');
+    spies.forEach((spy) => expect(spy).toHaveBeenCalled());
   });
 });
 
@@ -214,6 +287,80 @@ describe('material library textures', () => {
     expect(oak.map).toBeNull();
     expect(cache.stats().loaded).toBe(0);
     warn.mockRestore();
+  });
+
+  it('one library across 50 edits: the loader runs once per slug and the textured floor never shows paint again', async () => {
+    const m = mockLoader();
+    const cache = createTextureCache(m.loader);
+    const onChange = vi.fn();
+    const lib = createMaterialLibrary(null, undefined, { cache, catalog, anisotropy: 4, onChange });
+    lib.update(scene.materials);
+    const oak = lib.get('m-oak') as import('three').MeshStandardMaterial;
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    await m.finish('oak');
+    expect(oak.map).not.toBeNull();
+    const map = oak.map;
+    const versionOf = () => [oak.map?.version, oak.normalMap?.version, oak.roughnessMap?.version, oak.version];
+    const before = versionOf();
+    for (let i = 0; i < 50; i++) {
+      // an unrelated swatch click, a drag frame, and a re-tiling: new scene objects, same oak definition
+      const next = {
+        materials: scene.materials.map((mat) => (mat.id === 'm-white' ? { ...mat, color: `#${(0x100000 + i * 997).toString(16).padStart(6, '0')}` } : { ...mat })),
+      };
+      lib.update(next.materials);
+      expect(lib.get('m-oak')).toBe(oak);
+      expect(oak.map).toBe(map);
+      await Promise.resolve();
+    }
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(m.calls).toEqual(['oak']);
+    expect(cache.stats()).toMatchObject({ loaded: 1, slugs: ['oak'] });
+    expect(versionOf()).toEqual(before); // no re-upload, no shader recompile
+    // re-tiling updates in place without touching the maps
+    lib.update(scene.materials.map((mat) => (mat.id === 'm-oak' ? { ...mat, textureScale: 4 } : mat)));
+    expect(oak.map).toBe(map);
+    expect(oak.map?.repeat.x).toBeCloseTo(0.25);
+    expect(m.calls).toEqual(['oak']);
+    lib.dispose();
+  });
+
+  it('retargeting to another slug keeps the old maps until the new set arrives, and the old set goes idle', async () => {
+    const m = mockLoader();
+    const cache = createTextureCache(m.loader);
+    const both = { ...catalog, entry: (slug: string) => Promise.resolve({ ...entry, id: slug } as never) };
+    const lib = createMaterialLibrary(null, undefined, { cache, catalog: both });
+    const def = { id: 'm', name: 'm', kind: 'texture' as const, color: '#93704d', roughness: 0.5, textureUrl: 'lib:oak', textureScale: 2 };
+    lib.update([def]);
+    const mat = lib.get('m') as import('three').MeshStandardMaterial;
+    for (let i = 0; i < 4; i++) await Promise.resolve();
+    await m.finish('oak');
+    const oakMap = mat.map;
+    expect(oakMap).not.toBeNull();
+    lib.update([{ ...def, textureUrl: 'lib:ash' }]);
+    for (let i = 0; i < 4; i++) await Promise.resolve();
+    expect(mat.map).toBe(oakMap); // no flash back to paint
+    await m.finish('ash');
+    expect(mat.map).not.toBe(oakMap);
+    expect(mat.map).not.toBeNull();
+    expect(cache.stats()).toMatchObject({ loaded: 1, slugs: ['ash'], idle: 1 });
+    // paint -> texture -> paint on the same object, releasing the set
+    lib.update([{ ...def, kind: 'paint' as const, textureUrl: undefined } as never]);
+    expect(lib.get('m')).toBe(mat);
+    expect(mat.map).toBeNull();
+    lib.dispose();
+  });
+
+  it('a material removed by update is disposed at commit, not before', () => {
+    const lib = createMaterialLibrary({ materials: scene.materials });
+    const white = lib.get('m-white');
+    const spy = vi.spyOn(white, 'dispose');
+    lib.update(scene.materials.filter((mat) => mat.id !== 'm-white'));
+    expect(spy).not.toHaveBeenCalled();
+    lib.commit();
+    expect(spy).toHaveBeenCalledTimes(1);
   });
 
   it('clamps pure white paint in the viewer only', () => {

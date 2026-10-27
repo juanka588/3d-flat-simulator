@@ -8,7 +8,7 @@ export interface FlatStats {
   geometries: number;
   textures: number;
   /** Library texture sets (the app-wide cache): loaded, still loading (incl. catalog lookups), and the loaded slugs. */
-  textureSets: { loaded: number; pending: number; slugs: string[] };
+  textureSets: { loaded: number; pending: number; idle: number; slugs: string[] };
   /** Compiled shader programs (renderer.info.programs). */
   programs: number;
   /** Names of the visible named meshes, e.g. walls, floors, ceilings. */
@@ -62,7 +62,11 @@ export interface FlatTestHook {
   ready: Promise<void>;
   /** Resolves after a frame reflecting the current scene, mode and selection has been rendered, with pending library textures loaded and drawn. */
   whenRendered: () => Promise<void>;
+  /** Applies the rest of the orbit-damping motion at once (the pose it coasts towards), then resolves after a rendered frame. */
+  settleCamera: () => Promise<void>;
   stats: () => FlatStats;
+  /** The materials the fittings mesh currently draws door leaves with (translucent in walk mode, opaque otherwise). */
+  doorLeaves: () => { id: string; transparent: boolean; opacity: number; depthWrite: boolean }[];
   /** Draw calls of every frame rendered by the render loop since the last `clearFrameCalls()` (frames right after a change include the shadow passes). */
   frameCalls: () => number[];
   clearFrameCalls: () => void;
@@ -78,7 +82,11 @@ export interface FlatTestHook {
   project: (point: [number, number, number]) => { x: number; y: number };
   /** PNG data URL of the current canvas. */
   capture: () => string;
-  select: (id: string | null) => boolean;
+  /**
+   * Selects an entity by id, or a wall face as if clicked inside `roomId` (a wall id alone selects the wall without a face).
+   * Returns false when the target does not exist.
+   */
+  select: (target: string | { wallId: string; side: 'left' | 'right'; roomId?: string } | null) => boolean;
   /** Merges into the lighting view; resolves after a frame reflecting it has been rendered. */
   setLighting: (partial: Partial<LightingView>) => Promise<void>;
   /** Sun position and daylight times for the current lighting view (or why they are unavailable). */
@@ -111,8 +119,17 @@ export interface FlatTestHook {
   exportScene: () => string;
   /** Saves now if there are unsaved changes; resolves when the write finished or failed. */
   flushAutosave: () => Promise<void>;
-  /** Sync state. `local` until the server lane wires a transport. */
-  connection: () => { mode: 'local' };
+  /**
+   * Sync state. `local` (status 'local') unless a scene server is connected (`?server=`).
+   * `rev` is the last server revision applied, `pending` the local changes not yet confirmed.
+   */
+  connection: () => {
+    mode: 'local' | 'server';
+    status: 'local' | 'connecting' | 'connected' | 'reconnecting' | 'conflict';
+    rev: number;
+    epoch: string | null;
+    pending: number;
+  };
 }
 
 declare global {

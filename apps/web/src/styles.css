@@ -1003,3 +1003,93 @@ legend {
   border: 1px solid #e6cf8a;
   border-radius: 6px;
 }
+
+/* Live sync (M3.12) */
+.sync-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: -0.4rem 0 0.6rem;
+  padding: 0.15rem 0.55rem;
+  border: 1px solid #d0d0d6;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  color: #3c3c44;
+  background: #f6f6f8;
+}
+.sync-dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: #8a8a94;
+}
+.sync-chip[data-state='connected'] .sync-dot {
+  background: #1f9d55;
+}
+.sync-chip[data-state='reconnecting'] .sync-dot,
+.sync-chip[data-state='connecting'] .sync-dot {
+  background: #d99a00;
+}
+.sync-chip[data-state='conflict'] {
+  border-color: #c0392b;
+  color: #8a0019;
+}
+.sync-chip[data-state='conflict'] .sync-dot {
+  background: #c0392b;
+}
+.sync-pending {
+  color: #6a6a74;
+}
+.sync-dialog {
+  max-width: 26rem;
+  border: 1px solid #b8b8c0;
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+}
+.sync-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.4);
+}
+.sync-dialog h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+}
+.sync-dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+.sync-dialog-actions .danger {
+  color: #8a0019;
+}
+.sync-toasts {
+  position: fixed;
+  right: 0.75rem;
+  bottom: 0.75rem;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  max-width: min(24rem, calc(100vw - 1.5rem));
+}
+.sync-toast {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  padding: 0.45rem 0.65rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  background: #fff6e0;
+  border: 1px solid #e3c36a;
+  color: #5c4300;
+}
+.sync-toast.error {
+  background: #fdeef0;
+  border-color: #e8a3ad;
+  color: #8a0019;
+}
+.sync-toast.info {
+  background: #eef3fb;
+  border-color: #a9bfe3;
+  color: #1c3558;
+}

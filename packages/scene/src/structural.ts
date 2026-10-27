@@ -52,3 +52,11 @@ export function structuralInfo(scene: Pick<Scene, 'walls' | 'rooms'>, wall: Pick
 export function isStructural(scene: Pick<Scene, 'walls' | 'rooms'>, wall: Pick<Wall, 'id' | 'thickness' | 'structural'>): boolean {
   return structuralInfo(scene, wall).structural;
 }
+
+/**
+ * Whether the wall would be structural if its explicit `structural` flag were cleared (exterior,
+ * or >= 15 cm thick). The reducer uses it to stop non-user authors from demoting such walls.
+ */
+export function isDefaultStructural(scene: Pick<Scene, 'walls' | 'rooms'>, wall: Pick<Wall, 'id' | 'thickness'>): boolean {
+  return structuralInfo(scene, { id: wall.id, thickness: wall.thickness }).structural;
+}

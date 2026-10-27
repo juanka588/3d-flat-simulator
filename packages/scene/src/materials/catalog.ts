@@ -9,6 +9,22 @@ const Hex = z.string().regex(/^#[0-9a-f]{6}$/, 'expected a lowercase hex colour 
 const Sha256 = z.string().regex(/^[0-9a-f]{64}$/);
 const MapName = z.enum(['color', 'normal', 'roughness', 'thumb']);
 
+/** What was checked to assert the licence of one entry (see scripts/materials/lib.mjs). */
+export const LicenseEvidence = z.strictObject({
+  /** `site-policy`: the API knows the asset and the site's licence page links the CC0 deed. `asset-field`: the API reported a CC0 licence for the asset itself. */
+  basis: z.enum(['site-policy', 'asset-field']),
+  policyUrl: z.url(),
+  /** The text that had to appear on the policy page. */
+  needle: z.string().min(1),
+  /** The API record of the asset that was fetched. */
+  assetApiUrl: z.url(),
+  /** The licence value the API reported for the asset (`asset-field` only). */
+  assetField: z.string().min(1).optional(),
+  /** The build that last changed this entry's output (stable across no-op rebuilds). */
+  checkedAt: z.iso.datetime(),
+});
+export type LicenseEvidence = z.infer<typeof LicenseEvidence>;
+
 /** One processed library material, as written to `apps/web/public/materials/catalog.json` by `pnpm materials:build`. */
 export const CatalogEntry = z.strictObject({
   id: Slug,
@@ -34,6 +50,9 @@ export const CatalogEntry = z.strictObject({
   sourceId: z.string().min(1),
   sourceUrl: z.url(),
   license: z.literal('CC0-1.0'),
+  licenseEvidence: LicenseEvidence.optional(),
+  /** sha256 of each downloaded original (also pinned in scripts/materials/manifest.json). */
+  sourceSha256: z.record(z.string(), Sha256).optional(),
   retrievedAt: z.iso.datetime(),
   sha256: z.record(MapName, Sha256),
 });

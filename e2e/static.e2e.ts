@@ -39,7 +39,10 @@ test('the hook is absent without ?test, and the default load fetches nothing fro
   await expect(page.locator('canvas')).toBeVisible();
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
   expect(await page.evaluate(() => typeof window.__flat)).toBe('undefined');
-  await page.waitForTimeout(500);
+  // The hook is absent here, so wait for the network to go quiet and two animation frames instead of a timer:
+  // any library request caused by the first render would have been issued by then.
+  await page.waitForLoadState('networkidle');
+  await page.evaluate(() => new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => done()))));
   expect(traffic.requests.filter((p) => p.includes('/materials/'))).toEqual([]);
   expect(traffic.requests.every((p) => p.startsWith(BASE))).toBe(true);
   expect(traffic.bad).toEqual([]);
@@ -48,7 +51,7 @@ test('the hook is absent without ?test, and the default load fetches nothing fro
 test('?test enables the hook', async ({ page }) => {
   await openHooked(page);
   expect(await page.evaluate(() => typeof window.__flat!.applyCommand)).toBe('function');
-  expect((await page.evaluate(() => window.__flat!.stats())).textureSets).toEqual({ loaded: 0, pending: 0, slugs: [] });
+  expect((await page.evaluate(() => window.__flat!.stats())).textureSets).toEqual({ loaded: 0, pending: 0, slugs: [], idle: 0 });
 });
 
 test('a library texture applied from the Finish UI loads its maps under the base path, once', async ({ page }) => {
@@ -65,7 +68,7 @@ test('a library texture applied from the Finish UI loads its maps under the base
   await page.evaluate(() => window.__flat!.whenRendered());
 
   const stats = await page.evaluate(() => window.__flat!.stats().textureSets);
-  expect(stats).toEqual({ loaded: 1, pending: 0, slugs: [OAK] });
+  expect(stats).toEqual({ loaded: 1, pending: 0, slugs: [OAK], idle: 0 });
   expect((await page.evaluate(() => window.__flat!.getScene())).rooms.find((r) => r.id === 'sejour')!.floorMaterial).toBe(`lib-${OAK}`);
 
   const lib = traffic.requests.filter((p) => p.includes('/materials/'));
@@ -112,7 +115,7 @@ test('autosave restores a paint and a texture after a reload; undo still works f
   const after = await page.evaluate(() => window.__flat!.getScene());
   expect(after.rooms.find((r) => r.id === 'sejour')!.floorMaterial ?? null).toBeNull();
   expect(after.rooms.find((r) => r.id === 'sejour')!.wallFinish).toBe(SAGE_ID);
-  // Releasing the only user of the floor texture frees its set.
-  expect((await page.evaluate(() => window.__flat!.stats().textureSets)).slugs).toEqual([]);
+  // Releasing the only user of the floor texture leaves its set cached as idle (undo/redo must not re-download it).
+  expect(await page.evaluate(() => window.__flat!.stats().textureSets)).toMatchObject({ loaded: 0, slugs: [], idle: 1 });
   expect(traffic.bad).toEqual([]);
 });

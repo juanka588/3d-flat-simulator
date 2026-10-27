@@ -21,6 +21,8 @@ function statusText(state: ReturnType<typeof useDocumentStatus.getState>): strin
       return 'Saving…';
     case 'saved':
       return 'Autosaved';
+    case 'paused':
+      return state.pause === 'loading' ? 'Loading saved flat…' : 'Autosave paused';
     case 'unavailable':
       return `Autosave unavailable (${state.reason ?? 'storage error'})`;
     default:

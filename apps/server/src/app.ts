@@ -14,11 +14,11 @@ type Env = { Bindings: { incoming?: { socket?: { remoteAddress?: string } } } };
 
 export const err = (code: string, message: string, path = ''): ErrorResponse => ({ ok: false, errors: [{ code, path, message }] });
 
-/** `Host` must be a loopback name: stops DNS-rebinding pages from reaching the API. */
-export function hostAllowed(host: string | undefined): boolean {
+/** `Host` must be a loopback name or listed in `ALLOWED_HOSTS`: stops DNS-rebinding pages from reaching the API. */
+export function hostAllowed(host: string | undefined, extra: readonly string[] = []): boolean {
   if (!host) return true; // HTTP/1.0 or in-process requests
-  const name = host.startsWith('[') ? host.slice(0, host.indexOf(']') + 1) : host.split(':')[0]!;
-  return LOCAL_HOSTS.has(name.toLowerCase());
+  const name = (host.startsWith('[') ? host.slice(0, host.indexOf(']') + 1) : host.split(':')[0]!).toLowerCase();
+  return LOCAL_HOSTS.has(name) || extra.some((h) => h.toLowerCase() === name);
 }
 
 /** Browsers always send `Origin` on cross-site writes and WebSocket upgrades; absent = not a browser. */
@@ -52,7 +52,7 @@ export function createApp(store: SceneStore, config: ServerConfig) {
   const allow = rateLimiter(config.rateLimitPerSec);
 
   app.use('*', async (c, next) => {
-    if (!hostAllowed(c.req.header('host'))) return c.json(err('forbidden', 'host not allowed'), 403);
+    if (!hostAllowed(c.req.header('host'), config.allowedHosts)) return c.json(err('forbidden', 'host not allowed'), 403);
     await next();
   });
   app.use(

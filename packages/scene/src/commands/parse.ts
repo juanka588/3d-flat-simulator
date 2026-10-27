@@ -6,6 +6,8 @@ import {
   CommandEnvelope,
   EnvelopeShell,
   RESERVED_COMMAND_TYPES,
+  TRUSTED_BATCH,
+  TrustedCommandEnvelope,
   type Author,
   type Command as CommandT,
 } from './schema';
@@ -49,7 +51,7 @@ export function migrateCommand(input: unknown): { ok: true; envelope: unknown } 
   return { ok: true, envelope: input };
 }
 
-function parseCmd(cmd: unknown, prefix: string, nested: boolean): CommandError[] {
+function parseCmd(cmd: unknown, prefix: string, nested: boolean, trusted: boolean): CommandError[] {
   if (typeof cmd !== 'object' || cmd === null || Array.isArray(cmd)) {
     return [err('invalid_command', prefix, 'command must be an object with a "type"')];
   }
@@ -61,9 +63,10 @@ function parseCmd(cmd: unknown, prefix: string, nested: boolean): CommandError[]
   if (nested && type === 'batch') {
     return [err('invalid_command', typePath, 'batches cannot be nested', 'put the commands directly in one batch')];
   }
-  const reserved = RESERVED_COMMAND_TYPES[type];
+  // Own keys only: "constructor" or "__proto__" must not resolve through the prototype chain.
+  const reserved = Object.hasOwn(RESERVED_COMMAND_TYPES, type) ? RESERVED_COMMAND_TYPES[type] : undefined;
   if (reserved) return [err('not_supported', typePath, `command "${type}" is not supported yet`, reserved)];
-  const schema = COMMAND_SCHEMA_BY_TYPE.get(type);
+  const schema = type === 'batch' && trusted ? TRUSTED_BATCH : COMMAND_SCHEMA_BY_TYPE.get(type);
   if (!schema) {
     return [err('invalid_command', typePath, `unknown command type "${type}"`, `valid types: ${COMMAND_TYPES.join(', ')}`)];
   }
@@ -71,7 +74,7 @@ function parseCmd(cmd: unknown, prefix: string, nested: boolean): CommandError[]
     const body = cmd as { commands?: unknown };
     if (Array.isArray(body.commands)) {
       const errors: CommandError[] = [];
-      body.commands.forEach((c, i) => errors.push(...parseCmd(c, `${prefix}/commands/${i}`, true)));
+      body.commands.forEach((c, i) => errors.push(...parseCmd(c, `${prefix}/commands/${i}`, true, trusted)));
       if (errors.length) return errors;
     }
   }
@@ -79,17 +82,26 @@ function parseCmd(cmd: unknown, prefix: string, nested: boolean): CommandError[]
   return r.success ? [] : zodErrors(r.error, prefix);
 }
 
+export interface ParseOptions {
+  /**
+   * Internal: accept batches above the 500-command cap. Only for commands that history generated
+   * itself (inverses); every payload is still validated. Never set it for external input.
+   */
+  trusted?: boolean;
+}
+
 /** Validates an unknown value as a command envelope. Never throws; errors are readable and carry codes. */
-export function parseCommand(input: unknown): ParseCommandResult {
+export function parseCommand(input: unknown, options: ParseOptions = {}): ParseCommandResult {
+  const trusted = options.trusted === true;
   try {
     const migrated = migrateCommand(input);
     if (!migrated.ok) return migrated;
     const shell = EnvelopeShell.safeParse(migrated.envelope);
     const errors: CommandError[] = shell.success ? [] : zodErrors(shell.error, '');
     const cmd = (migrated.envelope as { cmd?: unknown }).cmd;
-    errors.push(...parseCmd(cmd, 'cmd', false));
+    errors.push(...parseCmd(cmd, 'cmd', false, trusted));
     if (errors.length) return { ok: false, errors };
-    const full = CommandEnvelope.safeParse(migrated.envelope);
+    const full = (trusted ? TrustedCommandEnvelope : CommandEnvelope).safeParse(migrated.envelope);
     if (!full.success) return { ok: false, errors: zodErrors(full.error, '') };
     return { ok: true, envelope: full.data };
   } catch (e) {
@@ -113,7 +125,11 @@ export function makeEnvelope(
   };
 }
 
-/** JSON Schema of a command (the M4 MCP tool contract). */
+/**
+ * JSON Schema of the full command union, as zod emits it (used by the contract snapshot and for
+ * documentation). It is NOT usable as an LLM tool schema (`oneOf` root, nullable as `anyOf`); use
+ * `commandToolSchemas()` for tools.
+ */
 export function commandJsonSchema(): Record<string, unknown> {
   return z.toJSONSchema(Command, { io: 'input', unrepresentable: 'any' }) as Record<string, unknown>;
 }
