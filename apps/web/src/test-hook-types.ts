@@ -1,4 +1,4 @@
-import type { ApplyResult, Command, LightingView, LoadResult, Scene } from '@flat/scene';
+import type { ApplyResult, CameraPose, Command, LightingView, LoadResult, Scene } from '@flat/scene';
 import type { SunInfo } from './state/sunInfo';
 import type { ViewState } from './viewer/view-types';
 
@@ -78,6 +78,19 @@ export interface FlatTestHook {
   loadScene: (json: unknown) => Promise<LoadResult>;
   /** Walk mode only: teleports the camera on the plan (world x/z) and sets its yaw (three.js rotation.y, degrees). */
   setWalkPose: (pose: { x: number; z: number; yawDeg: number }) => Promise<void>;
+  /**
+   * M4 (lane B, M4.8): puts the camera exactly at `pose` (switching the view mode to the pose's
+   * `mode`), cancels damping/animation, and resolves after a frame reflecting it has been rendered.
+   * Repeated calls with the same pose, scene and lighting give pixel-identical captures. Not
+   * persisted, not undoable. Poses come from the pure presets in `@flat/scene` (`camera-presets`).
+   */
+  setCamera: (pose: CameraPose) => Promise<void>;
+  /**
+   * M4 (lane B, M4.8): resizes the render surface to `width` x `height` CSS pixels at device pixel
+   * ratio `dpr` (what `capture()` then returns is `width*dpr` x `height*dpr`), updates the camera
+   * aspect, and resolves after a rendered frame. For the headless renderer, which has no window.
+   */
+  setViewport: (viewport: { width: number; height: number; dpr: number }) => Promise<void>;
   /** Projects a world point through the active camera to viewport CSS pixels (for page.mouse). */
   project: (point: [number, number, number]) => { x: number; y: number };
   /** PNG data URL of the current canvas. */

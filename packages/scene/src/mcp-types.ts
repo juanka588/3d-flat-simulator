@@ -1,0 +1,310 @@
+import { z } from 'zod';
+import { CameraPose, LightingView, PresetName } from './view';
+
+/**
+ * Contracts of the MCP server (M4): the shapes shared by the pure describers (lane A), the web
+ * viewer (lane B), the server (lane C), the MCP core (lane D) and the renderer (lane E).
+ * zod schemas are the source of truth; the types are inferred. Everything is plain JSON.
+ * Units: metres, square metres, degrees, hours. Plan y grows down; see `schema.ts`.
+ */
+
+// ---------------------------------------------------------------------------------------------
+// Shared small types
+// ---------------------------------------------------------------------------------------------
+
+/** True-compass direction (after `site.northAngle`). */
+export const CompassPoint = z.enum(['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW']);
+export type CompassPoint = z.infer<typeof CompassPoint>;
+
+/** `[x, y]` on the plan, metres. */
+const Plan2 = z.tuple([z.number(), z.number()]);
+
+// ---------------------------------------------------------------------------------------------
+// RenderSpec / RenderResult  (render_view tool; the render service of lane E)
+// ---------------------------------------------------------------------------------------------
+
+export const RENDER_LIMITS = {
+  /** Longest image edge in pixels. */
+  maxEdgePx: 1568,
+  defaultWidth: 1024,
+  defaultHeight: 768,
+  /** Hard render timeout (ms). */
+  timeoutMs: 20_000,
+} as const;
+
+/**
+ * What to render. A render is a pure function of `(Scene@rev, RenderSpec)`: the same spec on the
+ * same scene revision yields the same pixels. Unset lighting fields fall back to the MCP session's
+ * lighting view (`set_sun_time`), then to `DEFAULT_LIGHTING`.
+ */
+export const RenderSpec = z.strictObject({
+  /** `room`: orbit overview of `roomId`; `walk`: eye level in `roomId`; `top`: plan view; `orbit`: whole flat. */
+  view: z.enum(['room', 'walk', 'top', 'orbit']).default('room'),
+  /** Required for `room` and `walk`; optional for `top` / `orbit` (fits that room). */
+  roomId: z.string().min(1).max(64).optional(),
+  /** `walk` only: compass point (true north) or plan heading in degrees clockwise from plan-up. */
+  facing: z.union([CompassPoint, z.number().min(-360).max(360)]).optional(),
+  /** Explicit camera; overrides `view`/`roomId`/`facing` for placement (advanced). */
+  pose: CameraPose.optional(),
+  /** Local date `YYYY-MM-DD` at the site. */
+  date: LightingView.shape.date.optional(),
+  /** Local time `HH:mm` at the site. */
+  time: LightingView.shape.time.optional(),
+  /** Lighting preset applied before `lamps` (day / evening / night). */
+  preset: PresetName.optional(),
+  /** Per-lamp overrides keyed by light id. */
+  lamps: LightingView.shape.lamps.optional(),
+  exposureEV: LightingView.shape.exposureEV.optional(),
+  /** Image size in pixels; the long edge is clamped to `RENDER_LIMITS.maxEdgePx`. */
+  size: z.strictObject({ width: z.number().int().min(64).max(4096), height: z.number().int().min(64).max(4096) }).optional(),
+  /** `before_after`: also render the scene as of the session's checkpoint / previous revision and return both images. */
+  compare: z.enum(['before_after']).optional(),
+  /** Render this uncommitted scene state (preview) instead of the server's: set by the MCP core, never by the model. */
+  previewOf: z.number().int().nonnegative().optional(),
+});
+export type RenderSpec = z.infer<typeof RenderSpec>;
+/** Input form (defaults not yet applied). */
+export type RenderSpecInput = z.input<typeof RenderSpec>;
+
+/** Metadata returned next to the image(s) of a render (the pixels travel as MCP image content). */
+export const RenderResult = z.strictObject({
+  mimeType: z.literal('image/png'),
+  width: z.number().int().positive(),
+  height: z.number().int().positive(),
+  /** Scene identity the image was drawn from. */
+  epoch: z.string(),
+  rev: z.number().int().nonnegative(),
+  /** Resolved spec (defaults applied) and the camera actually used. */
+  view: RenderSpec.shape.view,
+  roomId: z.string().optional(),
+  pose: CameraPose,
+  /** Resolved lighting view that was drawn. */
+  lighting: LightingView,
+  /** Wall-clock time of the render in ms, and whether the warm page was reused. */
+  renderMs: z.number().nonnegative(),
+  warm: z.boolean(),
+  /** Present with `compare`: the revision of the "before" image (the second image in the result). */
+  compare: z.strictObject({ beforeRev: z.number().int().nonnegative() }).optional(),
+});
+export type RenderResult = z.infer<typeof RenderResult>;
+
+// ---------------------------------------------------------------------------------------------
+// RoomDescription / RoomSummary  (describe_room, list_rooms; pure: lane A)
+// ---------------------------------------------------------------------------------------------
+
+/** Cheap per-room line for `list_rooms`. */
+export const RoomSummary = z.strictObject({
+  id: z.string(),
+  name: z.string(),
+  type: z.string(),
+  areaM2: z.number(),
+  /** Room paint / floor / ceiling material ids (null = scene default or none). */
+  wallFinish: z.string().nullable(),
+  floor: z.string().nullable(),
+  ceiling: z.string().nullable(),
+  /** Counts, so the model knows what describe_room will show. */
+  windows: z.number().int().nonnegative(),
+  doors: z.number().int().nonnegative(),
+  lights: z.number().int().nonnegative(),
+});
+export type RoomSummary = z.infer<typeof RoomSummary>;
+
+/** Where the effective finish of a wall stretch comes from (see `wall.setFinish` precedence). */
+export const FinishSource = z.enum(['room_scoped', 'whole_face', 'room_wall_finish', 'scene_default', 'none']);
+export type FinishSource = z.infer<typeof FinishSource>;
+
+export const RoomWallDescription = z.strictObject({
+  wallId: z.string(),
+  /** Which face of the wall borders this room, per the wall's walking direction (start to end, plan y down). */
+  side: z.enum(['left', 'right']),
+  /** Compass direction the face looks towards (the outward normal of the face, into the room). */
+  facing: CompassPoint,
+  lengthM: z.number(),
+  thicknessM: z.number(),
+  /** Never removable. */
+  structural: z.boolean(),
+  /** Effective material id on this room's stretch (null when none) and why. */
+  finish: z.strictObject({ materialId: z.string().nullable(), source: FinishSource }),
+  /** Other rooms that see the same face (a whole-face finish would show there too). */
+  sharedWith: z.array(z.string()),
+});
+export type RoomWallDescription = z.infer<typeof RoomWallDescription>;
+
+export const RoomOpeningDescription = z.strictObject({
+  id: z.string(),
+  type: z.enum(['door', 'window', 'passage']),
+  wallId: z.string(),
+  /** Compass direction the opening faces from inside the room (towards the outside / next room). */
+  compass: CompassPoint,
+  widthM: z.number(),
+  heightM: z.number(),
+  sillM: z.number(),
+  /** For doors: the room on the other side, when there is one. */
+  leadsTo: z.string().nullable(),
+});
+export type RoomOpeningDescription = z.infer<typeof RoomOpeningDescription>;
+
+export const RoomLightDescription = z.strictObject({
+  id: z.string(),
+  type: z.enum(['point', 'spot', 'area']),
+  on: z.boolean(),
+  lumens: z.number(),
+  kelvin: z.number(),
+});
+
+/** Full answer of `describe_room`. Budget: JSON <= ~1.5k tokens for the Charme fixture rooms. */
+export const RoomDescription = z.strictObject({
+  id: z.string(),
+  name: z.string(),
+  type: z.string(),
+  /** Scene revision it was computed from. */
+  rev: z.number().int().nonnegative().optional(),
+  areaM2: z.number(),
+  ceilingHeightM: z.number(),
+  /** Bounding box of the polygon, plan metres: [minX, minY, maxX, maxY]. */
+  bounds: z.tuple([z.number(), z.number(), z.number(), z.number()]),
+  floor: z.strictObject({ materialId: z.string().nullable() }),
+  ceiling: z.strictObject({ materialId: z.string().nullable() }),
+  walls: z.array(RoomWallDescription),
+  openings: z.array(RoomOpeningDescription),
+  lights: z.array(RoomLightDescription),
+  /** Daylight for `date` (default: the session lighting date). Null fields: not computable (e.g. no windows). */
+  daylight: z.strictObject({
+    date: z.string(),
+    /** Average daylight factor in percent (indirect sky light), null when unavailable. */
+    daylightFactorPct: z.number().nullable(),
+    /** Hours of direct sun reaching the floor through the openings on `date`. */
+    sunlightHours: z.number().nullable(),
+    firstSun: z.string().nullable(),
+    lastSun: z.string().nullable(),
+  }),
+  /** Placed items; always empty until M5. */
+  items: z.array(z.strictObject({ id: z.string(), assetId: z.string(), position: Plan2 })),
+});
+export type RoomDescription = z.infer<typeof RoomDescription>;
+
+// ---------------------------------------------------------------------------------------------
+// SceneDiff  (preview result, write-tool summary, compare; pure: lane A)
+// ---------------------------------------------------------------------------------------------
+
+/** One changed field of one entity. `before`/`after` are JSON values (undefined = absent). */
+export const FieldChange = z.strictObject({
+  field: z.string(),
+  before: z.unknown().optional(),
+  after: z.unknown().optional(),
+});
+export type FieldChange = z.infer<typeof FieldChange>;
+
+export const EntityDiff = z.strictObject({
+  kind: z.enum(['material', 'wall', 'opening', 'room', 'item', 'light', 'site', 'defaults']),
+  /** Entity id (`site` / `defaults` use their kind). */
+  id: z.string(),
+  change: z.enum(['added', 'removed', 'modified']),
+  /** For `modified`: the changed fields (dotted paths, e.g. `finish.left`, `roomFinishes.sejour.right`). */
+  fields: z.array(FieldChange),
+  /** Human label, e.g. the room name, for the model's summary. */
+  label: z.string().optional(),
+});
+export type EntityDiff = z.infer<typeof EntityDiff>;
+
+/**
+ * Structural difference between two scenes: deterministic order (kind, then id), no entry for
+ * unchanged entities, and `diffScenes(a, a)` is empty. The preview diff and the committed diff of
+ * the same command are equal (property test, M4.6).
+ */
+export const SceneDiff = z.strictObject({
+  changes: z.array(EntityDiff),
+  /** Totals by change type. */
+  summary: z.strictObject({ added: z.number().int(), removed: z.number().int(), modified: z.number().int() }),
+  /** One-line text for the model, e.g. "2 rooms repainted, 1 material added". */
+  text: z.string(),
+});
+export type SceneDiff = z.infer<typeof SceneDiff>;
+
+// ---------------------------------------------------------------------------------------------
+// MCP tool errors
+// ---------------------------------------------------------------------------------------------
+
+/** Codes produced by the command reducer (`@flat/scene` `ErrorCode`). */
+export const REDUCER_ERROR_CODES = [
+  'invalid_command',
+  'unknown_entity',
+  'unknown_material',
+  'limit_exceeded',
+  'precondition_failed',
+  'not_supported',
+  'scene_invalid',
+  'no_wall_sides',
+] as const;
+
+/** Codes added by the MCP layer / the scene server. */
+export const MCP_ONLY_ERROR_CODES = [
+  'server_unreachable',
+  'stale_scene',
+  'rate_limited',
+  'batch_too_large',
+  'read_only',
+  'render_unavailable',
+  'render_timeout',
+  'unknown_room',
+  'unknown_checkpoint',
+  'nothing_to_undo',
+  'nothing_to_redo',
+  'unauthorized',
+  'not_implemented',
+  'internal_error',
+] as const;
+
+export const MCP_ERROR_CODES = [...REDUCER_ERROR_CODES, ...MCP_ONLY_ERROR_CODES] as const;
+export type McpErrorCode = (typeof MCP_ERROR_CODES)[number];
+
+/** "What to call next" for every code: the default hint when the failure itself offers none. */
+export const MCP_ERROR_HINTS: Readonly<Record<McpErrorCode, string>> = {
+  invalid_command: 'Fix the arguments named in errors[].path and call again; the tool schema lists the allowed fields.',
+  unknown_entity: 'The id does not exist; use one of the nearest ids in the hint, or call list_rooms / get_scene_summary.',
+  unknown_material: 'Define the material first with material_define, or pick an id from list_materials.',
+  limit_exceeded: 'The flat already holds the maximum of this kind; remove something first.',
+  precondition_failed: 'The scene state forbids this change (see the message); change the preconditions or pick another target.',
+  not_supported: 'This command is not available yet; use a supported tool.',
+  scene_invalid: 'The change would break the scene; adjust the values.',
+  no_wall_sides: 'The room has no wall faces to paint; paint its floor or ceiling instead.',
+  server_unreachable: 'Start the scene server (pnpm server, or pnpm dev:all) and retry; check FLAT_SERVER_URL.',
+  stale_scene: 'The scene changed since you read it; call get_scene_summary and retry.',
+  rate_limited: 'Too many calls; wait retryAfterMs and retry.',
+  batch_too_large: 'Split the batch into smaller batches (limit in the message).',
+  read_only: 'This MCP server is read-only (FLAT_MCP_READONLY); only read and view tools work.',
+  render_unavailable: 'Rendering is not available (no web build or no browser); build the web app with pnpm build, or use describe_room.',
+  render_timeout: 'The render timed out; retry with a smaller size.',
+  unknown_room: 'No such room; call list_rooms for the ids.',
+  unknown_checkpoint: 'No such checkpoint; call list_history to see the checkpoint names.',
+  nothing_to_undo: 'The history is empty; nothing to undo.',
+  nothing_to_redo: 'Nothing was undone; nothing to redo.',
+  unauthorized: 'The scene server needs a token; set FLAT_TOKEN to the server token.',
+  not_implemented: 'This tool is not implemented yet in this build.',
+  internal_error: 'Unexpected failure; retry once, then report it with the message.',
+};
+
+/** One located problem inside an error (a reducer error or a server error item). */
+export const McpErrorItem = z.strictObject({
+  code: z.string(),
+  path: z.string(),
+  message: z.string(),
+  hint: z.string().optional(),
+});
+export type McpErrorItem = z.infer<typeof McpErrorItem>;
+
+/** `structuredContent` (and the JSON text) of every failed tool call (`isError: true`). */
+export const McpToolError = z.strictObject({
+  ok: z.literal(false),
+  code: z.enum(MCP_ERROR_CODES),
+  message: z.string(),
+  /** What to call next. */
+  hint: z.string(),
+  /** Located problems, e.g. one per invalid field (path as in `parseCommand`: `cmd/commands/2/materialId`). */
+  errors: z.array(McpErrorItem).optional(),
+  /** `rate_limited`: when to retry. */
+  retryAfterMs: z.number().int().nonnegative().optional(),
+  /** `stale_scene` / `precondition_failed`: the current revision. */
+  rev: z.number().int().nonnegative().optional(),
+});
+export type McpToolError = z.infer<typeof McpToolError>;

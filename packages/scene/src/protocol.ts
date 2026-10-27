@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { Command, CommandEnvelope } from './commands/schema';
 import { Scene } from './schema';
+import { CameraPose, LightingView } from './view';
 
 /** Wire contract between `apps/server` and its clients (REST bodies and WebSocket messages). */
 
@@ -40,12 +41,28 @@ export const AppliedMsg = z.object({ type: z.literal('applied'), epoch: z.string
 /** Broadcast when the scene is replaced by an import (`PUT /api/scene`): clients must resync. */
 export const ResetMsg = z.object({ type: z.literal('reset'), epoch: z.string(), rev: z.number().int().nonnegative(), scene: Scene });
 export const PongMsg = z.object({ type: z.literal('pong') });
-export const ServerMsg = z.discriminatedUnion('type', [HelloMsg, AppliedMsg, ResetMsg, PongMsg]);
+/**
+ * Ephemeral view relay (M4, `sync_to_user_tab`): the MCP server asks the user's tab to show a camera
+ * pose and/or lighting. NOT logged, NOT part of the scene, not replayed to late joiners; the tab
+ * applies it only while "Follow assistant view" is on. `seq` increases per server process so a tab
+ * can drop stale or reordered messages.
+ */
+export const ViewMsg = z.object({
+  type: z.literal('view'),
+  seq: z.number().int().nonnegative(),
+  /** Who asked, for the UI (e.g. the MCP client name). */
+  from: z.string().max(200).optional(),
+  pose: CameraPose.optional(),
+  /** Partial lighting view merged into the tab's lighting. */
+  lighting: LightingView.partial().optional(),
+});
+export const ServerMsg = z.discriminatedUnion('type', [HelloMsg, AppliedMsg, ResetMsg, PongMsg, ViewMsg]);
 export const PingMsg = z.object({ type: z.literal('ping') });
 export const ClientMsg = z.discriminatedUnion('type', [PingMsg]);
 export type HelloMsg = z.infer<typeof HelloMsg>;
 export type AppliedMsg = z.infer<typeof AppliedMsg>;
 export type ResetMsg = z.infer<typeof ResetMsg>;
+export type ViewMsg = z.infer<typeof ViewMsg>;
 export type ServerMsg = z.infer<typeof ServerMsg>;
 export type ClientMsg = z.infer<typeof ClientMsg>;
 
@@ -97,3 +114,61 @@ export const LogResponse = z.object({
   truncated: z.boolean(),
 });
 export type LogResponse = z.infer<typeof LogResponse>;
+
+/** Body of `POST /api/view`: relayed to every WebSocket client as a `ViewMsg`. At least one of `pose` / `lighting`. */
+export const PostViewBody = z
+  .object({
+    pose: CameraPose.optional(),
+    lighting: LightingView.partial().optional(),
+    from: z.string().max(200).optional(),
+  })
+  .refine((b) => b.pose !== undefined || b.lighting !== undefined, { message: 'send pose and/or lighting' });
+export type PostViewBody = z.infer<typeof PostViewBody>;
+/** Response of `POST /api/view`: how many clients received it. */
+export const PostViewResponse = z.object({ ok: z.literal(true), delivered: z.number().int().nonnegative() });
+export type PostViewResponse = z.infer<typeof PostViewResponse>;
+
+/**
+ * Named checkpoint of the shared history (M4.7). `depth` is the undo-stack length when it was taken,
+ * so `undo-to` undoes entries (whoever made them: the stack is shared) until the stack is that deep
+ * again. A checkpoint survives restarts (it is persisted with the snapshot) and dies with its epoch.
+ */
+export const Checkpoint = z.object({
+  name: z.string().min(1).max(80),
+  rev: z.number().int().nonnegative(),
+  seq: z.number().int().nonnegative(),
+  depth: z.number().int().nonnegative(),
+  ts: z.number(),
+  author: CommandEnvelope.shape.author,
+});
+export type Checkpoint = z.infer<typeof Checkpoint>;
+
+/** Body of `POST /api/checkpoints`. An existing name is moved to the current state. */
+export const PostCheckpointBody = z.object({
+  name: z.string().min(1).max(80),
+  author: CommandEnvelope.shape.author.optional(),
+});
+export type PostCheckpointBody = z.infer<typeof PostCheckpointBody>;
+/** Response of `POST /api/checkpoints`. */
+export const PostCheckpointResponse = z.object({ ok: z.literal(true), epoch: z.string(), checkpoint: Checkpoint });
+export type PostCheckpointResponse = z.infer<typeof PostCheckpointResponse>;
+/** Response of `GET /api/checkpoints`, oldest first. */
+export const CheckpointsResponse = z.object({ epoch: z.string(), rev: z.number().int().nonnegative(), checkpoints: z.array(Checkpoint) });
+export type CheckpointsResponse = z.infer<typeof CheckpointsResponse>;
+
+/**
+ * Body of `POST /api/undo-to`: undoes until the history is back at the checkpoint's depth. Atomic
+ * from the client's view (one request; each undone entry is still logged as an undo). 404 for an
+ * unknown checkpoint, 409 when the stack is already shallower than the checkpoint (nothing to
+ * undo) or `ifRev` is stale. Redo works afterwards.
+ */
+export const UndoToBody = z.object({
+  checkpoint: z.string().min(1).max(80),
+  id: z.string().min(1).max(64).optional(),
+  author: CommandEnvelope.shape.author.optional(),
+  ifRev: z.number().int().nonnegative().optional(),
+});
+export type UndoToBody = z.infer<typeof UndoToBody>;
+/** Response of `POST /api/undo-to`: the last step's outcome plus how many entries were undone. */
+export const UndoToResponse = PostCommandResponse.extend({ steps: z.number().int().nonnegative() });
+export type UndoToResponse = z.infer<typeof UndoToResponse>;

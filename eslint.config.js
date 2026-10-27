@@ -27,6 +27,12 @@ export default tseslint.config(
     },
   },
   {
+    // On stdio, stdout is the JSON-RPC channel: any console.log/info/debug would corrupt the protocol.
+    // Log through `config.log` (stderr) or console.error/warn.
+    files: ['apps/mcp/src/**/*.ts'],
+    rules: { 'no-console': ['error', { allow: ['warn', 'error'] }] },
+  },
+  {
     files: ['**/*.test.ts'],
     rules: { '@typescript-eslint/no-explicit-any': 'off' },
   },

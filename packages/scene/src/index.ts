@@ -17,3 +17,7 @@ export * from './geometry/room-sides';
 export * from './materials';
 export * from './serialize';
 export * from './protocol';
+export * from './mcp-types';
+export * from './camera-presets';
+export * from './describe';
+export * from './diff';

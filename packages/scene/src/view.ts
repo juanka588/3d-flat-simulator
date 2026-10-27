@@ -67,3 +67,63 @@ export function applyPreset(view: LightingView, preset: PresetName, site: Site, 
       return { ...view, time: '23:00', sunEnabled: false, lamps };
   }
 }
+
+// ---------------------------------------------------------------------------------------------
+// Camera pose (M4): a serialisable, renderer-independent description of where the camera is.
+// ---------------------------------------------------------------------------------------------
+
+/** Coordinates: metres in WORLD space, X = plan x, Y = up, Z = plan y (see `schema.ts`). */
+const World3 = z.tuple([z.number(), z.number(), z.number()]);
+/** Metres on the plan, `[x, y]` (y grows down the page). */
+const Plan2 = z.tuple([z.number(), z.number()]);
+const Degrees = z.number().min(-360).max(360);
+
+/** Orbit camera looking at `target` from `distance` metres away. */
+export const OrbitPose = z.strictObject({
+  mode: z.literal('orbit'),
+  /** World point the camera looks at (X = plan x, Y = up, Z = plan y). */
+  target: World3,
+  /** Horizontal angle of the camera around `target`, degrees clockwise on the plan from plan-up (-y); 0 = camera north of the target on the plan page, looking down the page. */
+  azimuthDeg: Degrees,
+  /** Angle above the horizon, degrees (5 = nearly level, 89 = nearly straight down). */
+  elevationDeg: z.number().min(5).max(89),
+  distance: z.number().positive().max(200),
+  fovDeg: z.number().min(10).max(110).default(50),
+});
+
+/** First-person camera. */
+export const WalkPose = z.strictObject({
+  mode: z.literal('walk'),
+  /** Eye position on the plan. */
+  position: Plan2,
+  /** Eye height above the floor, metres (default eye level is about 1.6). */
+  eyeHeight: z.number().min(0.3).max(3).default(1.6),
+  /**
+   * Looking direction on the PLAN, degrees clockwise from plan-up (-y): 0 looks towards the top of
+   * the page, 90 towards +x. (three.js `rotation.y` is the negative of this: positive turns left.)
+   */
+  headingDeg: Degrees,
+  /** Up/down tilt, degrees (positive looks up). */
+  pitchDeg: z.number().min(-80).max(80).default(0),
+  fovDeg: z.number().min(30).max(120).default(70),
+});
+
+/** Orthographic plan view looking straight down; plan-up (-y) is screen-up unless rotated. */
+export const TopPose = z.strictObject({
+  mode: z.literal('top'),
+  center: Plan2,
+  /** Half of the visible height in metres. */
+  halfHeight: z.number().positive().max(200),
+  /** Clockwise rotation of the plan on screen, degrees (0 = plan-up is screen-up). */
+  rotationDeg: Degrees.default(0),
+});
+
+/**
+ * Where the camera is, for one render or one `setCamera` call. Discriminated on `mode`.
+ * Build poses with the pure presets in `camera-presets.ts`; apply them with `__flat.setCamera`.
+ */
+export const CameraPose = z.discriminatedUnion('mode', [OrbitPose, WalkPose, TopPose]);
+export type OrbitPose = z.infer<typeof OrbitPose>;
+export type WalkPose = z.infer<typeof WalkPose>;
+export type TopPose = z.infer<typeof TopPose>;
+export type CameraPose = z.infer<typeof CameraPose>;

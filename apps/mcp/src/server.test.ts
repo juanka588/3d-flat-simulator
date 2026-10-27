@@ -1,0 +1,156 @@
+import { InMemoryTransport } from '@modelcontextprotocol/server';
+import { Client } from '@modelcontextprotocol/client';
+import { commandToolSchemas } from '@flat/scene';
+import { describe, expect, it } from 'vitest';
+import { loadConfig } from './config';
+import { createFlatMcpServer } from './server';
+import { MockFlatApi } from './testing/mockFlatApi';
+
+/** In-process client <-> server over linked transports, with the in-memory FlatApi (no network). */
+async function connect(over: Parameters<typeof loadConfig>[1] = {}, flat = new MockFlatApi()) {
+  const config = loadConfig({}, { log: () => {}, ...over });
+  const server = createFlatMcpServer({ config, flat, clock: { now: () => 1_700_000_000_000, newId: (() => { let n = 0; return () => `01TEST${String(++n).padStart(20, '0')}`; })() } });
+  const [a, b] = InMemoryTransport.createLinkedPair();
+  const client = new Client({ name: 'unit-client', version: '1.0.0' });
+  await Promise.all([server.connect(a), client.connect(b)]);
+  return { client, flat, server };
+}
+const json = (r: { content: unknown }) => JSON.parse((r.content as { text: string }[])[0]!.text);
+
+describe('SDK spike: schemas are advertised unchanged (a)', () => {
+  it('every commandToolSchemas() inputSchema reaches the client byte-for-byte', async () => {
+    const { client } = await connect();
+    const { tools } = await client.listTools();
+    for (const t of commandToolSchemas()) {
+      const listed = tools.find((x) => x.name === t.name);
+      expect(listed, t.name).toBeDefined();
+      expect(listed!.inputSchema).toEqual(t.inputSchema);
+      expect(listed!.description).toBe(t.description);
+    }
+    const batch = tools.find((t) => t.name === 'batch')!.inputSchema as unknown as { $defs: Record<string, unknown> };
+    expect(Object.keys(batch.$defs)).toContain('wall_set_finish');
+    const setFinish = commandToolSchemas().find((t) => t.name === 'wall_set_finish')!.inputSchema as { properties: Record<string, { type?: unknown }> };
+    expect(JSON.stringify(tools.find((t) => t.name === 'wall_set_finish')!.inputSchema)).toContain('"type":["string","null"]');
+    expect(setFinish.properties.materialId).toBeDefined();
+  });
+});
+
+describe('SDK spike: validation errors come from our parser only (b)', () => {
+  it('a schema-invalid call is not rejected by the SDK; parseCommand answers with a path', async () => {
+    const { client, flat } = await connect();
+    const r = await client.callTool({ name: 'wall_set_finish', arguments: { wallId: 'w-north', side: 'middle', materialId: 'paint-white' } });
+    expect(r.isError).toBe(true);
+    const body = json(r);
+    expect(body).toMatchObject({ ok: false, code: 'invalid_command' });
+    expect(body.errors[0].path).toBe('cmd/side');
+    expect(r.structuredContent).toEqual(body);
+    expect(flat.calls).not.toContain('postCommand');
+  });
+
+  it('an unknown id reaches the reducer and returns nearest-id hints', async () => {
+    const { client } = await connect();
+    const r = await client.callTool({ name: 'room_set_floor', arguments: { roomId: 'sejoure', materialId: 'floor-oak' } });
+    expect(r.isError).toBe(true);
+    const body = json(r);
+    expect(body.code).toBe('unknown_entity');
+    expect(body.hint).toContain('sejour');
+  });
+
+  it('extra and missing arguments are reported by parseCommand', async () => {
+    const { client } = await connect();
+    const r = await client.callTool({ name: 'room_set_floor', arguments: { roomId: 'sejour', bogus: 1 } });
+    const body = json(r);
+    expect(body.code).toBe('invalid_command');
+    expect(JSON.stringify(body.errors)).toContain('bogus');
+  });
+});
+
+describe('write tools through the mock FlatApi', () => {
+  it('room_set_floor applies as an llm-authored envelope with the client name', async () => {
+    const { client, flat } = await connect();
+    const r = await client.callTool({ name: 'room_set_floor', arguments: { roomId: 'sejour', materialId: 'floor-oak' } });
+    expect(r.isError).toBeFalsy();
+    expect(r.structuredContent).toMatchObject({ ok: true, rev: 1, changed: { rooms: ['sejour'] } });
+    expect(flat.log[0]!.envelope.author).toEqual({ kind: 'llm', name: 'unit-client' });
+    expect(flat.log[0]!.envelope.id).toMatch(/^01TEST/);
+  });
+
+  it('batch is atomic and the failing command path is reported', async () => {
+    const { client, flat } = await connect();
+    const r = await client.callTool({
+      name: 'batch',
+      arguments: { label: 'x', commands: [{ type: 'room.setFloor', roomId: 'sejour', materialId: 'floor-oak' }, { type: 'room.setFloor', roomId: 'nope', materialId: 'floor-oak' }] },
+    });
+    expect(r.isError).toBe(true);
+    expect(json(r).errors[0].path).toMatch(/commands\/1/);
+    expect(flat.rev).toBe(0);
+  });
+
+  it('batch_too_large is enforced by the MCP limit', async () => {
+    const { client } = await connect({ limits: { maxBatch: 2, writesPerMinute: 30, rendersPerMinute: 10, maxArgBytes: 262144 } });
+    const cmd = { type: 'room.setFloor', roomId: 'sejour', materialId: 'floor-oak' };
+    const r = await client.callTool({ name: 'batch', arguments: { label: 'x', commands: [cmd, cmd, cmd] } });
+    expect(json(r).code).toBe('batch_too_large');
+  });
+
+  it('server_unreachable is a tool error, not a protocol error, and the session survives', async () => {
+    const { client, flat } = await connect();
+    flat.down = true;
+    const r = await client.callTool({ name: 'room_set_floor', arguments: { roomId: 'sejour', materialId: 'floor-oak' } });
+    expect(r.isError).toBe(true);
+    expect(json(r).code).toBe('server_unreachable');
+    flat.down = false;
+    const again = await client.callTool({ name: 'room_set_floor', arguments: { roomId: 'sejour', materialId: 'floor-oak' } });
+    expect(again.isError).toBeFalsy();
+  });
+
+  it('a stale ifRev maps to stale_scene', async () => {
+    const { client, flat } = await connect();
+    flat.failNext({ ok: false, kind: 'http', status: 409, rev: 7, errors: [{ code: 'precondition_failed', path: 'ifRev', message: 'scene is at revision 7, command expected 3' }] });
+    const r = await client.callTool({ name: 'room_set_floor', arguments: { roomId: 'sejour', materialId: 'floor-oak' } });
+    expect(json(r)).toMatchObject({ code: 'stale_scene', rev: 7 });
+  });
+});
+
+describe('stubs and modes', () => {
+  it('read, view, history and render stubs answer not_implemented', async () => {
+    const { client } = await connect();
+    for (const name of ['get_scene_summary', 'list_rooms', 'describe_room', 'list_materials', 'set_sun_time', 'render_view', 'list_history', 'undo', 'redo', 'checkpoint', 'restore_checkpoint']) {
+      const r = await client.callTool({ name, arguments: {} });
+      expect(r.isError, name).toBe(true);
+      expect(json(r).code, name).toBe('not_implemented');
+    }
+  });
+
+  it('FLAT_MCP_READONLY hides the scene-mutating tools', async () => {
+    const { client } = await connect({ readOnly: true });
+    const names = (await client.listTools()).tools.map((t) => t.name);
+    expect(names).toContain('render_view');
+    expect(names).not.toContain('batch');
+    expect(names).not.toContain('undo');
+  });
+
+  it('FLAT_MCP_TOOLS restricts the list', async () => {
+    const { client } = await connect({ toolAllowList: ['batch', 'list_rooms'] });
+    expect((await client.listTools()).tools.map((t) => t.name).sort()).toEqual(['batch', 'list_rooms']);
+  });
+});
+
+describe('snapshots (the contract)', () => {
+  it('tools/list', async () => {
+    const { client } = await connect();
+    const { tools } = await client.listTools();
+    expect(tools.map((t) => ({ name: t.name, description: t.description, annotations: t.annotations, inputSchema: t.inputSchema }))).toMatchSnapshot();
+  });
+
+  it('prompts/list', async () => {
+    const { client } = await connect();
+    expect((await client.listPrompts()).prompts).toMatchSnapshot();
+  });
+
+  it('server instructions', async () => {
+    const { client } = await connect();
+    expect(client.getInstructions()).toMatchSnapshot();
+    expect(client.getInstructions()!.split(/\s+/).length).toBeLessThan(220);
+  });
+});

@@ -287,6 +287,12 @@ export function installTestHook(): void {
       camera.rotation.set(0, (yawDeg * Math.PI) / 180, 0);
       await whenRendered();
     },
+    async setCamera(_pose) {
+      // TODO(M4 lane B, M4.8): apply the pose to the active camera/controls, then `await whenRendered()`.
+    },
+    async setViewport(_viewport) {
+      // TODO(M4 lane B, M4.8): resize the canvas (gl.setSize / setPixelRatio) and `await whenRendered()`.
+    },
     project([x, y, z]) {
       const { camera, gl } = canvas!();
       camera.updateMatrixWorld();

@@ -7,6 +7,7 @@
     "dev": "pnpm --filter @flat/web dev",
     "server": "pnpm --filter @flat/server start",
     "dev:all": "pnpm --parallel --filter @flat/server --filter @flat/web dev",
+    "mcp": "pnpm --silent --filter @flat/mcp start",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck && tsc -p e2e/tsconfig.json",
     "lint": "eslint .",

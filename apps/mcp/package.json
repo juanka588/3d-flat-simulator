@@ -1,0 +1,24 @@
+{
+  "name": "@flat/mcp",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "flat-mcp": "src/main.ts"
+  },
+  "scripts": {
+    "start": "tsx src/main.ts",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@flat/scene": "workspace:*",
+    "@modelcontextprotocol/client": "^2.4.0",
+    "@modelcontextprotocol/server": "^2.4.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@flat/server": "workspace:*",
+    "tsx": "^4.20.0",
+    "vitest": "^5.0.5"
+  }
+}
