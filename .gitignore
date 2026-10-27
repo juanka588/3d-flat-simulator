@@ -26,3 +26,6 @@ apps/server/local-assets/
 .env.local
 **/3d-future/
 **/3D-FUTURE/
+
+# Claude Code agent worktrees
+.claude/worktrees/
