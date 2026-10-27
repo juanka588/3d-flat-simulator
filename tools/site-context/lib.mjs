@@ -333,8 +333,10 @@ export function envelopeSamples(flat, cell = 0.05) {
   }
   const polys = [...solid, ...slabs];
   // Walls may run on past the flat (a north wall along a balcony's edge): keep the samples within the
-  // non-balcony rooms' bounding box grown by the thickest wall, i.e. up to the outer wall faces.
-  const maxT = Math.max(0, ...(flat.walls ?? []).map((w) => w.thickness ?? 0.2));
+  // non-balcony rooms' bounding box grown by the thickest wall, i.e. up to the outer wall faces. Columns
+  // (walls shorter than twice their thickness) stand inside the rooms and do not count.
+  const isColumn = (w) => Math.hypot(w.end[0] - w.start[0], w.end[1] - w.start[1]) < 2 * (w.thickness ?? 0.2);
+  const maxT = Math.max(0, ...(flat.walls ?? []).filter((w) => !isColumn(w)).map((w) => w.thickness ?? 0.2));
   const rb = box(solid.flat());
   const bb = { minX: rb.minX - maxT, maxX: rb.maxX + maxT, minY: rb.minY - maxT, maxY: rb.maxY + maxT };
   const points = [];

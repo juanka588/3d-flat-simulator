@@ -48,7 +48,7 @@ describe('read tools (M4.4)', () => {
       const f = json(full);
       expect(textChars(full)).toBeGreaterThan(textChars(brief));
       expect(f.lights.length).toBe(9);
-      expect(f.materials.length).toBe(6);
+      expect(f.materials.length).toBe(9);
       expect(f.rooms[0]).toHaveProperty('windows');
     });
 
@@ -127,7 +127,7 @@ describe('read tools (M4.4)', () => {
       const text = (r.content as { text: string }[])[0]!.text;
       const lines = text.split('\n');
       const s = r.structuredContent as { library: { slug: string }[]; sceneMaterials: { id: string }[] };
-      expect(s.library).toHaveLength(24);
+      expect(s.library).toHaveLength(25);
       for (const m of s.library) expect(lines.filter((l) => l.startsWith(`${m.slug} | `))).toHaveLength(1);
       expect(s.sceneMaterials.map((m) => m.id)).toContain('floor-oak');
     });
@@ -158,7 +158,7 @@ describe('read tools (M4.4)', () => {
       const oak = (await client.callTool({ name: 'list_materials', arguments: { query: 'OAK' } })).structuredContent as { library: { slug: string; name: string }[]; sceneMaterials: { id: string }[] };
       expect(oak.library.length).toBeGreaterThan(0);
       for (const m of oak.library) expect((m.slug + m.name).toLowerCase()).toContain('oak');
-      expect(oak.sceneMaterials.map((m) => m.id)).toEqual(['floor-oak']);
+      expect(oak.sceneMaterials.map((m) => m.id)).toEqual(['floor-oak', 'lib-parquet-light-oak']);
       const tile = (await client.callTool({ name: 'list_materials', arguments: { category: 'floor-tile' } })).structuredContent as { library: { category: string }[]; sceneMaterials: unknown[] };
       expect(tile.library.length).toBeGreaterThan(0);
       expect(new Set(tile.library.map((m) => m.category))).toEqual(new Set(['floor-tile']));
@@ -214,7 +214,7 @@ describe('resources (M4.4)', () => {
     const text = await read(client, 'materials://list');
     const tool = await client.callTool({ name: 'list_materials', arguments: {} });
     expect(text).toBe((tool.content as { text: string }[])[0]!.text);
-    expect(text).toContain('Library textures (24)');
+    expect(text).toContain('Library textures (25)');
   });
 
   it('docs://conventions is concise Markdown covering the conventions', async () => {

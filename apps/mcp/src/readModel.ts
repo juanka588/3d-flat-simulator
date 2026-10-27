@@ -50,6 +50,7 @@ export function usedMaterialIds(scene: Scene): Set<string> {
     add(r.wallFinish);
     add(r.floorMaterial);
     add(r.ceilingMaterial);
+    for (const z of r.floorZones ?? []) add(z.material);
   }
   add(scene.defaults.wall);
   add(scene.defaults.floor);

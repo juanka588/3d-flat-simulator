@@ -29,7 +29,7 @@ function project(cam: CameraFit, p: Point3, fovDeg: number, aspect: number) {
 describe('sceneBounds3', () => {
   it('encloses Charme walls (with thickness), balcony and height', () => {
     const b = sceneBounds3(scene);
-    expect(b.min[0]).toBeCloseTo(-1.6 - 0.1, 9); // north wall starts at -1.6, half thickness 0.1
+    expect(b.min[0]).toBeCloseTo(-1.6, 9); // north wall starts at -1.6 (exact rectangle: ends are not padded)
     expect(b.max[0]).toBeCloseTo(10.15 + 0.1, 9);
     expect(b.min[2]).toBeCloseTo(-0.1 - 0.1, 9);
     expect(b.max[2]).toBeCloseTo(8.38 + 0.1, 9);

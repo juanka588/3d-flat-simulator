@@ -83,12 +83,12 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "additionalProperties": false,
       "properties": {
         "ifRev": {
-          "description": "Apply only if the flat is still at this revision (rev of a result, baseRev of a preview), else stale_scene and nothing changes.",
+          "description": "Apply only if the flat is still at this revision (rev, or baseRev of a preview), else stale_scene.",
           "minimum": 0,
           "type": "integer",
         },
         "label": {
-          "description": "Short description of this change for the undo history.",
+          "description": "Undo-history label.",
           "maxLength": 200,
           "minLength": 1,
           "type": "string",
@@ -147,7 +147,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "type": "object",
         },
         "preview": {
-          "description": "true: change nothing, return what the change would do (diff, warnings, would-be changed ids).",
+          "description": "true: change nothing, return the diff and warnings.",
           "type": "boolean",
         },
         "render": {
@@ -160,7 +160,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "type": "object",
             },
           ],
-          "description": "true, or render_view arguments: also return an image of the result (or of the previewed state). true = overview of the first changed room, else the flat from above.",
+          "description": "true, or render_view arguments: also return an image of the result (true = the first changed room, else the flat from above).",
         },
       },
       "required": [
@@ -188,18 +188,18 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "type": "string",
         },
         "ifRev": {
-          "description": "Apply only if the flat is still at this revision (rev of a result, baseRev of a preview), else stale_scene and nothing changes.",
+          "description": "Apply only if the flat is still at this revision (rev, or baseRev of a preview), else stale_scene.",
           "minimum": 0,
           "type": "integer",
         },
         "label": {
-          "description": "Short description of this change for the undo history.",
+          "description": "Undo-history label.",
           "maxLength": 200,
           "minLength": 1,
           "type": "string",
         },
         "preview": {
-          "description": "true: change nothing, return what the change would do (diff, warnings, would-be changed ids).",
+          "description": "true: change nothing, return the diff and warnings.",
           "type": "boolean",
         },
         "render": {
@@ -212,7 +212,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "type": "object",
             },
           ],
-          "description": "true, or render_view arguments: also return an image of the result (or of the previewed state). true = overview of the first changed room, else the flat from above.",
+          "description": "true, or render_view arguments: also return an image of the result (true = the first changed room, else the flat from above).",
         },
       },
       "required": [
@@ -234,12 +234,12 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "additionalProperties": false,
       "properties": {
         "ifRev": {
-          "description": "Apply only if the flat is still at this revision (rev of a result, baseRev of a preview), else stale_scene and nothing changes.",
+          "description": "Apply only if the flat is still at this revision (rev, or baseRev of a preview), else stale_scene.",
           "minimum": 0,
           "type": "integer",
         },
         "label": {
-          "description": "Short description of this change for the undo history.",
+          "description": "Undo-history label.",
           "maxLength": 200,
           "minLength": 1,
           "type": "string",
@@ -254,7 +254,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           ],
         },
         "preview": {
-          "description": "true: change nothing, return what the change would do (diff, warnings, would-be changed ids).",
+          "description": "true: change nothing, return the diff and warnings.",
           "type": "boolean",
         },
         "render": {
@@ -267,7 +267,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "type": "object",
             },
           ],
-          "description": "true, or render_view arguments: also return an image of the result (or of the previewed state). true = overview of the first changed room, else the flat from above.",
+          "description": "true, or render_view arguments: also return an image of the result (true = the first changed room, else the flat from above).",
         },
         "roomId": {
           "description": "The room whose stretch of this wall side to paint (rooms[].id from list_rooms). Strongly recommended: a wall side can be shared by several rooms (e.g. the alcove and the sejour) and without roomId the whole side is painted for all of them. Fails with precondition_failed if the room does not border that side. A room-scoped finish beats the whole-side finish and room_set_wall_finish.",
@@ -312,18 +312,18 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "additionalProperties": false,
       "properties": {
         "ifRev": {
-          "description": "Apply only if the flat is still at this revision (rev of a result, baseRev of a preview), else stale_scene and nothing changes.",
+          "description": "Apply only if the flat is still at this revision (rev, or baseRev of a preview), else stale_scene.",
           "minimum": 0,
           "type": "integer",
         },
         "label": {
-          "description": "Short description of this change for the undo history.",
+          "description": "Undo-history label.",
           "maxLength": 200,
           "minLength": 1,
           "type": "string",
         },
         "preview": {
-          "description": "true: change nothing, return what the change would do (diff, warnings, would-be changed ids).",
+          "description": "true: change nothing, return the diff and warnings.",
           "type": "boolean",
         },
         "render": {
@@ -336,7 +336,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "type": "object",
             },
           ],
-          "description": "true, or render_view arguments: also return an image of the result (or of the previewed state). true = overview of the first changed room, else the flat from above.",
+          "description": "true, or render_view arguments: also return an image of the result (true = the first changed room, else the flat from above).",
         },
         "structural": {
           "description": "true marks the wall structural (cannot be removed); false marks it removable; null clears the explicit mark so it is derived (exterior or at least 15 cm thick means structural). Only a user may set false on a wall that is structural by default.",
@@ -372,12 +372,12 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "additionalProperties": false,
       "properties": {
         "ifRev": {
-          "description": "Apply only if the flat is still at this revision (rev of a result, baseRev of a preview), else stale_scene and nothing changes.",
+          "description": "Apply only if the flat is still at this revision (rev, or baseRev of a preview), else stale_scene.",
           "minimum": 0,
           "type": "integer",
         },
         "label": {
-          "description": "Short description of this change for the undo history.",
+          "description": "Undo-history label.",
           "maxLength": 200,
           "minLength": 1,
           "type": "string",
@@ -392,7 +392,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           ],
         },
         "preview": {
-          "description": "true: change nothing, return what the change would do (diff, warnings, would-be changed ids).",
+          "description": "true: change nothing, return the diff and warnings.",
           "type": "boolean",
         },
         "render": {
@@ -405,7 +405,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "type": "object",
             },
           ],
-          "description": "true, or render_view arguments: also return an image of the result (or of the previewed state). true = overview of the first changed room, else the flat from above.",
+          "description": "true, or render_view arguments: also return an image of the result (true = the first changed room, else the flat from above).",
         },
         "roomId": {
           "description": "Id of the room (rooms[].id from list_rooms).",
@@ -434,12 +434,12 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "additionalProperties": false,
       "properties": {
         "ifRev": {
-          "description": "Apply only if the flat is still at this revision (rev of a result, baseRev of a preview), else stale_scene and nothing changes.",
+          "description": "Apply only if the flat is still at this revision (rev, or baseRev of a preview), else stale_scene.",
           "minimum": 0,
           "type": "integer",
         },
         "label": {
-          "description": "Short description of this change for the undo history.",
+          "description": "Undo-history label.",
           "maxLength": 200,
           "minLength": 1,
           "type": "string",
@@ -454,7 +454,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           ],
         },
         "preview": {
-          "description": "true: change nothing, return what the change would do (diff, warnings, would-be changed ids).",
+          "description": "true: change nothing, return the diff and warnings.",
           "type": "boolean",
         },
         "render": {
@@ -467,7 +467,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "type": "object",
             },
           ],
-          "description": "true, or render_view arguments: also return an image of the result (or of the previewed state). true = overview of the first changed room, else the flat from above.",
+          "description": "true, or render_view arguments: also return an image of the result (true = the first changed room, else the flat from above).",
         },
         "roomId": {
           "description": "Id of the room (rooms[].id from list_rooms).",
@@ -496,12 +496,12 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "additionalProperties": false,
       "properties": {
         "ifRev": {
-          "description": "Apply only if the flat is still at this revision (rev of a result, baseRev of a preview), else stale_scene and nothing changes.",
+          "description": "Apply only if the flat is still at this revision (rev, or baseRev of a preview), else stale_scene.",
           "minimum": 0,
           "type": "integer",
         },
         "label": {
-          "description": "Short description of this change for the undo history.",
+          "description": "Undo-history label.",
           "maxLength": 200,
           "minLength": 1,
           "type": "string",
@@ -516,7 +516,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           ],
         },
         "preview": {
-          "description": "true: change nothing, return what the change would do (diff, warnings, would-be changed ids).",
+          "description": "true: change nothing, return the diff and warnings.",
           "type": "boolean",
         },
         "render": {
@@ -529,7 +529,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "type": "object",
             },
           ],
-          "description": "true, or render_view arguments: also return an image of the result (or of the previewed state). true = overview of the first changed room, else the flat from above.",
+          "description": "true, or render_view arguments: also return an image of the result (true = the first changed room, else the flat from above).",
         },
         "roomId": {
           "description": "Id of the room (rooms[].id from list_rooms).",
@@ -576,18 +576,18 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           ],
         },
         "ifRev": {
-          "description": "Apply only if the flat is still at this revision (rev of a result, baseRev of a preview), else stale_scene and nothing changes.",
+          "description": "Apply only if the flat is still at this revision (rev, or baseRev of a preview), else stale_scene.",
           "minimum": 0,
           "type": "integer",
         },
         "label": {
-          "description": "Short description of this change for the undo history.",
+          "description": "Undo-history label.",
           "maxLength": 200,
           "minLength": 1,
           "type": "string",
         },
         "preview": {
-          "description": "true: change nothing, return what the change would do (diff, warnings, would-be changed ids).",
+          "description": "true: change nothing, return the diff and warnings.",
           "type": "boolean",
         },
         "render": {
@@ -600,7 +600,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "type": "object",
             },
           ],
-          "description": "true, or render_view arguments: also return an image of the result (or of the previewed state). true = overview of the first changed room, else the flat from above.",
+          "description": "true, or render_view arguments: also return an image of the result (true = the first changed room, else the flat from above).",
         },
         "wall": {
           "description": "Default wall material for faces without a finish. Omit to leave unchanged, null to clear.",
@@ -629,18 +629,18 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "additionalProperties": false,
       "properties": {
         "ifRev": {
-          "description": "Apply only if the flat is still at this revision (rev of a result, baseRev of a preview), else stale_scene and nothing changes.",
+          "description": "Apply only if the flat is still at this revision (rev, or baseRev of a preview), else stale_scene.",
           "minimum": 0,
           "type": "integer",
         },
         "label": {
-          "description": "Short description of this change for the undo history.",
+          "description": "Undo-history label.",
           "maxLength": 200,
           "minLength": 1,
           "type": "string",
         },
         "preview": {
-          "description": "true: change nothing, return what the change would do (diff, warnings, would-be changed ids).",
+          "description": "true: change nothing, return the diff and warnings.",
           "type": "boolean",
         },
         "render": {
@@ -653,7 +653,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "type": "object",
             },
           ],
-          "description": "true, or render_view arguments: also return an image of the result (or of the previewed state). true = overview of the first changed room, else the flat from above.",
+          "description": "true, or render_view arguments: also return an image of the result (true = the first changed room, else the flat from above).",
         },
         "site": {
           "additionalProperties": false,
@@ -714,12 +714,12 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "additionalProperties": false,
       "properties": {
         "ifRev": {
-          "description": "Apply only if the flat is still at this revision (rev of a result, baseRev of a preview), else stale_scene and nothing changes.",
+          "description": "Apply only if the flat is still at this revision (rev, or baseRev of a preview), else stale_scene.",
           "minimum": 0,
           "type": "integer",
         },
         "label": {
-          "description": "Short description of this change for the undo history.",
+          "description": "Undo-history label.",
           "maxLength": 200,
           "minLength": 1,
           "type": "string",
@@ -949,7 +949,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "description": "The light to add: point, spot or area, discriminated by its "type".",
         },
         "preview": {
-          "description": "true: change nothing, return what the change would do (diff, warnings, would-be changed ids).",
+          "description": "true: change nothing, return the diff and warnings.",
           "type": "boolean",
         },
         "render": {
@@ -962,7 +962,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "type": "object",
             },
           ],
-          "description": "true, or render_view arguments: also return an image of the result (or of the previewed state). true = overview of the first changed room, else the flat from above.",
+          "description": "true, or render_view arguments: also return an image of the result (true = the first changed room, else the flat from above).",
         },
       },
       "required": [
@@ -990,12 +990,12 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "type": "string",
         },
         "ifRev": {
-          "description": "Apply only if the flat is still at this revision (rev of a result, baseRev of a preview), else stale_scene and nothing changes.",
+          "description": "Apply only if the flat is still at this revision (rev, or baseRev of a preview), else stale_scene.",
           "minimum": 0,
           "type": "integer",
         },
         "label": {
-          "description": "Short description of this change for the undo history.",
+          "description": "Undo-history label.",
           "maxLength": 200,
           "minLength": 1,
           "type": "string",
@@ -1074,7 +1074,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "type": "object",
         },
         "preview": {
-          "description": "true: change nothing, return what the change would do (diff, warnings, would-be changed ids).",
+          "description": "true: change nothing, return the diff and warnings.",
           "type": "boolean",
         },
         "render": {
@@ -1087,7 +1087,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "type": "object",
             },
           ],
-          "description": "true, or render_view arguments: also return an image of the result (or of the previewed state). true = overview of the first changed room, else the flat from above.",
+          "description": "true, or render_view arguments: also return an image of the result (true = the first changed room, else the flat from above).",
         },
       },
       "required": [
@@ -1116,18 +1116,18 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "type": "string",
         },
         "ifRev": {
-          "description": "Apply only if the flat is still at this revision (rev of a result, baseRev of a preview), else stale_scene and nothing changes.",
+          "description": "Apply only if the flat is still at this revision (rev, or baseRev of a preview), else stale_scene.",
           "minimum": 0,
           "type": "integer",
         },
         "label": {
-          "description": "Short description of this change for the undo history.",
+          "description": "Undo-history label.",
           "maxLength": 200,
           "minLength": 1,
           "type": "string",
         },
         "preview": {
-          "description": "true: change nothing, return what the change would do (diff, warnings, would-be changed ids).",
+          "description": "true: change nothing, return the diff and warnings.",
           "type": "boolean",
         },
         "render": {
@@ -1140,7 +1140,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "type": "object",
             },
           ],
-          "description": "true, or render_view arguments: also return an image of the result (or of the previewed state). true = overview of the first changed room, else the flat from above.",
+          "description": "true, or render_view arguments: also return an image of the result (true = the first changed room, else the flat from above).",
         },
       },
       "required": [
@@ -1173,12 +1173,12 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "type": "string",
         },
         "ifRev": {
-          "description": "Apply only if the flat is still at this revision (rev of a result, baseRev of a preview), else stale_scene and nothing changes.",
+          "description": "Apply only if the flat is still at this revision (rev, or baseRev of a preview), else stale_scene.",
           "minimum": 0,
           "type": "integer",
         },
         "label": {
-          "description": "Short description of this change for the undo history.",
+          "description": "Undo-history label.",
           "maxLength": 200,
           "minLength": 1,
           "type": "string",
@@ -1193,7 +1193,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "type": "array",
         },
         "preview": {
-          "description": "true: change nothing, return what the change would do (diff, warnings, would-be changed ids).",
+          "description": "true: change nothing, return the diff and warnings.",
           "type": "boolean",
         },
         "relation": {
@@ -1466,7 +1466,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "type": "object",
             },
           ],
-          "description": "true, or render_view arguments: also return an image of the result (or of the previewed state). true = overview of the first changed room, else the flat from above.",
+          "description": "true, or render_view arguments: also return an image of the result (true = the first changed room, else the flat from above).",
         },
         "roomId": {
           "description": "Room the item now belongs to (rooms[].id); null clears it. Optional.",
@@ -1508,18 +1508,18 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "type": "string",
         },
         "ifRev": {
-          "description": "Apply only if the flat is still at this revision (rev of a result, baseRev of a preview), else stale_scene and nothing changes.",
+          "description": "Apply only if the flat is still at this revision (rev, or baseRev of a preview), else stale_scene.",
           "minimum": 0,
           "type": "integer",
         },
         "label": {
-          "description": "Short description of this change for the undo history.",
+          "description": "Undo-history label.",
           "maxLength": 200,
           "minLength": 1,
           "type": "string",
         },
         "preview": {
-          "description": "true: change nothing, return what the change would do (diff, warnings, would-be changed ids).",
+          "description": "true: change nothing, return the diff and warnings.",
           "type": "boolean",
         },
         "render": {
@@ -1532,7 +1532,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "type": "object",
             },
           ],
-          "description": "true, or render_view arguments: also return an image of the result (or of the previewed state). true = overview of the first changed room, else the flat from above.",
+          "description": "true, or render_view arguments: also return an image of the result (true = the first changed room, else the flat from above).",
         },
         "rotation": {
           "description": "Absolute rotation in degrees, counter-clockwise seen from above (the front faces plan +y at 0).",
@@ -1565,18 +1565,18 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "type": "string",
         },
         "ifRev": {
-          "description": "Apply only if the flat is still at this revision (rev of a result, baseRev of a preview), else stale_scene and nothing changes.",
+          "description": "Apply only if the flat is still at this revision (rev, or baseRev of a preview), else stale_scene.",
           "minimum": 0,
           "type": "integer",
         },
         "label": {
-          "description": "Short description of this change for the undo history.",
+          "description": "Undo-history label.",
           "maxLength": 200,
           "minLength": 1,
           "type": "string",
         },
         "preview": {
-          "description": "true: change nothing, return what the change would do (diff, warnings, would-be changed ids).",
+          "description": "true: change nothing, return the diff and warnings.",
           "type": "boolean",
         },
         "render": {
@@ -1589,7 +1589,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "type": "object",
             },
           ],
-          "description": "true, or render_view arguments: also return an image of the result (or of the previewed state). true = overview of the first changed room, else the flat from above.",
+          "description": "true, or render_view arguments: also return an image of the result (true = the first changed room, else the flat from above).",
         },
       },
       "required": [
@@ -1598,6 +1598,227 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "type": "object",
     },
     "name": "item_remove",
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": false,
+    },
+    "description": "Add or replace (by zone.id, full replace) a floor zone: a part of a room floor with its own material, e.g. kitchen tiles in an open-plan room. The polygon must lie inside the room (1 cm tolerance) and not overlap the other zones of that room; define the material first.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "ifRev": {
+          "description": "Apply only if the flat is still at this revision (rev, or baseRev of a preview), else stale_scene.",
+          "minimum": 0,
+          "type": "integer",
+        },
+        "label": {
+          "description": "Undo-history label.",
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string",
+        },
+        "preview": {
+          "description": "true: change nothing, return the diff and warnings.",
+          "type": "boolean",
+        },
+        "render": {
+          "anyOf": [
+            {
+              "type": "boolean",
+            },
+            {
+              "additionalProperties": true,
+              "type": "object",
+            },
+          ],
+          "description": "true, or render_view arguments: also return an image of the result (true = the first changed room, else the flat from above).",
+        },
+        "roomId": {
+          "description": "Id of the room (rooms[].id from list_rooms).",
+          "maxLength": 64,
+          "minLength": 1,
+          "type": "string",
+        },
+        "zone": {
+          "additionalProperties": false,
+          "description": "The zone: id, optional name, polygon and material.",
+          "properties": {
+            "id": {
+              "description": "Zone id, unique within its room.",
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string",
+            },
+            "material": {
+              "description": "Defined material id (list_materials).",
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string",
+            },
+            "name": {
+              "description": "Optional label.",
+              "maxLength": 120,
+              "type": "string",
+            },
+            "polygon": {
+              "description": "Outline: [x, y] plan points in metres.",
+              "items": {
+                "items": {
+                  "type": "number",
+                },
+                "maxItems": 2,
+                "minItems": 2,
+                "type": "array",
+              },
+              "maxItems": 500,
+              "minItems": 3,
+              "type": "array",
+            },
+          },
+          "required": [
+            "id",
+            "polygon",
+            "material",
+          ],
+          "type": "object",
+        },
+      },
+      "required": [
+        "roomId",
+        "zone",
+      ],
+      "type": "object",
+    },
+    "name": "room_set_floor_zone",
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": false,
+    },
+    "description": "Remove a floor zone; its area returns to the room floor material.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "ifRev": {
+          "description": "Apply only if the flat is still at this revision (rev, or baseRev of a preview), else stale_scene.",
+          "minimum": 0,
+          "type": "integer",
+        },
+        "label": {
+          "description": "Undo-history label.",
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string",
+        },
+        "preview": {
+          "description": "true: change nothing, return the diff and warnings.",
+          "type": "boolean",
+        },
+        "render": {
+          "anyOf": [
+            {
+              "type": "boolean",
+            },
+            {
+              "additionalProperties": true,
+              "type": "object",
+            },
+          ],
+          "description": "true, or render_view arguments: also return an image of the result (true = the first changed room, else the flat from above).",
+        },
+        "roomId": {
+          "description": "Id of the room (rooms[].id from list_rooms).",
+          "maxLength": 64,
+          "minLength": 1,
+          "type": "string",
+        },
+        "zoneId": {
+          "description": "Zone id (floor.zones[].id from describe_room).",
+          "maxLength": 64,
+          "minLength": 1,
+          "type": "string",
+        },
+      },
+      "required": [
+        "roomId",
+        "zoneId",
+      ],
+      "type": "object",
+    },
+    "name": "room_remove_floor_zone",
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": false,
+    },
+    "description": "Change only the material of a floor zone (zone ids: floor.zones[].id from describe_room).",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "ifRev": {
+          "description": "Apply only if the flat is still at this revision (rev, or baseRev of a preview), else stale_scene.",
+          "minimum": 0,
+          "type": "integer",
+        },
+        "label": {
+          "description": "Undo-history label.",
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string",
+        },
+        "material": {
+          "description": "Defined material id (list_materials).",
+          "maxLength": 64,
+          "minLength": 1,
+          "type": "string",
+        },
+        "preview": {
+          "description": "true: change nothing, return the diff and warnings.",
+          "type": "boolean",
+        },
+        "render": {
+          "anyOf": [
+            {
+              "type": "boolean",
+            },
+            {
+              "additionalProperties": true,
+              "type": "object",
+            },
+          ],
+          "description": "true, or render_view arguments: also return an image of the result (true = the first changed room, else the flat from above).",
+        },
+        "roomId": {
+          "description": "Id of the room (rooms[].id from list_rooms).",
+          "maxLength": 64,
+          "minLength": 1,
+          "type": "string",
+        },
+        "zoneId": {
+          "description": "Zone id (floor.zones[].id from describe_room).",
+          "maxLength": 64,
+          "minLength": 1,
+          "type": "string",
+        },
+      },
+      "required": [
+        "roomId",
+        "zoneId",
+        "material",
+      ],
+      "type": "object",
+    },
+    "name": "room_set_floor_zone_material",
   },
   {
     "annotations": {
@@ -2310,6 +2531,31 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           ],
           "type": "object",
         },
+        "room_remove_floor_zone": {
+          "additionalProperties": false,
+          "properties": {
+            "roomId": {
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string",
+            },
+            "type": {
+              "const": "room.removeFloorZone",
+              "type": "string",
+            },
+            "zoneId": {
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string",
+            },
+          },
+          "required": [
+            "type",
+            "roomId",
+            "zoneId",
+          ],
+          "type": "object",
+        },
         "room_set_ceiling": {
           "additionalProperties": false,
           "properties": {
@@ -2363,6 +2609,95 @@ exports[`snapshots (the contract) > tools/list 1`] = `
             "type",
             "roomId",
             "materialId",
+          ],
+          "type": "object",
+        },
+        "room_set_floor_zone": {
+          "additionalProperties": false,
+          "properties": {
+            "roomId": {
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string",
+            },
+            "type": {
+              "const": "room.setFloorZone",
+              "type": "string",
+            },
+            "zone": {
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string",
+                },
+                "material": {
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string",
+                },
+                "name": {
+                  "maxLength": 120,
+                  "type": "string",
+                },
+                "polygon": {
+                  "items": {
+                    "items": {
+                      "type": "number",
+                    },
+                    "maxItems": 2,
+                    "minItems": 2,
+                    "type": "array",
+                  },
+                  "maxItems": 500,
+                  "minItems": 3,
+                  "type": "array",
+                },
+              },
+              "required": [
+                "id",
+                "polygon",
+                "material",
+              ],
+              "type": "object",
+            },
+          },
+          "required": [
+            "type",
+            "roomId",
+            "zone",
+          ],
+          "type": "object",
+        },
+        "room_set_floor_zone_material": {
+          "additionalProperties": false,
+          "properties": {
+            "material": {
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string",
+            },
+            "roomId": {
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string",
+            },
+            "type": {
+              "const": "room.setFloorZoneMaterial",
+              "type": "string",
+            },
+            "zoneId": {
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string",
+            },
+          },
+          "required": [
+            "type",
+            "roomId",
+            "zoneId",
+            "material",
           ],
           "type": "object",
         },
@@ -2597,13 +2932,22 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               {
                 "$ref": "#/$defs/item_remove",
               },
+              {
+                "$ref": "#/$defs/room_set_floor_zone",
+              },
+              {
+                "$ref": "#/$defs/room_remove_floor_zone",
+              },
+              {
+                "$ref": "#/$defs/room_set_floor_zone_material",
+              },
             ],
           },
           "maxItems": 50,
           "type": "array",
         },
         "ifRev": {
-          "description": "Apply only if the flat is still at this revision (rev of a result, baseRev of a preview), else stale_scene and nothing changes.",
+          "description": "Apply only if the flat is still at this revision (rev, or baseRev of a preview), else stale_scene.",
           "minimum": 0,
           "type": "integer",
         },
@@ -2614,7 +2958,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "type": "string",
         },
         "preview": {
-          "description": "true: change nothing, return what the change would do (diff, warnings, would-be changed ids).",
+          "description": "true: change nothing, return the diff and warnings.",
           "type": "boolean",
         },
         "render": {
@@ -2627,7 +2971,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "type": "object",
             },
           ],
-          "description": "true, or render_view arguments: also return an image of the result (or of the previewed state). true = overview of the first changed room, else the flat from above.",
+          "description": "true, or render_view arguments: also return an image of the result (true = the first changed room, else the flat from above).",
         },
       },
       "required": [
@@ -3048,7 +3392,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "$ref": "#/$defs/placement/properties/elevation",
         },
         "ifRev": {
-          "description": "Apply only if the flat is still at this revision (rev of a result, baseRev of a preview), else stale_scene and nothing changes.",
+          "description": "Apply only if the flat is still at this revision (rev, or baseRev of a preview), else stale_scene.",
           "minimum": 0,
           "type": "integer",
         },
@@ -3066,7 +3410,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "type": "array",
         },
         "label": {
-          "description": "Short description of this change for the undo history.",
+          "description": "Undo-history label.",
           "maxLength": 200,
           "minLength": 1,
           "type": "string",
@@ -3078,7 +3422,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "$ref": "#/$defs/placement/properties/position",
         },
         "preview": {
-          "description": "true: change nothing, return what the change would do (diff, warnings, would-be changed ids).",
+          "description": "true: change nothing, return the diff and warnings.",
           "type": "boolean",
         },
         "productId": {
@@ -3097,7 +3441,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "type": "object",
             },
           ],
-          "description": "true, or render_view arguments: also return an image of the result (or of the previewed state). true = overview of the first changed room, else the flat from above.",
+          "description": "true, or render_view arguments: also return an image of the result (true = the first changed room, else the flat from above).",
         },
         "roomId": {
           "$ref": "#/$defs/placement/properties/roomId",

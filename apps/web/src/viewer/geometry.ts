@@ -39,8 +39,8 @@ export function toBufferGeometry(mesh: MeshData): BufferGeometry {
 }
 
 /** Index buffer holding only the triangles owned by `entityId` (empty when it owns none). */
-export function ownerIndices(mesh: MeshData, entityId: string): Uint32Array {
-  const ranges = mesh.owners.filter((o) => o.entityId === entityId);
+export function ownerIndices(mesh: MeshData, entityId: string, zoneId?: string): Uint32Array {
+  const ranges = mesh.owners.filter((o) => o.entityId === entityId && (zoneId === undefined || o.zoneId === zoneId));
   const total = ranges.reduce((sum, o) => sum + o.count, 0);
   const out = new Uint32Array(total * 3);
   let at = 0;
@@ -53,8 +53,8 @@ export function ownerIndices(mesh: MeshData, entityId: string): Uint32Array {
 }
 
 /** Geometry sharing the mesh's vertex data but drawing only one entity's triangles; null if none. */
-export function entityGeometry(mesh: MeshData, entityId: string): BufferGeometry | null {
-  const indices = ownerIndices(mesh, entityId);
+export function entityGeometry(mesh: MeshData, entityId: string, zoneId?: string): BufferGeometry | null {
+  const indices = ownerIndices(mesh, entityId, zoneId);
   if (indices.length === 0) return null;
   const attrs = attributesFor(mesh);
   const geometry = new BufferGeometry();

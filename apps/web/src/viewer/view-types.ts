@@ -14,6 +14,8 @@ export interface Selection {
   kind: OwnerKind;
   entityId: string;
   face?: WallFace;
+  /** Floor clicks only: the floor zone (`Room.floorZones`) that was hit; `entityId` is then its room. Absent for the rest of the floor. */
+  zoneId?: string;
   /** Wall face clicks only: the room on the clicked face at the click point (absent for a face with no room). */
   roomId?: string;
   /** Wall face clicks only: metres along the wall (from its start) where the face was hit. */

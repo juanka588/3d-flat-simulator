@@ -42,11 +42,9 @@ const FIXTURE_ITEMS: Record<string, { generator: string; room: string }> = {
   'placard-ch2': { generator: 'wardrobe', room: 'entree' },
   'kitchen-cooktop-cui': { generator: 'cooktop', room: 'sejour' },
   'kitchen-sink-tri': { generator: 'washbasin', room: 'sejour' },
-  'kitchen-dishwasher-lv': { generator: 'kitchenBase', room: 'sejour' },
   'kitchen-fridge-f': { generator: 'fridge', room: 'sejour' },
   'kitchen-wall-est-1': { generator: 'kitchenWall', room: 'sejour' },
   'kitchen-wall-est-2': { generator: 'kitchenWall', room: 'sejour' },
-  'kitchen-wall-est-3': { generator: 'kitchenWall', room: 'sejour' },
   'sdb-bathtub': { generator: 'bathtub', room: 'sdb' },
   'sdb-vanity-basin': { generator: 'washbasin', room: 'sdb' },
   'sdb-washing-machine-ll': { generator: 'kitchenBase', room: 'sdb' },
@@ -171,18 +169,19 @@ describe('placard of Chambre 2: a closet in the wall, doors onto the Entrée', (
 });
 
 describe('kitchen (CUISINE), transcribed from the plan', () => {
-  it('is one run along the south wall: cooktop CUI, sink with the TRI unit, dishwasher LV, edge to edge up to the column by the niche wall', () => {
-    const run = ['kitchen-cooktop-cui', 'kitchen-sink-tri', 'kitchen-dishwasher-lv'].map(rect);
+  it('is one run along the south wall: cooktop CUI, then the sink with the TRI unit up to the 80 cm column by the niche wall (user)', () => {
+    const run = ['kitchen-cooktop-cui', 'kitchen-sink-tri'].map(rect);
     for (const r of run) {
       near(r.maxY, 8.28); // against the inner face of the south wall
       near(r.maxY - r.minY, 0.6);
     }
     near(run[0]!.maxX, run[1]!.minX);
-    near(run[1]!.maxX, run[2]!.minX);
-    near(run[2]!.maxX, 3.36); // the face of the 35 cm column in the corner by the niche wall (user)
+    const column = wallRect('w-kitchen-column');
+    near(run[1]!.maxX, Math.min(...column.map((p) => p[0]))); // the sink ends at the column (80 x 60 cm, user)
+    expect(wall('w-kitchen-column').structural).toBe(true);
     near(run[1]!.maxX - run[1]!.minX, 1.22);
-    for (const id of ['kitchen-cooktop-cui', 'kitchen-sink-tri', 'kitchen-dishwasher-lv']) expect(item(id).dims!.h).toBe(0.9); // one continuous worktop level
-    for (const id of ['kitchen-cooktop-cui', 'kitchen-sink-tri', 'kitchen-dishwasher-lv']) expect(frontOf(item(id).rotation)[1]).toBeCloseTo(-1, 9); // fronts face north into the room
+    for (const id of ['kitchen-cooktop-cui', 'kitchen-sink-tri']) expect(item(id).dims!.h).toBe(0.9); // one continuous worktop level
+    for (const id of ['kitchen-cooktop-cui', 'kitchen-sink-tri']) expect(frontOf(item(id).rotation)[1]).toBeCloseTo(-1, 9); // fronts face north into the room
   });
 
   it('has the fridge F in the recess under the new partition, against the east (niche) wall, door opening west', () => {
@@ -201,8 +200,8 @@ describe('kitchen (CUISINE), transcribed from the plan', () => {
     for (const id of Object.keys(FIXTURE_ITEMS)) if (id !== 'kitchen-fridge-f' && item(id).mount !== 'wall') expect(penetration(swept, rect(id).pts), id).toBeLessThan(1e-3);
   });
 
-  it('hangs three estimated wall units over the sink and dishwasher at 1.45 m, above the worktop', () => {
-    for (const id of ['kitchen-wall-est-1', 'kitchen-wall-est-2', 'kitchen-wall-est-3']) {
+  it('hangs two estimated wall units over the sink at 1.45 m, above the worktop', () => {
+    for (const id of ['kitchen-wall-est-1', 'kitchen-wall-est-2']) {
       const it = item(id);
       expect(it).toMatchObject({ mount: 'wall', elevation: 1.45 });
       expect(it.elevation).toBeGreaterThan(0.9 + 0.5);

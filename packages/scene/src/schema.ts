@@ -4,6 +4,7 @@ import { isSimplePolygon, polygonArea } from './measure';
 import { Clearance, Dims, EntityId, ItemMount, NAME_MAX, NameString, Sku, stripControlChars, Vec2 } from './primitives';
 import { ProductRef, ProductSnapshot } from './products';
 import { Relation } from './placement/types';
+import { zoneProblems } from './geometry/zones';
 
 export { EntityId, NAME_MAX, stripControlChars, Vec2 };
 
@@ -35,6 +36,8 @@ export const LIMITS = {
   items: 5000,
   lights: 1000,
   materials: 1000,
+  /** Floor zones in one room. */
+  floorZonesPerRoom: 32,
 } as const;
 
 const Id = EntityId;
@@ -124,6 +127,19 @@ export const RoomType = z.enum([
 ]);
 export type RoomType = z.infer<typeof RoomType>;
 
+/**
+ * A part of a room's floor with its own material (tiles in the kitchen corner of an open-plan room, a rug
+ * area). The polygon is a simple polygon inside the room polygon (1 cm tolerance); zones of one room do not
+ * overlap. Inside the polygon `material` replaces the room's floor material. The id is unique within the room.
+ */
+export const FloorZone = z.strictObject({
+  id: Id.describe('Zone id, unique within its room.'),
+  name: NameString('Optional label.').optional(),
+  polygon: z.array(Vec2).min(3).max(LIMITS.polygonVertices, `too many polygon vertices (max ${LIMITS.polygonVertices})`).describe('Outline: [x, y] plan points in metres.'),
+  material: Id.describe('Defined material id (list_materials).'),
+});
+export type FloorZone = z.infer<typeof FloorZone>;
+
 export const Room = z.strictObject({
   id: Id,
   name: NameString(),
@@ -135,6 +151,8 @@ export const Room = z.strictObject({
    */
   wallFinish: Id.optional(),
   floorMaterial: Id.optional(),
+  /** Parts of the floor with their own material (see `FloorZone`); the rest of the floor uses `floorMaterial`. */
+  floorZones: z.array(FloorZone).max(LIMITS.floorZonesPerRoom, `too many floor zones (max ${LIMITS.floorZonesPerRoom})`).optional(),
   ceilingMaterial: Id.optional(),
   /** Floor-to-ceiling height; defaults to the lowest wall bounding the room. */
   ceilingHeight: z.number().positive().optional(),
@@ -358,6 +376,10 @@ export const Scene = SceneBase.superRefine((scene, ctx) => {
     checkMaterial(room.wallFinish, ['rooms', i, 'wallFinish']);
     checkMaterial(room.floorMaterial, ['rooms', i, 'floorMaterial']);
     checkMaterial(room.ceilingMaterial, ['rooms', i, 'ceilingMaterial']);
+    room.floorZones?.forEach((zone, k) => checkMaterial(zone.material, ['rooms', i, 'floorZones', k, 'material']));
+    if (room.floorZones?.length && polygonArea(room.polygon) >= EPSILON && isSimplePolygon(room.polygon)) {
+      for (const p of zoneProblems(room.polygon, room.floorZones)) issue(['rooms', i, 'floorZones', p.index, p.field], p.message);
+    }
   });
   scene.items.forEach((item, i) => {
     checkRoom(item.roomId, ['items', i, 'roomId']);

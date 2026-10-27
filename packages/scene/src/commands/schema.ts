@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { ITEM_COMMAND_SCHEMAS, ItemMove, ItemPlace, ItemRemove, ItemRotate, ItemSetVariant } from './item-schema';
-import { ADDRESS_MAX, EntityId, Light, Material, NAME_MAX, Site, stripControlChars } from '../schema';
+import { ADDRESS_MAX, EntityId, FloorZone, Light, Material, NAME_MAX, Site, stripControlChars } from '../schema';
 
 const Id = EntityId;
 const WallId = Id.describe('Id of the wall (walls[].wallId from describe_room).');
@@ -97,6 +97,24 @@ export const RoomSetWallFinish = z.strictObject({
 });
 export const RoomSetFloor = z.strictObject({ type: t('room.setFloor'), roomId: RoomId, materialId: MaterialRef });
 export const RoomSetCeiling = z.strictObject({ type: t('room.setCeiling'), roomId: RoomId, materialId: MaterialRef });
+export const RoomSetFloorZone = z.strictObject({
+  type: t('room.setFloorZone'),
+  roomId: RoomId,
+  zone: FloorZone.describe('The zone: id, optional name, polygon and material.'),
+  /** Insert position when the zone is new (used by inverses); ignored on update. */
+  index: z.number().int().nonnegative().describe(INDEX_DESC).optional(),
+});
+export const RoomRemoveFloorZone = z.strictObject({
+  type: t('room.removeFloorZone'),
+  roomId: RoomId,
+  zoneId: Id.describe('Zone id (floor.zones[].id from describe_room).'),
+});
+export const RoomSetFloorZoneMaterial = z.strictObject({
+  type: t('room.setFloorZoneMaterial'),
+  roomId: RoomId,
+  zoneId: Id.describe('Zone id (floor.zones[].id from describe_room).'),
+  material: Id.describe('Defined material id (list_materials).'),
+});
 export const SceneSetDefaults = z.strictObject({
   type: t('scene.setDefaults'),
   /** Omitted = unchanged, `null` = clear. */
@@ -136,6 +154,9 @@ export const LEAF_COMMAND_SCHEMAS = [
   LightUpdate,
   LightRemove,
   ...ITEM_COMMAND_SCHEMAS,
+  RoomSetFloorZone,
+  RoomRemoveFloorZone,
+  RoomSetFloorZoneMaterial,
 ] as const;
 
 type LeafSchema = z.ZodObject<{ type: z.ZodLiteral<string> }, z.core.$strict>;
@@ -183,7 +204,10 @@ export type LeafCommand =
   | z.input<typeof ItemMove>
   | z.input<typeof ItemRotate>
   | z.input<typeof ItemSetVariant>
-  | z.input<typeof ItemRemove>;
+  | z.input<typeof ItemRemove>
+  | z.input<typeof RoomSetFloorZone>
+  | z.input<typeof RoomRemoveFloorZone>
+  | z.input<typeof RoomSetFloorZoneMaterial>;
 export type BatchCommand = { type: 'batch'; label: string; commands: LeafCommand[] };
 export type Command = LeafCommand | BatchCommand;
 export type CommandType = Command['type'];

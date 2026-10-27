@@ -132,6 +132,20 @@ const DESCRIPTIONS: Record<string, { description: string; example: Record<string
     description: 'Remove a placed item by id (items[].id from describe_room). A locked item (existing furniture) can only be removed by the user. Undo puts it back at the same position in the list.',
     example: { id: 'item-1' },
   },
+  'room.setFloorZone': {
+    description:
+      'Add or replace (by zone.id, full replace) a floor zone: a part of a room floor with its own material, e.g. kitchen tiles in an open-plan room. ' +
+      'The polygon must lie inside the room (1 cm tolerance) and not overlap the other zones of that room; define the material first.',
+    example: { roomId: 'sejour', zone: { id: 'cuisine', name: 'Cuisine', polygon: [[0.7, 6.6], [3.7, 6.6], [3.7, 8.3], [0.7, 8.3]], material: 'floor-tile' } },
+  },
+  'room.removeFloorZone': {
+    description: 'Remove a floor zone; its area returns to the room floor material.',
+    example: { roomId: 'sejour', zoneId: 'cuisine' },
+  },
+  'room.setFloorZoneMaterial': {
+    description: 'Change only the material of a floor zone (zone ids: floor.zones[].id from describe_room).',
+    example: { roomId: 'sejour', zoneId: 'cuisine', material: 'floor-tile' },
+  },
   batch: {
     description:
       'Apply several commands atomically as one undo step: if any fails nothing is applied and the error path says which (commands/N/...). Prefer it for multi-step edits. Batches cannot nest. Each item is a tool\'s arguments plus its "type" (the command type of that tool, e.g. "room.setFloor" for room_set_floor). The server limits the number of commands per batch.',

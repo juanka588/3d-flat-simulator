@@ -14,8 +14,8 @@ const tint = new MeshBasicMaterial({
 });
 
 /** Cheap selection tint: re-draws the selected entity's triangles with an orange translucent material. */
-export function SelectionHighlight({ mesh, entityId }: { mesh: MeshData; entityId: string }) {
-  const geometry = useMemo(() => entityGeometry(mesh, entityId), [mesh, entityId]);
+export function SelectionHighlight({ mesh, entityId, zoneId }: { mesh: MeshData; entityId: string; zoneId?: string }) {
+  const geometry = useMemo(() => entityGeometry(mesh, entityId, zoneId), [mesh, entityId, zoneId]);
   useEffect(() => () => geometry?.dispose(), [geometry]);
   if (!geometry) return null;
   return <mesh name="selection-highlight" geometry={geometry} material={tint} raycast={() => null} renderOrder={10} />;

@@ -1,6 +1,7 @@
 import { roomSideFinish } from '../geometry/materials';
 import { analyzeRoomWallSides, wallFaceRooms } from '../geometry/room-sides';
-import { LIMITS, Light, Scene, type Light as LightT, type Material, type Room, type Wall } from '../schema';
+import { zoneProblems } from '../geometry/zones';
+import { LIMITS, Light, Scene, type FloorZone, type Light as LightT, type Material, type Room, type Wall } from '../schema';
 import { isDefaultStructural } from '../structural';
 import { canCutOpening, canRemoveWall } from './guards';
 import { applyItemCommand, isItemCommand } from './items';
@@ -409,6 +410,9 @@ function removeMaterial(scene: Scene, cmd: Extract<LeafCommand, { type: 'materia
   scene.rooms.forEach((r) => {
     if (r.floorMaterial === cmd.id) users.push(`room ${r.id} (floor)`);
     if (r.ceilingMaterial === cmd.id) users.push(`room ${r.id} (ceiling)`);
+    r.floorZones?.forEach((z) => {
+      if (z.material === cmd.id) users.push(`room ${r.id} (floor zone ${z.id})`);
+    });
     if (r.wallFinish === cmd.id) users.push(`room ${r.id} (wall finish)`);
   });
   (['wall', 'floor', 'ceiling'] as const).forEach((k) => {
@@ -506,6 +510,85 @@ function removeLight(scene: Scene, cmd: Extract<LeafCommand, { type: 'light.remo
   };
 }
 
+/** Room with its floor zones replaced; the key is dropped when no zone is left (an empty list is never stored). */
+function withZones(room: Room, zones: FloorZone[]): Room {
+  const { floorZones: _drop, ...rest } = room;
+  void _drop;
+  return zones.length ? { ...rest, floorZones: zones } : rest;
+}
+
+function zoneFail(roomId: string, zones: readonly FloorZone[], room: Room): ApplyFail | undefined {
+  const problem = zoneProblems(room.polygon, zones)[0];
+  if (!problem) return undefined;
+  return fail(err('precondition_failed', `zone/${problem.field}`, problem.message, `draw the zone inside room "${roomId}" (polygon points in plan metres) without overlapping its other zones`));
+}
+
+function setFloorZone(scene: Scene, cmd: Extract<LeafCommand, { type: 'room.setFloorZone' }>): Outcome {
+  const found = findRoom(scene, cmd.roomId);
+  if (isErr(found)) return fail(found);
+  const bad = checkMaterial(scene, cmd.zone.material, 'zone/material');
+  if (bad) return fail(bad);
+  const { room, index } = found;
+  const zone = cmd.zone as FloorZone;
+  const zones = room.floorZones ?? [];
+  const at = zones.findIndex((z) => z.id === zone.id);
+  if (at < 0 && zones.length >= LIMITS.floorZonesPerRoom) return fail(err('limit_exceeded', 'zone', `too many floor zones in room "${room.id}" (max ${LIMITS.floorZonesPerRoom})`));
+  if (at >= 0 && deepEqual(zones[at], zone)) return noop(scene);
+  const next = zones.slice();
+  if (at >= 0) next[at] = zone;
+  else next.splice(Math.min(cmd.index ?? next.length, next.length), 0, zone);
+  const invalid = zoneFail(room.id, next, room);
+  if (invalid) return invalid;
+  return {
+    ok: true,
+    scene: { ...scene, rooms: replaceAt(scene.rooms, index, withZones(room, next)) },
+    inverse: [at >= 0 ? { type: 'room.setFloorZone', roomId: room.id, zone: zones[at]! } : { type: 'room.removeFloorZone', roomId: room.id, zoneId: zone.id }],
+    changed: touch('rooms', room.id),
+    warnings: [],
+  };
+}
+
+function findZone(room: Room, zoneId: string): { zone: FloorZone; at: number } | CommandError {
+  const zones = room.floorZones ?? [];
+  const at = zones.findIndex((z) => z.id === zoneId);
+  if (at < 0) return err('unknown_entity', 'zoneId', `unknown floor zone "${zoneId}" in room "${room.id}"`, unknownIdHint(zoneId, zones.map((z) => z.id), 'floor zone'));
+  return { zone: zones[at]!, at };
+}
+
+function removeFloorZone(scene: Scene, cmd: Extract<LeafCommand, { type: 'room.removeFloorZone' }>): Outcome {
+  const found = findRoom(scene, cmd.roomId);
+  if (isErr(found)) return fail(found);
+  const hit = findZone(found.room, cmd.zoneId);
+  if (isErr(hit)) return fail(hit);
+  const next = found.room.floorZones!.filter((_, i) => i !== hit.at);
+  return {
+    ok: true,
+    scene: { ...scene, rooms: replaceAt(scene.rooms, found.index, withZones(found.room, next)) },
+    inverse: [{ type: 'room.setFloorZone', roomId: found.room.id, zone: hit.zone, index: hit.at }],
+    changed: touch('rooms', found.room.id),
+    warnings: [],
+  };
+}
+
+function setFloorZoneMaterial(scene: Scene, cmd: Extract<LeafCommand, { type: 'room.setFloorZoneMaterial' }>): Outcome {
+  const found = findRoom(scene, cmd.roomId);
+  if (isErr(found)) return fail(found);
+  const hit = findZone(found.room, cmd.zoneId);
+  if (isErr(hit)) return fail(hit);
+  const bad = checkMaterial(scene, cmd.material, 'material');
+  if (bad) return fail(bad);
+  if (hit.zone.material === cmd.material) return noop(scene);
+  const next = found.room.floorZones!.slice();
+  next[hit.at] = { ...hit.zone, material: cmd.material };
+  return {
+    ok: true,
+    scene: { ...scene, rooms: replaceAt(scene.rooms, found.index, withZones(found.room, next)) },
+    inverse: [{ type: 'room.setFloorZoneMaterial', roomId: found.room.id, zoneId: hit.zone.id, material: hit.zone.material }],
+    changed: touch('rooms', found.room.id),
+    warnings: [],
+  };
+}
+
 /** Commands reserved for later milestones: the structural rules are enforced before `not_supported`, so the order is right once they get real reducers. */
 function reservedLeaf(scene: Scene, cmd: { type: string; wallId?: unknown }): Outcome {
   const wallId = typeof cmd.wallId === 'string' ? cmd.wallId : undefined;
@@ -541,6 +624,9 @@ function applyLeaf(scene: Scene, cmd: LeafCommand, ctx: ReduceContext): Outcome 
     case 'light.add': return addLight(scene, cmd);
     case 'light.update': return updateLight(scene, cmd);
     case 'light.remove': return removeLight(scene, cmd);
+    case 'room.setFloorZone': return setFloorZone(scene, cmd);
+    case 'room.removeFloorZone': return removeFloorZone(scene, cmd);
+    case 'room.setFloorZoneMaterial': return setFloorZoneMaterial(scene, cmd);
     default:
       return reservedLeaf(scene, cmd as { type: string });
   }

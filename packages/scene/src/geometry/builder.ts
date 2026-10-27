@@ -14,6 +14,7 @@ interface OwnerKey {
   kind: OwnerKind;
   entityId: string;
   face?: WallFace;
+  zoneId?: string;
 }
 
 /**
@@ -61,7 +62,7 @@ export class MeshBuilder {
 
   build(): MeshData {
     // Sort by material, then by owner so each owner's triangles are contiguous within a group.
-    const ownerKey = (o: OwnerKey) => `${o.kind}\u0000${o.entityId}\u0000${o.face ?? ''}`;
+    const ownerKey = (o: OwnerKey) => `${o.kind}\u0000${o.entityId}\u0000${o.face ?? ''}\u0000${o.zoneId ?? ''}`;
     const sorted = [...this.tris].sort(
       (x, y) => cmp(x.materialId, y.materialId) || cmp(ownerKey(x.owner), ownerKey(y.owner)),
     );
@@ -80,7 +81,8 @@ export class MeshBuilder {
         lastOwner &&
         lastOwner.kind === t.owner.kind &&
         lastOwner.entityId === t.owner.entityId &&
-        lastOwner.face === t.owner.face
+        lastOwner.face === t.owner.face &&
+        lastOwner.zoneId === t.owner.zoneId
       ) {
         lastOwner.count += 1;
       } else {

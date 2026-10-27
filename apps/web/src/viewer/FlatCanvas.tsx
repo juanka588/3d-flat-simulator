@@ -13,6 +13,7 @@ import { StructuralOverlay } from './StructuralOverlay';
 import { ShellMesh, CLICK_DRAG_TOLERANCE_PX } from './ShellMesh';
 import { ItemsMesh, useItemModels } from './ItemsMesh';
 import { PlacementLayer } from './PlacementLayer';
+import { ZoneEditor } from './ZoneEditor';
 import { VIEWER_ELEMENT_ID, WalkControls } from './WalkControls';
 import { WalkOverlay } from './WalkOverlay';
 import { DOOR_WALK_MATERIAL, createMaterialLibrary } from './materials';
@@ -95,6 +96,7 @@ export function FlatCanvas({ scene, view, context = null, onSelect, onExitWalk, 
         </ViewerGuard>
         {view.mode === 'top' && <StructuralOverlay scene={scene} />}
         {view.mode !== 'walk' && <PlacementLayer scene={scene} selectedId={view.selection?.kind === 'item' ? view.selection.entityId : undefined} />}
+        {view.mode !== 'walk' && <ZoneEditor scene={scene} selection={view.selection} />}
         {view.mode === 'walk' ? (
           <WalkControls key={`walk:${sceneKey(scene)}`} scene={scene} personHeightCm={view.personHeightCm} onExit={onExitWalk ?? noop} pose={view.camera?.mode === 'walk' ? view.camera : undefined} onUserCamera={onUserCamera} />
         ) : (
@@ -206,7 +208,7 @@ function Shell({ scene, view, onSelect }: { scene: Scene; view: ViewState; onSel
       <ShellMesh name="items" data={roomMeshes.items} materials={materials} receiveShadow onSelect={pick} />
       <ItemsMesh scene={scene} models={models} selectedId={selectedId} onSelect={pick} />
       <ShellMesh name="glass" data={shell.glass} materials={materials} renderOrder={2} onSelect={pick} />
-      {selectedId && meshes.map((m, i) => <SelectionHighlight key={i} mesh={m} entityId={selectedId} />)}
+      {selectedId && meshes.map((m, i) => <SelectionHighlight key={i} mesh={m} entityId={selectedId} zoneId={view.selection?.zoneId} />)}
     </group>
   );
 }

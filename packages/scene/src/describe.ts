@@ -200,7 +200,10 @@ export function describeRoom(
     perimeterM: r2(stats.perimeter),
     ceilingHeightM: r2(stats.ceilingHeight ?? 0),
     bounds: [r2(Math.min(...xs)), r2(Math.min(...ys)), r2(Math.max(...xs)), r2(Math.max(...ys))],
-    floor: { materialId: floorMaterial(scene, room) },
+    floor: {
+      materialId: floorMaterial(scene, room),
+      ...(room.floorZones?.length ? { zones: room.floorZones.map((z) => ({ id: z.id, name: z.name ?? z.id, areaM2: r2(polygonArea(z.polygon)), materialId: z.material })) } : {}),
+    },
     ceiling: { materialId: room.type === 'balcony' ? null : ceilingMaterial(scene, room) },
     walls: wallDescs,
     openings,

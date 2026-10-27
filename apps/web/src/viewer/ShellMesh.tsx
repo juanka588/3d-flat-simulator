@@ -36,7 +36,7 @@ export function ShellMesh({ name, data, materials, castShadow = false, receiveSh
         e.stopPropagation();
         if (e.delta > CLICK_DRAG_TOLERANCE_PX || e.faceIndex == null) return;
         const owner = ownerAt(data.owners, e.faceIndex);
-        if (owner) onSelect({ kind: owner.kind, entityId: owner.entityId, face: owner.face }, [e.point.x, e.point.z]);
+        if (owner) onSelect({ kind: owner.kind, entityId: owner.entityId, face: owner.face, ...(owner.zoneId !== undefined ? { zoneId: owner.zoneId } : {}) }, [e.point.x, e.point.z]);
       }
     : undefined;
 

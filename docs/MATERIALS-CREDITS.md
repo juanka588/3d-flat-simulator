@@ -32,5 +32,6 @@ Attribution is not required, but we credit the sources. The files shipped here a
 | Terracotta tiles (`tile-terracotta`) | Poly Haven | [terracotta_floor_tiles](https://polyhaven.com/a/terracotta_floor_tiles) | CC0-1.0 | 2026-10-26 |
 | White metro tiles (`tile-white-metro`) | ambientCG | [Tiles036](https://ambientcg.com/a/Tiles036) | CC0-1.0 | 2026-10-26 |
 | Beige travertine (`travertine-beige`) | ambientCG | [Travertine009](https://ambientcg.com/a/Travertine009) | CC0-1.0 | 2026-10-26 |
+| Artificial turf (short green) (`turf-artificial-green`) | ambientCG | [Grass005](https://ambientcg.com/a/Grass005) | CC0-1.0 | 2026-10-27 |
 | Floral jacquard wallpaper (`wallpaper-jacquard`) | Poly Haven | [floral_jacquard](https://polyhaven.com/a/floral_jacquard) | CC0-1.0 | 2026-10-26 |
 | Walnut (`wood-walnut`) | Poly Haven | [walnut_veneer_02](https://polyhaven.com/a/walnut_veneer_02) | CC0-1.0 | 2026-10-26 |

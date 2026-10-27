@@ -1202,5 +1202,54 @@
       "roughness": "6fc3fbaa8ffd86d701c2fa71f3c44e0291c4d2da064d5739cace0f5788517af6",
       "thumb": "cd9a9e3e832cb05f5630d2b775dd84aaaf7f3f36ec9422416375aa8e7f6cdce9"
     }
+  },
+  {
+    "id": "turf-artificial-green",
+    "name": "Artificial turf (short green)",
+    "category": "outdoor",
+    "tileSizeM": 1,
+    "tileSizeBasis": "estimate",
+    "resolution": 512,
+    "meanColor": "#66842c",
+    "meanLinear": [
+      0.13186,
+      0.23034,
+      0.02507
+    ],
+    "roughness": 0.95,
+    "bytes": 188316,
+    "files": {
+      "color": "color.webp",
+      "normal": "normal.webp",
+      "roughness": "roughness.webp",
+      "thumb": "thumb.webp"
+    },
+    "fileBytes": {
+      "color": 69854,
+      "normal": 76616,
+      "roughness": 40582,
+      "thumb": 1264
+    },
+    "source": "ambientcg",
+    "sourceId": "Grass005",
+    "sourceUrl": "https://ambientcg.com/a/Grass005",
+    "license": "CC0-1.0",
+    "licenseEvidence": {
+      "basis": "site-policy",
+      "policyUrl": "https://docs.ambientcg.com/license/",
+      "needle": "creativecommons.org/publicdomain/zero",
+      "assetApiUrl": "https://ambientcg.com/api/v2/full_json?id=Grass005&include=downloadData",
+      "checkedAt": "2026-10-27T13:57:46.425Z"
+    },
+    "sourceSha256": {
+      "zip": "58a7fb7f32c44a86879483325b62781d04e0ab8f70b0f70ede36c8f1726f8a22"
+    },
+    "retrievedAt": "2026-10-27T13:57:46.425Z",
+    "sha256": {
+      "color": "50613035085152ba9a0dbb86191a03a7e3d2eaf14d91a6fc641323a33f9ba0fc",
+      "normal": "5c6f5dcd9869fc7578a484dc3f19c5f7c7eba75e15393c0d8dbbfff7a269be5b",
+      "roughness": "51b18f6137b715618521e28d1fd917992f9fa6ad5af5305395815ec91d6b3135",
+      "thumb": "3270aa193b850c0471124496d5f0121bf93436333929d25fa28fa0ed74316c18"
+    }
   }
 ]

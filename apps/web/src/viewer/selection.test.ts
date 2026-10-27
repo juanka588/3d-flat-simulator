@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { loadSceneText, wallSideRooms } from '@flat/scene';
 import type { Scene } from '@flat/scene';
 import { DEFAULT_FIXTURE } from '../state/fixtures';
-import { selectionForWallFace, withHitContext } from './selection';
+import { selectionForId, selectionForWallFace, withHitContext, zoneSelectionId } from './selection';
 
 const loaded = loadSceneText(DEFAULT_FIXTURE.text);
 if (!loaded.ok) throw new Error('fixture');
@@ -54,5 +54,17 @@ describe('selectionForWallFace', () => {
   it('is null for a room that does not border the face, or an unknown wall', () => {
     expect(selectionForWallFace(scene, { wallId: 'w-west', side: 'right', roomId: 'ch2' })).toBeNull();
     expect(selectionForWallFace(scene, { wallId: 'nope', side: 'left' })).toBeNull();
+  });
+});
+
+describe('floor zone selections', () => {
+  it('zone:<roomId>/<zoneId> selects the floor of the room restricted to that zone', () => {
+    expect(zoneSelectionId('sejour', 'cuisine')).toBe('zone:sejour/cuisine');
+    expect(selectionForId(scene, 'zone:sejour/cuisine')).toEqual({ kind: 'floor', entityId: 'sejour', zoneId: 'cuisine' });
+    expect(selectionForId(scene, 'sejour')).toEqual({ kind: 'floor', entityId: 'sejour' });
+  });
+
+  it('refuses unknown rooms, unknown zones and malformed ids', () => {
+    for (const id of ['zone:sejour/nope', 'zone:nope/cuisine', 'zone:sejour', 'zone:/cuisine', 'zone:sejour/', 'zone:']) expect(selectionForId(scene, id), id).toBeNull();
   });
 });

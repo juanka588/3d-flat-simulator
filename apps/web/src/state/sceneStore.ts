@@ -120,6 +120,8 @@ function keepSelection(scene: Scene): void {
   const view = useViewStore.getState();
   const sel = view.selection;
   if (sel && sel.kind !== 'context' && !selectionForId(scene, sel.entityId)) view.select(null);
+  // A removed floor zone falls back to its room's floor.
+  else if (sel?.zoneId && !scene.rooms.find((r) => r.id === sel.entityId)?.floorZones?.some((z) => z.id === sel.zoneId)) view.select({ kind: 'floor', entityId: sel.entityId });
 }
 
 function send(env: CommandEnvelope): void {

@@ -341,5 +341,19 @@
       "nor_gl": "b06868bf171c9ffdaee50d08ee65ce8b36cb660ea772d711095a47890ee81deb",
       "Rough": "801a4bb6878e9584c3b56fc7eb06c4ba96a424b642560832868cc244d8724528"
     }
+  },
+  {
+    "slug": "turf-artificial-green",
+    "source": "ambientcg",
+    "sourceId": "Grass005",
+    "name": "Artificial turf (short green)",
+    "category": "outdoor",
+    "tileSizeM": 1,
+    "tileSizeBasis": "estimate",
+    "roughnessDefault": 0.95,
+    "size": 512,
+    "sourceSha256": {
+      "zip": "58a7fb7f32c44a86879483325b62781d04e0ab8f70b0f70ede36c8f1726f8a22"
+    }
   }
 ]

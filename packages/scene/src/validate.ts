@@ -25,6 +25,8 @@ export interface ValidationResult {
 export const UNWALLED_TOLERANCE = 0.1;
 /** Minimum overlap area between two rooms that is reported, in m². */
 export const OVERLAP_AREA_THRESHOLD = 1e-4;
+/** Floor zones smaller than this are reported, in m². */
+export const FLOOR_ZONE_MIN_AREA = 0.01;
 /** Coordinates farther than this from the origin are reported, in metres. */
 export const MAX_COORDINATE = 1000;
 
@@ -210,6 +212,25 @@ export function validateScene(scene: Scene): ValidationResult {
         });
       }
     }
+    // Floor zones that do nothing visible: too small to see, or the same material as the floor around them.
+    room.floorZones?.forEach((zone, zi) => {
+      const area = polygonArea(zone.polygon);
+      if (area < FLOOR_ZONE_MIN_AREA) {
+        warnings.push({
+          code: 'floor-zone-tiny',
+          message: `floor zone "${zone.id}" of room "${room.id}" is only ${(area * 1e4).toFixed(0)} cm²`,
+          entityIds: [room.id],
+          path: `rooms[${ri}].floorZones[${zi}]`,
+        });
+      } else if (zone.material === (room.floorMaterial ?? scene.defaults.floor)) {
+        warnings.push({
+          code: 'floor-zone-redundant',
+          message: `floor zone "${zone.id}" of room "${room.id}" has the same material as the floor around it`,
+          entityIds: [room.id],
+          path: `rooms[${ri}].floorZones[${zi}]`,
+        });
+      }
+    });
   });
   // Triangulate each room once and skip pairs whose bounding boxes do not intersect.
   const roomBounds = scene.rooms.map((r) => boundsOf(r.polygon));

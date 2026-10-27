@@ -24,9 +24,14 @@ export function sceneBounds3(scene: Scene): Box3 {
     maxZ = Math.max(maxZ, z + pad);
   };
   for (const w of scene.walls) {
-    const pad = w.thickness / 2;
-    add(w.start[0], w.start[1], pad);
-    add(w.end[0], w.end[1], pad);
+    // The wall's exact rectangle: its ends are not padded, so a thick, short wall (a column) stays where it is.
+    const len = Math.hypot(w.end[0] - w.start[0], w.end[1] - w.start[1]);
+    const nx = len > 0 ? ((w.end[1] - w.start[1]) / len) * (w.thickness / 2) : w.thickness / 2;
+    const nz = len > 0 ? (-(w.end[0] - w.start[0]) / len) * (w.thickness / 2) : w.thickness / 2;
+    for (const p of [w.start, w.end]) {
+      add(p[0] + nx, p[1] + nz);
+      add(p[0] - nx, p[1] - nz);
+    }
     maxY = Math.max(maxY, w.height);
   }
   for (const r of scene.rooms) {

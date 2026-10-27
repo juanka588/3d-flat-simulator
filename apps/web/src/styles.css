@@ -1399,3 +1399,65 @@ legend {
   flex-basis: 100%;
   margin: 0;
 }
+
+/* Floor zones (parts of a floor with their own material) */
+.floor-zones {
+  margin-top: 0.6rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid #e0e0e4;
+}
+.floor-zones h3 {
+  font-size: 0.85rem;
+  margin: 0 0 0.35rem;
+}
+.zone-list {
+  list-style: none;
+  margin: 0 0 0.4rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.zone-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  border: 1px solid #e0e0e4;
+  border-radius: 6px;
+}
+.zone-row.selected {
+  border-color: #ff9f1a;
+  background: #fff7ea;
+}
+.zone-pick {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  text-align: left;
+  border: 0;
+  background: none;
+  padding: 0.15rem;
+}
+.zone-pick[aria-pressed='true'] {
+  background: none;
+  color: inherit;
+  border: 0;
+}
+.zone-title {
+  font-weight: 600;
+}
+.zone-meta {
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: #55555c;
+}
+.zone-rename input {
+  width: 100%;
+}
+.app.mobile .floor-zones button,
+.app.mobile .floor-zones input[type='text'] {
+  min-height: 2.75rem;
+  min-width: 2.75rem;
+}

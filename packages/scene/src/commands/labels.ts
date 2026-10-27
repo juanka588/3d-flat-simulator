@@ -120,6 +120,11 @@ function itemName(scene: Scene, id: string): string {
   return itemTitle(scene.items.find((i) => i.id === id), id);
 }
 
+function zoneName(scene: Scene, roomId: string, zoneId: string): string {
+  const zone = scene.rooms.find((r) => r.id === roomId)?.floorZones?.find((z) => z.id === zoneId);
+  return zone?.name ?? zoneId;
+}
+
 function roomOfPosition(scene: Scene, roomId: string | undefined, position: Vec2): string | undefined {
   if (roomId) return roomName(scene, roomId);
   const r = scene.rooms.find((x) => pointInPolygon(position, x.polygon, 1e-6));
@@ -161,6 +166,14 @@ function describeLeaf(c: LeafCommand, scene: Scene): string {
       return `Floor of ${roomName(scene, c.roomId)} → ${materialName(scene, c.materialId)}`;
     case 'room.setCeiling':
       return `Ceiling of ${roomName(scene, c.roomId)} → ${materialName(scene, c.materialId)}`;
+    case 'room.setFloorZone': {
+      const exists = scene.rooms.find((r) => r.id === c.roomId)?.floorZones?.some((z) => z.id === c.zone.id);
+      return clip(`${exists ? 'Update' : 'Add'} floor zone ${c.zone.name ?? c.zone.id} in ${roomName(scene, c.roomId)} → ${materialName(scene, c.zone.material)}`);
+    }
+    case 'room.removeFloorZone':
+      return clip(`Remove floor zone ${zoneName(scene, c.roomId, c.zoneId)} from ${roomName(scene, c.roomId)}`);
+    case 'room.setFloorZoneMaterial':
+      return clip(`Floor zone ${zoneName(scene, c.roomId, c.zoneId)} of ${roomName(scene, c.roomId)} → ${materialName(scene, c.material)}`);
     case 'scene.setDefaults': {
       const parts = (['wall', 'floor', 'ceiling'] as const).filter((k) => c[k] !== undefined).map((k) => `${k} → ${materialName(scene, c[k])}`);
       return parts.length ? `Default ${parts.join(', ')}` : 'Set defaults';

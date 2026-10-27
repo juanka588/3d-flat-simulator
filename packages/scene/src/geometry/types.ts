@@ -19,6 +19,8 @@ export interface Owner {
   /** Scene entity id: wall id, opening id, or room id for floors/ceilings, item id for items. */
   entityId: string;
   face?: WallFace;
+  /** Floors only: the id of the floor zone (`Room.floorZones`) the triangles belong to; absent for the rest of the room floor. */
+  zoneId?: string;
 }
 
 /** A contiguous index range rendered with one material. */

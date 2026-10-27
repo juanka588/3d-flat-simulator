@@ -9,6 +9,8 @@ export type FinishScope =
   | { kind: 'wallFaces'; wallId: string; faces: { side: 'left' | 'right'; roomId?: string }[] }
   | { kind: 'roomWalls'; roomId: string }
   | { kind: 'floor'; roomId: string }
+  /** One floor zone of a room; `resetTo` is the room's own floor material, what "reset" gives the zone (a zone always has a material). */
+  | { kind: 'zone'; roomId: string; zoneId: string; resetTo?: string }
   | { kind: 'ceiling'; roomId: string };
 
 /** Where the material comes from; `reset` clears the override (`materialId: null`). */
@@ -23,6 +25,8 @@ export interface FinishNames {
   room?: string;
   /** Names of rooms by id, for room-scoped wall scopes. */
   rooms?: Record<string, string>;
+  /** Names of floor zones by `<roomId>/<zoneId>`. */
+  zones?: Record<string, string>;
 }
 
 /** Colour name of a hex: the palette swatch name when it is one, else the normalised hex. */
@@ -54,6 +58,8 @@ export function scopeLabel(scope: FinishScope, names: FinishNames = {}): string 
       return `${room(scope.roomId)} walls`;
     case 'floor':
       return `${room(scope.roomId)} floor`;
+    case 'zone':
+      return `${names.zones?.[`${scope.roomId}/${scope.zoneId}`] ?? scope.zoneId} zone of ${names.rooms?.[scope.roomId] ?? room(scope.roomId)}`;
     case 'ceiling':
       return `${room(scope.roomId)} ceiling`;
   }
@@ -69,6 +75,10 @@ function finishCommands(scope: FinishScope, materialId: string | null): LeafComm
       return [{ type: 'room.setWallFinish', roomId: scope.roomId, materialId }];
     case 'floor':
       return [{ type: 'room.setFloor', roomId: scope.roomId, materialId }];
+    case 'zone': {
+      const material = materialId ?? scope.resetTo;
+      return material === undefined ? [] : [{ type: 'room.setFloorZoneMaterial', roomId: scope.roomId, zoneId: scope.zoneId, material }];
+    }
     case 'ceiling':
       return [{ type: 'room.setCeiling', roomId: scope.roomId, materialId }];
   }

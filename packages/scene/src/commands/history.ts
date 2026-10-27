@@ -59,6 +59,8 @@ function leafSignature(c: LeafCommand): string | undefined {
     case 'light.update': return `${c.type}:${c.id}:${fields(c.patch)}`;
     case 'item.move': return `${c.type}:${c.id}:${fields({ ...c, type: undefined, id: undefined })}`;
     case 'item.rotate': return `${c.type}:${c.id}`;
+    case 'room.setFloorZone': return `${c.type}:${c.roomId}:${c.zone.id}`;
+    case 'room.setFloorZoneMaterial': return `${c.type}:${c.roomId}:${c.zoneId}`;
     // Structural changes (add / remove) do not supersede one another: never merge them.
     default: return undefined;
   }

@@ -64,6 +64,9 @@ const CASES: Record<string, Record<string, unknown>> = {
   item_move: { id: 'tv-sejour', position: [2.2, 2.295] },
   item_rotate: { id: 'tv-sejour', rotation: 180 },
   item_remove: { id: 'tv-sejour' },
+  room_set_floor_zone: { roomId: 'ch1', zone: { id: 'rug', name: 'Rug', polygon: [[8.2, 1.2], [9.2, 1.2], [9.2, 2.2], [8.2, 2.2]], material: 'paint-sage' } },
+  room_set_floor_zone_material: { roomId: 'sejour', zoneId: 'cuisine', material: 'paint-sage' },
+  room_remove_floor_zone: { roomId: 'sejour', zoneId: 'cuisine' },
   batch: {
     label: 'Paint the sejour sage',
     commands: [

@@ -8,7 +8,7 @@ import { roomWallSides } from '../geometry/room-sides';
 
 type Op = { k: number; a: number; b: number; c: number; n: number };
 const opArb = fc.record({
-  k: fc.nat(21),
+  k: fc.nat(24),
   a: fc.nat(1000),
   b: fc.nat(1000),
   c: fc.nat(1000),
@@ -88,6 +88,31 @@ function resolve(scene: Scene, op: Op): Command {
     case 19: return scene.items.length ? { type: 'item.setVariant', id: pick(scene.items, op.a).id, variant: op.b % 2 ? `v${op.c % 3}` : null, ...(op.c % 4 === 0 ? { product: { ...PRODUCT, sku: 'P2' } } : {}), ...(op.n % 5 === 0 ? { dims: op.b % 2 ? { w: 0.3 + op.c / 2000, d: 0.3, h: 0.4 } : null } : {}) } : { type: 'site.set', site: {} };
     case 20: return scene.items.length ? { type: 'item.remove', id: pick(scene.items, op.a).id } : { type: 'site.set', site: {} };
     case 21: return { type: 'batch', label: 'furnish', commands: [{ type: 'item.place', item: itemIn(scene, op) }, { type: 'item.place', item: itemIn(scene, { ...op, a: op.a + 1, b: op.c, c: op.b }) }, ...(scene.items.length ? [{ type: 'item.remove' as const, id: pick(scene.items, op.a).id }] : [])] };
+    case 22: {
+      // a small rectangle somewhere in the room's bounding box: valid, out of the room, or overlapping another zone
+      const r = pick(scene.rooms, op.a);
+      const xs = r.polygon.map((p) => p[0]);
+      const ys = r.polygon.map((p) => p[1]);
+      const x0 = Math.min(...xs) + ((Math.max(...xs) - Math.min(...xs)) * op.b) / 1500;
+      const y0 = Math.min(...ys) + ((Math.max(...ys) - Math.min(...ys)) * op.c) / 1500;
+      const size = 0.3 + op.n / 400;
+      return { type: 'room.setFloorZone', roomId: r.id, zone: { id: `z${op.n % 3}`, ...(op.b % 2 ? { name: `Zone ${op.b}` } : {}), polygon: [[x0, y0], [x0 + size, y0], [x0 + size, y0 + size], [x0, y0 + size]], material: pick(scene.materials, op.c).id } };
+    }
+    case 23: {
+      const zoned = scene.rooms.filter((r) => r.floorZones?.length);
+      if (!zoned.length) return { type: 'site.set', site: {} };
+      const r = pick(zoned, op.a);
+      const z = pick(r.floorZones!, op.b);
+      return op.c % 2 ? { type: 'room.removeFloorZone', roomId: r.id, zoneId: z.id } : { type: 'room.setFloorZoneMaterial', roomId: r.id, zoneId: z.id, material: pick(scene.materials, op.n).id };
+    }
+    case 24: {
+      // remove and re-add the same zone in one batch (undo restores the list order)
+      const zoned = scene.rooms.filter((r) => r.floorZones?.length);
+      if (!zoned.length) return { type: 'site.set', site: {} };
+      const r = pick(zoned, op.a);
+      const z = pick(r.floorZones!, op.b);
+      return { type: 'batch', label: 'zone shuffle', commands: [{ type: 'room.removeFloorZone', roomId: r.id, zoneId: z.id }, { type: 'room.setFloorZone', roomId: r.id, zone: { ...z, id: `${z.id}-b`, name: 'moved' } }] };
+    }
     case 12: return { type: 'batch', label: 'b', commands: [
       { type: 'wall.setFinish', wallId: wall, side: 'both', materialId: mat(op.b) },
       { type: 'room.setFloor', roomId: room, materialId: mat(op.c) },
@@ -105,7 +130,7 @@ function expectedFailure(scene: Scene, cmd: Command, e: { code: string; message:
   switch (cmd.type) {
     case 'material.remove': {
       const used = scene.walls.some((w) => w.finish.left === cmd.id || w.finish.right === cmd.id || Object.values(w.roomFinishes ?? {}).some((x) => x.left === cmd.id || x.right === cmd.id)) ||
-        scene.rooms.some((r) => r.floorMaterial === cmd.id || r.ceilingMaterial === cmd.id || r.wallFinish === cmd.id) ||
+        scene.rooms.some((r) => r.floorMaterial === cmd.id || r.ceilingMaterial === cmd.id || r.wallFinish === cmd.id || r.floorZones?.some((z) => z.material === cmd.id)) ||
         Object.values(scene.defaults).includes(cmd.id);
       expect(used, `material.remove ${cmd.id} failed (${e.message}) but nothing uses it`).toBe(true);
       expect(e.code).toBe('precondition_failed');
@@ -133,6 +158,10 @@ function expectedFailure(scene: Scene, cmd: Command, e: { code: string; message:
       return;
     case 'material.define':
       expect(e.code, e.message).toBe('precondition_failed');
+      return;
+    case 'room.setFloorZone':
+      // outside the room or over another zone (a precondition), or the per-room cap
+      expect(['precondition_failed', 'limit_exceeded'], e.message).toContain(e.code);
       return;
     default:
       throw new Error(`${cmd.type} failed unexpectedly: ${e.code} ${e.message}`);

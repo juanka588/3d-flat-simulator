@@ -3,6 +3,7 @@ import type { Room, Scene, Vec2, Wall } from '../schema';
 import { MeshBuilder } from './builder';
 import { ceilingMaterial, floorMaterial } from './materials';
 import type { MeshData } from './types';
+import { floorParts } from './zones';
 
 /** Ceiling height used when a room has no `ceilingHeight` and no bounding wall is found. */
 export const DEFAULT_CEILING_HEIGHT = 2.5;
@@ -119,11 +120,35 @@ function addRoomSurface(
   }
 }
 
-/** Floor per room, facing up (+Y) at y = 0. UVs are plan coordinates in metres. */
+/** One convex piece of a floor part (fan-triangulated, facing up), UVs = plan coordinates in metres. */
+function addFloorPiece(builder: MeshBuilder, piece: readonly Vec2[], roomId: string, zoneId: string | undefined, materialId: string): void {
+  const base = piece.map((p) => builder.vertex([p[0], 0, p[1]], [0, 1, 0], [p[0], p[1]]));
+  for (let k = 1; k + 1 < piece.length; k++) {
+    const pa = piece[0]!;
+    const pb = piece[k]!;
+    const pc = piece[k + 1]!;
+    const ny = (pb[1] - pa[1]) * (pc[0] - pa[0]) - (pb[0] - pa[0]) * (pc[1] - pa[1]);
+    if (ny === 0) continue;
+    const [b, c] = ny > 0 ? [base[k]!, base[k + 1]!] : [base[k + 1]!, base[k]!];
+    builder.triangle(base[0]!, b, c, materialId, { kind: 'floor', entityId: roomId, ...(zoneId !== undefined ? { zoneId } : {}) });
+  }
+}
+
+/**
+ * Floor per room, facing up (+Y) at y = 0. UVs are plan coordinates in metres. A room with floor zones is
+ * split into one part per zone plus the remainder, each with its own material; every triangle is owned by
+ * the room (`entityId`), and zone triangles also carry `zoneId`.
+ */
 export function buildFloors(scene: Scene): MeshData {
   const builder = new MeshBuilder();
   for (const room of scene.rooms) {
-    addRoomSurface(builder, room, 0, true, floorMaterial(scene, room), 'floor');
+    if (!room.floorZones?.length) {
+      addRoomSurface(builder, room, 0, true, floorMaterial(scene, room), 'floor');
+      continue;
+    }
+    for (const part of floorParts(scene, room)) {
+      for (const piece of part.pieces) addFloorPiece(builder, piece, room.id, part.zoneId, part.materialId);
+    }
   }
   return builder.build();
 }

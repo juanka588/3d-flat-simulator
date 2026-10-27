@@ -204,7 +204,11 @@ export const RoomDescription = z.strictObject({
   ceilingHeightM: z.number(),
   /** Bounding box of the polygon, plan metres: [minX, minY, maxX, maxY]. */
   bounds: z.tuple([z.number(), z.number(), z.number(), z.number()]),
-  floor: z.strictObject({ materialId: z.string().nullable() }),
+  floor: z.strictObject({
+    materialId: z.string().nullable(),
+    /** Floor zones (parts of the floor with their own material); absent when the room has none. */
+    zones: z.array(z.strictObject({ id: z.string(), name: z.string(), areaM2: z.number(), materialId: z.string() })).optional(),
+  }),
   ceiling: z.strictObject({ materialId: z.string().nullable() }),
   walls: z.array(RoomWallDescription),
   openings: z.array(RoomOpeningDescription),

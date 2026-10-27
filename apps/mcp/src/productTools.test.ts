@@ -33,7 +33,7 @@ describe('registry', () => {
       expect(by.get(n)!.annotations?.readOnlyHint, n).toBe(true);
     }
     expect(by.get('place_item')!.annotations?.readOnlyHint).toBe(false);
-    expect(tools).toHaveLength(35);
+    expect(tools).toHaveLength(38);
   });
 
   it('place_item has NO price, name, link or dims field, and unknown keys are rejected', async () => {

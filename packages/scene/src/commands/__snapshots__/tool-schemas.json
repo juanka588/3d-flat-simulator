@@ -2075,6 +2075,166 @@
     }
   },
   {
+    "name": "room_set_floor_zone",
+    "commandType": "room.setFloorZone",
+    "description": "Add or replace (by zone.id, full replace) a floor zone: a part of a room floor with its own material, e.g. kitchen tiles in an open-plan room. The polygon must lie inside the room (1 cm tolerance) and not overlap the other zones of that room; define the material first.",
+    "example": {
+      "roomId": "sejour",
+      "zone": {
+        "id": "cuisine",
+        "name": "Cuisine",
+        "polygon": [
+          [
+            0.7,
+            6.6
+          ],
+          [
+            3.7,
+            6.6
+          ],
+          [
+            3.7,
+            8.3
+          ],
+          [
+            0.7,
+            8.3
+          ]
+        ],
+        "material": "floor-tile"
+      }
+    },
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "roomId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "description": "Id of the room (rooms[].id from list_rooms)."
+        },
+        "zone": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "description": "Zone id, unique within its room."
+            },
+            "name": {
+              "type": "string",
+              "maxLength": 120,
+              "description": "Optional label."
+            },
+            "polygon": {
+              "minItems": 3,
+              "maxItems": 500,
+              "type": "array",
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                },
+                "minItems": 2,
+                "maxItems": 2
+              },
+              "description": "Outline: [x, y] plan points in metres."
+            },
+            "material": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "description": "Defined material id (list_materials)."
+            }
+          },
+          "required": [
+            "id",
+            "polygon",
+            "material"
+          ],
+          "additionalProperties": false,
+          "description": "The zone: id, optional name, polygon and material."
+        }
+      },
+      "required": [
+        "roomId",
+        "zone"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "room_remove_floor_zone",
+    "commandType": "room.removeFloorZone",
+    "description": "Remove a floor zone; its area returns to the room floor material.",
+    "example": {
+      "roomId": "sejour",
+      "zoneId": "cuisine"
+    },
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "roomId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "description": "Id of the room (rooms[].id from list_rooms)."
+        },
+        "zoneId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "description": "Zone id (floor.zones[].id from describe_room)."
+        }
+      },
+      "required": [
+        "roomId",
+        "zoneId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "room_set_floor_zone_material",
+    "commandType": "room.setFloorZoneMaterial",
+    "description": "Change only the material of a floor zone (zone ids: floor.zones[].id from describe_room).",
+    "example": {
+      "roomId": "sejour",
+      "zoneId": "cuisine",
+      "material": "floor-tile"
+    },
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "roomId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "description": "Id of the room (rooms[].id from list_rooms)."
+        },
+        "zoneId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "description": "Zone id (floor.zones[].id from describe_room)."
+        },
+        "material": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "description": "Defined material id (list_materials)."
+        }
+      },
+      "required": [
+        "roomId",
+        "zoneId",
+        "material"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "batch",
     "commandType": "batch",
     "description": "Apply several commands atomically as one undo step: if any fails nothing is applied and the error path says which (commands/N/...). Prefer it for multi-step edits. Batches cannot nest. Each item is a tool's arguments plus its \"type\" (the command type of that tool, e.g. \"room.setFloor\" for room_set_floor). The server limits the number of commands per batch.",
@@ -2162,6 +2322,15 @@
               },
               {
                 "$ref": "#/$defs/item_remove"
+              },
+              {
+                "$ref": "#/$defs/room_set_floor_zone"
+              },
+              {
+                "$ref": "#/$defs/room_remove_floor_zone"
+              },
+              {
+                "$ref": "#/$defs/room_set_floor_zone_material"
               }
             ]
           },
@@ -4132,6 +4301,134 @@
           "required": [
             "type",
             "id"
+          ],
+          "additionalProperties": false
+        },
+        "room_set_floor_zone": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "room.setFloorZone",
+              "description": "Command discriminator, always \"room.setFloorZone\"."
+            },
+            "roomId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "description": "Id of the room (rooms[].id from list_rooms)."
+            },
+            "zone": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64,
+                  "description": "Zone id, unique within its room."
+                },
+                "name": {
+                  "type": "string",
+                  "maxLength": 120,
+                  "description": "Optional label."
+                },
+                "polygon": {
+                  "minItems": 3,
+                  "maxItems": 500,
+                  "type": "array",
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "type": "number"
+                    },
+                    "minItems": 2,
+                    "maxItems": 2
+                  },
+                  "description": "Outline: [x, y] plan points in metres."
+                },
+                "material": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64,
+                  "description": "Defined material id (list_materials)."
+                }
+              },
+              "required": [
+                "id",
+                "polygon",
+                "material"
+              ],
+              "additionalProperties": false,
+              "description": "The zone: id, optional name, polygon and material."
+            }
+          },
+          "required": [
+            "type",
+            "roomId",
+            "zone"
+          ],
+          "additionalProperties": false
+        },
+        "room_remove_floor_zone": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "room.removeFloorZone",
+              "description": "Command discriminator, always \"room.removeFloorZone\"."
+            },
+            "roomId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "description": "Id of the room (rooms[].id from list_rooms)."
+            },
+            "zoneId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "description": "Zone id (floor.zones[].id from describe_room)."
+            }
+          },
+          "required": [
+            "type",
+            "roomId",
+            "zoneId"
+          ],
+          "additionalProperties": false
+        },
+        "room_set_floor_zone_material": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "room.setFloorZoneMaterial",
+              "description": "Command discriminator, always \"room.setFloorZoneMaterial\"."
+            },
+            "roomId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "description": "Id of the room (rooms[].id from list_rooms)."
+            },
+            "zoneId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "description": "Zone id (floor.zones[].id from describe_room)."
+            },
+            "material": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "description": "Defined material id (list_materials)."
+            }
+          },
+          "required": [
+            "type",
+            "roomId",
+            "zoneId",
+            "material"
           ],
           "additionalProperties": false
         }

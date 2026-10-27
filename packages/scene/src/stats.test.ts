@@ -35,7 +35,7 @@ describe('roomStats', () => {
     const s = roomStats(scene, 'ch1')!;
     expect(s.area).toBeCloseTo(13.88, 1);
     expect(s.perimeter).toBeCloseTo(2 * (3.14 + 4.42), 9);
-    expect(s.floorMaterial).toBe('floor-oak');
+    expect(s.floorMaterial).toBe('lib-parquet-light-oak');
     expect(s.ceilingMaterial).toBe('ceiling-white');
     expect(s.ceilingHeight).toBe(2.5);
     expect(s.openings.map((o) => o.id).sort()).toEqual(['door-ch1', 'win-ch1']);

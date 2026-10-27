@@ -5,3 +5,5 @@ export { buildWalls } from './walls';
 export { buildFittings } from './fittings';
 export { buildFloors, buildCeilings, roomCeilingHeight, DEFAULT_CEILING_HEIGHT } from './floors';
 export { buildShell } from './shell';
+export { ZONE_OVERLAP_AREA, ZONE_TOLERANCE, floorParts, polygonIntersectionArea, remainderArea, zoneProblems } from './zones';
+export type { FloorPart, ZoneProblem } from './zones';

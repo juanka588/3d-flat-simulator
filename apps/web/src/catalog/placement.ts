@@ -322,3 +322,14 @@ export function dragState() {
     ghost: ghost ? { position: ghost.position, rotation: ghost.rotation, elevation: ghost.elevation, valid: ghost.verdict.valid, message: ghost.verdict.message ?? null, kind: ghost.kind } : null,
   };
 }
+
+/** Plan point under a screen position (the floor plane y = 0), or null when the viewer is not mounted or the pointer misses the floor. For drags that are not item drags (floor-zone corners). */
+export function floorPointAt(clientX: number, clientY: number): Vec2 | null {
+  const ray = viewer?.ray(clientX, clientY);
+  return ray ? floorPoint(ray) : null;
+}
+
+/** Pauses (false) or resumes (true) the camera controls, so a handle drag does not orbit the view. */
+export function setViewerControlsEnabled(enabled: boolean): void {
+  viewer?.setControlsEnabled(enabled);
+}

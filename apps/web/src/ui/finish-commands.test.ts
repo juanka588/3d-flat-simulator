@@ -105,6 +105,26 @@ describe('buildFinishCommand', () => {
     });
   });
 
+  describe('floor zone scope', () => {
+    const names = { rooms: { sejour: 'Séjour' }, zones: { 'sejour/cuisine': 'Cuisine' } };
+    const scope: FinishScope = { kind: 'zone', roomId: 'sejour', zoneId: 'cuisine', resetTo: 'lib-parquet-light-oak' };
+
+    it('sets the material of the zone (room.setFloorZoneMaterial), after defining it', () => {
+      const cmd = buildFinishCommand(scope, sage, names);
+      expect(cmd.label).toBe('Paint Cuisine zone of Séjour Sage');
+      expect(cmd.commands).toEqual([
+        expect.objectContaining({ type: 'material.define' }),
+        { type: 'room.setFloorZoneMaterial', roomId: 'sejour', zoneId: 'cuisine', material: 'paint-a3ae93-matt' },
+      ]);
+    });
+
+    it('reset gives the zone the material of the floor around it; without one there is nothing to dispatch', () => {
+      const cmd = buildFinishCommand(scope, { kind: 'reset' }, names);
+      expect(cmd.commands).toEqual([{ type: 'room.setFloorZoneMaterial', roomId: 'sejour', zoneId: 'cuisine', material: 'lib-parquet-light-oak' }]);
+      expect(buildFinishCommand({ kind: 'zone', roomId: 'sejour', zoneId: 'cuisine' }, { kind: 'reset' }, names).commands).toEqual([]);
+    });
+  });
+
   it('rejects invalid hex', () => {
     expect(() => buildFinishCommand({ kind: 'floor', roomId: 'r1' }, { kind: 'paint', hex: 'zzz', sheen: 'matt' })).toThrow();
   });

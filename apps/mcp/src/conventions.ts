@@ -23,7 +23,7 @@ On a stretch of wall face, the most specific wins:
 3. the room's paint-all-walls (\`room_set_wall_finish\`);
 4. the scene default (\`scene_set_defaults\`).
 - Prefer \`roomId\` so a neighbouring room keeps its look. \`materialId: null\` clears a level and exposes the next.
-- Floors and ceilings: \`room_set_floor\` / \`room_set_ceiling\`, falling back to the scene defaults.
+- Floors and ceilings: \`room_set_floor\` / \`room_set_ceiling\`, falling back to the scene defaults. A part of a floor with another material (kitchen tiles in an open-plan room) is a floor zone: \`room_set_floor_zone\` / \`room_set_floor_zone_material\` / \`room_remove_floor_zone\`; \`describe_room\` lists \`floor.zones\`.
 - Define a material (\`material_define\`) before using it; \`material_define\` replaces an existing id completely.
   Library textures: kind \`texture\`, \`textureUrl: "lib:<slug>"\` (slugs: \`materials://list\`).
 

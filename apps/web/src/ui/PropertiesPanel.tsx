@@ -1,10 +1,11 @@
-import { BUILTIN_ASSETS, roomStats, wallEdgeMaterial, wallStats } from '@flat/scene';
+import { BUILTIN_ASSETS, polygonArea, roomStats, wallEdgeMaterial, wallStats } from '@flat/scene';
 import type { Scene } from '@flat/scene';
 import { useId, useState } from 'react';
 import { readPref, writePref } from '../state/prefs';
 import type { Selection } from '../viewer/view-types';
 import { itemName } from '../catalog/format';
 import { FinishPanel, takesFinish } from './FinishPanel';
+import { FloorZones } from './FloorZones';
 import { HistoryButtons } from './HistoryButtons';
 import { ItemProperties } from './ItemProperties';
 import { StructuralControl } from './StructuralControl';
@@ -67,6 +68,21 @@ function describe(scene: Scene, selection: Selection): Description | null {
     const stats = roomStats(scene, selection.entityId);
     const room = scene.rooms.find((r) => r.id === selection.entityId);
     if (!stats || !room) return null;
+    const zone = selection.kind === 'floor' ? room.floorZones?.find((z) => z.id === selection.zoneId) : undefined;
+    if (zone) {
+      const area = polygonArea(zone.polygon);
+      return {
+        title: `${zone.name ?? zone.id} (floor zone)`,
+        summary: `floor zone · ${m2(area)} · ${materialName(scene, zone.material)}`,
+        rows: [
+          ['Surface', 'floor zone'],
+          ['Room', room.name],
+          ['Area', m2(area)],
+          ['Material', materialName(scene, zone.material)],
+          ['Floor around', materialName(scene, stats.floorMaterial)],
+        ],
+      };
+    }
     return {
       title: stats.name,
       summary: `${selection.kind} · ${m2(stats.area)} · ${materialName(scene, selection.kind === 'floor' ? stats.floorMaterial : (stats.ceilingMaterial ?? undefined))}`,
@@ -123,6 +139,7 @@ function SelectionBody({ scene, selection, rows, history = false }: { scene: Sce
       )}
       {selection.kind === 'wall' && <StructuralControl scene={scene} wallId={selection.entityId} />}
       {history && <HistoryButtons />}
+      {selection.kind === 'floor' && <FloorZones scene={scene} selection={selection} />}
       <FinishPanel scene={scene} selection={selection} />
     </>
   );
@@ -183,7 +200,7 @@ export function PropertiesPanel({ scene, selection, sheet = false, hidden = fals
     );
   }
   if (!info || !selection) return null;
-  const key = `${selection.kind}:${selection.entityId}:${selection.face ?? ''}`;
+  const key = `${selection.kind}:${selection.entityId}:${selection.face ?? ''}:${selection.zoneId ?? ''}`;
   const expanded = expandedFor === key;
   const canFinish = takesFinish(selection);
   return (

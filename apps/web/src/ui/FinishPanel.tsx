@@ -9,7 +9,7 @@ import { buildFinishCommand, materialLabel } from './finish-commands';
 import type { FinishNames, FinishScope, FinishSource } from './finish-commands';
 import { thumbUrl, useFinishCatalog } from './useFinishCatalog';
 
-type ScopeKey = 'side' | 'both' | 'room' | 'floor' | 'ceiling';
+type ScopeKey = 'side' | 'both' | 'room' | 'floor' | 'ceiling' | 'zone';
 interface ScopeOption {
   key: ScopeKey;
   label: string;
@@ -57,7 +57,10 @@ function clickedRooms(scene: Scene, selection: Selection): { left?: string; righ
 }
 
 function scopeOptions(scene: Scene, selection: Selection): { options: ScopeOption[]; roomName?: string; names: FinishNames } {
-  const names: FinishNames = { rooms: Object.fromEntries(scene.rooms.map((r) => [r.id, r.name])) };
+  const names: FinishNames = {
+    rooms: Object.fromEntries(scene.rooms.map((r) => [r.id, r.name])),
+    zones: Object.fromEntries(scene.rooms.flatMap((r) => (r.floorZones ?? []).map((z) => [`${r.id}/${z.id}`, z.name ?? z.id]))),
+  };
   if (selection.kind === 'wall' && (selection.face === 'left' || selection.face === 'right')) {
     const side = selection.face;
     const rooms = clickedRooms(scene, selection);
@@ -89,7 +92,14 @@ function scopeOptions(scene: Scene, selection: Selection): { options: ScopeOptio
   }
   const room = scene.rooms.find((r) => r.id === selection.entityId);
   if (!room) return { options: [], names };
-  const options: ScopeOption[] = [{ key: 'floor', label: 'Floor', scope: { kind: 'floor', roomId: room.id } }];
+  const options: ScopeOption[] = [];
+  const zone = selection.kind === 'floor' ? room.floorZones?.find((z) => z.id === selection.zoneId) : undefined;
+  if (zone) {
+    // The room's own floor material, when it is a defined one: what "match the floor" gives the zone.
+    const around = floorMaterial(scene, room);
+    options.push({ key: 'zone', label: `This zone (${zone.name ?? zone.id})`, scope: { kind: 'zone', roomId: room.id, zoneId: zone.id, ...(scene.materials.some((m) => m.id === around) ? { resetTo: around } : {}) } });
+  }
+  options.push({ key: 'floor', label: zone ? 'Rest of the floor' : 'Floor', scope: { kind: 'floor', roomId: room.id } });
   // Ceilings are hidden in orbit and top view, so they are offered from the room selection.
   if (room.type !== 'balcony') options.push({ key: 'ceiling', label: 'Ceiling', scope: { kind: 'ceiling', roomId: room.id } });
   options.push({ key: 'room', label: `All walls of ${room.name}`, scope: { kind: 'roomWalls', roomId: room.id } });
@@ -97,6 +107,7 @@ function scopeOptions(scene: Scene, selection: Selection): { options: ScopeOptio
 }
 
 function defaultScope(selection: Selection): ScopeKey {
+  if (selection.zoneId) return 'zone';
   if (selection.kind === 'ceiling') return 'ceiling';
   if (selection.kind === 'floor') return 'floor';
   return 'side';
@@ -132,6 +143,8 @@ function scopeMaterialId(scene: Scene, scope: FinishScope, along?: number): stri
       const room = scene.rooms.find((r) => r.id === scope.roomId);
       return room && floorMaterial(scene, room);
     }
+    case 'zone':
+      return scene.rooms.find((r) => r.id === scope.roomId)?.floorZones?.find((z) => z.id === scope.zoneId)?.material;
     case 'ceiling': {
       const room = scene.rooms.find((r) => r.id === scope.roomId);
       return room && ceilingMaterial(scene, room);
@@ -204,10 +217,19 @@ function CurrentFinish({ scene, selection }: { scene: Scene; selection: Selectio
   }
   const room = scene.rooms.find((r) => r.id === selection.entityId);
   if (!room) return null;
+  const zone = room.floorZones?.find((z) => z.id === selection.zoneId);
   return (
     <dl className="current-finish" aria-label="Current finish">
+      {zone && (
+        <div>
+          <dt>{`Zone ${zone.name ?? zone.id}`}</dt>
+          <dd data-testid="finish-zone">
+            <MaterialChip scene={scene} id={zone.material} />
+          </dd>
+        </div>
+      )}
       <div>
-        <dt>Floor</dt>
+        <dt>{zone ? 'Floor around' : 'Floor'}</dt>
         <dd data-testid="finish-floor">
           <MaterialChip scene={scene} id={floorMaterial(scene, room)} />
         </dd>
@@ -389,8 +411,8 @@ function FinishPanelBody({ scene, selection }: { scene: Scene; selection: Select
       </div>
 
       <div className="finish-actions">
-        <button type="button" onClick={() => apply({ kind: 'reset' })}>
-          Reset to default
+        <button type="button" disabled={option.scope.kind === 'zone' && option.scope.resetTo === undefined} onClick={() => apply({ kind: 'reset' })}>
+          {option.scope.kind === 'zone' ? 'Match the floor around' : 'Reset to default'}
         </button>
       </div>
 
@@ -433,6 +455,6 @@ export function FinishPanel({ scene, selection }: { scene: Scene; selection: Sel
       </p>
     );
   }
-  const key = `${selection.kind}:${selection.entityId}:${selection.face ?? ''}:${selection.roomId ?? ''}`;
+  const key = `${selection.kind}:${selection.entityId}:${selection.face ?? ''}:${selection.roomId ?? ''}:${selection.zoneId ?? ''}`;
   return <FinishPanelBody key={key} scene={scene} selection={selection} />;
 }
