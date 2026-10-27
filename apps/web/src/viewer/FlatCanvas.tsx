@@ -2,7 +2,8 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import type { RootState } from '@react-three/fiber';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
-import { BUILTIN_MATERIALS } from '@flat/scene';
+import { BUILTIN_MATERIALS, buildItems } from '@flat/scene';
+import type { ShellMeshes } from '@flat/scene';
 import type { Scene, SiteContext } from '@flat/scene';
 import { CameraRig } from './CameraRig';
 import { buildingFraming } from './building-framing';
@@ -10,6 +11,7 @@ import { CompassDriver, CompassOverlay } from './Compass';
 import { SelectionHighlight } from './SelectionHighlight';
 import { StructuralOverlay } from './StructuralOverlay';
 import { ShellMesh, CLICK_DRAG_TOLERANCE_PX } from './ShellMesh';
+import { ItemsMesh, useItemModels } from './ItemsMesh';
 import { VIEWER_ELEMENT_ID, WalkControls } from './WalkControls';
 import { WalkOverlay } from './WalkOverlay';
 import { DOOR_WALK_MATERIAL, createMaterialLibrary } from './materials';
@@ -119,12 +121,19 @@ const WALK_SWAP = { [BUILTIN_MATERIALS.door]: DOOR_WALK_MATERIAL } as const;
 
 function Shell({ scene, view, onSelect }: { scene: Scene; view: ViewState; onSelect: (s: Selection) => void }) {
   if (shouldInjectFault(scene.name)) throw new Error('injected viewer fault (test)');
-  const shell = useMemo(() => shellFor(scene), [scene]);
+  const baseShell = useMemo(() => shellFor(scene), [scene]);
+  const gl = useThree((s) => s.gl);
+  const invalidate = useThree((s) => s.invalidate);
+  // Items that resolve to a GLB model (or wait for one) are drawn by ItemsMesh; the rest stay in the shell's items mesh.
+  const models = useItemModels(scene, invalidate);
+  const shell = useMemo<ShellMeshes>(
+    () => (models.claimed.size === 0 ? baseShell : { ...baseShell, items: buildItems({ items: scene.items.filter((i) => !models.claimed.has(i.id)) }) }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `claimed` is a new set per render; its content changes with `version`
+    [baseShell, scene.items, models.version, models.claimed.size],
+  );
   // Per-room sky ambient (windowless rooms get less): an aoMap on the shell materials, see room-ambient.ts.
   const ambient = useMemo(() => createRoomAmbient(scene), [scene]);
   useEffect(() => () => ambient.dispose(), [ambient]);
-  const gl = useThree((s) => s.gl);
-  const invalidate = useThree((s) => s.invalidate);
   // One material library per canvas, kept in step with the scene: an edit updates changed materials in place
   // (the same objects, so no texture is released, re-fetched or re-uploaded); it is never rebuilt per scene.
   const library = useMemo(
@@ -151,6 +160,8 @@ function Shell({ scene, view, onSelect }: { scene: Scene; view: ViewState; onSel
     const canvas = gl.domElement;
     const restored = () => {
       textureCache.reset();
+      models.controller.restore();
+      invalidate();
       useViewerHealth.getState().clear('webgl');
     };
     const lost = () => useViewerHealth.getState().report({ source: 'webgl', message: 'the graphics context was lost (GPU reset or too many tabs); it will be restored if the browser allows', keptLastGood: false });
@@ -160,7 +171,7 @@ function Shell({ scene, view, onSelect }: { scene: Scene; view: ViewState; onSel
       canvas.removeEventListener('webglcontextrestored', restored);
       canvas.removeEventListener('webglcontextlost', lost);
     };
-  }, [gl]);
+  }, [gl, models.controller, invalidate]);
   const roomMeshes = useMemo(
     () => ({
       walls: withRoomAmbient(shell.walls, scene, ambient),
@@ -191,6 +202,7 @@ function Shell({ scene, view, onSelect }: { scene: Scene; view: ViewState; onSel
       {walk && <ShellMesh name="ceilings" data={roomMeshes.ceilings} materials={materials} onSelect={pick} />}
       <ShellMesh name="fittings" data={roomMeshes.fittings} materials={materials} receiveShadow swap={walk && view.translucentDoors !== false ? WALK_SWAP : undefined} renderOrder={1} onSelect={pick} />
       <ShellMesh name="items" data={roomMeshes.items} materials={materials} receiveShadow onSelect={pick} />
+      <ItemsMesh scene={scene} models={models} selectedId={selectedId} onSelect={pick} />
       <ShellMesh name="glass" data={shell.glass} materials={materials} renderOrder={2} onSelect={pick} />
       {selectedId && meshes.map((m, i) => <SelectionHighlight key={i} mesh={m} entityId={selectedId} />)}
     </group>

@@ -38,6 +38,8 @@ export interface ProviderContext {
   log: (level: 'info' | 'warn' | 'error', message: string) => void;
   /** Cancelled when the HTTP request that triggered the call is aborted. */
   signal?: AbortSignal;
+  /** DNS: every address of a host name (IPv4 and IPv6). Injected so SSRF tests need no network; defaults to `dns.lookup(all)`. */
+  lookup?: (hostname: string) => Promise<string[]>;
 }
 
 export interface ProviderCache {
@@ -76,12 +78,19 @@ export class ProviderError extends Error {
   readonly hint: string;
   /** For `provider_rate_limited` / `provider_unavailable`: when to try again (epoch ms). */
   readonly retryAt?: number;
-  constructor(code: ProviderErrorCode, message: string, options: { hint?: string; retryAt?: number; cause?: unknown } = {}) {
+  /** Structured extras for in-process callers, e.g. `{ knownDims: { w: 0.77, h: 1.47 } }` for `product_dims_missing`. */
+  readonly details?: Readonly<Record<string, unknown>>;
+  constructor(
+    code: ProviderErrorCode,
+    message: string,
+    options: { hint?: string; retryAt?: number; cause?: unknown; details?: Record<string, unknown> } = {},
+  ) {
     super(message, options.cause !== undefined ? { cause: options.cause } : undefined);
     this.name = 'ProviderError';
     this.code = code;
     this.hint = options.hint ?? PROVIDER_ERROR_HINTS[code];
     if (options.retryAt !== undefined) this.retryAt = options.retryAt;
+    if (options.details !== undefined) this.details = options.details;
   }
 }
 

@@ -1,7 +1,7 @@
 import { addAfterEffect } from '@react-three/fiber';
 import type { RootState } from '@react-three/fiber';
-import { NeutralToneMapping, Raycaster, Vector3 } from 'three';
-import type { Camera, Light, Mesh, Object3D, OrthographicCamera, PerspectiveCamera } from 'three';
+import { Box3, Matrix4, NeutralToneMapping, Raycaster, Vector3 } from 'three';
+import type { Camera, InstancedMesh, Light, Mesh, Object3D, OrthographicCamera, PerspectiveCamera } from 'three';
 import { committedScene, getTransport, useSceneStore } from './state/sceneStore';
 import { connectionInfo } from './sync/sync-store';
 import { exportSceneText, flushAutosave } from './state/persistence';
@@ -14,6 +14,10 @@ import { activeViewRelay } from './sync/view-relay';
 import { appliedPose, yawToHeadingDeg } from './viewer/camera-pose';
 import type { FlatStats, FlatTestHook, HistoryInfo } from './test-hook-types';
 import { textureStats, texturesSettled } from './viewer/texture-cache';
+import { modelStats, modelsSettled, setMeshResolverOverride, setProviderFrontOverride } from './viewer/model-runtime';
+import { setModelOriginOverride } from './viewer/model-env';
+import { transformBox } from './viewer/model-math';
+import type { Box } from './viewer/model-math';
 import { stepWalker } from './viewer/walk-input';
 import { effectiveLighting } from './state/effectiveLighting';
 import { selectionForId, selectionForWallFace } from './viewer/selection';
@@ -117,8 +121,13 @@ async function whenRendered(): Promise<void> {
       texturesSettled(),
       new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timed out waiting for textures')), FRAME_TIMEOUT_MS)),
     ]);
+    // Models (GLB items) load the same way: wait for them too, then for a frame that draws them.
+    await Promise.race([
+      modelsSettled(),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timed out waiting for models')), FRAME_TIMEOUT_MS)),
+    ]);
     await nextRenderedFrame();
-    if (textureStats().pending === 0) return;
+    if (textureStats().pending === 0 && modelStats().pending === 0) return;
   }
 }
 
@@ -182,6 +191,38 @@ function shadowCasterMeshes(root: Object3D): string[] {
     if ((o as Mesh).isMesh && o.castShadow) names.push(o.name);
   });
   return names;
+}
+
+/** World bounding box of the GLB-drawn item `id` (plain or instanced), read from the objects actually in the scene. */
+function itemWorldBox(root: Object3D, id: string): Box | null {
+  const box = new Box3();
+  const m = new Matrix4();
+  root.updateMatrixWorld(true);
+  let found = false;
+  root.traverse((o) => {
+    const mesh = o as Mesh;
+    if (!mesh.isMesh || mesh.name !== 'items-glb') return;
+    mesh.geometry.computeBoundingBox();
+    const g = mesh.geometry.boundingBox!;
+    const native: Box = { min: [g.min.x, g.min.y, g.min.z], max: [g.max.x, g.max.y, g.max.z] };
+    const inst = o as InstancedMesh;
+    if (inst.isInstancedMesh) {
+      const ids = (inst.userData['itemIds'] ?? []) as string[];
+      const at = ids.indexOf(id);
+      if (at < 0) return;
+      inst.getMatrixAt(at, m);
+      m.premultiply(inst.matrixWorld);
+    } else {
+      let owner: Object3D | null = o;
+      while (owner && owner.userData['itemId'] === undefined) owner = owner.parent;
+      if (owner?.userData['itemId'] !== id) return;
+      m.copy(mesh.matrixWorld);
+    }
+    const b = transformBox(native, m);
+    box.expandByPoint(new Vector3(...b.min)).expandByPoint(new Vector3(...b.max));
+    found = true;
+  });
+  return found ? { min: box.min.toArray() as Box['min'], max: box.max.toArray() as Box['max'] } : null;
 }
 
 const projected = new Vector3();
@@ -457,6 +498,14 @@ export function installTestHook(): void {
       return text;
     },
     flushAutosave: () => flushAutosave(),
+    modelStats: () => modelStats(),
+    itemBounds: (id) => {
+      if (!canvas) throw new Error('canvas not ready');
+      return itemWorldBox(canvas().scene, id);
+    },
+    setMeshResolver: (fn) => setMeshResolverOverride(fn as Parameters<typeof setMeshResolverOverride>[0]),
+    setModelOrigin: (origin) => setModelOriginOverride(origin),
+    setProviderFront: (fn) => setProviderFrontOverride(fn),
     connection: () => connectionInfo(),
     select(target) {
       const scene = useSceneStore.getState().scene;

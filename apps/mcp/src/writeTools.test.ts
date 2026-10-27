@@ -60,6 +60,20 @@ const CASES: Record<string, Record<string, unknown>> = {
   light_add: { light: { type: 'point', position: [2.5, 1.8], elevation: 2.4, lumens: 800, kelvin: 2700, on: true } },
   light_update: { id: 'l-sejour', patch: { on: false, lumens: 600 } },
   light_remove: { id: 'l-wc' },
+  item_place: {
+    item: {
+      assetId: 'param:stool',
+      position: [2.5, 6],
+      roomId: 'sejour',
+      dims: { w: 0.4, d: 0.4, h: 0.5 },
+      productRef: { provider: 'mock', sku: 'STOOL' },
+      product: { provider: 'mock', sku: 'STOOL', name: 'MOCK stool', url: 'https://example.com/stool', price: 19, currency: 'EUR', dims: { w: 0.4, d: 0.4, h: 0.5 }, category: 'chair', snapshotAt: '2026-10-27T10:00:00.000Z' },
+    },
+  },
+  item_move: { id: 'tv-sejour', position: [2.2, 2.295] },
+  item_rotate: { id: 'tv-sejour', rotation: 180 },
+  item_set_variant: { id: 'tv-sejour', variant: 'black' },
+  item_remove: { id: 'tv-sejour' },
   batch: {
     label: 'Paint the sejour sage',
     commands: [

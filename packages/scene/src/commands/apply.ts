@@ -3,6 +3,7 @@ import { analyzeRoomWallSides, wallFaceRooms } from '../geometry/room-sides';
 import { LIMITS, Light, Scene, type Light as LightT, type Material, type Room, type Wall } from '../schema';
 import { isDefaultStructural } from '../structural';
 import { canCutOpening, canRemoveWall } from './guards';
+import { applyItemCommand, isItemCommand } from './items';
 import { parseCommand } from './parse';
 import type { Author, BatchCommand, Command, CommandEnvelope, LeafCommand } from './schema';
 import { deepEqual, err, unknownIdHint, type CommandError } from './util';
@@ -20,6 +21,8 @@ export interface Changed {
   walls: string[];
   rooms: string[];
   lights: string[];
+  /** Ids of items placed, moved, rotated, re-varianted or removed. Absent when no item was touched. */
+  items?: string[];
   site: boolean;
   defaults: boolean;
 }
@@ -63,7 +66,7 @@ type Outcome =
 const emptyChanged = (): Changed => ({ materials: [], walls: [], rooms: [], lights: [], site: false, defaults: false });
 const noop = (scene: Scene): Outcome => ({ ok: true, scene, inverse: [], changed: emptyChanged(), warnings: [] });
 const fail = (...errors: CommandError[]): ApplyFail => ({ ok: false, errors });
-const touch = (key: keyof Omit<Changed, 'site' | 'defaults'>, ...ids: string[]): Changed => ({ ...emptyChanged(), [key]: ids });
+const touch = (key: 'materials' | 'walls' | 'rooms' | 'lights' | 'items', ...ids: string[]): Changed => ({ ...emptyChanged(), [key]: ids });
 
 function mergeChanged(a: Changed, b: Changed): Changed {
   const u = (x: string[], y: string[]) => [...new Set([...x, ...y])];
@@ -72,6 +75,7 @@ function mergeChanged(a: Changed, b: Changed): Changed {
     walls: u(a.walls, b.walls),
     rooms: u(a.rooms, b.rooms),
     lights: u(a.lights, b.lights),
+    ...(a.items || b.items ? { items: u(a.items ?? [], b.items ?? []) } : {}),
     site: a.site || b.site,
     defaults: a.defaults || b.defaults,
   };
@@ -516,7 +520,14 @@ function reservedLeaf(scene: Scene, cmd: { type: string; wallId?: unknown }): Ou
   return fail(err('not_supported', 'type', `command "${cmd.type}" has no reducer`));
 }
 
+function itemLeaf(scene: Scene, cmd: Extract<LeafCommand, { type: `item.${string}` }>, ctx: ReduceContext): Outcome {
+  const r = applyItemCommand(scene, cmd, ctx);
+  if (!r.ok) return r;
+  return { ok: true, scene: r.scene, inverse: r.inverse, changed: r.ids.length ? touch('items', ...r.ids) : emptyChanged(), warnings: [] };
+}
+
 function applyLeaf(scene: Scene, cmd: LeafCommand, ctx: ReduceContext): Outcome {
+  if (isItemCommand(cmd)) return itemLeaf(scene, cmd, ctx);
   switch (cmd.type) {
     case 'material.define': return defineMaterial(scene, cmd);
     case 'material.remove': return removeMaterial(scene, cmd);

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { COMMAND_TYPES, LEAF_COMMAND_SCHEMAS } from './schema';
-import { ITEM_COMMAND_SCHEMAS, ItemDraft, ItemMove, ItemPlace, ItemRemove, ItemRotate, ItemSetVariant } from './item-schema';
+import { ITEM_COMMAND_SCHEMAS, itemCoalesceKey, ItemDraft, ItemMove, ItemPlace, ItemRemove, ItemRotate, ItemSetVariant } from './item-schema';
 import { parseCommand } from './parse';
 
 const env = (cmd: unknown) => ({ v: 1, id: 'e1', ts: 1, author: { kind: 'llm' }, cmd });
@@ -19,15 +19,16 @@ describe('item command schemas (contract only)', () => {
     expect(ItemRemove.safeParse({ type: 'item.remove' }).success).toBe(false);
   });
 
-  it('are NOT registered yet: snapshots stay stable, and parseCommand answers not_supported "M5 lane B"', () => {
+  it('are registered: command types, leaf schemas and tools; item.add / item.update stay reserved', () => {
     for (const s of ITEM_COMMAND_SCHEMAS) {
-      expect(LEAF_COMMAND_SCHEMAS).not.toContain(s);
-      expect(COMMAND_TYPES).not.toContain(s.shape.type.value);
+      expect(LEAF_COMMAND_SCHEMAS).toContain(s);
+      expect(COMMAND_TYPES).toContain(s.shape.type.value);
     }
-    for (const type of ['item.place', 'item.move', 'item.rotate', 'item.setVariant', 'item.remove']) {
+    for (const type of ['item.add', 'item.update']) {
       const r = parseCommand(env({ type, id: 'a' }));
       expect(r.ok).toBe(false);
-      if (!r.ok) expect(r.errors[0]).toMatchObject({ code: 'not_supported', hint: 'M5 lane B' });
+      if (!r.ok) expect(r.errors[0]).toMatchObject({ code: 'not_supported' });
     }
+    expect(itemCoalesceKey('bed-1')).toBe('item:bed-1');
   });
 });

@@ -2,6 +2,12 @@ import { MeshBuilder, emptyMesh } from '../geometry/builder';
 import type { Vec3 } from '../geometry/builder';
 import type { MeshData } from '../geometry/types';
 import type { Item, Scene, Vec2 } from '../schema';
+import { BUILTIN_ASSETS } from './builtin-assets';
+import { GENERATORS } from './catalog';
+import { Kit } from './generators/kit';
+import { tv } from './generators/misc';
+import { ITEM_MATERIALS } from './item-materials';
+import './generators'; // registers every generator in GENERATORS (side effect)
 
 /**
  * Minimal built-in assets: a precursor of the M5 furniture catalog, used to give the flat a
@@ -26,57 +32,16 @@ import type { Item, Scene, Vec2 } from '../schema';
  * whose bottom is above `WALK_CLEARANCE_M` does not block walking (see `itemBlocksWalking`).
  */
 
-export type AssetCategory = 'electronics';
-export type AssetMount = 'floor' | 'wall';
-
-export interface BuiltinAsset {
-  name: string;
-  category: AssetCategory;
-  /** Width (local x), depth (local z) and height (local y) in metres. */
-  dims: { w: number; d: number; h: number };
-  mount: AssetMount;
-}
-
-/** Diagonal of a 55 inch screen: 55 x 0.0254 m. */
-export const TV_55_DIAGONAL_M = 55 * 0.0254;
-/** Visible panel of a 55" 16:9 screen (1.397 * 16 / sqrt(16^2 + 9^2) and 1.397 * 9 / sqrt(...)). */
-const TV_SCREEN_W = (TV_55_DIAGONAL_M * 16) / Math.hypot(16, 9);
-const TV_SCREEN_H = (TV_55_DIAGONAL_M * 9) / Math.hypot(16, 9);
-/** Thin bezel: 6 mm at the sides, 12.5 mm above and below the panel. */
-const TV_BEZEL_SIDE = 0.006;
-const TV_BEZEL_VERTICAL = 0.0125;
-const TV_W = round3(TV_SCREEN_W + 2 * TV_BEZEL_SIDE); // 1.23
-const TV_H = round3(TV_SCREEN_H + 2 * TV_BEZEL_VERTICAL); // 0.71
-const TV_D = 0.05;
-
-export const BUILTIN_ASSETS: Record<string, BuiltinAsset> = {
-  'builtin:tv-55': {
-    name: 'TV 55″',
-    category: 'electronics',
-    dims: { w: TV_W, d: TV_D, h: TV_H },
-    mount: 'wall',
-  },
-};
-
-/** Material ids of built-in item meshes. */
-export const ITEM_MATERIALS = {
-  tvBody: 'builtin:tv-body',
-  tvScreen: 'builtin:tv-screen',
-  placeholder: 'builtin:placeholder',
-} as const;
+export { BUILTIN_ASSETS, isBuiltinAsset } from './builtin-assets';
+export type { AssetCategory, AssetMount, BuiltinAsset } from './builtin-assets';
+export { ITEM_MATERIALS, ITEM_MATERIAL_SPECS } from './item-materials';
+export type { ItemMaterialId, ItemMaterialSpec } from './item-materials';
+export { TV_55_DIAGONAL_M } from './generators/misc';
 
 /** Edge length of the placeholder box drawn for unknown assets, in metres. */
 export const PLACEHOLDER_SIZE_M = 0.3;
 /** Items whose bottom is above this height (m) and that hang on a wall do not block walking. */
 export const WALK_CLEARANCE_M = 0.6;
-
-function round3(v: number): number {
-  return Math.round(v * 1000) / 1000;
-}
-
-export function isBuiltinAsset(assetId: string): boolean {
-  return Object.hasOwn(BUILTIN_ASSETS, assetId);
-}
 
 /** Plan direction (unit vector `[x, y]`) the front of the item faces; see the frame above. */
 export function itemFrontDirection(item: Pick<Item, 'rotation'>): Vec2 {
@@ -98,90 +63,104 @@ export function itemLabel(item: Pick<Item, 'assetId'>): string {
   return `${asset.name} – ${asset.dims.w.toFixed(2)} × ${asset.dims.h.toFixed(2)} m`;
 }
 
-type Owner = { kind: 'item'; entityId: string };
-
-/** Adds an axis-aligned (item-local) box to the builder, transformed to world space. */
-function addBox(
-  b: MeshBuilder,
-  item: Item,
-  owner: Owner,
-  materialId: string,
-  min: Vec3,
-  max: Vec3,
-  skip: ReadonlySet<string> = new Set(),
-): void {
-  const r = (item.rotation * Math.PI) / 180;
-  const cos = Math.cos(r);
-  const sin = Math.sin(r);
-  // three.js rotation.y: x' = x cos + z sin, z' = -x sin + z cos.
-  const world = (p: Vec3): Vec3 => [
-    item.position[0] + p[0] * cos + p[2] * sin,
-    item.elevation + p[1],
-    item.position[1] - p[0] * sin + p[2] * cos,
-  ];
-  const dir = (n: Vec3): Vec3 => [n[0] * cos + n[2] * sin, n[1], -n[0] * sin + n[2] * cos];
-  const [x0, y0, z0] = min;
-  const [x1, y1, z1] = max;
-  // Each face: outward local normal and 4 corners counter-clockwise seen from outside.
-  const faces: { name: string; n: Vec3; c: [Vec3, Vec3, Vec3, Vec3]; uv: [number, number][] }[] = [
-    { name: 'front', n: [0, 0, 1], c: [[x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1]], uv: [[0, 0], [x1 - x0, 0], [x1 - x0, y1 - y0], [0, y1 - y0]] },
-    { name: 'back', n: [0, 0, -1], c: [[x1, y0, z0], [x0, y0, z0], [x0, y1, z0], [x1, y1, z0]], uv: [[0, 0], [x1 - x0, 0], [x1 - x0, y1 - y0], [0, y1 - y0]] },
-    { name: 'right', n: [1, 0, 0], c: [[x1, y0, z1], [x1, y0, z0], [x1, y1, z0], [x1, y1, z1]], uv: [[0, 0], [z1 - z0, 0], [z1 - z0, y1 - y0], [0, y1 - y0]] },
-    { name: 'left', n: [-1, 0, 0], c: [[x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0]], uv: [[0, 0], [z1 - z0, 0], [z1 - z0, y1 - y0], [0, y1 - y0]] },
-    { name: 'top', n: [0, 1, 0], c: [[x0, y1, z1], [x1, y1, z1], [x1, y1, z0], [x0, y1, z0]], uv: [[0, 0], [x1 - x0, 0], [x1 - x0, z1 - z0], [0, z1 - z0]] },
-    { name: 'bottom', n: [0, -1, 0], c: [[x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1]], uv: [[0, 0], [x1 - x0, 0], [x1 - x0, z1 - z0], [0, z1 - z0]] },
-  ];
-  for (const f of faces) {
-    if (skip.has(f.name)) continue;
-    b.quad(
-      f.c.map(world) as [Vec3, Vec3, Vec3, Vec3],
-      dir(f.n),
-      f.uv as [[number, number], [number, number], [number, number], [number, number]],
-      materialId,
-      owner,
-    );
-  }
+/** Item dims for geometry: `dims`, else the product's, else the builtin's, else `undefined`. */
+function itemDims(item: Item): { w: number; d: number; h: number } | undefined {
+  return item.dims ?? item.product?.dims ?? (Object.hasOwn(BUILTIN_ASSETS, item.assetId) ? BUILTIN_ASSETS[item.assetId]!.dims : undefined);
 }
 
-function addTv(b: MeshBuilder, item: Item, asset: BuiltinAsset): void {
-  const { w, d, h } = asset.dims;
-  const owner: Owner = { kind: 'item', entityId: item.id };
-  const back = -d / 2;
-  // Layers along local z: bracket plate (back 1.5 cm), body (3 cm), screen proud of the body (5 mm).
-  const bracketFront = back + 0.015;
-  const bodyFront = d / 2 - 0.005;
-  addBox(b, item, owner, ITEM_MATERIALS.tvBody, [-0.1, h / 2 - 0.1, back], [0.1, h / 2 + 0.1, bracketFront]);
-  addBox(b, item, owner, ITEM_MATERIALS.tvBody, [-w / 2, 0, bracketFront], [w / 2, h, bodyFront]);
-  const sw = TV_SCREEN_W;
-  const sh = TV_SCREEN_H;
-  addBox(
-    b,
-    item,
-    owner,
-    ITEM_MATERIALS.tvScreen,
-    [-sw / 2, (h - sh) / 2, bodyFront],
-    [sw / 2, (h + sh) / 2, d / 2],
-    new Set(['back', 'bottom']),
-  );
-}
-
-function addPlaceholder(b: MeshBuilder, item: Item): void {
-  const s = PLACEHOLDER_SIZE_M;
-  addBox(b, item, { kind: 'item', entityId: item.id }, ITEM_MATERIALS.placeholder, [-s / 2, 0, -s / 2], [s / 2, s, s / 2]);
+/** Labelled (magenta wireframe) box at exact dims, the 0.3 m cube when no dims are known. */
+function placeholderBox(dims: { w: number; d: number; h: number } | undefined): MeshData {
+  const kit = new Kit();
+  const { w, d, h } = dims ?? { w: PLACEHOLDER_SIZE_M, d: PLACEHOLDER_SIZE_M, h: PLACEHOLDER_SIZE_M };
+  kit.box(ITEM_MATERIALS.placeholder, -w / 2, 0, -d / 2, w / 2, h, d / 2);
+  return kit.build();
 }
 
 /**
- * Simple box geometry for every item. Known built-in assets get their dedicated model; any other
- * `assetId` gets a 0.3 m placeholder box in `builtin:placeholder` (and `validateScene` warns).
- * Owners are `{kind: 'item', entityId: item.id}`.
+ * The shape of one item in the item-local frame (see the top of this file): its generator, the legacy TV,
+ * or a placeholder box. `provider` and `lookalike` meshes are exact-dims placeholder boxes here: the viewer
+ * swaps in the real GLB. Parametric meshes are generated from their params and, when the item declares dims,
+ * stretched to them (the scene check allows 2% slack, the footprint stays exact).
+ */
+function localMesh(item: Item, cache: Map<string, MeshData>): MeshData {
+  const dims = itemDims(item);
+  const mesh = item.mesh;
+  if (mesh?.kind === 'parametric') {
+    const g = GENERATORS.get(mesh.generator);
+    const parsed = g?.params.safeParse(mesh.params);
+    if (g && parsed?.success) {
+      const key = `${g.id}\u0000${JSON.stringify(parsed.data)}`;
+      let local = cache.get(key);
+      if (!local) {
+        local = g.generate(parsed.data);
+        cache.set(key, local);
+      }
+      const natural = g.describeParams(parsed.data).dims;
+      return dims ? scaleMesh(local, [dims.w / natural.w, dims.h / natural.h, dims.d / natural.d]) : local;
+    }
+    return placeholderBox(dims);
+  }
+  if (mesh) return placeholderBox(dims);
+  if (item.assetId === 'builtin:tv-55') return tv.generate({ diagonal: 55 });
+  return placeholderBox(dims);
+}
+
+function scaleMesh(mesh: MeshData, s: Vec3): MeshData {
+  if (Math.abs(s[0] - 1) < 1e-9 && Math.abs(s[1] - 1) < 1e-9 && Math.abs(s[2] - 1) < 1e-9) return mesh;
+  const positions = new Float32Array(mesh.positions.length);
+  for (let i = 0; i < positions.length; i += 3) {
+    positions[i] = mesh.positions[i]! * s[0];
+    positions[i + 1] = mesh.positions[i + 1]! * s[1];
+    positions[i + 2] = mesh.positions[i + 2]! * s[2];
+  }
+  return { ...mesh, positions };
+}
+
+/** Appends an item-local mesh to `b` at the item's position, elevation and rotation, owned by the item. */
+function appendItemMesh(b: MeshBuilder, item: Item, local: MeshData): void {
+  const r = (item.rotation * Math.PI) / 180;
+  const cos = Math.cos(r);
+  const sin = Math.sin(r);
+  const owner = { kind: 'item' as const, entityId: item.id };
+  const mapped = new Map<number, number>();
+  const vertex = (i: number): number => {
+    let n = mapped.get(i);
+    if (n === undefined) {
+      const p = local.positions;
+      const q = local.normals;
+      const x = p[i * 3]!;
+      const y = p[i * 3 + 1]!;
+      const z = p[i * 3 + 2]!;
+      const nx = q[i * 3]!;
+      const nz = q[i * 3 + 2]!;
+      // three.js rotation.y: x' = x cos + z sin, z' = -x sin + z cos.
+      n = b.vertex(
+        [item.position[0] + x * cos + z * sin, item.elevation + y, item.position[1] - x * sin + z * cos],
+        [nx * cos + nz * sin, q[i * 3 + 1]!, -nx * sin + nz * cos],
+        [local.uvs[i * 2]!, local.uvs[i * 2 + 1]!],
+      );
+      mapped.set(i, n);
+    }
+    return n;
+  };
+  for (const g of local.groups) {
+    for (let k = g.start; k < g.start + g.count; k += 3) {
+      b.triangle(vertex(local.indices[k]!), vertex(local.indices[k + 1]!), vertex(local.indices[k + 2]!), g.materialId, owner);
+    }
+  }
+}
+
+/**
+ * Geometry for every item, in world space, owned by `{kind: 'item', entityId: item.id}`:
+ *  - `mesh.kind === 'parametric'`: the registered generator at the item's exact dims;
+ *  - `mesh.kind === 'provider' | 'lookalike'`: an exact-dims placeholder box (the viewer swaps in the GLB);
+ *  - no mesh: `builtin:tv-55` gets its dedicated model, any other asset a placeholder box in
+ *    `builtin:placeholder` (at its dims when known, else 0.3 m) and `validateScene` warns.
  */
 export function buildItems(scene: Pick<Scene, 'items'>): MeshData {
   if (scene.items.length === 0) return emptyMesh();
   const b = new MeshBuilder();
-  for (const item of scene.items) {
-    const asset = Object.hasOwn(BUILTIN_ASSETS, item.assetId) ? BUILTIN_ASSETS[item.assetId] : undefined;
-    if (asset && item.assetId === 'builtin:tv-55') addTv(b, item, asset);
-    else addPlaceholder(b, item);
-  }
+  const cache = new Map<string, MeshData>();
+  for (const item of scene.items) appendItemMesh(b, item, localMesh(item, cache));
   return b.build();
 }

@@ -5,19 +5,8 @@ import {
   VIOLATION_CODES,
   VIOLATION_HINTS,
   Violation,
-  solvePlacement,
-  validateLayout,
   type PlacementResult,
 } from './types';
-import { billOfMaterials } from '../bill-of-materials';
-import { parseScene } from '../parse';
-import sample from '../../fixtures/sample.flat.json';
-
-const scene = (() => {
-  const r = parseScene(sample);
-  if (!r.ok) throw new Error(r.errors.join());
-  return r.scene;
-})();
 
 describe('Relation', () => {
   const valid: unknown[] = [
@@ -88,17 +77,5 @@ describe('Violation and results', () => {
   it('the PlacementResult union narrows on ok', () => {
     const r = { ok: false, violations: [], candidates: [] } as PlacementResult;
     if (!r.ok) expect(r.candidates).toEqual([]);
-  });
-});
-
-describe('stubs throw "not implemented"', () => {
-  it('solvePlacement', () => {
-    expect(() => solvePlacement(scene, { roomId: 'r', dims: { w: 1, d: 1, h: 1 }, relation: { kind: 'centered_in', roomId: 'r' } })).toThrow(/not implemented/);
-  });
-  it('validateLayout', () => {
-    expect(() => validateLayout(scene)).toThrow(/not implemented/);
-  });
-  it('billOfMaterials', () => {
-    expect(() => billOfMaterials(scene)).toThrow(/not implemented/);
   });
 });

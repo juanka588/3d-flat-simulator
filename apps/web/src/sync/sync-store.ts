@@ -17,6 +17,8 @@ export interface ConflictInfo {
 /** What the UI and the test hook know about the sync lane. */
 interface SyncUi {
   mode: 'local' | 'server';
+  /** Origin of the connected server (no trailing slash); null in Local mode. The viewer fetches provider models from it. */
+  serverUrl: string | null;
   status: SyncStatus;
   rev: number;
   epoch: string | null;
@@ -34,6 +36,7 @@ const MAX_NOTICES = 4;
 
 export const useSyncStore = create<SyncUi>((set) => ({
   mode: 'local',
+  serverUrl: null,
   status: 'connecting',
   rev: 0,
   epoch: null,

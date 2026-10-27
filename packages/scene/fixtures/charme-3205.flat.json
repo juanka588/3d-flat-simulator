@@ -84,7 +84,9 @@
     { "id": "balcon", "name": "Balcon", "type": "balcony", "polygon": [[-1.55, 0], [-0.2, 0], [-0.2, 8.28], [-1.55, 8.28]], "floorMaterial": "floor-deck" }
   ],
   "items": [
-    { "id": "tv-sejour", "assetId": "builtin:tv-55", "position": [2.45, 2.295], "elevation": 0.745, "rotation": 0, "roomId": "sejour" }
+    { "id": "tv-sejour", "assetId": "builtin:tv-55", "position": [2.45, 2.295], "elevation": 0.745, "rotation": 0, "roomId": "sejour" },
+    { "id": "placard-ch1", "assetId": "param:wardrobe", "position": [8.7, 4.12], "elevation": 0, "rotation": 180, "roomId": "ch1", "mount": "floor", "dims": { "w": 1.8, "d": 0.6, "h": 2.4 }, "mesh": { "kind": "parametric", "generator": "wardrobe", "params": { "w": 1.8, "d": 0.6, "h": 2.4, "doors": 2, "doorType": "sliding", "finish": "white" } }, "locked": true },
+    { "id": "placard-ch2", "assetId": "param:wardrobe", "position": [5.11, 3.82], "elevation": 0, "rotation": 180, "roomId": "ch2", "mount": "floor", "dims": { "w": 1.48, "d": 0.6, "h": 2.4 }, "mesh": { "kind": "parametric", "generator": "wardrobe", "params": { "w": 1.48, "d": 0.6, "h": 2.4, "doors": 2, "doorType": "sliding", "finish": "white" } }, "locked": true }
   ],
   "lights": [
     { "id": "l-sejour", "name": "Séjour ceiling", "type": "point", "roomId": "sejour", "position": [2.0, 3.8], "elevation": 2.3, "lumens": 1600, "kelvin": 2700 },

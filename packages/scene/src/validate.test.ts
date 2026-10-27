@@ -167,3 +167,24 @@ describe('coordinates', () => {
     expect(w).toEqual([expect.objectContaining({ code: 'coordinates-out-of-range', entityIds: ['far'], path: 'walls[0]' })]);
   });
 });
+
+describe('validateScene layout warnings', () => {
+  const item = (id: string, over: Record<string, unknown> = {}) => ({ id, assetId: 'param:t', position: [7.5, 1], dims: { w: 0.5, d: 0.5, h: 0.5 }, roomId: 'ch1', ...over });
+  const withItems = (items: unknown[]) => {
+    const c = clone(charme) as { items: unknown[] };
+    c.items = items;
+    return load(c);
+  };
+
+  it('reports overlap, items outside rooms and tall items under windows with layout_* codes', () => {
+    const w = validateScene(withItems([item('a'), item('b', { position: [7.6, 1] }), item('c', { position: [30, 30], roomId: 'ch1' }), item('d', { position: [9.29, 0.3], dims: { w: 0.8, d: 0.5, h: 2 } })])).warnings;
+    const layout = w.filter((x) => x.code.startsWith('layout_')).map((x) => [x.code, x.entityIds[0]]);
+    expect(layout).toEqual(expect.arrayContaining([['layout_overlap', 'b'], ['layout_outside_room', 'c'], ['layout_window_blocked', 'd']]));
+    expect(w.find((x) => x.code === 'layout_overlap')!.path).toBe('items[1]');
+  });
+
+  it('is quiet for a well placed item and for locked furniture', () => {
+    expect(validateScene(withItems([item('a')])).warnings.filter((x) => x.code.startsWith('layout_'))).toEqual([]);
+    expect(validateScene(withItems([item('p', { position: [30, 30], locked: true })])).warnings.filter((x) => x.code.startsWith('layout_'))).toEqual([]);
+  });
+});

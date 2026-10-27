@@ -85,7 +85,9 @@ describe('read tools (M4.4)', () => {
         expect(json(r).daylight.date).toBe('2026-06-21');
       }
       const s = json(await client.callTool({ name: 'describe_room', arguments: { roomId: 'sejour' } }));
-      expect(s).toMatchObject({ id: 'sejour', items: [] });
+      expect(s).toMatchObject({ id: 'sejour' });
+      expect(s.items.map((i: { id: string }) => i.id)).toContain('tv-sejour');
+      expect(s.items.find((i: { id: string }) => i.id === 'tv-sejour')).toMatchObject({ name: expect.any(String), mount: 'wall', locked: false, where: expect.any(String) });
       expect(s.walls.length).toBeGreaterThan(0);
       expect(s.walls[0]).toHaveProperty('structural');
     });

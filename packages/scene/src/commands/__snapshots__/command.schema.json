@@ -790,6 +790,1211 @@
       "properties": {
         "type": {
           "type": "string",
+          "const": "item.place",
+          "description": "Command discriminator, always \"item.place\"."
+        },
+        "item": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "description": "Optional item id (1-64 characters, unique across all entities); derived as \"item-N\" when omitted."
+            },
+            "assetId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "description": "Shape id: \"product:<provider>\", a library asset id or \"param:<generator>\" (see meshAssetId); legacy \"builtin:*\" ids still load."
+            },
+            "position": {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "items": false,
+              "minItems": 2,
+              "maxItems": 2,
+              "description": "Plan position [x, y] of the item origin (footprint centre), in metres; plan y grows down."
+            },
+            "elevation": {
+              "default": 0,
+              "description": "Height of the item bottom above the floor, in metres; must be 0 for floor items. Defaults to 0.",
+              "type": "number"
+            },
+            "rotation": {
+              "default": 0,
+              "description": "Rotation in degrees, counter-clockwise seen from above; the front faces plan +y at 0. Defaults to 0.",
+              "type": "number"
+            },
+            "roomId": {
+              "description": "Room the item stands in (rooms[].id from list_rooms); derived from the position when omitted. Optional.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "productRef": {
+              "type": "object",
+              "properties": {
+                "provider": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9-]{0,31}$",
+                  "description": "Provider id, e.g. \"ikea-fr\"."
+                },
+                "sku": {
+                  "description": "Provider article number.",
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                }
+              },
+              "required": [
+                "provider",
+                "sku"
+              ],
+              "additionalProperties": false,
+              "description": "The real product this item stands for. Required for items placed by an LLM or the planner (unless product is given)."
+            },
+            "product": {
+              "type": "object",
+              "properties": {
+                "provider": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9-]{0,31}$",
+                  "description": "Provider id, e.g. \"ikea-fr\"."
+                },
+                "sku": {
+                  "description": "Provider article number.",
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                "name": {
+                  "description": "Product name as listed by the provider.",
+                  "type": "string",
+                  "maxLength": 200
+                },
+                "url": {
+                  "type": "string",
+                  "maxLength": 2048,
+                  "format": "uri",
+                  "description": "Public product page (the buy link)."
+                },
+                "price": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1000000,
+                  "description": "Shelf price including VAT (TTC) in `currency`, as returned by the server."
+                },
+                "currency": {
+                  "type": "string",
+                  "pattern": "^[A-Z]{3}$",
+                  "description": "ISO 4217 currency code, e.g. \"EUR\"."
+                },
+                "dims": {
+                  "type": "object",
+                  "properties": {
+                    "w": {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "maximum": 20,
+                      "description": "Width in metres (item-local x)."
+                    },
+                    "d": {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "maximum": 20,
+                      "description": "Depth in metres (item-local z; the front is at +d/2)."
+                    },
+                    "h": {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "maximum": 20,
+                      "description": "Height in metres (item-local y, measured up from the item bottom)."
+                    }
+                  },
+                  "required": [
+                    "w",
+                    "d",
+                    "h"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Assembled outer dimensions in metres, as returned by the server."
+                },
+                "category": {
+                  "type": "string",
+                  "enum": [
+                    "bed",
+                    "wardrobe",
+                    "bedside",
+                    "drawers",
+                    "shelf",
+                    "sideboard",
+                    "tv_unit",
+                    "table",
+                    "desk",
+                    "chair",
+                    "armchair",
+                    "sofa",
+                    "rug",
+                    "lamp",
+                    "mirror",
+                    "wall_cabinet",
+                    "kitchen",
+                    "appliance",
+                    "decor",
+                    "other"
+                  ],
+                  "description": "Furniture category of the product."
+                },
+                "snapshotAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                  "description": "When the facts were read from the provider (ISO 8601 date-time)."
+                },
+                "colour": {
+                  "description": "Chosen colour when the product has several. Optional.",
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 40
+                }
+              },
+              "required": [
+                "provider",
+                "sku",
+                "name",
+                "url",
+                "price",
+                "currency",
+                "dims",
+                "category",
+                "snapshotAt"
+              ],
+              "additionalProperties": false,
+              "description": "Product facts (name, TTC price, link, dims, snapshot date) as returned by the server; never invented."
+            },
+            "mount": {
+              "type": "string",
+              "enum": [
+                "floor",
+                "wall",
+                "ceiling"
+              ],
+              "description": "Where the item is fixed: \"floor\", \"wall\" (hung) or \"ceiling\". Optional; derived from the asset."
+            },
+            "dims": {
+              "type": "object",
+              "properties": {
+                "w": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "maximum": 20,
+                  "description": "Width in metres (item-local x)."
+                },
+                "d": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "maximum": 20,
+                  "description": "Depth in metres (item-local z; the front is at +d/2)."
+                },
+                "h": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "maximum": 20,
+                  "description": "Height in metres (item-local y, measured up from the item bottom)."
+                }
+              },
+              "required": [
+                "w",
+                "d",
+                "h"
+              ],
+              "additionalProperties": false,
+              "description": "Exact outer dimensions in metres; defaults to the product dimensions. Optional."
+            },
+            "variant": {
+              "description": "Chosen variant SKU or colour name of the product. Optional.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "mesh": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "provider",
+                      "description": "Mesh source discriminator, always \"provider\": the provider's real model of productRef, streamed by the local server."
+                    }
+                  },
+                  "required": [
+                    "kind"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "lookalike",
+                      "description": "Mesh source discriminator, always \"lookalike\": a library model scaled to the exact dims."
+                    },
+                    "assetId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64,
+                      "description": "Id of the library asset (search_assets)."
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "assetId"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "parametric",
+                      "description": "Mesh source discriminator, always \"parametric\": a generator at the exact dims."
+                    },
+                    "generator": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64,
+                      "description": "Generator id (search_assets)."
+                    },
+                    "params": {
+                      "default": {},
+                      "description": "Scalar generator parameters; omitted keys use the generator defaults.",
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 32
+                      },
+                      "additionalProperties": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "string",
+                            "maxLength": 64
+                          },
+                          {
+                            "type": "boolean"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "generator"
+                  ],
+                  "additionalProperties": false
+                }
+              ],
+              "description": "How the 3D shape is obtained (provider model, library lookalike or parametric generator). Optional."
+            },
+            "clearance": {
+              "type": "object",
+              "properties": {
+                "front": {
+                  "description": "Free space wanted in front, in metres. Optional.",
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 5
+                },
+                "back": {
+                  "description": "Free space wanted behind, in metres. Optional.",
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 5
+                },
+                "left": {
+                  "description": "Free space wanted on the left seen from the front, in metres. Optional.",
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 5
+                },
+                "right": {
+                  "description": "Free space wanted on the right seen from the front, in metres. Optional.",
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 5
+                }
+              },
+              "additionalProperties": false,
+              "description": "Free space wanted around the item, in metres per side. Optional."
+            },
+            "locked": {
+              "description": "Existing furniture the designer must plan around (only the user may set it). Optional.",
+              "type": "boolean"
+            },
+            "relation": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "against_wall",
+                      "description": "Relation discriminator, always \"against_wall\"."
+                    },
+                    "wallId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64,
+                      "description": "Wall to stand against (walls[].wallId from describe_room)."
+                    },
+                    "roomId": {
+                      "description": "Room on the wall side to use when a wall borders two rooms (rooms[].id).",
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    },
+                    "align": {
+                      "default": "center",
+                      "description": "Where along the wall, seen from the room: its start end, its middle, or its end.",
+                      "type": "string",
+                      "enum": [
+                        "start",
+                        "center",
+                        "end"
+                      ]
+                    },
+                    "offset": {
+                      "default": 0,
+                      "description": "Metres from the aligned end of the wall to the nearest edge of the item (ignored for \"center\").",
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "gap": {
+                      "default": 0,
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 2,
+                      "description": "Free gap in metres between the item and what it touches (default 0)."
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "wallId"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "in_corner",
+                      "description": "Relation discriminator, always \"in_corner\"."
+                    },
+                    "roomId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64,
+                      "description": "Room whose corner to use (rooms[].id)."
+                    },
+                    "corner": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991,
+                      "description": "Index of the room polygon vertex (rooms[].polygon order); 0 is the first vertex."
+                    },
+                    "gap": {
+                      "default": 0,
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 2,
+                      "description": "Free gap in metres between the item and what it touches (default 0)."
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "roomId",
+                    "corner"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "centered_in",
+                      "description": "Relation discriminator, always \"centered_in\"."
+                    },
+                    "roomId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64,
+                      "description": "Room to centre in (rooms[].id)."
+                    },
+                    "axis": {
+                      "default": "both",
+                      "description": "Centre on both plan axes, or only on x / y (the other coordinate is then kept).",
+                      "type": "string",
+                      "enum": [
+                        "both",
+                        "x",
+                        "y"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "roomId"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "facing",
+                      "description": "Relation discriminator, always \"facing\"."
+                    },
+                    "targetId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64,
+                      "description": "Entity to face: an item id, an opening id, a wall id or a room id."
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "targetId"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "next_to",
+                      "description": "Relation discriminator, always \"next_to\"."
+                    },
+                    "itemId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64,
+                      "description": "The existing item to stand next to (items[].id)."
+                    },
+                    "side": {
+                      "type": "string",
+                      "enum": [
+                        "left",
+                        "right",
+                        "front",
+                        "back"
+                      ],
+                      "description": "Side of that item, as seen from its front."
+                    },
+                    "gap": {
+                      "default": 0.02,
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 2,
+                      "description": "Free gap in metres between the item and what it touches (default 0)."
+                    },
+                    "align": {
+                      "default": "center",
+                      "description": "Alignment along that side: start, middle or end.",
+                      "type": "string",
+                      "enum": [
+                        "start",
+                        "center",
+                        "end"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "itemId",
+                    "side"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "under_window",
+                      "description": "Relation discriminator, always \"under_window\"."
+                    },
+                    "openingId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64,
+                      "description": "Window (openings[].id) to stand under."
+                    },
+                    "gap": {
+                      "default": 0,
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 2,
+                      "description": "Free gap in metres between the item and what it touches (default 0)."
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "openingId"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "at",
+                      "description": "Relation discriminator, always \"at\"."
+                    },
+                    "position": {
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "number"
+                        }
+                      ],
+                      "items": false,
+                      "minItems": 2,
+                      "maxItems": 2,
+                      "description": "Plan position [x, y] of the item origin (footprint centre)."
+                    },
+                    "rotation": {
+                      "default": 0,
+                      "description": "Degrees counter-clockwise seen from above.",
+                      "type": "number"
+                    },
+                    "elevation": {
+                      "default": 0,
+                      "description": "Height of the item bottom above the floor, in metres.",
+                      "type": "number",
+                      "minimum": 0
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "position"
+                  ],
+                  "additionalProperties": false
+                }
+              ],
+              "description": "The placement intent that put the item here (as returned by place_item). Optional."
+            }
+          },
+          "required": [
+            "assetId",
+            "position"
+          ],
+          "additionalProperties": false,
+          "description": "The complete item: position, rotation, productRef + product snapshot, dims, mesh source and relation, as resolved by the placement solver."
+        },
+        "index": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Internal (used by undo): insert position. Do not send."
+        }
+      },
+      "required": [
+        "type",
+        "item"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "item.move",
+          "description": "Command discriminator, always \"item.move\"."
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "description": "Id of the item (items[].id from describe_room or get_scene_summary)."
+        },
+        "position": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "items": false,
+          "minItems": 2,
+          "maxItems": 2,
+          "description": "New plan position [x, y] of the item origin, in metres."
+        },
+        "elevation": {
+          "type": "number",
+          "minimum": 0,
+          "description": "New height of the item bottom above the floor, in metres. Optional."
+        },
+        "rotation": {
+          "type": "number",
+          "description": "New rotation in degrees, counter-clockwise seen from above. Optional."
+        },
+        "roomId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Room the item now belongs to (rooms[].id); null clears it. Optional."
+        },
+        "relation": {
+          "anyOf": [
+            {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "against_wall",
+                      "description": "Relation discriminator, always \"against_wall\"."
+                    },
+                    "wallId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64,
+                      "description": "Wall to stand against (walls[].wallId from describe_room)."
+                    },
+                    "roomId": {
+                      "description": "Room on the wall side to use when a wall borders two rooms (rooms[].id).",
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    },
+                    "align": {
+                      "default": "center",
+                      "description": "Where along the wall, seen from the room: its start end, its middle, or its end.",
+                      "type": "string",
+                      "enum": [
+                        "start",
+                        "center",
+                        "end"
+                      ]
+                    },
+                    "offset": {
+                      "default": 0,
+                      "description": "Metres from the aligned end of the wall to the nearest edge of the item (ignored for \"center\").",
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "gap": {
+                      "default": 0,
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 2,
+                      "description": "Free gap in metres between the item and what it touches (default 0)."
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "wallId"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "in_corner",
+                      "description": "Relation discriminator, always \"in_corner\"."
+                    },
+                    "roomId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64,
+                      "description": "Room whose corner to use (rooms[].id)."
+                    },
+                    "corner": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991,
+                      "description": "Index of the room polygon vertex (rooms[].polygon order); 0 is the first vertex."
+                    },
+                    "gap": {
+                      "default": 0,
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 2,
+                      "description": "Free gap in metres between the item and what it touches (default 0)."
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "roomId",
+                    "corner"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "centered_in",
+                      "description": "Relation discriminator, always \"centered_in\"."
+                    },
+                    "roomId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64,
+                      "description": "Room to centre in (rooms[].id)."
+                    },
+                    "axis": {
+                      "default": "both",
+                      "description": "Centre on both plan axes, or only on x / y (the other coordinate is then kept).",
+                      "type": "string",
+                      "enum": [
+                        "both",
+                        "x",
+                        "y"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "roomId"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "facing",
+                      "description": "Relation discriminator, always \"facing\"."
+                    },
+                    "targetId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64,
+                      "description": "Entity to face: an item id, an opening id, a wall id or a room id."
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "targetId"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "next_to",
+                      "description": "Relation discriminator, always \"next_to\"."
+                    },
+                    "itemId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64,
+                      "description": "The existing item to stand next to (items[].id)."
+                    },
+                    "side": {
+                      "type": "string",
+                      "enum": [
+                        "left",
+                        "right",
+                        "front",
+                        "back"
+                      ],
+                      "description": "Side of that item, as seen from its front."
+                    },
+                    "gap": {
+                      "default": 0.02,
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 2,
+                      "description": "Free gap in metres between the item and what it touches (default 0)."
+                    },
+                    "align": {
+                      "default": "center",
+                      "description": "Alignment along that side: start, middle or end.",
+                      "type": "string",
+                      "enum": [
+                        "start",
+                        "center",
+                        "end"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "itemId",
+                    "side"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "under_window",
+                      "description": "Relation discriminator, always \"under_window\"."
+                    },
+                    "openingId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64,
+                      "description": "Window (openings[].id) to stand under."
+                    },
+                    "gap": {
+                      "default": 0,
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 2,
+                      "description": "Free gap in metres between the item and what it touches (default 0)."
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "openingId"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "at",
+                      "description": "Relation discriminator, always \"at\"."
+                    },
+                    "position": {
+                      "type": "array",
+                      "prefixItems": [
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "number"
+                        }
+                      ],
+                      "items": false,
+                      "minItems": 2,
+                      "maxItems": 2,
+                      "description": "Plan position [x, y] of the item origin (footprint centre)."
+                    },
+                    "rotation": {
+                      "default": 0,
+                      "description": "Degrees counter-clockwise seen from above.",
+                      "type": "number"
+                    },
+                    "elevation": {
+                      "default": 0,
+                      "description": "Height of the item bottom above the floor, in metres.",
+                      "type": "number",
+                      "minimum": 0
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "position"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The placement intent that produced this position; null clears it. Optional."
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "position"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "item.rotate",
+          "description": "Command discriminator, always \"item.rotate\"."
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "description": "Id of the item (items[].id from describe_room or get_scene_summary)."
+        },
+        "rotation": {
+          "type": "number",
+          "description": "Absolute rotation in degrees, counter-clockwise seen from above (the front faces plan +y at 0)."
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "rotation"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "item.setVariant",
+          "description": "Command discriminator, always \"item.setVariant\"."
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "description": "Id of the item (items[].id from describe_room or get_scene_summary)."
+        },
+        "variant": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Variant SKU of the product (variants[].sku); null clears it."
+        },
+        "product": {
+          "type": "object",
+          "properties": {
+            "provider": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,31}$",
+              "description": "Provider id, e.g. \"ikea-fr\"."
+            },
+            "sku": {
+              "description": "Provider article number.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "name": {
+              "description": "Product name as listed by the provider.",
+              "type": "string",
+              "maxLength": 200
+            },
+            "url": {
+              "type": "string",
+              "maxLength": 2048,
+              "format": "uri",
+              "description": "Public product page (the buy link)."
+            },
+            "price": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1000000,
+              "description": "Shelf price including VAT (TTC) in `currency`, as returned by the server."
+            },
+            "currency": {
+              "type": "string",
+              "pattern": "^[A-Z]{3}$",
+              "description": "ISO 4217 currency code, e.g. \"EUR\"."
+            },
+            "dims": {
+              "type": "object",
+              "properties": {
+                "w": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "maximum": 20,
+                  "description": "Width in metres (item-local x)."
+                },
+                "d": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "maximum": 20,
+                  "description": "Depth in metres (item-local z; the front is at +d/2)."
+                },
+                "h": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "maximum": 20,
+                  "description": "Height in metres (item-local y, measured up from the item bottom)."
+                }
+              },
+              "required": [
+                "w",
+                "d",
+                "h"
+              ],
+              "additionalProperties": false,
+              "description": "Assembled outer dimensions in metres, as returned by the server."
+            },
+            "category": {
+              "type": "string",
+              "enum": [
+                "bed",
+                "wardrobe",
+                "bedside",
+                "drawers",
+                "shelf",
+                "sideboard",
+                "tv_unit",
+                "table",
+                "desk",
+                "chair",
+                "armchair",
+                "sofa",
+                "rug",
+                "lamp",
+                "mirror",
+                "wall_cabinet",
+                "kitchen",
+                "appliance",
+                "decor",
+                "other"
+              ],
+              "description": "Furniture category of the product."
+            },
+            "snapshotAt": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the facts were read from the provider (ISO 8601 date-time)."
+            },
+            "colour": {
+              "description": "Chosen colour when the product has several. Optional.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            }
+          },
+          "required": [
+            "provider",
+            "sku",
+            "name",
+            "url",
+            "price",
+            "currency",
+            "dims",
+            "category",
+            "snapshotAt"
+          ],
+          "additionalProperties": false,
+          "description": "Snapshot of the chosen variant (resolved by the server from its record; never invented). Optional."
+        },
+        "dims": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "w": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "maximum": 20,
+                  "description": "Width in metres (item-local x)."
+                },
+                "d": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "maximum": 20,
+                  "description": "Depth in metres (item-local z; the front is at +d/2)."
+                },
+                "h": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "maximum": 20,
+                  "description": "Height in metres (item-local y, measured up from the item bottom)."
+                }
+              },
+              "required": [
+                "w",
+                "d",
+                "h"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Dimensions of the chosen variant when they differ; null clears them back to the product dimensions. Optional."
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "variant"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "item.remove",
+          "description": "Command discriminator, always \"item.remove\"."
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "description": "Id of the item (items[].id from describe_room or get_scene_summary)."
+        }
+      },
+      "required": [
+        "type",
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
           "const": "batch",
           "description": "Command discriminator, always \"batch\"."
         },
@@ -1580,6 +2785,1211 @@
                     "minLength": 1,
                     "maxLength": 64,
                     "description": "Id of the light to remove (lights[].id from describe_room, or lights[].id from get_scene_summary with detail \"full\")."
+                  }
+                },
+                "required": [
+                  "type",
+                  "id"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "item.place",
+                    "description": "Command discriminator, always \"item.place\"."
+                  },
+                  "item": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64,
+                        "description": "Optional item id (1-64 characters, unique across all entities); derived as \"item-N\" when omitted."
+                      },
+                      "assetId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64,
+                        "description": "Shape id: \"product:<provider>\", a library asset id or \"param:<generator>\" (see meshAssetId); legacy \"builtin:*\" ids still load."
+                      },
+                      "position": {
+                        "type": "array",
+                        "prefixItems": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "number"
+                          }
+                        ],
+                        "items": false,
+                        "minItems": 2,
+                        "maxItems": 2,
+                        "description": "Plan position [x, y] of the item origin (footprint centre), in metres; plan y grows down."
+                      },
+                      "elevation": {
+                        "default": 0,
+                        "description": "Height of the item bottom above the floor, in metres; must be 0 for floor items. Defaults to 0.",
+                        "type": "number"
+                      },
+                      "rotation": {
+                        "default": 0,
+                        "description": "Rotation in degrees, counter-clockwise seen from above; the front faces plan +y at 0. Defaults to 0.",
+                        "type": "number"
+                      },
+                      "roomId": {
+                        "description": "Room the item stands in (rooms[].id from list_rooms); derived from the position when omitted. Optional.",
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64
+                      },
+                      "productRef": {
+                        "type": "object",
+                        "properties": {
+                          "provider": {
+                            "type": "string",
+                            "pattern": "^[a-z0-9][a-z0-9-]{0,31}$",
+                            "description": "Provider id, e.g. \"ikea-fr\"."
+                          },
+                          "sku": {
+                            "description": "Provider article number.",
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 64
+                          }
+                        },
+                        "required": [
+                          "provider",
+                          "sku"
+                        ],
+                        "additionalProperties": false,
+                        "description": "The real product this item stands for. Required for items placed by an LLM or the planner (unless product is given)."
+                      },
+                      "product": {
+                        "type": "object",
+                        "properties": {
+                          "provider": {
+                            "type": "string",
+                            "pattern": "^[a-z0-9][a-z0-9-]{0,31}$",
+                            "description": "Provider id, e.g. \"ikea-fr\"."
+                          },
+                          "sku": {
+                            "description": "Provider article number.",
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 64
+                          },
+                          "name": {
+                            "description": "Product name as listed by the provider.",
+                            "type": "string",
+                            "maxLength": 200
+                          },
+                          "url": {
+                            "type": "string",
+                            "maxLength": 2048,
+                            "format": "uri",
+                            "description": "Public product page (the buy link)."
+                          },
+                          "price": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1000000,
+                            "description": "Shelf price including VAT (TTC) in `currency`, as returned by the server."
+                          },
+                          "currency": {
+                            "type": "string",
+                            "pattern": "^[A-Z]{3}$",
+                            "description": "ISO 4217 currency code, e.g. \"EUR\"."
+                          },
+                          "dims": {
+                            "type": "object",
+                            "properties": {
+                              "w": {
+                                "type": "number",
+                                "exclusiveMinimum": 0,
+                                "maximum": 20,
+                                "description": "Width in metres (item-local x)."
+                              },
+                              "d": {
+                                "type": "number",
+                                "exclusiveMinimum": 0,
+                                "maximum": 20,
+                                "description": "Depth in metres (item-local z; the front is at +d/2)."
+                              },
+                              "h": {
+                                "type": "number",
+                                "exclusiveMinimum": 0,
+                                "maximum": 20,
+                                "description": "Height in metres (item-local y, measured up from the item bottom)."
+                              }
+                            },
+                            "required": [
+                              "w",
+                              "d",
+                              "h"
+                            ],
+                            "additionalProperties": false,
+                            "description": "Assembled outer dimensions in metres, as returned by the server."
+                          },
+                          "category": {
+                            "type": "string",
+                            "enum": [
+                              "bed",
+                              "wardrobe",
+                              "bedside",
+                              "drawers",
+                              "shelf",
+                              "sideboard",
+                              "tv_unit",
+                              "table",
+                              "desk",
+                              "chair",
+                              "armchair",
+                              "sofa",
+                              "rug",
+                              "lamp",
+                              "mirror",
+                              "wall_cabinet",
+                              "kitchen",
+                              "appliance",
+                              "decor",
+                              "other"
+                            ],
+                            "description": "Furniture category of the product."
+                          },
+                          "snapshotAt": {
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                            "description": "When the facts were read from the provider (ISO 8601 date-time)."
+                          },
+                          "colour": {
+                            "description": "Chosen colour when the product has several. Optional.",
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 40
+                          }
+                        },
+                        "required": [
+                          "provider",
+                          "sku",
+                          "name",
+                          "url",
+                          "price",
+                          "currency",
+                          "dims",
+                          "category",
+                          "snapshotAt"
+                        ],
+                        "additionalProperties": false,
+                        "description": "Product facts (name, TTC price, link, dims, snapshot date) as returned by the server; never invented."
+                      },
+                      "mount": {
+                        "type": "string",
+                        "enum": [
+                          "floor",
+                          "wall",
+                          "ceiling"
+                        ],
+                        "description": "Where the item is fixed: \"floor\", \"wall\" (hung) or \"ceiling\". Optional; derived from the asset."
+                      },
+                      "dims": {
+                        "type": "object",
+                        "properties": {
+                          "w": {
+                            "type": "number",
+                            "exclusiveMinimum": 0,
+                            "maximum": 20,
+                            "description": "Width in metres (item-local x)."
+                          },
+                          "d": {
+                            "type": "number",
+                            "exclusiveMinimum": 0,
+                            "maximum": 20,
+                            "description": "Depth in metres (item-local z; the front is at +d/2)."
+                          },
+                          "h": {
+                            "type": "number",
+                            "exclusiveMinimum": 0,
+                            "maximum": 20,
+                            "description": "Height in metres (item-local y, measured up from the item bottom)."
+                          }
+                        },
+                        "required": [
+                          "w",
+                          "d",
+                          "h"
+                        ],
+                        "additionalProperties": false,
+                        "description": "Exact outer dimensions in metres; defaults to the product dimensions. Optional."
+                      },
+                      "variant": {
+                        "description": "Chosen variant SKU or colour name of the product. Optional.",
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64
+                      },
+                      "mesh": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "provider",
+                                "description": "Mesh source discriminator, always \"provider\": the provider's real model of productRef, streamed by the local server."
+                              }
+                            },
+                            "required": [
+                              "kind"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "lookalike",
+                                "description": "Mesh source discriminator, always \"lookalike\": a library model scaled to the exact dims."
+                              },
+                              "assetId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64,
+                                "description": "Id of the library asset (search_assets)."
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "assetId"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "parametric",
+                                "description": "Mesh source discriminator, always \"parametric\": a generator at the exact dims."
+                              },
+                              "generator": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64,
+                                "description": "Generator id (search_assets)."
+                              },
+                              "params": {
+                                "default": {},
+                                "description": "Scalar generator parameters; omitted keys use the generator defaults.",
+                                "type": "object",
+                                "propertyNames": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 32
+                                },
+                                "additionalProperties": {
+                                  "anyOf": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "string",
+                                      "maxLength": 64
+                                    },
+                                    {
+                                      "type": "boolean"
+                                    }
+                                  ]
+                                }
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "generator"
+                            ],
+                            "additionalProperties": false
+                          }
+                        ],
+                        "description": "How the 3D shape is obtained (provider model, library lookalike or parametric generator). Optional."
+                      },
+                      "clearance": {
+                        "type": "object",
+                        "properties": {
+                          "front": {
+                            "description": "Free space wanted in front, in metres. Optional.",
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 5
+                          },
+                          "back": {
+                            "description": "Free space wanted behind, in metres. Optional.",
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 5
+                          },
+                          "left": {
+                            "description": "Free space wanted on the left seen from the front, in metres. Optional.",
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 5
+                          },
+                          "right": {
+                            "description": "Free space wanted on the right seen from the front, in metres. Optional.",
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 5
+                          }
+                        },
+                        "additionalProperties": false,
+                        "description": "Free space wanted around the item, in metres per side. Optional."
+                      },
+                      "locked": {
+                        "description": "Existing furniture the designer must plan around (only the user may set it). Optional.",
+                        "type": "boolean"
+                      },
+                      "relation": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "against_wall",
+                                "description": "Relation discriminator, always \"against_wall\"."
+                              },
+                              "wallId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64,
+                                "description": "Wall to stand against (walls[].wallId from describe_room)."
+                              },
+                              "roomId": {
+                                "description": "Room on the wall side to use when a wall borders two rooms (rooms[].id).",
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64
+                              },
+                              "align": {
+                                "default": "center",
+                                "description": "Where along the wall, seen from the room: its start end, its middle, or its end.",
+                                "type": "string",
+                                "enum": [
+                                  "start",
+                                  "center",
+                                  "end"
+                                ]
+                              },
+                              "offset": {
+                                "default": 0,
+                                "description": "Metres from the aligned end of the wall to the nearest edge of the item (ignored for \"center\").",
+                                "type": "number",
+                                "minimum": 0
+                              },
+                              "gap": {
+                                "default": 0,
+                                "type": "number",
+                                "minimum": 0,
+                                "maximum": 2,
+                                "description": "Free gap in metres between the item and what it touches (default 0)."
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "wallId"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "in_corner",
+                                "description": "Relation discriminator, always \"in_corner\"."
+                              },
+                              "roomId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64,
+                                "description": "Room whose corner to use (rooms[].id)."
+                              },
+                              "corner": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991,
+                                "description": "Index of the room polygon vertex (rooms[].polygon order); 0 is the first vertex."
+                              },
+                              "gap": {
+                                "default": 0,
+                                "type": "number",
+                                "minimum": 0,
+                                "maximum": 2,
+                                "description": "Free gap in metres between the item and what it touches (default 0)."
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "roomId",
+                              "corner"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "centered_in",
+                                "description": "Relation discriminator, always \"centered_in\"."
+                              },
+                              "roomId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64,
+                                "description": "Room to centre in (rooms[].id)."
+                              },
+                              "axis": {
+                                "default": "both",
+                                "description": "Centre on both plan axes, or only on x / y (the other coordinate is then kept).",
+                                "type": "string",
+                                "enum": [
+                                  "both",
+                                  "x",
+                                  "y"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "roomId"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "facing",
+                                "description": "Relation discriminator, always \"facing\"."
+                              },
+                              "targetId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64,
+                                "description": "Entity to face: an item id, an opening id, a wall id or a room id."
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "targetId"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "next_to",
+                                "description": "Relation discriminator, always \"next_to\"."
+                              },
+                              "itemId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64,
+                                "description": "The existing item to stand next to (items[].id)."
+                              },
+                              "side": {
+                                "type": "string",
+                                "enum": [
+                                  "left",
+                                  "right",
+                                  "front",
+                                  "back"
+                                ],
+                                "description": "Side of that item, as seen from its front."
+                              },
+                              "gap": {
+                                "default": 0.02,
+                                "type": "number",
+                                "minimum": 0,
+                                "maximum": 2,
+                                "description": "Free gap in metres between the item and what it touches (default 0)."
+                              },
+                              "align": {
+                                "default": "center",
+                                "description": "Alignment along that side: start, middle or end.",
+                                "type": "string",
+                                "enum": [
+                                  "start",
+                                  "center",
+                                  "end"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "itemId",
+                              "side"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "under_window",
+                                "description": "Relation discriminator, always \"under_window\"."
+                              },
+                              "openingId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64,
+                                "description": "Window (openings[].id) to stand under."
+                              },
+                              "gap": {
+                                "default": 0,
+                                "type": "number",
+                                "minimum": 0,
+                                "maximum": 2,
+                                "description": "Free gap in metres between the item and what it touches (default 0)."
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "openingId"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "at",
+                                "description": "Relation discriminator, always \"at\"."
+                              },
+                              "position": {
+                                "type": "array",
+                                "prefixItems": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "number"
+                                  }
+                                ],
+                                "items": false,
+                                "minItems": 2,
+                                "maxItems": 2,
+                                "description": "Plan position [x, y] of the item origin (footprint centre)."
+                              },
+                              "rotation": {
+                                "default": 0,
+                                "description": "Degrees counter-clockwise seen from above.",
+                                "type": "number"
+                              },
+                              "elevation": {
+                                "default": 0,
+                                "description": "Height of the item bottom above the floor, in metres.",
+                                "type": "number",
+                                "minimum": 0
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "position"
+                            ],
+                            "additionalProperties": false
+                          }
+                        ],
+                        "description": "The placement intent that put the item here (as returned by place_item). Optional."
+                      }
+                    },
+                    "required": [
+                      "assetId",
+                      "position"
+                    ],
+                    "additionalProperties": false,
+                    "description": "The complete item: position, rotation, productRef + product snapshot, dims, mesh source and relation, as resolved by the placement solver."
+                  },
+                  "index": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "description": "Internal (used by undo): insert position. Do not send."
+                  }
+                },
+                "required": [
+                  "type",
+                  "item"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "item.move",
+                    "description": "Command discriminator, always \"item.move\"."
+                  },
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64,
+                    "description": "Id of the item (items[].id from describe_room or get_scene_summary)."
+                  },
+                  "position": {
+                    "type": "array",
+                    "prefixItems": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "number"
+                      }
+                    ],
+                    "items": false,
+                    "minItems": 2,
+                    "maxItems": 2,
+                    "description": "New plan position [x, y] of the item origin, in metres."
+                  },
+                  "elevation": {
+                    "type": "number",
+                    "minimum": 0,
+                    "description": "New height of the item bottom above the floor, in metres. Optional."
+                  },
+                  "rotation": {
+                    "type": "number",
+                    "description": "New rotation in degrees, counter-clockwise seen from above. Optional."
+                  },
+                  "roomId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Room the item now belongs to (rooms[].id); null clears it. Optional."
+                  },
+                  "relation": {
+                    "anyOf": [
+                      {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "against_wall",
+                                "description": "Relation discriminator, always \"against_wall\"."
+                              },
+                              "wallId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64,
+                                "description": "Wall to stand against (walls[].wallId from describe_room)."
+                              },
+                              "roomId": {
+                                "description": "Room on the wall side to use when a wall borders two rooms (rooms[].id).",
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64
+                              },
+                              "align": {
+                                "default": "center",
+                                "description": "Where along the wall, seen from the room: its start end, its middle, or its end.",
+                                "type": "string",
+                                "enum": [
+                                  "start",
+                                  "center",
+                                  "end"
+                                ]
+                              },
+                              "offset": {
+                                "default": 0,
+                                "description": "Metres from the aligned end of the wall to the nearest edge of the item (ignored for \"center\").",
+                                "type": "number",
+                                "minimum": 0
+                              },
+                              "gap": {
+                                "default": 0,
+                                "type": "number",
+                                "minimum": 0,
+                                "maximum": 2,
+                                "description": "Free gap in metres between the item and what it touches (default 0)."
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "wallId"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "in_corner",
+                                "description": "Relation discriminator, always \"in_corner\"."
+                              },
+                              "roomId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64,
+                                "description": "Room whose corner to use (rooms[].id)."
+                              },
+                              "corner": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991,
+                                "description": "Index of the room polygon vertex (rooms[].polygon order); 0 is the first vertex."
+                              },
+                              "gap": {
+                                "default": 0,
+                                "type": "number",
+                                "minimum": 0,
+                                "maximum": 2,
+                                "description": "Free gap in metres between the item and what it touches (default 0)."
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "roomId",
+                              "corner"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "centered_in",
+                                "description": "Relation discriminator, always \"centered_in\"."
+                              },
+                              "roomId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64,
+                                "description": "Room to centre in (rooms[].id)."
+                              },
+                              "axis": {
+                                "default": "both",
+                                "description": "Centre on both plan axes, or only on x / y (the other coordinate is then kept).",
+                                "type": "string",
+                                "enum": [
+                                  "both",
+                                  "x",
+                                  "y"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "roomId"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "facing",
+                                "description": "Relation discriminator, always \"facing\"."
+                              },
+                              "targetId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64,
+                                "description": "Entity to face: an item id, an opening id, a wall id or a room id."
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "targetId"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "next_to",
+                                "description": "Relation discriminator, always \"next_to\"."
+                              },
+                              "itemId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64,
+                                "description": "The existing item to stand next to (items[].id)."
+                              },
+                              "side": {
+                                "type": "string",
+                                "enum": [
+                                  "left",
+                                  "right",
+                                  "front",
+                                  "back"
+                                ],
+                                "description": "Side of that item, as seen from its front."
+                              },
+                              "gap": {
+                                "default": 0.02,
+                                "type": "number",
+                                "minimum": 0,
+                                "maximum": 2,
+                                "description": "Free gap in metres between the item and what it touches (default 0)."
+                              },
+                              "align": {
+                                "default": "center",
+                                "description": "Alignment along that side: start, middle or end.",
+                                "type": "string",
+                                "enum": [
+                                  "start",
+                                  "center",
+                                  "end"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "itemId",
+                              "side"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "under_window",
+                                "description": "Relation discriminator, always \"under_window\"."
+                              },
+                              "openingId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64,
+                                "description": "Window (openings[].id) to stand under."
+                              },
+                              "gap": {
+                                "default": 0,
+                                "type": "number",
+                                "minimum": 0,
+                                "maximum": 2,
+                                "description": "Free gap in metres between the item and what it touches (default 0)."
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "openingId"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "const": "at",
+                                "description": "Relation discriminator, always \"at\"."
+                              },
+                              "position": {
+                                "type": "array",
+                                "prefixItems": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "number"
+                                  }
+                                ],
+                                "items": false,
+                                "minItems": 2,
+                                "maxItems": 2,
+                                "description": "Plan position [x, y] of the item origin (footprint centre)."
+                              },
+                              "rotation": {
+                                "default": 0,
+                                "description": "Degrees counter-clockwise seen from above.",
+                                "type": "number"
+                              },
+                              "elevation": {
+                                "default": 0,
+                                "description": "Height of the item bottom above the floor, in metres.",
+                                "type": "number",
+                                "minimum": 0
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "position"
+                            ],
+                            "additionalProperties": false
+                          }
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "The placement intent that produced this position; null clears it. Optional."
+                  }
+                },
+                "required": [
+                  "type",
+                  "id",
+                  "position"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "item.rotate",
+                    "description": "Command discriminator, always \"item.rotate\"."
+                  },
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64,
+                    "description": "Id of the item (items[].id from describe_room or get_scene_summary)."
+                  },
+                  "rotation": {
+                    "type": "number",
+                    "description": "Absolute rotation in degrees, counter-clockwise seen from above (the front faces plan +y at 0)."
+                  }
+                },
+                "required": [
+                  "type",
+                  "id",
+                  "rotation"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "item.setVariant",
+                    "description": "Command discriminator, always \"item.setVariant\"."
+                  },
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64,
+                    "description": "Id of the item (items[].id from describe_room or get_scene_summary)."
+                  },
+                  "variant": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Variant SKU of the product (variants[].sku); null clears it."
+                  },
+                  "product": {
+                    "type": "object",
+                    "properties": {
+                      "provider": {
+                        "type": "string",
+                        "pattern": "^[a-z0-9][a-z0-9-]{0,31}$",
+                        "description": "Provider id, e.g. \"ikea-fr\"."
+                      },
+                      "sku": {
+                        "description": "Provider article number.",
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64
+                      },
+                      "name": {
+                        "description": "Product name as listed by the provider.",
+                        "type": "string",
+                        "maxLength": 200
+                      },
+                      "url": {
+                        "type": "string",
+                        "maxLength": 2048,
+                        "format": "uri",
+                        "description": "Public product page (the buy link)."
+                      },
+                      "price": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1000000,
+                        "description": "Shelf price including VAT (TTC) in `currency`, as returned by the server."
+                      },
+                      "currency": {
+                        "type": "string",
+                        "pattern": "^[A-Z]{3}$",
+                        "description": "ISO 4217 currency code, e.g. \"EUR\"."
+                      },
+                      "dims": {
+                        "type": "object",
+                        "properties": {
+                          "w": {
+                            "type": "number",
+                            "exclusiveMinimum": 0,
+                            "maximum": 20,
+                            "description": "Width in metres (item-local x)."
+                          },
+                          "d": {
+                            "type": "number",
+                            "exclusiveMinimum": 0,
+                            "maximum": 20,
+                            "description": "Depth in metres (item-local z; the front is at +d/2)."
+                          },
+                          "h": {
+                            "type": "number",
+                            "exclusiveMinimum": 0,
+                            "maximum": 20,
+                            "description": "Height in metres (item-local y, measured up from the item bottom)."
+                          }
+                        },
+                        "required": [
+                          "w",
+                          "d",
+                          "h"
+                        ],
+                        "additionalProperties": false,
+                        "description": "Assembled outer dimensions in metres, as returned by the server."
+                      },
+                      "category": {
+                        "type": "string",
+                        "enum": [
+                          "bed",
+                          "wardrobe",
+                          "bedside",
+                          "drawers",
+                          "shelf",
+                          "sideboard",
+                          "tv_unit",
+                          "table",
+                          "desk",
+                          "chair",
+                          "armchair",
+                          "sofa",
+                          "rug",
+                          "lamp",
+                          "mirror",
+                          "wall_cabinet",
+                          "kitchen",
+                          "appliance",
+                          "decor",
+                          "other"
+                        ],
+                        "description": "Furniture category of the product."
+                      },
+                      "snapshotAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                        "description": "When the facts were read from the provider (ISO 8601 date-time)."
+                      },
+                      "colour": {
+                        "description": "Chosen colour when the product has several. Optional.",
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 40
+                      }
+                    },
+                    "required": [
+                      "provider",
+                      "sku",
+                      "name",
+                      "url",
+                      "price",
+                      "currency",
+                      "dims",
+                      "category",
+                      "snapshotAt"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Snapshot of the chosen variant (resolved by the server from its record; never invented). Optional."
+                  },
+                  "dims": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "w": {
+                            "type": "number",
+                            "exclusiveMinimum": 0,
+                            "maximum": 20,
+                            "description": "Width in metres (item-local x)."
+                          },
+                          "d": {
+                            "type": "number",
+                            "exclusiveMinimum": 0,
+                            "maximum": 20,
+                            "description": "Depth in metres (item-local z; the front is at +d/2)."
+                          },
+                          "h": {
+                            "type": "number",
+                            "exclusiveMinimum": 0,
+                            "maximum": 20,
+                            "description": "Height in metres (item-local y, measured up from the item bottom)."
+                          }
+                        },
+                        "required": [
+                          "w",
+                          "d",
+                          "h"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Dimensions of the chosen variant when they differ; null clears them back to the product dimensions. Optional."
+                  }
+                },
+                "required": [
+                  "type",
+                  "id",
+                  "variant"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "item.remove",
+                    "description": "Command discriminator, always \"item.remove\"."
+                  },
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64,
+                    "description": "Id of the item (items[].id from describe_room or get_scene_summary)."
                   }
                 },
                 "required": [

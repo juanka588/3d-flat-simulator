@@ -2,6 +2,7 @@ import { isBuiltinAsset } from './assets/builtin';
 import { checkParametricMesh, GENERATOR_DIMS_TOLERANCE } from './assets/catalog';
 import { edgeCoverage, roomCeilingHeight, triangulatePolygon } from './geometry/floors';
 import { polygonArea } from './measure';
+import { validateLayout } from './placement/validateLayout';
 import type { Dims } from './primitives';
 import type { Scene, Vec2 } from './schema';
 import { wallLength } from './schema';
@@ -161,7 +162,7 @@ function junctionOffsets(scene: Scene, wallIndex: number): { s: number; half: nu
 
 /**
  * Checks for issues that are legal but suspicious. Never throws; always returns warnings
- * in a deterministic order (openings, rooms, lights, coordinates).
+ * in a deterministic order (openings, rooms, lights, items, layout, coordinates).
  */
 export function validateScene(scene: Scene): ValidationResult {
   const warnings: ValidationWarning[] = [];
@@ -314,6 +315,21 @@ export function validateScene(scene: Scene): ValidationResult {
       });
     }
   });
+
+  // Layout rules (placement/validateLayout): items outside their room, overlapping, in a door swing, under a
+  // window, hung over glazing or blocking the walkways. Locked (existing) items are not judged.
+  if (scene.items.some((it) => it.locked !== true)) {
+    const itemIndex = new Map(scene.items.map((it, i) => [it.id, i]));
+    for (const v of validateLayout(scene).violations) {
+      const first = v.entityIds.map((id) => itemIndex.get(id)).find((i) => i !== undefined);
+      warnings.push({
+        code: `layout_${v.code}`,
+        message: v.message,
+        entityIds: v.entityIds,
+        ...(first !== undefined ? { path: `items[${first}]` } : {}),
+      });
+    }
+  }
 
   // Absurd coordinates (usually a unit mistake, e.g. millimetres).
   const far = (points: readonly Vec2[]) => points.some((p) => Math.abs(p[0]) > MAX_COORDINATE || Math.abs(p[1]) > MAX_COORDINATE);

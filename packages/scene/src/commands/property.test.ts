@@ -8,12 +8,42 @@ import { roomWallSides } from '../geometry/room-sides';
 
 type Op = { k: number; a: number; b: number; c: number; n: number };
 const opArb = fc.record({
-  k: fc.nat(15),
+  k: fc.nat(21),
   a: fc.nat(1000),
   b: fc.nat(1000),
   c: fc.nat(1000),
   n: fc.integer({ min: 0, max: 360 }),
 });
+
+const PRODUCT = {
+  provider: 'mock',
+  sku: 'P1',
+  name: 'Test product',
+  url: 'https://example.com/p',
+  price: 10,
+  currency: 'EUR',
+  dims: { w: 0.4, d: 0.4, h: 0.5 },
+  category: 'decor' as const,
+  snapshotAt: '2026-10-27T10:00:00.000Z',
+};
+
+/** An item somewhere in a room (often invalid: the reducer must then refuse it with a placement rule). */
+function itemIn(scene: Scene, op: Op, id?: string) {
+  const room = scene.rooms[op.a % scene.rooms.length]!;
+  const xs = room.polygon.map((p) => p[0]);
+  const ys = room.polygon.map((p) => p[1]);
+  const at = (lo: number, hi: number, t: number) => lo + ((hi - lo) * t) / 1000;
+  const withProduct = op.c % 2 === 0;
+  return {
+    ...(id ? { id } : {}),
+    assetId: 'param:test',
+    position: [at(Math.min(...xs), Math.max(...xs), op.b), at(Math.min(...ys), Math.max(...ys), op.c)] as [number, number],
+    rotation: op.n,
+    roomId: room.id,
+    dims: PRODUCT.dims,
+    ...(withProduct ? { productRef: { provider: 'mock', sku: 'P1' }, product: PRODUCT } : {}),
+  };
+}
 
 /** Resolves an abstract op against the current scene, so most generated commands are valid. */
 function resolve(scene: Scene, op: Op): Command {
@@ -52,6 +82,12 @@ function resolve(scene: Scene, op: Op): Command {
         { type: 'wall.setFinish', wallId: w, side: s?.side ?? 'both', materialId: mat(op.n), roomId: room },
       ] };
     }
+    case 16: return { type: 'item.place', item: itemIn(scene, op) };
+    case 17: return scene.items.length ? { type: 'item.move', id: pick(scene.items, op.a).id, position: [op.b / 100, op.c / 100], ...(op.n % 3 === 0 ? { rotation: op.n } : {}) } : { type: 'site.set', site: {} };
+    case 18: return scene.items.length ? { type: 'item.rotate', id: pick(scene.items, op.a).id, rotation: op.n } : { type: 'site.set', site: {} };
+    case 19: return scene.items.length ? { type: 'item.setVariant', id: pick(scene.items, op.a).id, variant: op.b % 2 ? `v${op.c % 3}` : null, ...(op.c % 4 === 0 ? { product: { ...PRODUCT, sku: 'P2' } } : {}), ...(op.n % 5 === 0 ? { dims: op.b % 2 ? { w: 0.3 + op.c / 2000, d: 0.3, h: 0.4 } : null } : {}) } : { type: 'site.set', site: {} };
+    case 20: return scene.items.length ? { type: 'item.remove', id: pick(scene.items, op.a).id } : { type: 'site.set', site: {} };
+    case 21: return { type: 'batch', label: 'furnish', commands: [{ type: 'item.place', item: itemIn(scene, op) }, { type: 'item.place', item: itemIn(scene, { ...op, a: op.a + 1, b: op.c, c: op.b }) }, ...(scene.items.length ? [{ type: 'item.remove' as const, id: pick(scene.items, op.a).id }] : [])] };
     case 12: return { type: 'batch', label: 'b', commands: [
       { type: 'wall.setFinish', wallId: wall, side: 'both', materialId: mat(op.b) },
       { type: 'room.setFloor', roomId: room, materialId: mat(op.c) },
@@ -76,7 +112,16 @@ function expectedFailure(scene: Scene, cmd: Command, e: { code: string; message:
       return;
     }
     case 'batch':
-      expect(['unknown_entity', 'precondition_failed', 'no_wall_sides'], e.message).toContain(e.code);
+      expect(['unknown_entity', 'precondition_failed', 'no_wall_sides', 'placement_invalid', 'limit_exceeded', 'scene_invalid'], e.message).toContain(e.code);
+      return;
+    case 'item.place':
+    case 'item.move':
+    case 'item.rotate':
+      expect(['placement_invalid', 'limit_exceeded'], e.message).toContain(e.code);
+      if (e.code === 'placement_invalid') expect((e as { violation?: { code: string } }).violation?.code, e.message).toBeDefined();
+      return;
+    case 'item.setVariant':
+      expect(['placement_invalid', 'precondition_failed', 'scene_invalid'], e.message).toContain(e.code);
       return;
     case 'wall.setFinish':
       // only a scoped paint can fail, on a room that does not border the wall side

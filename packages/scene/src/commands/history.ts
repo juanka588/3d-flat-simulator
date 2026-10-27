@@ -57,6 +57,8 @@ function leafSignature(c: LeafCommand): string | undefined {
     case 'scene.setDefaults': return `${c.type}:${fields(c)}`;
     case 'site.set': return `${c.type}:${fields(c.site)}`;
     case 'light.update': return `${c.type}:${c.id}:${fields(c.patch)}`;
+    case 'item.move': return `${c.type}:${c.id}:${fields({ ...c, type: undefined, id: undefined })}`;
+    case 'item.rotate': return `${c.type}:${c.id}`;
     // Structural changes (add / remove) do not supersede one another: never merge them.
     default: return undefined;
   }

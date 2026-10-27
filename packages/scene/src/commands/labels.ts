@@ -2,6 +2,7 @@ import type { CompassPoint } from '../mcp-types';
 import { planDirectionToCompass } from '../describe';
 import type { Light, Material, Room, Scene, Vec2, Wall } from '../schema';
 import { wallLeftNormal } from '../schema';
+import { BUILTIN_ASSETS } from '../assets/builtin';
 import { pointInPolygon } from '../validate';
 import type { Command, LeafCommand } from './schema';
 
@@ -107,6 +108,24 @@ function wallTitle(scene: Scene, wallId: string, side: 'left' | 'right' | 'both'
   return room ? `${dir} wall (${shortName(room.name)} side)` : `${dir} wall ${wallId}`;
 }
 
+/** Name of an item: its product name, else the builtin asset's, else its id. */
+function itemTitle(item: { id: string; assetId?: string; product?: { name: string } } | undefined, fallback: string): string {
+  if (!item) return fallback;
+  if (item.product) return item.product.name;
+  const builtin = item.assetId ? BUILTIN_ASSETS[item.assetId] : undefined;
+  return builtin ? builtin.name : item.id;
+}
+
+function itemName(scene: Scene, id: string): string {
+  return itemTitle(scene.items.find((i) => i.id === id), id);
+}
+
+function roomOfPosition(scene: Scene, roomId: string | undefined, position: Vec2): string | undefined {
+  if (roomId) return roomName(scene, roomId);
+  const r = scene.rooms.find((x) => pointInPolygon(position, x.polygon, 1e-6));
+  return r ? shortName(r.name) : undefined;
+}
+
 const REF_VERB = (scene: Scene, id: string | null | undefined) => {
   const m = id ? scene.materials.find((x) => x.id === id) : undefined;
   return m?.kind === 'paint' ? 'Paint' : 'Finish';
@@ -166,6 +185,24 @@ function describeLeaf(c: LeafCommand, scene: Scene): string {
       return `Remove ${lightName(scene, c.id)}`;
     case 'light.update':
       return describeLightUpdate(c, scene);
+    case 'item.place': {
+      const where = roomOfPosition(scene, c.item.roomId, c.item.position);
+      return clip(`Placed ${itemTitle({ id: c.item.id ?? 'item', assetId: c.item.assetId, ...(c.item.product ? { product: c.item.product } : {}) }, 'item')}${where ? ` in ${where}` : ''}`);
+    }
+    case 'item.move': {
+      const item = scene.items.find((i) => i.id === c.id);
+      const where = item ? roomOfPosition(scene, c.roomId === null ? undefined : (c.roomId ?? item.roomId), c.position) : undefined;
+      return clip(`Moved ${itemName(scene, c.id)}${where ? ` in ${where}` : ''}`);
+    }
+    case 'item.rotate':
+      return clip(`Rotated ${itemName(scene, c.id)} to ${num(c.rotation)}°`);
+    case 'item.setVariant':
+      return clip(c.variant === null ? `Reset the variant of ${itemName(scene, c.id)}` : `Changed ${itemName(scene, c.id)} to variant ${c.variant}`);
+    case 'item.remove': {
+      const item = scene.items.find((i) => i.id === c.id);
+      const where = item ? roomOfPosition(scene, item.roomId, item.position) : undefined;
+      return clip(`Removed ${itemName(scene, c.id)}${where ? ` from ${where}` : ''}`);
+    }
     default:
       return (c as { type: string }).type;
   }

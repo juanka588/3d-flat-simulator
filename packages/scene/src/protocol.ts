@@ -12,6 +12,8 @@ export const ApplyOutcome = z.object({
     walls: z.array(z.string()),
     rooms: z.array(z.string()),
     lights: z.array(z.string()),
+    /** Items touched by an item command; absent when none. */
+    items: z.array(z.string()).optional(),
     site: z.boolean(),
     defaults: z.boolean(),
   }),

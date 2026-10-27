@@ -25,6 +25,36 @@ describe('listRooms', () => {
   });
 });
 
+describe('describeRoom items (M5.16)', () => {
+  const bare = { ...charme, items: [] };
+  const snapshot = { provider: 'mock', sku: 'BED-160', name: 'MOCK bed 160x200', url: 'https://example.com/bed', price: 199, currency: 'EUR', dims: { w: 1.6, d: 2, h: 0.9 }, category: 'bed' as const, snapshotAt: '2026-10-27T10:00:00.000Z' };
+  const bed = { id: 'bed', assetId: 'param:bed', position: [7.71, 1] as [number, number], elevation: 0, rotation: 0, roomId: 'ch1', productRef: { provider: 'mock', sku: 'BED-160' }, product: snapshot, mesh: { kind: 'parametric' as const, generator: 'bed', params: {} } };
+  const stand = { id: 'stand', assetId: 'param:stand', position: [10.05 - 0.2, 4.42 - 0.2] as [number, number], elevation: 0, rotation: 0, roomId: 'ch1', dims: { w: 0.4, d: 0.4, h: 0.5 }, locked: true };
+  const shelf = { id: 'shelf', assetId: 'param:shelf', position: [8.5, 0.15] as [number, number], elevation: 1.4, rotation: 0, roomId: 'ch1', mount: 'wall' as const, dims: { w: 0.8, d: 0.3, h: 0.3 } };
+  const mid = { id: 'mid', assetId: 'param:mid', position: [8.5, 2.5] as [number, number], elevation: 0, rotation: 0, roomId: 'ch1', dims: { w: 0.4, d: 0.4, h: 0.5 } };
+
+  it('lists id, name, product, price, dims, mount, locked, mesh source, pose and the position in words', () => {
+    const d = describeRoom({ ...bare, items: [bed, stand, shelf, mid] }, 'ch1', light)!;
+    RoomDescription.parse(d);
+    const by = Object.fromEntries(d.items.map((i) => [i.id, i]));
+    expect(by.bed).toMatchObject({ name: 'MOCK bed 160x200', productId: 'mock:BED-160', price: { amount: 199, currency: 'EUR' }, dims: { w: 1.6, d: 2, h: 0.9 }, mount: 'floor', locked: false, mesh: 'parametric', position: [7.71, 1] });
+    expect(by.bed!.where).toBe('in the north-west corner (west and north walls)');
+    expect(describeRoom({ ...bare, items: [{ ...bed, position: [8.2, 1] }] }, 'ch1', light)!.items[0]!.where).toBe('against the north wall, 0.49 m from the west corner');
+    expect(by.stand).toMatchObject({ productId: null, price: null, locked: true, mesh: 'placeholder' });
+    expect(by.stand!.where).toBe('in the south-east corner (south and east walls)');
+    expect(by.shelf).toMatchObject({ mount: 'wall', elevationM: 1.4 });
+    expect(by.shelf!.where).toBe('against the north wall, 1.15 m from the east corner, 1.4 m above the floor');
+    expect(by.mid!.where).toBe('1.35 m from the east wall');
+  });
+
+  it('only lists the items of that room, and stays inside the token budget with a furnished room', () => {
+    const scene = { ...bare, items: [bed, { ...mid, id: 'other', roomId: 'ch2', position: [5.5, 2] as [number, number] }] };
+    expect(describeRoom(scene, 'ch2', light)!.items.map((i) => i.id)).toEqual(['other']);
+    const many = Array.from({ length: 8 }, (_, i) => ({ ...mid, id: `m${i}`, position: [7.3 + (i % 4) * 0.7, 2 + Math.floor(i / 4) * 0.7] as [number, number] }));
+    expect(JSON.stringify(describeRoom({ ...bare, items: [bed, ...many] }, 'ch1', light)).length).toBeLessThanOrEqual(6000);
+  });
+});
+
 describe('describeRoom', () => {
   it('returns undefined for an unknown room', () => {
     expect(describeRoom(charme, 'nope', light)).toBeUndefined();
@@ -37,7 +67,7 @@ describe('describeRoom', () => {
         const s = roomStats(scene, room.id)!;
         expect(d.areaM2).toBeCloseTo(s.area, 1);
         expect(d.perimeterM).toBeCloseTo(s.perimeter, 1);
-        expect(d.items).toEqual([]);
+        expect(d.items.map((i) => i.id)).toEqual(scene.items.filter((i) => i.roomId === room.id).map((i) => i.id));
       }
     }
   });

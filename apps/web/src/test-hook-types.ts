@@ -1,5 +1,7 @@
 import type { ApplyResult, CameraPose, Command, LightingView, LoadResult, Scene } from '@flat/scene';
 import type { SunInfo } from './state/sunInfo';
+import type { ModelStats } from './viewer/model-types';
+import type { Front } from './viewer/model-math';
 import type { ViewState } from './viewer/view-types';
 
 export interface FlatStats {
@@ -82,6 +84,23 @@ export interface FlatTestHook {
   clearFrameCalls: () => void;
   /** Sun patches (lit floor areas, obstructed by the visible context) for the current lighting view, with plan-polygon vertex centroids as world points (y = 0). */
   sunPatches: () => { roomId: string; openingId: string; area: number; polygon: [number, number][]; centroid: [number, number, number] }[];
+  /**
+   * M5.12: model loading state. `loaded` items drawn from a GLB, `pending` still loading (a placeholder box is drawn),
+   * `failed` model files that failed (each moved an item down provider -> lookalike -> parametric), `sources` the
+   * final source per item (`builtin:*` items count as `parametric`), `offline` the items that want a provider /
+   * local-only model while there is no server (the UI's "offline" badge), `warnings` the `dims_mismatch` ones
+   * (provider > 10%, lookalike > 25% aspect distortion), `requests` every model URL fetched, `cache` its occupancy.
+   * `whenRendered` waits for pending models.
+   */
+  modelStats: () => ModelStats;
+  /** World bounding box of the GLB-drawn item `id` (plain or instanced), measured on the objects in the three.js scene; null if it is not drawn from a model. */
+  itemBounds: (id: string) => { min: [number, number, number]; max: [number, number, number] } | null;
+  /** Replaces `resolveMesh` in the viewer (a self-contained function, or null to restore it). Tests drive the chain with it. */
+  setMeshResolver: (fn: ((item: any, ctx: any) => any) | null) => void; // eslint-disable-line @typescript-eslint/no-explicit-any
+  /** Pretends the scene server is at `origin` (provider models are then fetched from it) or that there is none (`null`); `undefined` follows the real sync state. */
+  setModelOrigin: (origin: string | null | undefined) => void;
+  /** Per-item front axis override for provider models (default +z); null restores the default. */
+  setProviderFront: (fn: ((item: { id: string }) => Front | undefined) | undefined) => void;
   /** Applies the view change and resolves after a frame reflecting it has been rendered. */
   setView: (partial: Partial<ViewState>) => Promise<void>;
   /** Loads a scene; on success resolves only after a frame with the new scene has been rendered. */

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ITEM_COMMAND_SCHEMAS, ItemMove, ItemPlace, ItemRemove, ItemRotate, ItemSetVariant } from './item-schema';
 import { ADDRESS_MAX, EntityId, Light, Material, NAME_MAX, Site, stripControlChars } from '../schema';
 
 const Id = EntityId;
@@ -120,7 +121,7 @@ export const LightUpdate = z.strictObject({
 });
 export const LightRemove = z.strictObject({ type: t('light.remove'), id: Id.describe('Id of the light to remove (lights[].id from describe_room, or lights[].id from get_scene_summary with detail "full").') });
 
-/** Leaf (non-batch) command schemas. M5 appends item commands here or via `createCommandSchema`. */
+/** Leaf (non-batch) command schemas. */
 export const LEAF_COMMAND_SCHEMAS = [
   MaterialDefine,
   MaterialRemove,
@@ -134,6 +135,7 @@ export const LEAF_COMMAND_SCHEMAS = [
   LightAdd,
   LightUpdate,
   LightRemove,
+  ...ITEM_COMMAND_SCHEMAS,
 ] as const;
 
 type LeafSchema = z.ZodObject<{ type: z.ZodLiteral<string> }, z.core.$strict>;
@@ -176,7 +178,12 @@ export type LeafCommand =
   | z.input<typeof SiteSet>
   | z.input<typeof LightAdd>
   | z.input<typeof LightUpdate>
-  | z.input<typeof LightRemove>;
+  | z.input<typeof LightRemove>
+  | z.input<typeof ItemPlace>
+  | z.input<typeof ItemMove>
+  | z.input<typeof ItemRotate>
+  | z.input<typeof ItemSetVariant>
+  | z.input<typeof ItemRemove>;
 export type BatchCommand = { type: 'batch'; label: string; commands: LeafCommand[] };
 export type Command = LeafCommand | BatchCommand;
 export type CommandType = Command['type'];
@@ -202,13 +209,8 @@ export const RESERVED_COMMAND_TYPES: Readonly<Record<string, string>> = {
   'room.add': 'room geometry editing is planned for M6',
   'room.remove': 'room geometry editing is planned for M6',
   'room.setPolygon': 'room geometry editing is planned for M6',
-  'item.add': 'M5 lane B',
-  'item.update': 'M5 lane B',
-  'item.remove': 'M5 lane B',
-  'item.move': 'M5 lane B',
-  'item.place': 'M5 lane B',
-  'item.rotate': 'M5 lane B',
-  'item.setVariant': 'M5 lane B',
+  'item.add': 'use item.place',
+  'item.update': 'use item.move, item.rotate or item.setVariant',
 };
 
 const Author = z.strictObject({

@@ -1,0 +1,808 @@
+{
+  "$comment": "Curated model library (M5.4). Warm French apartment style. Edit, then run `pnpm models:build` (online). Pins are written by the first build; a changed upstream file fails until `--update-pins`.",
+  "packs": {
+    "kenney-furniture-kit": {
+      "name": "Furniture Kit 2.0",
+      "author": "Kenney",
+      "homepage": "https://kenney.nl/assets/furniture-kit",
+      "url": "https://kenney.nl/media/pages/assets/furniture-kit/440e0608a4-1677580847/kenney_furniture-kit.zip",
+      "sha256": "e67652d0932cee41683f74711c03d3e192a2af9979ef8e6b237711f5482d46b0"
+    }
+  },
+  "models": [
+    {
+      "slug": "sofa_03",
+      "name": "Sofa 03",
+      "category": "sofa",
+      "source": "polyhaven",
+      "sourceId": "sofa_03",
+      "styleTags": [
+        "classic",
+        "fabric",
+        "living room"
+      ],
+      "sourceSha256": {
+        "sofa_03_1k.gltf": "123f491bef4e9bda153bda770a5d12810bfc9b87ce56aa5973aed041ea17fd92",
+        "sofa_03.bin": "e524350933d3d2a84c28f13bc042888a4768adeef88d630111015caede1c2e98",
+        "textures/sofa_03_diff_1k.jpg": "c0bc221e4cacc3de75aff7744dab1600d008bcf70b5c67fb10ad6847b695a84e",
+        "textures/sofa_03_nor_gl_1k.jpg": "b961f9e9f38233bd58cdc5275614d3a1b37d5304f5ab86fd19d110657d386025",
+        "textures/sofa_03_rough_1k.jpg": "b03b45c92365cddf787db158d7499915d6ba0d67ec51947453f6598f51361e47"
+      }
+    },
+    {
+      "slug": "arm_chair_01",
+      "name": "Arm Chair 01",
+      "category": "armchair",
+      "source": "polyhaven",
+      "sourceId": "ArmChair_01",
+      "styleTags": [
+        "vintage",
+        "classic",
+        "wood",
+        "living room"
+      ],
+      "sourceSha256": {
+        "ArmChair_01_1k.gltf": "91e39d5b35f36c8074b7b6432f6fd77f5f1a257c4d6af3924c0b263eb674286b",
+        "ArmChair_01.bin": "42a4206ea8bb3f7c3c1500ca3e408e084e8687cd3cc9cbf095b3344e215e0db6",
+        "textures/Armchair_01_arm_1k.jpg": "d272c68e8180f2a381314ac0cef5a9165d15d951a0558cb40a17af71cf6a51c6",
+        "textures/Armchair_01_diff_1k.jpg": "db30fc9ab61ac50c91ab7573583d2855a2910df1ecade02b89e3e8ab8d4e4c2d",
+        "textures/Armchair_01_nor_gl_1k.jpg": "f5e4a43a12e79537e53e27c2bd4c5296b3e191cd6b301afce9fafd9d38238dde"
+      }
+    },
+    {
+      "slug": "modern_arm_chair_01",
+      "name": "Modern Arm Chair 01",
+      "category": "armchair",
+      "source": "polyhaven",
+      "sourceId": "modern_arm_chair_01",
+      "styleTags": [
+        "modern",
+        "scandinavian",
+        "living room"
+      ],
+      "sourceSha256": {
+        "modern_arm_chair_01_1k.gltf": "d31be520add2603447b43acedbdacf9516866f7c89e9ea9230c9edbac9cc6e6a",
+        "modern_arm_chair_01.bin": "8755f2f498c0bb165660379d1b045465751c16bbeaf553c8dd76bb14c16d1ff6",
+        "textures/modern_arm_chair_01_legs_arm_1k.jpg": "c76b65200a52cf649a865baf7f879dc34277b923edaac7ec8164eaf7c51c935d",
+        "textures/modern_arm_chair_01_legs_diff_1k.jpg": "6291421a8db6cd9bbbc8c141aa087465d698427249f813d24c6e5ccdbf0bf536",
+        "textures/modern_arm_chair_01_legs_nor_gl_1k.jpg": "af328e8530884907cf0d38a675338bb4e2b03c56ed2d21eb5abf505bb67c11de",
+        "textures/modern_arm_chair_01_pillow_arm_1k.jpg": "fec333290ddfd70e78428251874d30d5410d6d0a956dd84922b0d3f3596e4b7a",
+        "textures/modern_arm_chair_01_pillow_diff_1k.jpg": "f1935436b460ad5c03ac7ff9d1e1b4aaedcdc9a503d79c257beb8cdac2e9e1f7",
+        "textures/modern_arm_chair_01_pillow_nor_gl_1k.jpg": "2717b9d22e1d3533e3c7436a0230b00b1d25bf396246679825c8db08edaba0a8"
+      }
+    },
+    {
+      "slug": "mid_century_lounge_chair",
+      "name": "Mid-century Lounge Chair",
+      "category": "armchair",
+      "source": "polyhaven",
+      "sourceId": "mid_century_lounge_chair",
+      "styleTags": [
+        "mid-century",
+        "wood",
+        "leather"
+      ],
+      "sourceSha256": {
+        "mid_century_lounge_chair_1k.gltf": "47c5769ee4dfa350e2506a6a76d8ef58a1e1060344acda35c503ddff46645d26",
+        "mid_century_lounge_chair.bin": "26346cdc548ad74b1b6db5734c8c231c3c740656b012de2cc3bbc2b3b975200c",
+        "textures/mid_century_lounge_chair_arm_1k.jpg": "9fa5fa4af5306576a3a27886767feec5431f41d94df9119f2ccced8f0b024f1a",
+        "textures/mid_century_lounge_chair_diff_1k.jpg": "ae1f80e964426b49f70b402403c444a655bdaa363d8d43fee5b57fcb3b492c54",
+        "textures/mid_century_lounge_chair_nor_gl_1k.jpg": "4bb4b325e4478f5d9063e4e061cf34bc6ccc3067abda608c1548c4a367f50397"
+      }
+    },
+    {
+      "slug": "round_wooden_table_01",
+      "name": "Round Wooden Table 01",
+      "category": "table",
+      "source": "polyhaven",
+      "sourceId": "round_wooden_table_01",
+      "styleTags": [
+        "rustic",
+        "wood",
+        "dining"
+      ],
+      "sourceSha256": {
+        "round_wooden_table_01_1k.gltf": "dd09c1663b10d15a1fda12ba4f53743e8b8379b17254a78be22100d584738b48",
+        "round_wooden_table_01.bin": "c2635368bc86239a73fafdd8bce20b4261155ce7241e95e809a753ed4693f157",
+        "textures/round_wooden_table_01_arm_1k.jpg": "32b5056dc36e3081987c20cd03f15e73298266c1aff3e573b832e9dd0f8145b9",
+        "textures/round_wooden_table_01_diff_1k.jpg": "d83659d8d584bbadf160760b825f990c6264901e33051643d19fcd389b0d19ae",
+        "textures/round_wooden_table_01_nor_gl_1k.jpg": "5f80ed76e2eccaea8ab7c0cc9c85d29cc9b164aabfa2403304e1ec79dc47150c"
+      }
+    },
+    {
+      "slug": "painted_wooden_table",
+      "name": "Painted Wooden Table",
+      "category": "table",
+      "source": "polyhaven",
+      "sourceId": "painted_wooden_table",
+      "styleTags": [
+        "rustic",
+        "painted",
+        "wood",
+        "dining"
+      ],
+      "sourceSha256": {
+        "painted_wooden_table_1k.gltf": "7e1ba86ae2c570e3464c42556e4e6cc09186a99127b86eaf54e7dbecb2fbafc3",
+        "painted_wooden_table.bin": "aac5e2e7411a319b8fdf6915cdb452a3b490179c354c75785a22f560e8413059",
+        "textures/painted_wooden_table_arm_1k.jpg": "670863aece034184ac1643ebe3de1254c3565a10b01ce3f9e8ba3a67980b4bb3",
+        "textures/painted_wooden_table_diff_1k.jpg": "826738d2efab2c5786e498c39dd58edd6479e08c0503619727a2b9b6b2e796dc",
+        "textures/painted_wooden_table_nor_gl_1k.jpg": "0fe881c3f0c2ef0e4e67fa05280355f9b852adc6447af71a61cc3b15fff66338"
+      }
+    },
+    {
+      "slug": "dining_table",
+      "name": "Dining Table",
+      "category": "table",
+      "source": "polyhaven",
+      "sourceId": "dining_table",
+      "styleTags": [
+        "wood",
+        "classic",
+        "dining"
+      ],
+      "sourceSha256": {
+        "dining_table_1k.gltf": "6af2b850b0524d364b4c89869c6c70112b8d340317a256cf35fbe739040654c7",
+        "dining_table.bin": "63a493a0bf2eeea4ecc94e5e4cb90c7780fd6cb79e82feed1d3db89ed2b63305",
+        "textures/dining_table_arm_1k.jpg": "f50a5105bb4c25985c726b1fa65b04bbfc5972794d08a970bd1a97c435159ad4",
+        "textures/dining_table_diff_1k.jpg": "af239dc33b8444c5d9ca653d502ee1a1f0bac1845a7a522a00eae6c3a0d62b97",
+        "textures/dining_table_nor_gl_1k.jpg": "156d4bd665864b806973290c1c702dda3fc80736c91623311992f2ca2e773d84"
+      }
+    },
+    {
+      "slug": "coffee_table_round_01",
+      "name": "Round Coffee Table 01",
+      "category": "table",
+      "source": "polyhaven",
+      "sourceId": "coffee_table_round_01",
+      "styleTags": [
+        "classic",
+        "wood",
+        "living room"
+      ],
+      "sourceSha256": {
+        "coffee_table_round_01_1k.gltf": "58fe785584f8999f760e590b04ce74f83962d42c9440ab9415910f63a31165dc",
+        "coffee_table_round_01.bin": "9605a0c156bff4ec87e8717a79978d85d4e750d21b3193a3d08bed16e8666035",
+        "textures/coffee_table_round_01_arm_1k.jpg": "7221b03af475555092abd650798facbb945bf4acf02e48f8697f012d8515bf52",
+        "textures/coffee_table_round_01_diff_1k.jpg": "422b4a24a4459e1fd6d121aae4f1097dd3e467c7a8036bb1d003f955302f1d28",
+        "textures/coffee_table_round_01_nor_gl_1k.jpg": "a5912db1918b1ec925efb19179675cafc8832b082f80b2ea35c3a58b45e1aec4"
+      }
+    },
+    {
+      "slug": "modern_coffee_table_01",
+      "name": "Modern Coffee Table 01",
+      "category": "table",
+      "source": "polyhaven",
+      "sourceId": "modern_coffee_table_01",
+      "styleTags": [
+        "modern",
+        "wood",
+        "living room"
+      ],
+      "sourceSha256": {
+        "modern_coffee_table_01_1k.gltf": "a35d811da4c174d0c888f23353dda21501763dbf5505c66f57fef4b3f613e50c",
+        "modern_coffee_table_01.bin": "b8fe0d49041b879a5d5962685a39e3daf009679f7b6a88ced1347e6dc6c0851e",
+        "textures/modern_coffee_table_01_diff_1k.jpg": "069b89dd3ef03ddcbb7b2e6a124b1903aa7848394509121aa19f87bd0ef0218c",
+        "textures/modern_coffee_table_01_nor_gl_1k.jpg": "43e0d317d0f8418b130c0058c645225ee83b808b1dc0e5e7236bead3bdd77139",
+        "textures/modern_coffee_table_01_rough_1k.jpg": "8013b48b0ebb845907f840afcae9cbc915a5205ac82ed99cbba31771febacb0f"
+      },
+      "front": "+x"
+    },
+    {
+      "slug": "wooden_table_02",
+      "name": "Wooden Table 02",
+      "category": "desk",
+      "source": "polyhaven",
+      "sourceId": "wooden_table_02",
+      "styleTags": [
+        "wood",
+        "classic"
+      ],
+      "sourceSha256": {
+        "textures/wooden_table_02_arm_1k.jpg": "b970a81e4b03f3b8a341c9eb639f112fff1782d681c846255ebc9073cd803ced",
+        "textures/wooden_table_02_diff_1k.jpg": "2334ac3e23d69222322515d9bad066b4e90d7d81989fe231b8fb12f39179ad9e",
+        "textures/wooden_table_02_nor_gl_1k.jpg": "9470e08e5dab4ab6a7cafab2a488a50fb54fa8f38890e9032c39dcbf7f5846d2",
+        "wooden_table_02_1k.gltf": "bb38e301840cb629d72c43c83fdb7fb308518efe2d0bc01e1ed0e9a9e43ed9d3",
+        "wooden_table_02.bin": "52ed7cc67b3aa403375cf9bd18050e8cc21bcced6532a0183c1a733f0965df6d"
+      }
+    },
+    {
+      "slug": "dining_chair_02",
+      "name": "Dining Chair 02",
+      "category": "chair",
+      "source": "polyhaven",
+      "sourceId": "dining_chair_02",
+      "styleTags": [
+        "classic",
+        "wood",
+        "dining"
+      ],
+      "sourceSha256": {
+        "dining_chair_02_1k.gltf": "88352a44a17319846f61fe03ce75c79fb1849aa508b6a262366c149c1bbd06b8",
+        "dining_chair_02.bin": "c7f1ef858f73815176d2ab304472a69ccf6097e971e5258eb924a75f841d4af5",
+        "textures/dining_chair_02_arm_1k.jpg": "0a81c0c886baa1e65d94fb6fb90ab4751bee319888ecf1c428ae62042d8a5b15",
+        "textures/dining_chair_02_diff_1k.jpg": "343990f764790da1149485a422dee2bc6797945a6af06a37d02d7a7de041acf5",
+        "textures/dining_chair_02_nor_gl_1k.jpg": "348703512ca1215f8389e9108419c2d1a46537663db25f423c3ef900d20cfe61"
+      }
+    },
+    {
+      "slug": "painted_wooden_chair_01",
+      "name": "Painted Wooden Chair 01",
+      "category": "chair",
+      "source": "polyhaven",
+      "sourceId": "painted_wooden_chair_01",
+      "styleTags": [
+        "rustic",
+        "painted",
+        "wood",
+        "dining"
+      ],
+      "sourceSha256": {
+        "painted_wooden_chair_01_1k.gltf": "34f55ebe1851b89c045dc62d4461c848de3b93c0668e752a2b5f6cbed2d91a5e",
+        "painted_wooden_chair_01.bin": "eaf952048db1e770c45898049b8abe28deb83d3dbbaad81d5e7e43e22a322295",
+        "textures/painted_wooden_chair_01_arm_1k.jpg": "9d2de0ea0d630e8e5af05424b1f41b1ae4a80465d27a78eb471cd7f8556db84e",
+        "textures/painted_wooden_chair_01_diff_1k.jpg": "de67d1f8a0318616a7ee769cbe5c513301c2b25056542d011bb4359498f9e25d",
+        "textures/painted_wooden_chair_01_nor_gl_1k.jpg": "27301c3ac6a7daf9e0ba418ec85feaa44cc898e61d048211bca57133f22e1807"
+      }
+    },
+    {
+      "slug": "painted_wooden_chair_02",
+      "name": "Painted Wooden Chair 02",
+      "category": "chair",
+      "source": "polyhaven",
+      "sourceId": "painted_wooden_chair_02",
+      "styleTags": [
+        "rustic",
+        "painted",
+        "wood",
+        "dining"
+      ],
+      "sourceSha256": {
+        "painted_wooden_chair_02_1k.gltf": "e69f4558d236e0fcc9d31a85ab75117e75d224d21e04836aa438821ccf1fd2c1",
+        "painted_wooden_chair_02.bin": "6125c4ac10e1b53803bf468eb21769fd43a3669564bfc8885a9346c8302e121f",
+        "textures/painted_wooden_chair_02_arm_1k.jpg": "7b0b2254ab2ea3dae685207b8b591bbb10cca47d0157ce8e515f03ff61ccb5d9",
+        "textures/painted_wooden_chair_02_diff_1k.jpg": "bc944fc83f440198658199080d761b19c3e2f42daa793062aa283563683a732b",
+        "textures/painted_wooden_chair_02_nor_gl_1k.jpg": "2c2c2f92e4aebadf06c7c675a3c903c1a647dde6f875ac55aa4945d47e053d9a"
+      }
+    },
+    {
+      "slug": "green_chair_01",
+      "name": "Green Chair 01",
+      "category": "chair",
+      "source": "polyhaven",
+      "sourceId": "GreenChair_01",
+      "styleTags": [
+        "classic",
+        "wood",
+        "upholstered"
+      ],
+      "sourceSha256": {
+        "GreenChair_01_1k.gltf": "d1e4946ac99ab9e64c82d802fe5cd49d962750e34b8d284762b3fe2b00ba8a45",
+        "GreenChair_01.bin": "9070a41bcf38005997fe71a49e50b942b427ec05938413c9dc204df0b781e410",
+        "textures/GreenChair_01_arm_1k.jpg": "d522e08441f3d54977e085b9e54de125efea7e963d3f433a5bd74cad031d2178",
+        "textures/GreenChair_01_diff_1k.jpg": "fb7ec456b37dc95fb73d0b08bfa2802c304a40263517d05e674657ad356cfac4",
+        "textures/GreenChair_01_nor_gl_1k.jpg": "008b49786f8395301b15b398856f56bd04357096ce542da76f1a3dcad8c28fc8"
+      }
+    },
+    {
+      "slug": "wooden_bookshelf_worn",
+      "name": "Wooden Bookshelf (worn)",
+      "category": "shelf",
+      "source": "polyhaven",
+      "sourceId": "wooden_bookshelf_worn",
+      "styleTags": [
+        "rustic",
+        "wood",
+        "living room"
+      ],
+      "sourceSha256": {
+        "textures/wooden_bookshelf_worn_arm_1k.jpg": "41b3aca38fb55cb300d971016a597c80425da3744a6d33d82fe78f9dbe609eaa",
+        "textures/wooden_bookshelf_worn_diff_1k.jpg": "970f60178decadd0d8fb1e5872f718350a49b027fd69469210c41ead350cba56",
+        "textures/wooden_bookshelf_worn_nor_gl_1k.jpg": "90ffb1b3f7bb638d5a7e1a2b244a260d623e314a6010a6b8c23c57203e510ac9",
+        "wooden_bookshelf_worn_1k.gltf": "a1c5b3f1e71ae0b5eb73047e8097bceaa5f17e5d2d0d7ae1b8053d5ec0878fc6",
+        "wooden_bookshelf_worn.bin": "170758113b50132380ab46943f6eab18f2714460dead065aae37241a94abf0f9"
+      }
+    },
+    {
+      "slug": "wooden_display_shelves_01",
+      "name": "Wooden Display Shelves 01",
+      "category": "shelf",
+      "source": "polyhaven",
+      "sourceId": "wooden_display_shelves_01",
+      "styleTags": [
+        "wood",
+        "classic"
+      ],
+      "sourceSha256": {
+        "textures/wooden_display_shelves_01_arm_1k.jpg": "33d6b769eafab3b1d8605b202cd41b0994b8c43df02dca5bdd86e942e390ff6a",
+        "textures/wooden_display_shelves_01_diff_1k.jpg": "cb57e90d9588ce81e58ff7300e89956a6a3c45119165b858d921a5a2439cbeaf",
+        "textures/wooden_display_shelves_01_nor_gl_1k.jpg": "04191c25bfb8e76314863b624233807792df64fa1a638c75d20788becb4cbb8c",
+        "wooden_display_shelves_01_1k.gltf": "3784953c451b088d24ac1b0e6946c7f7bd589115f51e6549fdb8fe9f7c10600e",
+        "wooden_display_shelves_01.bin": "e6c000a780626e618c1f1c0c1ec2ec29e1452e7824055ba53b40963d857edfbe"
+      },
+      "front": "+x"
+    },
+    {
+      "slug": "painted_wooden_cabinet_02",
+      "name": "Painted Wooden Cabinet 02",
+      "category": "wardrobe",
+      "source": "polyhaven",
+      "sourceId": "painted_wooden_cabinet_02",
+      "styleTags": [
+        "rustic",
+        "painted",
+        "wood",
+        "bedroom"
+      ],
+      "sourceSha256": {
+        "painted_wooden_cabinet_02_1k.gltf": "a4b697adf7a24a081b8452f5a7d482765e2139cf2a6687a4cbb2a7b8bea24325",
+        "painted_wooden_cabinet_02.bin": "7acab853993b90cafc9c7550a7035397dfeb4bbda7f0dba8759d40a971c755ca",
+        "textures/painted_wooden_cabinet_02_arm_1k.jpg": "0cf309449d4b0c1ecb0a3adbc17837b6f77f36cb45c1f0ceb6013b07fac44214",
+        "textures/painted_wooden_cabinet_02_diff_1k.jpg": "ddb2cace49bb05b8e03e6c205223a69f95e5eef84ec66e97e5d0e49d2a1af09e",
+        "textures/painted_wooden_cabinet_02_nor_gl_1k.jpg": "46e8df6be06eca30a05d0e90f12e8799e6e11c73ab7c910cc3541b0833ee0103"
+      }
+    },
+    {
+      "slug": "vintage_cabinet_01",
+      "name": "Vintage Cabinet 01",
+      "category": "wardrobe",
+      "source": "polyhaven",
+      "sourceId": "vintage_cabinet_01",
+      "styleTags": [
+        "vintage",
+        "wood",
+        "bedroom"
+      ],
+      "sourceSha256": {
+        "textures/vintage_cabinet_01_a_arm_1k.jpg": "0f5970977780b6dbb202f1371777b7b616dee9da7e01760eee306c2202ffeb17",
+        "textures/vintage_cabinet_01_a_diff_1k.jpg": "06453bb3e2811147a7558914437c20042f3f5c21b9c4f1d3488bdfe94f25f03f",
+        "textures/vintage_cabinet_01_a_nor_gl_1k.jpg": "08d64582202f32c8f2250ee2061dc870678ac694206f9b4edf2acd11e33323a4",
+        "textures/vintage_cabinet_01_a_rough_1k.jpg": "a641d1ac6b43ca25eb1b26e631057b79c3f2ab1b39a3460a5894b5c3dd22b420",
+        "textures/vintage_cabinet_01_b_diff_1k.jpg": "81967dbb387b205b2aa6f253165c8c44f60cdf5e57d9ceebf230fef21569b33a",
+        "textures/vintage_cabinet_01_b_nor_gl_1k.jpg": "c9580fbf1f69d7bc23817216e2954c713c87aceb5c4f04b9b1a5233c2cf2ce7b",
+        "textures/vintage_cabinet_01_b_rough_1k.jpg": "1f11ec7fdea1b6a9ce7ea8a3d2110f944860aeb72dce4d017b8d2880582dfb20",
+        "vintage_cabinet_01_1k.gltf": "ce66c642cb13ba11bf7cde72bb58ad465dce1909dbef8a22dd55b28d857c1848",
+        "vintage_cabinet_01.bin": "407c58be2c5efb1d41d549fcff6a57d18d025033803dcb241e57349dd65bcf60"
+      }
+    },
+    {
+      "slug": "drawer_cabinet",
+      "name": "Drawer Cabinet",
+      "category": "drawers",
+      "source": "polyhaven",
+      "sourceId": "drawer_cabinet",
+      "styleTags": [
+        "wood",
+        "classic",
+        "bedroom"
+      ],
+      "sourceSha256": {
+        "drawer_cabinet_1k.gltf": "899581e6a041644139a138f909c6ba001684cc55b5d1702e08f01094e20d0617",
+        "drawer_cabinet.bin": "3460b9fe00ffbe779b7f7f2de3b159c214cfec275c06194add0eebd951ee14e9",
+        "textures/drawer_cabinet_arm_1k.jpg": "8f8eefaaadcee247204c5658c2f4d9cac598222336918b01eb48e4190317788c",
+        "textures/drawer_cabinet_diff_1k.jpg": "0fe270409b54a5609662dda14afaa94af4bd3267dcd83dd824e05fa880d96efb",
+        "textures/drawer_cabinet_nor_gl_1k.jpg": "26d0904ad341353e095ef619d157a5f416be014500475976f1144827cc849faa"
+      }
+    },
+    {
+      "slug": "vintage_wooden_drawer_01",
+      "name": "Vintage Wooden Drawer 01",
+      "category": "drawers",
+      "source": "polyhaven",
+      "sourceId": "vintage_wooden_drawer_01",
+      "styleTags": [
+        "vintage",
+        "wood",
+        "bedroom"
+      ],
+      "sourceSha256": {
+        "textures/vintage_wooden_drawer_01_arm_1k.jpg": "c0fd94c348869693e5f62369c2ce5ad9a643c61ed846161044b33be6a4088faa",
+        "textures/vintage_wooden_drawer_01_diff_1k.jpg": "c911ab368803c5510d0bbfbbbfc7e0047c25895da8169dd8c6c0e98b12699c2f",
+        "textures/vintage_wooden_drawer_01_nor_gl_1k.jpg": "8962f1c546dc71eecc691d772b68fd28659faa537f766e959eaf39ad43d8e905",
+        "vintage_wooden_drawer_01_1k.gltf": "4080ecdac2228759dd41a5d5705b984f993bbf6b0f66570824a9dcbbeaa49e51",
+        "vintage_wooden_drawer_01.bin": "1c9982901f1ad4f4bb431b239f893e6fbf7953d9f16a1369e418554c7f0fbd89"
+      }
+    },
+    {
+      "slug": "painted_wooden_cabinet",
+      "name": "Painted Wooden Cabinet",
+      "category": "sideboard",
+      "source": "polyhaven",
+      "sourceId": "painted_wooden_cabinet",
+      "styleTags": [
+        "rustic",
+        "painted",
+        "wood",
+        "dining"
+      ],
+      "sourceSha256": {
+        "painted_wooden_cabinet_1k.gltf": "ce04543cdb10e05fe9c2cc08e9c118b16c1c717a07bcbfac9b99859465c8d1ed",
+        "painted_wooden_cabinet.bin": "1023d773d84c42f2709ec297247d90b0e2833e37241fbe852e2f33b41ae10cda",
+        "textures/painted_wooden_cabinet_arm_1k.jpg": "34e0bcb00a62704d85161d41e844e798d4f894e416e7769079d50a21d561d171",
+        "textures/painted_wooden_cabinet_diff_1k.jpg": "2dbed9f9ec8e49fc2e87de8cd86e2029a80e9001b5102b4e47c7dfa913f34d89",
+        "textures/painted_wooden_cabinet_nor_gl_1k.jpg": "e94edf68faeaf68016c28da9b9f299bb38c57463acd94130ecf98dcaef790016"
+      }
+    },
+    {
+      "slug": "classic_console_01",
+      "name": "Classic Console 01",
+      "category": "sideboard",
+      "source": "polyhaven",
+      "sourceId": "ClassicConsole_01",
+      "styleTags": [
+        "classic",
+        "wood",
+        "entry"
+      ],
+      "sourceSha256": {
+        "ClassicConsole_01_1k.gltf": "6c7f79026ad7c388c5d40c56a0988f2a28dc0fc6e489e110332d06792ecd5833",
+        "ClassicConsole_01.bin": "f1781fbd65be7ea34a653ed1eaf06a47a4ee3e98dcc5a5627f5479019d87b025",
+        "textures/ClassicConsole_01_arm_1k.jpg": "39cd3bd935a13a09a694e5877f528f6d026395da7a4509fd4514d88c1d8dfd36",
+        "textures/ClassicConsole_01_diff_1k.jpg": "cf288157e8d8cfe70eef2d355a5d13076b9a1664ff1f5e6cb07f1970de6a2125",
+        "textures/ClassicConsole_01_nor_gl_1k.jpg": "b8619f83d22c8b050f66fe696e0422bd7e6d8b868295b2dd9708a60352539391"
+      }
+    },
+    {
+      "slug": "modern_wooden_cabinet",
+      "name": "Modern Wooden Cabinet",
+      "category": "tv_unit",
+      "source": "polyhaven",
+      "sourceId": "modern_wooden_cabinet",
+      "styleTags": [
+        "modern",
+        "wood",
+        "living room"
+      ],
+      "sourceSha256": {
+        "modern_wooden_cabinet_1k.gltf": "9c0765063297018e854d11bc27da3cbab3c33904a3be2f5c15f46635df7e857f",
+        "modern_wooden_cabinet.bin": "04e664a95f52c48d0caa8c3148ab7e4ad4a0554b37a2a5c0e39dc6ed6c46cafe",
+        "textures/modern_wooden_cabinet_arm_1k.jpg": "fad6df227ec6d431387b10bd244a0d087e89e6dce0b1c732df5c87f0a1def3f5",
+        "textures/modern_wooden_cabinet_diff_1k.jpg": "e494b67439da73775413d6aaea369ae05a8ebd7705be8df08dbcd2ee4fd545e4",
+        "textures/modern_wooden_cabinet_nor_gl_1k.jpg": "f08b3d0619a60e2eac19c9d9c0d7dc0e3eb75af2692d84b32ddfd12d857c15ab"
+      }
+    },
+    {
+      "slug": "classic_nightstand_01",
+      "name": "Classic Nightstand 01",
+      "category": "bedside",
+      "source": "polyhaven",
+      "sourceId": "ClassicNightstand_01",
+      "styleTags": [
+        "classic",
+        "wood",
+        "bedroom"
+      ],
+      "sourceSha256": {
+        "ClassicNightstand_01_1k.gltf": "e8218ceead6c07d2641a0bd54974a67b13dd7ebc110e07e9738e17c206c7b892",
+        "ClassicNightstand_01.bin": "1ac0f3065df040e5a85c3807fa07947de7185ad40ed064f3399fa9fc93387a7f",
+        "textures/ClassicNightstand_01_arm_1k.jpg": "2a2ba3094e6baedebdddc1660684f42aa8556e405ef8e540f08ffa5a083adbf3",
+        "textures/ClassicNightstand_01_diff_1k.jpg": "aa841a5dcea9154bb1a26eb1be37d6b69fc8b2777f3dfcc3f7c7880c7048a5c6",
+        "textures/ClassicNightstand_01_nor_gl_1k.jpg": "42692b8c2645559db4803135c9e3b1e1f11bd8b2022bbe0b750f4c3e5d65c225"
+      }
+    },
+    {
+      "slug": "painted_wooden_nightstand",
+      "name": "Painted Wooden Nightstand",
+      "category": "bedside",
+      "source": "polyhaven",
+      "sourceId": "painted_wooden_nightstand",
+      "styleTags": [
+        "rustic",
+        "painted",
+        "wood",
+        "bedroom"
+      ],
+      "sourceSha256": {
+        "painted_wooden_nightstand_1k.gltf": "fbdc51ee41f2ee2dc7c455cd6f8321ff14e80c7a7d1e7736b194ca0b3e48b304",
+        "painted_wooden_nightstand.bin": "67b0834c6d0337bd144a1f72045bfe4de029618766b344fa9ffc4c3fc3ee8865",
+        "textures/painted_wooden_nightstand_arm_1k.jpg": "c3724c444d74f5b0e65904de0633bfe99db76f8c9b9211703aeeab62b02031ef",
+        "textures/painted_wooden_nightstand_diff_1k.jpg": "bf7447441b2f78c847d7c4cda8b80e604853e2b559ffe03b41c0e4b3bff8ed9f",
+        "textures/painted_wooden_nightstand_nor_gl_1k.jpg": "2d7574ce96c1202bc37ad49fd219a2f918028e102a6d1743714bc90032295c15"
+      }
+    },
+    {
+      "slug": "vintage_oil_lamp",
+      "name": "Vintage Oil Lamp",
+      "category": "lamp",
+      "source": "polyhaven",
+      "sourceId": "vintage_oil_lamp",
+      "styleTags": [
+        "vintage",
+        "glass",
+        "table"
+      ],
+      "sourceSha256": {
+        "textures/vintage_oil_lamp_arm_1k.jpg": "004b7b6238632e4fc9e2ad7e76529caa292cfd96f5a42d6564531207f25c3e92",
+        "textures/vintage_oil_lamp_diff_1k.jpg": "a96cc1383fb056618eca80a0cf4ae192286c8752f8e83cb52f9fec02ca94a471",
+        "textures/vintage_oil_lamp_flame_diff_1k.jpg": "827c6a4fa9274141636cee9415f416a32937f2f257901bbe8488b22b862509f1",
+        "textures/vintage_oil_lamp_glass_arm_1k.jpg": "0ef2b0eb2087895851be979afc5ccb2c11076f71bc667f9e586b7f8038efc158",
+        "textures/vintage_oil_lamp_glass_diff_1k.jpg": "dbe33017c012a00c74419bb8f05b16a2eeee5e06e2ceab49a80462d25c7a7c0a",
+        "textures/vintage_oil_lamp_glass_nor_gl_1k.jpg": "2752589c8f6c7724bf2aa5d097010bd9257fff8ca0f85add13ec2ac702909df0",
+        "textures/vintage_oil_lamp_nor_gl_1k.jpg": "54db7efff64c4117782e25851544a0eb4881e5e28a13a06917a16d15ce26b1db",
+        "vintage_oil_lamp_1k.gltf": "ae570b98ea30b0337f62d8e7f551c03a05de00b238f3fac8f1ca5a1f1dbd1add",
+        "vintage_oil_lamp.bin": "4064065c8e288beaa58639c139c801db337bfc6183e73378a9177157f0587167"
+      }
+    },
+    {
+      "slug": "potted_plant_01",
+      "name": "Potted Plant 01",
+      "category": "decor",
+      "source": "polyhaven",
+      "sourceId": "potted_plant_01",
+      "styleTags": [
+        "plant",
+        "green"
+      ],
+      "sourceSha256": {
+        "potted_plant_01_1k.gltf": "23b30294407684b02f14800d6685bd8938da5d2111e17753ac8dd3c37d8c88a0",
+        "potted_plant_01.bin": "a8dd1f7ce75f50dc25bbedc20809da02ee4193815c155b883a329925fa5548f7",
+        "textures/potted_plant_01_leaves_diff_1k.jpg": "b73891a0a606e139d0fcdd9e6fe503cd1210be3fc9c55fbd033941288231ccaa",
+        "textures/potted_plant_01_leaves_nor_gl_1k.jpg": "2faa756e0ee2b8341c752b283b93599157bf56f4083a9f61b825cdfa0c7138ff",
+        "textures/potted_plant_01_leaves_rough_1k.jpg": "765e3bd1bfdad39dd0d1cd755eafd1f9f1d46cbbb6013988cbfd1197de27a1f9",
+        "textures/potted_plant_01_pot_diff_1k.jpg": "51c9d80e8abe585bd3dbcebe7cba1d3ed1a22b137c7cb66baf0e462c08dca312",
+        "textures/potted_plant_01_pot_nor_gl_1k.jpg": "ec02e51751e0822d229d48bea1373b06e2675c3725ff04fd1f87ac516719e620",
+        "textures/potted_plant_01_pot_rough_1k.jpg": "1256199fe3a88a0534bcd4c8bf141cfa9a28b68fce3f286193d0713796fd8561"
+      }
+    },
+    {
+      "slug": "potted_plant_02",
+      "name": "Potted Plant 02",
+      "category": "decor",
+      "source": "polyhaven",
+      "sourceId": "potted_plant_02",
+      "styleTags": [
+        "plant",
+        "green"
+      ],
+      "sourceSha256": {
+        "potted_plant_02_1k.gltf": "c533dcce0d1aa4379eb7db04601a04983f8df2422b28578de922655a416e64a9",
+        "potted_plant_02.bin": "9c9812482c78a59789ed32fa842b4cbd9365e09c900c31ebb998e5efe627fe97",
+        "textures/potted_plant_02_leaves_diff_1k.jpg": "3643dce6e6c0a9f40129bd837ec1a11802e8f43ea43cb29e58219d82e0ac632b",
+        "textures/potted_plant_02_leaves_nor_gl_1k.jpg": "e0fe090ff7a511729c9bbe59df7288b400430fdab178529443dec75e0f06007d",
+        "textures/potted_plant_02_leaves_rough_1k.jpg": "ac8959f70c0e91e77f3cd6fd3f73578b8aed64ac6c33fc34ac027a4e88276960",
+        "textures/potted_plant_02_pot_diff_1k.jpg": "684949bf24821d7e951d46915366b5a388d2e4ccaaa9d5284e718c83604705e9",
+        "textures/potted_plant_02_pot_nor_gl_1k.jpg": "981a68721c8b7b9ac26b96d0210334599d5e8f529362f505082c071a0a58e86c",
+        "textures/potted_plant_02_pot_rough_1k.jpg": "4e92ad8ee0f098050785d9a025e2c5a7d55bc7a7f7e1916cc7627fc7824a938f"
+      }
+    },
+    {
+      "slug": "ornate_mirror_01",
+      "name": "Ornate Mirror 01",
+      "category": "mirror",
+      "source": "polyhaven",
+      "sourceId": "ornate_mirror_01",
+      "styleTags": [
+        "ornate",
+        "classic",
+        "haussmann"
+      ],
+      "sourceSha256": {
+        "ornate_mirror_01_1k.gltf": "2d9bb949df65d6470395959fb7976af6fcc1b3ad7d85084918ad543ee71850f6",
+        "ornate_mirror_01.bin": "31ce7eadeb57ffa0d302ea36e4d5de64db91f9a823f1ede8158b45d9ec863a4a",
+        "textures/ornate_mirror_01_arm_1k.jpg": "0efbcf5ffae8afbcea89c3fdd7f82951f03067abe6236388303713273ea44752",
+        "textures/ornate_mirror_01_diff_1k.jpg": "7b131a08fcf21cb823d7c4914829c2c35215612cdadb241387c20657d6b25a62",
+        "textures/ornate_mirror_01_nor_gl_1k.jpg": "bfa3a35070f0c5f4fa8e7127ffe536001cc6f65c3896e377d7a2a38f9358d3be"
+      }
+    },
+    {
+      "slug": "ceramic_vase_01",
+      "name": "Ceramic Vase 01",
+      "category": "decor",
+      "source": "polyhaven",
+      "sourceId": "ceramic_vase_01",
+      "styleTags": [
+        "ceramic",
+        "classic"
+      ],
+      "sourceSha256": {
+        "ceramic_vase_01_1k.gltf": "4e2c69eb5bbccf86e9fbf92af438464669d804c1f0eae041ee28651a5b57d91e",
+        "ceramic_vase_01.bin": "56ffadcafff3f56538d04b0b43c06c9704baeec2ac3ec286ef01c313c82906f0",
+        "textures/ceramic_vase_01_arm_1k.jpg": "121469880a7900513717685e9035dfc1b04613f85c778ab4e9dba98c1675d660",
+        "textures/ceramic_vase_01_diff_1k.jpg": "5f7d22178b74a59fe92aa0ccc958b897e2fb80df514eb28b97000097c0e71beb",
+        "textures/ceramic_vase_01_nor_gl_1k.jpg": "c35b59d15e0f08db44b0bc8a5870bc65ae781819e5abf0447996d0faf05b7722"
+      }
+    },
+    {
+      "slug": "kenney_bed_double",
+      "name": "Double Bed",
+      "category": "bed",
+      "source": "kenney",
+      "pack": "kenney-furniture-kit",
+      "sourceId": "Models/GLTF format/bedDouble.glb",
+      "unitScale": 1.8,
+      "maxDimM": [
+        1.8,
+        2.4
+      ],
+      "styleTags": [
+        "simple",
+        "wood",
+        "bedroom"
+      ],
+      "sourceSha256": {
+        "glb": "c49b33e7d797d2ba1111895587dba7ff63b17a712eb9b4ceeb40a598f73e476c"
+      }
+    },
+    {
+      "slug": "kenney_bed_single",
+      "name": "Single Bed",
+      "category": "bed",
+      "source": "kenney",
+      "pack": "kenney-furniture-kit",
+      "sourceId": "Models/GLTF format/bedSingle.glb",
+      "unitScale": 1.8,
+      "maxDimM": [
+        1.8,
+        2.4
+      ],
+      "styleTags": [
+        "simple",
+        "wood",
+        "bedroom"
+      ],
+      "sourceSha256": {
+        "glb": "ca00c63f9a12da3138d902b2f5f18e0360fb6e8a5ac42ccb4bc3f185724b65d1"
+      }
+    },
+    {
+      "slug": "kenney_rug_rectangle",
+      "name": "Rectangular Rug",
+      "category": "rug",
+      "source": "kenney",
+      "pack": "kenney-furniture-kit",
+      "sourceId": "Models/GLTF format/rugRectangle.glb",
+      "unitScale": 1.3,
+      "maxDimM": [
+        1.5,
+        2.6
+      ],
+      "styleTags": [
+        "simple",
+        "textile"
+      ],
+      "sourceSha256": {
+        "glb": "a989d2d59c04e3071e0c90388b113a9a8f339ce1814ef984c51cb6dcd7c8e0eb"
+      }
+    },
+    {
+      "slug": "kenney_rug_round",
+      "name": "Round Rug",
+      "category": "rug",
+      "source": "kenney",
+      "pack": "kenney-furniture-kit",
+      "sourceId": "Models/GLTF format/rugRound.glb",
+      "unitScale": 1.4,
+      "maxDimM": [
+        1,
+        1.6
+      ],
+      "styleTags": [
+        "simple",
+        "textile"
+      ],
+      "sourceSha256": {
+        "glb": "c4cdc8f51ed2dbfb853b147521ed40e995307392fd3b19045b2203ea50f376db"
+      }
+    },
+    {
+      "slug": "kenney_floor_lamp_round",
+      "name": "Round Floor Lamp",
+      "category": "lamp",
+      "source": "kenney",
+      "pack": "kenney-furniture-kit",
+      "sourceId": "Models/GLTF format/lampRoundFloor.glb",
+      "unitScale": 1.9,
+      "maxDimM": [
+        1.4,
+        1.9
+      ],
+      "styleTags": [
+        "simple",
+        "floor"
+      ],
+      "sourceSha256": {
+        "glb": "50fe1b5b588edf15bfa9cc880f71a02a4fda6036350b24733d0ef4de5cc5e908"
+      }
+    },
+    {
+      "slug": "kenney_floor_lamp_square",
+      "name": "Square Floor Lamp",
+      "category": "lamp",
+      "source": "kenney",
+      "pack": "kenney-furniture-kit",
+      "sourceId": "Models/GLTF format/lampSquareFloor.glb",
+      "unitScale": 1.9,
+      "maxDimM": [
+        1.4,
+        1.9
+      ],
+      "styleTags": [
+        "simple",
+        "floor"
+      ],
+      "sourceSha256": {
+        "glb": "6466993748d8e184de9ec5b6b0af613867c50c0ce320d1898b1db9e4c27c2561"
+      }
+    },
+    {
+      "slug": "kenney_table_lamp_round",
+      "name": "Round Table Lamp",
+      "category": "lamp",
+      "source": "kenney",
+      "pack": "kenney-furniture-kit",
+      "sourceId": "Models/GLTF format/lampRoundTable.glb",
+      "unitScale": 1.6,
+      "maxDimM": [
+        0.3,
+        0.6
+      ],
+      "styleTags": [
+        "simple",
+        "table"
+      ],
+      "sourceSha256": {
+        "glb": "75bb644caaa3da003b4fcad7a931722dd61cd2858aab70cf660021d5061fa1b2"
+      }
+    },
+    {
+      "slug": "kenney_kitchen_cabinet",
+      "name": "Kitchen Base Cabinet",
+      "category": "kitchen",
+      "source": "kenney",
+      "pack": "kenney-furniture-kit",
+      "sourceId": "Models/GLTF format/kitchenCabinet.glb",
+      "unitScale": 1.9,
+      "maxDimM": [
+        0.7,
+        1
+      ],
+      "styleTags": [
+        "simple",
+        "kitchen"
+      ],
+      "sourceSha256": {
+        "glb": "7238c57778935ae25db5e57e9f7af3ba7068c71b005ff7cfbff3b6f3b1a13200"
+      }
+    },
+    {
+      "slug": "kenney_fridge",
+      "name": "Fridge",
+      "category": "appliance",
+      "source": "kenney",
+      "pack": "kenney-furniture-kit",
+      "sourceId": "Models/GLTF format/kitchenFridge.glb",
+      "unitScale": 1.9,
+      "maxDimM": [
+        1.4,
+        2
+      ],
+      "styleTags": [
+        "simple",
+        "kitchen"
+      ],
+      "sourceSha256": {
+        "glb": "8af4f4bbb1b5525ad8226e97926a5af60fa8fb20a3cb74dbda5328a9d320dbab"
+      }
+    },
+    {
+      "slug": "kenney_tv_cabinet",
+      "name": "TV Cabinet",
+      "category": "tv_unit",
+      "source": "kenney",
+      "pack": "kenney-furniture-kit",
+      "sourceId": "Models/GLTF format/cabinetTelevision.glb",
+      "unitScale": 1.9,
+      "maxDimM": [
+        1.2,
+        1.8
+      ],
+      "styleTags": [
+        "simple",
+        "wood",
+        "living room"
+      ],
+      "sourceSha256": {
+        "glb": "811719593d676ff76f7b5904d52c845ce0396af2bc9a6a2636c4818ead320b99"
+      }
+    }
+  ]
+}

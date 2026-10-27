@@ -18,3 +18,11 @@ blueprints/
 
 # scene server runtime data
 apps/server/data/
+
+# model pipeline caches and local-only packs (M5)
+.cache/models/
+.cache/models-staging/
+apps/server/local-assets/
+.env.local
+**/3d-future/
+**/3D-FUTURE/

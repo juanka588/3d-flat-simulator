@@ -1,7 +1,9 @@
 import { loadConfig } from './config';
+import { readEnvFile } from './providers/secrets';
 import { startServer } from './server';
 
-const config = loadConfig();
+// apps/server/.env.local (gitignored) may set FLAT_PROVIDERS and provider credentials; the process environment wins.
+const config = loadConfig({ ...readEnvFile(loadConfig().envLocalFile), ...process.env });
 const running = await startServer(config);
 config.log('info', `listening on ${running.url} (data: ${config.dataDir}, rev ${running.store.rev})`);
 if (config.host !== '127.0.0.1' && config.host !== 'localhost') {
@@ -11,6 +13,7 @@ if (config.host !== '127.0.0.1' && config.host !== 'localhost') {
   }
 }
 if (config.token) config.log('info', 'writes require FLAT_TOKEN bearer auth');
+if (config.providers.length > 0) config.log('info', `product providers: ${config.providers.join(', ')}`);
 
 let closing = false;
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {

@@ -1,0 +1,326 @@
+import { GENERATORS, isBuiltinAsset } from '@flat/scene';
+import type { Item, MeshAsset, MeshCatalog, MeshResolveContext, ResolvedMesh } from '@flat/scene';
+import type { Loaded, ModelCache, ModelHandle } from './model-cache';
+import { catalogWithout, libraryModelUrl, providerModelUrl } from './model-env';
+import { checkDims, rotateBoxY, boxSize, frontRotationY } from './model-math';
+import type { Box, Dims, Front, ModelKind } from './model-math';
+import type { DimsWarning, ModelSource, ModelStats } from './model-types';
+
+export type { DimsWarning, ModelSource, ModelStats } from './model-types';
+
+/**
+ * Decides, per item, which model to draw and keeps the state of the chain (M5.12, D2):
+ *   provider GLB (server mode only) -> CC0 / local lookalike -> parametric -> placeholder.
+ * It never changes the scene: a failed load only moves the item down the chain. No React and no WebGL in
+ * here (the loader and the cache are injected), so the chain is unit-tested with a mock loader.
+ */
+
+
+export interface ModelLike {
+  /** Native bounding box of the model, in its own coordinates. */
+  box: Box;
+}
+
+
+export interface ItemModel<T extends ModelLike> {
+  itemId: string;
+  /** `loading`: a model is being fetched (a placeholder box is drawn); `ready`: drawn from the model; `settled`: no model, the item uses its mesh data. */
+  status: 'loading' | 'ready' | 'settled';
+  source: ModelSource;
+  url?: string;
+  front: Front;
+  dims: Dims;
+  model?: T;
+  warning?: DimsWarning;
+  /** The item wants a provider / local-only model and there is no server (Pages or Local mode): the UI shows an "offline" badge. */
+  offline: boolean;
+  /** URLs that failed to load on the way down the chain. */
+  failures: string[];
+  /** Why this source won (from the resolver, or the failure that moved it). */
+  reason: string;
+}
+
+export interface ControllerDeps<T extends ModelLike> {
+  cache: ModelCache<T>;
+  /** Fetches and decodes a model. */
+  load: (url: string) => Promise<Loaded<T>>;
+  resolve: (item: Pick<Item, 'assetId' | 'dims' | 'product' | 'productRef' | 'mesh'>, ctx: MeshResolveContext) => ResolvedMesh;
+  catalog: () => Promise<MeshCatalog>;
+  /** Origin of the connected server, or null (Local / Pages mode). */
+  origin: () => string | null;
+  base?: () => string;
+  /** Per-item override of the front axis of a PROVIDER model (they are assumed to face +z). */
+  providerFront?: (item: Item) => Front | undefined;
+}
+
+
+/** Item fields that decide which model is used; moves and rotations do not re-resolve. */
+export function resolveSignature(item: Item): string {
+  return JSON.stringify([item.assetId, item.mesh ?? null, item.productRef ?? null, item.product?.dims ?? null, item.product?.category ?? null, item.dims ?? null]);
+}
+
+/**
+ * True for items that can never use a model file: legacy built-ins and items whose stored source is a
+ * generator. They cost no request (not even the catalog) and are drawn by `buildItems`.
+ */
+export function isPlainBuiltin(item: Pick<Item, 'assetId' | 'mesh' | 'productRef'>): boolean {
+  return (isBuiltinAsset(item.assetId) && !item.mesh && !item.productRef) || item.mesh?.kind === 'parametric';
+}
+
+/** Whether the item asks for a model that only the local server can supply. */
+function wantsProvider(item: Pick<Item, 'mesh' | 'productRef'>): boolean {
+  return item.mesh?.kind === 'provider' || (item.mesh === undefined && item.productRef !== undefined);
+}
+
+const MAX_ATTEMPTS = 8;
+
+interface Record_<T extends ModelLike> {
+  sig: string;
+  state: ItemModel<T>;
+  handle?: ModelHandle<T>;
+}
+
+export class ModelController<T extends ModelLike> {
+  private readonly records = new Map<string, Record_<T>>();
+  /** Items that never use a model (see `isPlainBuiltin`), by id. */
+  private plain = new Set<string>();
+  private readonly listeners = new Set<() => void>();
+  private settleWaiters: (() => void)[] = [];
+  private version = 0;
+  private failedFiles = 0;
+  private readonly requested: string[] = [];
+  private disposed = false;
+
+  constructor(private readonly deps: ControllerDeps<T>) {}
+
+  // ---- observation ----------------------------------------------------------------------------
+
+  subscribe = (listener: () => void): (() => void) => {
+    this.listeners.add(listener);
+    return () => void this.listeners.delete(listener);
+  };
+
+  /** Changes whenever any item state changes (for `useSyncExternalStore`). */
+  getVersion = (): number => this.version;
+
+  state(itemId: string): ItemModel<T> | undefined {
+    return this.records.get(itemId)?.state;
+  }
+
+  /** Ids of items the controller draws (loading placeholder or model); the rest come from `buildItems`. */
+  claimed(): Set<string> {
+    const out = new Set<string>();
+    for (const [id, r] of this.records) if (r.state.status !== 'settled') out.add(id);
+    return out;
+  }
+
+  pending(): number {
+    let n = 0;
+    for (const r of this.records.values()) if (r.state.status === 'loading') n++;
+    return n;
+  }
+
+  /** Resolves when no item is loading (immediately when none is). */
+  settled(): Promise<void> {
+    if (this.pending() === 0) return Promise.resolve();
+    return new Promise((resolve) => this.settleWaiters.push(resolve));
+  }
+
+  stats(): ModelStats {
+    const sources: Record<string, ModelSource> = {};
+    const offline: string[] = [];
+    const warnings: ModelStats['warnings'] = [];
+    let loaded = 0;
+    for (const id of this.plain) sources[id] = 'parametric';
+    for (const [id, r] of this.records) {
+      sources[id] = r.state.status === 'loading' ? 'placeholder' : r.state.source;
+      if (r.state.status === 'ready') loaded++;
+      if (r.state.offline) offline.push(id);
+      if (r.state.warning) warnings.push({ itemId: id, warning: r.state.warning });
+    }
+    const c = this.deps.cache.stats();
+    return {
+      loaded,
+      pending: this.pending(),
+      failed: this.failedFiles,
+      sources,
+      offline,
+      warnings,
+      requests: [...this.requested],
+      cache: { models: c.models, inUse: c.inUse, bytes: c.bytes, evictions: c.evictions },
+    };
+  }
+
+  // ---- driving ---------------------------------------------------------------------------------
+
+  /**
+   * Brings the controller in step with the scene's items: new or changed items start resolving, removed ones
+   * give their model back. Idempotent and silent (listeners are only told later, from async work), so it is
+   * safe to call while rendering.
+   */
+  update(items: readonly Item[]): void {
+    if (this.disposed) return;
+    const seen = new Set<string>();
+    this.plain = new Set();
+    for (const item of items) {
+      seen.add(item.id);
+      if (isPlainBuiltin(item)) {
+        this.plain.add(item.id);
+        this.drop(item.id);
+        continue;
+      }
+      const sig = resolveSignature(item);
+      if (this.records.get(item.id)?.sig === sig) continue;
+      this.drop(item.id);
+      const rec: Record_<T> = {
+        sig,
+        state: {
+          itemId: item.id,
+          status: 'loading',
+          source: 'placeholder',
+          front: '+z',
+          dims: item.dims ?? item.product?.dims ?? { w: 0.3, d: 0.3, h: 0.3 },
+          offline: false,
+          failures: [],
+          reason: 'resolving',
+        },
+      };
+      this.records.set(item.id, rec);
+      void this.run(item, rec);
+    }
+    for (const id of [...this.records.keys()]) if (!seen.has(id)) this.drop(id);
+  }
+
+  /** The WebGL context was restored: cached models re-upload. */
+  restore(): void {
+    this.deps.cache.restore();
+  }
+
+  dispose(): void {
+    this.disposed = true;
+    for (const id of [...this.records.keys()]) this.drop(id);
+    this.listeners.clear();
+    this.flushSettled();
+  }
+
+  // ---- internals ---------------------------------------------------------------------------------
+
+  private drop(id: string): void {
+    const rec = this.records.get(id);
+    if (!rec) return;
+    this.records.delete(id);
+    rec.handle?.release();
+    rec.handle = undefined;
+  }
+
+  private notify(): void {
+    this.version++;
+    for (const l of [...this.listeners]) l();
+    this.flushSettled();
+  }
+
+  private flushSettled(): void {
+    if (this.pending() > 0 && !this.disposed) return;
+    const waiters = this.settleWaiters;
+    this.settleWaiters = [];
+    for (const w of waiters) w();
+  }
+
+  private current(item: Item, rec: Record_<T>): boolean {
+    return !this.disposed && this.records.get(item.id) === rec;
+  }
+
+  private async run(item: Item, rec: Record_<T>): Promise<void> {
+    const dims = item.dims ?? item.product?.dims;
+    let catalog: MeshCatalog;
+    try {
+      catalog = await this.deps.catalog();
+    } catch {
+      catalog = { list: () => [], get: () => undefined, search: () => [] };
+    }
+    if (!this.current(item, rec)) return;
+    const failedAssets = new Set<string>();
+    let providerUsable = true;
+    const state = rec.state;
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+      const origin = this.deps.origin();
+      const resolved = this.deps.resolve(item, {
+        catalog: catalogWithout(catalog, failedAssets),
+        generators: GENERATORS,
+        providerModelAvailable: () => providerUsable && origin !== null,
+      });
+      const target = this.targetOf(resolved, origin);
+      state.offline = state.offline || (origin === null && (wantsProvider(item) || target.offlineOnly === true));
+      state.dims = dims ?? resolved.dims;
+      if (!target.url) {
+        if (target.skip) {
+          // The resolver offered a model we may not (or cannot) fetch: take it off the table and ask again.
+          if (target.skip.kind === 'provider') providerUsable = false;
+          else failedAssets.add(target.skip.assetId);
+          state.reason = target.reason;
+          continue;
+        }
+        state.status = 'settled';
+        state.source = resolved.source === 'builtin' ? 'parametric' : resolved.source === 'provider' || resolved.source === 'lookalike' ? 'placeholder' : resolved.source;
+        state.reason = resolved.reason;
+        this.notify();
+        return;
+      }
+      const url = target.url;
+      try {
+        const handle = await this.deps.cache.acquire(url, () => {
+          this.requested.push(url);
+          return this.deps.load(url);
+        });
+        if (!this.current(item, rec)) {
+          handle.release();
+          return;
+        }
+        rec.handle = handle;
+        state.status = 'ready';
+        state.source = target.kind;
+        state.url = url;
+        state.model = handle.value;
+        state.front = target.kind === 'provider' ? (this.deps.providerFront?.(item) ?? target.front) : target.front;
+        state.reason = resolved.reason;
+        const size = boxSize(rotateBoxY(handle.value.box, frontRotationY(target.front)));
+        const check = checkDims(target.kind, size, state.dims);
+        state.warning = check.mismatch ? { code: 'dims_mismatch', kind: target.kind, distortion: check.distortion, limit: check.limit } : undefined;
+        this.notify();
+        return;
+      } catch (error) {
+        if (!this.current(item, rec)) return;
+        this.failedFiles++;
+        state.failures.push(url);
+        state.reason = `${target.kind} model failed (${error instanceof Error ? error.message : String(error)}); falling back`;
+        if (target.kind === 'provider') providerUsable = false;
+        else failedAssets.add(target.assetId!);
+      }
+    }
+    // Pathological resolver that keeps offering models: stop at a placeholder.
+    state.status = 'settled';
+    state.source = 'placeholder';
+    this.notify();
+  }
+
+  /** The URL for what the resolver picked, or why there is none. */
+  private targetOf(
+    r: ResolvedMesh,
+    origin: string | null,
+  ):
+    | { url: string; kind: ModelKind; front: Front; assetId?: string; skip?: undefined; reason: string; offlineOnly?: undefined }
+    | { url?: undefined; skip?: { kind: 'provider' } | { kind: 'lookalike'; assetId: string }; reason: string; offlineOnly?: boolean } {
+    if (r.source === 'provider') {
+      const url = origin && r.product ? providerModelUrl(origin, r.product) : undefined;
+      if (!url) return { skip: { kind: 'provider' }, reason: 'provider model needs the local server', offlineOnly: false };
+      return { url, kind: 'provider', front: '+z', reason: r.reason };
+    }
+    if (r.source === 'lookalike' && r.asset) {
+      const asset: MeshAsset = r.asset;
+      const url = libraryModelUrl(asset, origin, this.deps.base?.());
+      if (!url) return { skip: { kind: 'lookalike', assetId: asset.id }, reason: `${asset.id} is not available here`, offlineOnly: asset.source === '3dfuture' };
+      return { url, kind: 'lookalike', front: asset.front, assetId: asset.id, reason: r.reason };
+    }
+    return { reason: r.reason };
+  }
+}

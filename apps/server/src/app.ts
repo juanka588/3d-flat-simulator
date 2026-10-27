@@ -1,10 +1,25 @@
 import { timingSafeEqual } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { Hono, type Context } from 'hono';
+import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { bodyLimit } from 'hono/body-limit';
 import { cors } from 'hono/cors';
-import { MAX_SCENE_BYTES, PostCheckpointBody, PostViewBody, UndoToBody, loadSceneText, type ErrorResponse } from '@flat/scene';
+import {
+  MAX_SCENE_BYTES,
+  MarkSeenBody,
+  PostCheckpointBody,
+  PostViewBody,
+  ProductId,
+  ProductSearchParams,
+  UndoToBody,
+  loadSceneText,
+  summarizeProduct,
+  type ErrorResponse,
+  type ProviderErrorCode,
+} from '@flat/scene';
 import type { ServerConfig } from './config';
+import { createDisabledRegistry } from './providers/registry';
+import { ProviderError, type ProviderRegistry } from './providers/types';
 import type { Outcome, SceneStore } from './store';
 
 const WRITE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
@@ -47,7 +62,26 @@ function rateLimiter(perSec: number) {
   };
 }
 
-export function createApp(store: SceneStore, config: ServerConfig) {
+/** HTTP status of each provider failure. */
+const PROVIDER_STATUS: Record<ProviderErrorCode, ContentfulStatusCode> = {
+  unknown_provider: 404,
+  provider_disabled: 409,
+  provider_unavailable: 503,
+  provider_blocked: 502,
+  provider_rate_limited: 429,
+  provider_parse_failed: 502,
+  product_not_found: 404,
+  product_not_seen: 409,
+  product_dims_missing: 422,
+  model_unavailable: 404,
+  url_not_allowed: 422,
+  robots_disallowed: 422,
+};
+
+/** Routes that reach retailers or serve their data: read access also needs an allowed `Origin` (not only writes). */
+const PRODUCT_PATH = /^\/api\/(providers|products|assets\/products)(\/|$)/;
+
+export function createApp(store: SceneStore, config: ServerConfig, providers: ProviderRegistry = createDisabledRegistry()) {
   const app = new Hono<Env>();
   const allow = rateLimiter(config.rateLimitPerSec);
   const allowView = rateLimiter(config.viewRatePerSec);
@@ -74,6 +108,15 @@ export function createApp(store: SceneStore, config: ServerConfig) {
     const client = `${c.env?.incoming?.socket?.remoteAddress ?? 'local'}|${c.req.header('origin') ?? ''}`;
     if (!allow(client)) return c.json(err('rate_limited', 'too many requests'), 429);
     return next();
+  });
+  // Provider routes (reads too): retailer traffic and retailer data must not be triggerable or readable by a foreign page.
+  app.use('/api/*', async (c, next) => {
+    if (!PRODUCT_PATH.test(c.req.path)) return next();
+    const origin = c.req.header('origin');
+    const foreign = origin !== undefined ? !originAllowed(origin, config.allowedOrigins) : c.req.header('sec-fetch-site') === 'cross-site';
+    if (foreign) return c.json(err('forbidden', 'origin not allowed'), 403);
+    await next();
+    c.header('Cache-Control', 'no-store');
   });
   const limit = (maxSize: number) =>
     bodyLimit({ maxSize, onError: (c) => c.json(err('payload_too_large', `body exceeds ${maxSize} bytes`), 413) });
@@ -187,6 +230,97 @@ export function createApp(store: SceneStore, config: ServerConfig) {
     }
     const { epoch, rev } = await store.importScene(loaded.scene);
     return c.json({ ok: true, epoch, rev, warnings: loaded.warnings });
+  });
+
+
+  // ---- M5 products (providers live in this server; nothing is persisted, nothing is served from Pages) ----
+  const providerFailure = (c: Context<Env>, e: unknown) => {
+    if (!(e instanceof ProviderError)) throw e;
+    const status = PROVIDER_STATUS[e.code];
+    if (e.retryAt !== undefined) c.header('Retry-After', String(Math.max(1, Math.ceil((e.retryAt - Date.now()) / 1000))));
+    return c.json(
+      {
+        ok: false as const,
+        errors: [{ code: e.code, path: '', message: e.message, hint: e.hint, ...(e.details ? { details: e.details } : {}), ...(e.retryAt !== undefined ? { retryAt: e.retryAt } : {}) }],
+      },
+      status,
+    );
+  };
+
+  app.get('/api/providers', (c) => c.json({ providers: providers.info() }));
+
+  app.get('/api/products/search', async (c) => {
+    const parsed = ProductSearchParams.safeParse(c.req.query());
+    if (!parsed.success) return invalid(c, parsed.error);
+    const q = parsed.data;
+    const maxDims = { ...(q.maxW !== undefined ? { w: q.maxW } : {}), ...(q.maxD !== undefined ? { d: q.maxD } : {}), ...(q.maxH !== undefined ? { h: q.maxH } : {}) };
+    try {
+      const r = await providers.search(q.q, {
+        limit: q.limit,
+        ...(q.provider !== undefined ? { providerId: q.provider } : {}),
+        ...(q.category !== undefined ? { category: q.category } : {}),
+        ...(q.minPrice !== undefined ? { minPrice: q.minPrice } : {}),
+        ...(q.maxPrice !== undefined ? { maxPrice: q.maxPrice } : {}),
+        ...(Object.keys(maxDims).length > 0 ? { maxDims } : {}),
+      });
+      return c.json({
+        results: r.records.map(summarizeProduct),
+        providers: r.statuses.map((s) => ({ provider: s.provider, ok: s.ok, ...(s.code ? { code: s.code } : {}), ...(s.message ? { message: s.message } : {}) })),
+        truncated: r.truncated,
+      });
+    } catch (e) {
+      return providerFailure(c, e);
+    }
+  });
+
+  app.get('/api/products/seen', (c) => {
+    const session = c.req.query('session') ?? '';
+    const id = ProductId.safeParse(c.req.query('id'));
+    if (session.length < 1 || session.length > 64 || !id.success) return c.json(err('invalid_command', 'expected ?session=<1-64 chars>&id=<provider:sku>'), 422);
+    return c.json({ seen: providers.isSeen(session, id.data) });
+  });
+
+  app.post('/api/products/seen', limit(config.bodyLimit), async (c) => {
+    const raw = await readJson(c);
+    if (raw === undefined) return malformed(c);
+    const body = MarkSeenBody.safeParse(raw);
+    if (!body.success) return invalid(c, body.error);
+    return c.json({ ok: true as const, seen: providers.markSeen(body.data.session, body.data.productIds) });
+  });
+
+  app.post('/api/products/resolve', limit(config.bodyLimit), async (c) => {
+    const raw = await readJson(c);
+    if (raw === undefined) return malformed(c);
+    const url = (raw as { url?: unknown } | null)?.url;
+    if (typeof url !== 'string' || url.length < 1 || url.length > 2048) return c.json(err('invalid_command', 'expected { url: string (at most 2048 characters) }', 'url'), 422);
+    try {
+      return c.json({ product: await providers.resolveUrl(url) });
+    } catch (e) {
+      return providerFailure(c, e);
+    }
+  });
+
+  app.get('/api/products/:id', async (c) => {
+    try {
+      return c.json({ product: await providers.getProduct(c.req.param('id')) });
+    } catch (e) {
+      return providerFailure(c, e);
+    }
+  });
+
+  app.get('/api/assets/products/:provider/:file{[^/]+\\.glb}', async (c) => {
+    const file = c.req.param('file');
+    try {
+      const model = await providers.fetchModel(`${c.req.param('provider')}:${file.slice(0, -'.glb'.length)}`);
+      return c.body(model.stream, 200, {
+        'Content-Type': model.contentType,
+        'Cache-Control': 'no-store',
+        'X-Content-Type-Options': 'nosniff',
+        ...(model.size !== undefined ? { 'Content-Length': String(model.size) } : {}),
+      });
+    } catch (e) {
+      return providerFailure(c, e);
+    }
   });
 
   app.notFound((c) => c.json(err('not_found', 'no such route'), 404));

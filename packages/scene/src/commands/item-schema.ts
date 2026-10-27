@@ -1,20 +1,23 @@
 import { z } from 'zod';
 import { Relation } from '../placement/types';
-import { Dims, EntityId, Sku, Vec2 } from '../primitives';
-import { ProductSnapshot } from '../products';
+import { MeshSource } from '../assets/catalog';
+import { Clearance, Dims, EntityId, ItemMount, Sku, Vec2 } from '../primitives';
+import { ProductRef, ProductSnapshot } from '../products';
 import { ItemBase, checkItemRules } from '../schema';
 
 /**
- * Item command schemas (D8) — CONTRACT ONLY in M5.0. They are exported here but deliberately NOT in
- * `LEAF_COMMAND_SCHEMAS`: registering a leaf adds a command type, a tool and an entry in the committed
- * snapshots (`__snapshots__/command.schema.json`, `tool-schemas.json`, the MCP tools/list snapshot).
- * Lane B (M5.10) registers them: append `ITEM_COMMAND_SCHEMAS` to `LEAF_COMMAND_SCHEMAS`, extend the
- * `LeafCommand` union, add `DESCRIPTIONS` entries in `tools.ts`, a case in `describeCommand`, the reducer
- * cases with exact inverses, remove these types from `RESERVED_COMMAND_TYPES`, and update the snapshots.
- * Until then `parseCommand` answers `not_supported` with the hint "M5 lane B".
- *
- * Authors: an `llm` author may only place products the server has seen in a search of its session, and
- * may never move, rotate or remove a `locked` item (precondition_failed); a `user` may.
+ * Item command schemas (D8), registered in `LEAF_COMMAND_SCHEMAS` (M5.10). Reducer rules (see `items.ts`):
+ *  - an `llm` or `planner` author may only place items that reference a product (`product` or `productRef`):
+ *    otherwise `precondition_failed` with the hint "search_products first";
+ *  - a `locked` item (existing furniture) cannot be moved, rotated, re-varianted or removed, nor created, by a
+ *    non-user author (`precondition_failed`);
+ *  - place / move / rotate / setVariant are refused with `placement_invalid {violation, hint}` when the item would
+ *    stand outside its room, overlap a wall or an item, or block a door swing (the walkway raster is NOT run
+ *    in the reducer: use `validate_layout`);
+ *  - at most `ITEMS_PER_ROOM_SOFT_CAP` items per room (`limit_exceeded`);
+ *  - every command has an exact inverse: place <-> remove (remove keeps the list index), move / rotate /
+ *    setVariant restore the previous values (absent values come back as `null`).
+ * Drag coalescing: send item.move / item.rotate with `coalesceKey` `item:<id>` (see `itemCoalesceKey`).
  */
 
 const Id = EntityId;
@@ -22,8 +25,63 @@ const t = <T extends string>(type: T) => z.literal(type).describe(`Command discr
 const INDEX_DESC = 'Internal (used by undo): insert position. Do not send.';
 const ItemId = Id.describe('Id of the item (items[].id from describe_room or get_scene_summary).');
 
+/** The product facts stored next to an item, with a description per field (the tool schema is read by an LLM). */
+const ProductSnapshotD = ProductSnapshot.extend({
+  provider: ProductSnapshot.shape.provider.describe('Provider id, e.g. "ikea-fr".'),
+  sku: ProductSnapshot.shape.sku.describe('Provider article number.'),
+  name: ProductSnapshot.shape.name.describe('Product name as listed by the provider.'),
+  url: ProductSnapshot.shape.url.describe('Public product page (the buy link).'),
+  price: ProductSnapshot.shape.price.describe('Shelf price including VAT (TTC) in `currency`, as returned by the server.'),
+  currency: ProductSnapshot.shape.currency.describe('ISO 4217 currency code, e.g. "EUR".'),
+  dims: ProductSnapshot.shape.dims.describe('Assembled outer dimensions in metres, as returned by the server.'),
+  category: ProductSnapshot.shape.category.describe('Furniture category of the product.'),
+  snapshotAt: ProductSnapshot.shape.snapshotAt.describe('When the facts were read from the provider (ISO 8601 date-time).'),
+  colour: ProductSnapshot.shape.colour.describe('Chosen colour when the product has several. Optional.'),
+});
+
+const ProductRefD = ProductRef.extend({
+  provider: ProductRef.shape.provider.describe('Provider id, e.g. "ikea-fr".'),
+  sku: ProductRef.shape.sku.describe('Provider article number.'),
+});
+
+const ClearanceD = Clearance.extend({
+  front: Clearance.shape.front.describe('Free space wanted in front, in metres. Optional.'),
+  back: Clearance.shape.back.describe('Free space wanted behind, in metres. Optional.'),
+  left: Clearance.shape.left.describe('Free space wanted on the left seen from the front, in metres. Optional.'),
+  right: Clearance.shape.right.describe('Free space wanted on the right seen from the front, in metres. Optional.'),
+});
+
+const MeshSourceD = z.discriminatedUnion('kind', [
+  MeshSource.options[0].extend({ kind: z.literal('provider').describe('Mesh source discriminator, always "provider": the provider\'s real model of productRef, streamed by the local server.') }),
+  MeshSource.options[1].extend({
+    kind: z.literal('lookalike').describe('Mesh source discriminator, always "lookalike": a library model scaled to the exact dims.'),
+    assetId: MeshSource.options[1].shape.assetId.describe('Id of the library asset (search_assets).'),
+  }),
+  MeshSource.options[2].extend({
+    kind: z.literal('parametric').describe('Mesh source discriminator, always "parametric": a generator at the exact dims.'),
+    generator: MeshSource.options[2].shape.generator.describe('Generator id (search_assets).'),
+    params: MeshSource.options[2].shape.params.describe('Scalar generator parameters; omitted keys use the generator defaults.'),
+  }),
+]);
+
 /** An item as sent to `item.place`: the id is optional and derived (`item-N`) when absent. */
-export const ItemDraft = ItemBase.extend({ id: Id.describe('Optional item id; derived as "item-N" when omitted.').optional() }).superRefine(checkItemRules);
+export const ItemDraft = ItemBase.extend({
+  id: Id.describe('Optional item id (1-64 characters, unique across all entities); derived as "item-N" when omitted.').optional(),
+  assetId: ItemBase.shape.assetId.describe('Shape id: "product:<provider>", a library asset id or "param:<generator>" (see meshAssetId); legacy "builtin:*" ids still load.'),
+  position: Vec2.describe('Plan position [x, y] of the item origin (footprint centre), in metres; plan y grows down.'),
+  elevation: ItemBase.shape.elevation.describe('Height of the item bottom above the floor, in metres; must be 0 for floor items. Defaults to 0.'),
+  rotation: ItemBase.shape.rotation.describe('Rotation in degrees, counter-clockwise seen from above; the front faces plan +y at 0. Defaults to 0.'),
+  roomId: ItemBase.shape.roomId.describe('Room the item stands in (rooms[].id from list_rooms); derived from the position when omitted. Optional.'),
+  productRef: ProductRefD.describe('The real product this item stands for. Required for items placed by an LLM or the planner (unless product is given).').optional(),
+  product: ProductSnapshotD.describe('Product facts (name, TTC price, link, dims, snapshot date) as returned by the server; never invented.').optional(),
+  mount: ItemMount.describe('Where the item is fixed: "floor", "wall" (hung) or "ceiling". Optional; derived from the asset.').optional(),
+  dims: Dims.describe('Exact outer dimensions in metres; defaults to the product dimensions. Optional.').optional(),
+  variant: ItemBase.shape.variant.describe('Chosen variant SKU or colour name of the product. Optional.'),
+  mesh: MeshSourceD.describe('How the 3D shape is obtained (provider model, library lookalike or parametric generator). Optional.').optional(),
+  clearance: ClearanceD.describe('Free space wanted around the item, in metres per side. Optional.').optional(),
+  locked: ItemBase.shape.locked.describe('Existing furniture the designer must plan around (only the user may set it). Optional.'),
+  relation: Relation.describe('The placement intent that put the item here (as returned by place_item). Optional.').optional(),
+}).superRefine(checkItemRules);
 export type ItemDraft = z.input<typeof ItemDraft>;
 
 export const ItemPlace = z.strictObject({
@@ -55,13 +113,13 @@ export const ItemSetVariant = z.strictObject({
   id: ItemId,
   variant: Sku.nullable().describe('Variant SKU of the product (variants[].sku); null clears it.'),
   /** A different variant is usually another article with its own price and dims: the resolved facts come with it. */
-  product: ProductSnapshot.describe('Snapshot of the chosen variant (resolved by the server from its record; never invented). Optional.').optional(),
-  dims: Dims.describe('Dimensions of the chosen variant when they differ. Optional.').optional(),
+  product: ProductSnapshotD.describe('Snapshot of the chosen variant (resolved by the server from its record; never invented). Optional.').optional(),
+  dims: Dims.nullable().describe('Dimensions of the chosen variant when they differ; null clears them back to the product dimensions. Optional.').optional(),
 });
 
 export const ItemRemove = z.strictObject({ type: t('item.remove'), id: ItemId });
 
-/** Not yet registered in `LEAF_COMMAND_SCHEMAS` (see above). */
+/** Registered in `LEAF_COMMAND_SCHEMAS` (see above). */
 export const ITEM_COMMAND_SCHEMAS = [ItemPlace, ItemMove, ItemRotate, ItemSetVariant, ItemRemove] as const;
 
 export type ItemCommand =
@@ -71,3 +129,6 @@ export type ItemCommand =
   | z.input<typeof ItemSetVariant>
   | z.input<typeof ItemRemove>;
 
+
+/** Coalescing key of an item drag: consecutive item.move / item.rotate with this key become one undo step. */
+export const itemCoalesceKey = (id: string): string => `item:${id}`;

@@ -37,6 +37,11 @@ jobs:
       - run: node scripts/ci/bundle-size.mjs
       # dist/materials <= 8 MiB, no file outside catalog.json, every sha256 matches.
       - run: node scripts/ci/check-materials.mjs
+      # M5.15 model library: every file in dist/models is in the catalog with its sha256; <= 300 KB/model, <= 6 MiB total,
+      # <= 20k triangles, <= 4 materials; credits present.
+      - run: node scripts/ci/check-models.mjs
+      # D4 local-only guard: no retailer host in the Pages build or in tracked files, no stray GLB/GLTF, no .env or 3D-FUTURE files.
+      - run: node scripts/ci/check-no-retailer.mjs
 
   # The texture sources must still publish CC0 (the committed library is only CC0 while they do).
   licence:

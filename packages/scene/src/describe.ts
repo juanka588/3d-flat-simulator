@@ -5,7 +5,11 @@ import { roomDaylightFactors, wallSideRooms } from './lighting/daylight';
 import { SUN_PATCH_MIN_AREA, sunPatches, sunlightHours } from './lighting/sunpatch';
 import { localDayBounds, sunAtInstant } from './lighting/sun';
 import { polygonArea } from './measure';
-import type { CompassPoint, RoomDescription, RoomSummary } from './mcp-types';
+import { BUILTIN_ASSETS, isBuiltinAsset } from './assets/builtin';
+import type { CompassPoint, RoomDescription, RoomItemDescription, RoomSummary } from './mcp-types';
+import { layoutContext, roomOfBox } from './placement/constraints';
+import type { ItemBox } from './placement/footprint';
+import { compassWord, roomWallEdges, type WallEdge } from './placement/relations';
 import type { FinishSource } from './mcp-types';
 import { roomStats } from './stats';
 import type { Light, Opening, Room, Scene, Vec2, Wall } from './schema';
@@ -121,7 +125,7 @@ function sunSpan(scene: Scene, date: string, roomId: string, context: SiteContex
 /**
  * `describe_room`: area, the wall faces that border the room (structural flag, effective finish and
  * where it comes from, `wallOn` = the side of the room the wall is on, shared faces), openings with compass direction, lights,
- * daylight factor and sunlight hours for `lighting.date`, items (always `[]` until M5).
+ * daylight factor and sunlight hours for `lighting.date`, and the placed items (id, name, product, price, dims, mount, locked, mesh source, pose and the position in room terms).
  * Returns `undefined` for an unknown room (the tool maps that to `unknown_room` with
  * `nearestIds` in the hint). `opts.context` makes neighbouring buildings obstruct the sun.
  */
@@ -209,6 +213,88 @@ export function describeRoom(
       firstSun: span?.first ?? null,
       lastSun: span?.last ?? null,
     },
-    items: [],
+    items: roomItems(scene, room),
   };
+}
+
+// ---- items ------------------------------------------------------------------------------------------
+
+const r3 = (n: number) => Math.round(n * 1000) / 1000;
+const NAME_CLIP = 60;
+/** An item counts as standing against a wall when its side is within this many metres of it. */
+const AGAINST_M = 0.08;
+
+/** The items of a room (their `roomId`, else the room containing their position), in scene order. */
+function roomItems(scene: Scene, room: Room): RoomItemDescription[] {
+  const ctx = layoutContext(scene);
+  const edges = roomWallEdges(scene, room);
+  const out: RoomItemDescription[] = [];
+  for (const box of ctx.boxes) {
+    if (roomOfBox(ctx, box)?.room.id !== room.id) continue;
+    const item = scene.items[box.index]!;
+    const builtin = isBuiltinAsset(item.assetId) ? BUILTIN_ASSETS[item.assetId] : undefined;
+    const name = item.product?.name ?? builtin?.name ?? item.id;
+    const ref = item.productRef ?? (item.product ? { provider: item.product.provider, sku: item.product.sku } : undefined);
+    out.push({
+      id: item.id,
+      name: name.length > NAME_CLIP ? `${name.slice(0, NAME_CLIP - 1)}…` : name,
+      assetId: item.assetId,
+      productId: ref ? `${ref.provider}:${ref.sku}` : null,
+      price: item.product ? { amount: item.product.price, currency: item.product.currency } : null,
+      dims: { w: r3(box.dims.w), d: r3(box.dims.d), h: r3(box.dims.h) },
+      mount: box.mount,
+      locked: box.locked,
+      mesh: item.mesh?.kind ?? (builtin ? 'builtin' : 'placeholder'),
+      position: [r2(item.position[0]), r2(item.position[1])],
+      rotationDeg: r2(item.rotation),
+      elevationM: r2(item.elevation),
+      where: describeWhere(scene, room, edges, box),
+    });
+  }
+  return out;
+}
+
+/** "against the north wall, 0.4 m from the east corner", "in the north-east corner", "1.2 m from the north wall". */
+function describeWhere(scene: Scene, room: Room, edges: readonly WallEdge[], box: ItemBox): string {
+  const north = scene.site.northAngle;
+  const fmt = (n: number) => `${r2(n)} m`;
+  const lift = box.mount !== 'floor' && box.elevation > 0.05 ? `, ${fmt(box.elevation)} above the floor` : '';
+  // for each wall stretch: gap between the footprint and the wall, and the footprint's extent along it
+  const measured = edges
+    .map((e) => {
+      let gap = Infinity;
+      let lo = Infinity;
+      let hi = -Infinity;
+      for (const c of box.footprint) {
+        const dx = c[0] - e.origin[0];
+        const dy = c[1] - e.origin[1];
+        gap = Math.min(gap, dx * e.inward[0] + dy * e.inward[1]);
+        const s = dx * e.dir[0] + dy * e.dir[1];
+        lo = Math.min(lo, s);
+        hi = Math.max(hi, s);
+      }
+      const overlaps = hi > e.lo - AGAINST_M && lo < e.hi + AGAINST_M;
+      return { e, gap: Math.max(0, gap), lo, hi, overlaps };
+    })
+    .filter((m) => m.overlaps)
+    .sort((a, b) => a.gap - b.gap || (a.e.wall.id < b.e.wall.id ? -1 : 1));
+  const touching = measured.filter((m) => m.gap <= AGAINST_M);
+  const word = (e: WallEdge) => compassWord([-e.inward[0], -e.inward[1]], north);
+  if (touching.length >= 2) {
+    const [a, b] = touching as [(typeof touching)[number], (typeof touching)[number]];
+    const dir: Vec2 = [-(a.e.inward[0] + b.e.inward[0]), -(a.e.inward[1] + b.e.inward[1])];
+    return `in the ${compassWord(dir, north)} corner (${word(a.e)} and ${word(b.e)} walls)${lift}`;
+  }
+  const near = touching[0];
+  if (near) {
+    const fromStart = near.lo - near.e.lo;
+    const fromEnd = near.e.hi - near.hi;
+    const endDir: Vec2 = fromStart <= fromEnd ? [-near.e.dir[0], -near.e.dir[1]] : near.e.dir;
+    const gapAlong = Math.max(0, Math.min(fromStart, fromEnd));
+    const corner = gapAlong < 0.05 ? '' : `, ${fmt(gapAlong)} from the ${compassWord(endDir, north)} corner`;
+    return `against the ${word(near.e)} wall${corner}${lift}`;
+  }
+  const first = measured[0];
+  if (first) return `${fmt(first.gap)} from the ${word(first.e)} wall${lift}`;
+  return `at (${r2(box.position[0])}, ${r2(box.position[1])})${lift}`;
 }

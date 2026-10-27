@@ -41,7 +41,7 @@ const full = {
   mount: 'floor',
   dims: bed.dims,
   variant: 'MOCK-BED-160-WHT',
-  mesh: { kind: 'parametric', generator: 'bed', params: { w: 1.6, d: 2.0, h: 0.9, headboard: true } },
+  mesh: { kind: 'parametric', generator: 'bed', params: { w: 1.6, l: 2.0, h: 0.9, headboard: true } },
   clearance: { front: 0.6, left: 0.5, right: 0.5 },
   locked: false,
   relation: { kind: 'against_wall', wallId: 'n', align: 'center', offset: 0, gap: 0 },
@@ -70,7 +70,7 @@ describe('Item schema evolution (additive, still version 1)', () => {
   it('accepts a fully product-grounded item', () => {
     const s = load([full]);
     expect(s.items[0]).toMatchObject({ productRef: { provider: 'mock' }, mesh: { kind: 'parametric' }, relation: { kind: 'against_wall' } });
-    expect(codes(s)).toEqual(['unknown_generator']); // no generator registered yet
+    expect(codes(s)).toEqual([]); // the real `bed` generator (M5.3) is registered and agrees with the dims
   });
 
   it.each([

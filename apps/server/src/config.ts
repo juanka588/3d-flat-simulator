@@ -20,6 +20,10 @@ export interface ServerConfig {
   rateLimitPerSec: number;
   /** `POST /api/view` requests allowed per client per second. */
   viewRatePerSec: number;
+  /** Product provider ids to enable (`FLAT_PROVIDERS`, comma list: `mock`, `ikea-fr`, `pasted-url`). Default none: no provider code is loaded. */
+  providers: string[];
+  /** Gitignored dotenv file with provider credentials (`apps/server/.env.local`); the process environment wins. */
+  envLocalFile: string;
   maxWsClients: number;
   /** WebSocket ping interval; a client that misses a pong is terminated. */
   wsHeartbeatMs: number;
@@ -50,6 +54,11 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     bodyLimit: 2 * 1024 * 1024,
     rateLimitPerSec: env.RATE_LIMIT ? Number(env.RATE_LIMIT) : 200,
     viewRatePerSec: 10,
+    providers: (env.FLAT_PROVIDERS ?? '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean),
+    envLocalFile: env.FLAT_ENV_FILE || here('../.env.local'),
     maxWsClients: 50,
     wsHeartbeatMs: 30_000,
     snapshotDebounceMs: 500,

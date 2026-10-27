@@ -1,0 +1,248 @@
+{
+ "searchResultPage": {
+  "searchPhrase": "kallax",
+  "products": {
+   "main": {
+    "items": [
+     {
+      "type": "PRODUCT",
+      "product": {
+       "id": "80275887",
+       "itemNo": "80275887",
+       "name": "KALLAX",
+       "typeName": "Étagère",
+       "itemMeasureReferenceText": "77x147 cm",
+       "mainImageUrl": "https://www.ikea.com/fr/fr/images/products/kallax-etagere-blanc__0644757_pe702939_s5.jpg",
+       "pipUrl": "https://www.ikea.com/fr/fr/p/kallax-etagere-blanc-80275887/",
+       "onlineSellable": true,
+       "categoryPath": [
+        {
+         "name": "Rangements",
+         "key": "st001"
+        },
+        {
+         "name": "Bibliothèques et étagères",
+         "key": "st002"
+        },
+        {
+         "name": "Meubles étagères",
+         "key": "11465"
+        }
+       ],
+       "colors": [
+        {
+         "name": "blanc",
+         "id": "10156",
+         "hex": "ffffff"
+        }
+       ],
+       "salesPrice": {
+        "currencyCode": "EUR",
+        "numeral": 59.99
+       },
+       "gprDescription": {
+        "numberOfVariants": 5,
+        "variants": [
+         {
+          "id": "00324518",
+          "pipUrl": "https://www.ikea.com/fr/fr/p/kallax-etagere-effet-chene-blanchi-00324518/",
+          "imageAlt": "KALLAX Étagère, effet chêne blanchi, 77x147 cm",
+          "itemMeasureReferenceText": "77x147 cm",
+          "typeName": "Étagère",
+          "name": "KALLAX",
+          "salesPrice": {
+           "currencyCode": "EUR",
+           "numeral": 69.99
+          }
+         },
+         {
+          "id": "20275885",
+          "pipUrl": "https://www.ikea.com/fr/fr/p/kallax-etagere-brun-noir-20275885/",
+          "imageAlt": "KALLAX Étagère, brun noir, 77x147 cm",
+          "itemMeasureReferenceText": "77x147 cm",
+          "typeName": "Étagère",
+          "name": "KALLAX",
+          "salesPrice": {
+           "currencyCode": "EUR",
+           "numeral": 69.99
+          }
+         },
+         {
+          "id": "40346924",
+          "pipUrl": "https://www.ikea.com/fr/fr/p/kallax-etagere-gris-effet-bois-40346924/",
+          "imageAlt": "KALLAX Étagère, gris/effet bois, 77x147 cm",
+          "itemMeasureReferenceText": "77x147 cm",
+          "typeName": "Étagère",
+          "name": "KALLAX",
+          "salesPrice": {
+           "currencyCode": "EUR",
+           "numeral": 69.99
+          }
+         }
+        ]
+       }
+      }
+     },
+     {
+      "type": "PRODUCT",
+      "product": {
+       "id": "20275814",
+       "itemNo": "20275814",
+       "name": "KALLAX",
+       "typeName": "Étagère",
+       "itemMeasureReferenceText": "77x77 cm",
+       "mainImageUrl": "https://www.ikea.com/fr/fr/images/products/kallax-etagere-blanc__0644753_pe702937_s5.jpg",
+       "pipUrl": "https://www.ikea.com/fr/fr/p/kallax-etagere-blanc-20275814/",
+       "onlineSellable": true,
+       "categoryPath": [
+        {
+         "name": "Rangements",
+         "key": "st001"
+        },
+        {
+         "name": "Bibliothèques et étagères",
+         "key": "st002"
+        },
+        {
+         "name": "Meubles étagères",
+         "key": "11465"
+        }
+       ],
+       "colors": [
+        {
+         "name": "blanc",
+         "id": "10156",
+         "hex": "ffffff"
+        }
+       ],
+       "salesPrice": {
+        "currencyCode": "EUR",
+        "numeral": 34.99
+       },
+       "gprDescription": {
+        "numberOfVariants": 4,
+        "variants": [
+         {
+          "id": "60324520",
+          "pipUrl": "https://www.ikea.com/fr/fr/p/kallax-etagere-effet-chene-blanchi-60324520/",
+          "imageAlt": "KALLAX Étagère, effet chêne blanchi, 77x77 cm",
+          "itemMeasureReferenceText": "77x77 cm",
+          "typeName": "Étagère",
+          "name": "KALLAX",
+          "salesPrice": {
+           "currencyCode": "EUR",
+           "numeral": 39.99
+          }
+         },
+         {
+          "id": "60275812",
+          "pipUrl": "https://www.ikea.com/fr/fr/p/kallax-etagere-brun-noir-60275812/",
+          "imageAlt": "KALLAX Étagère, brun noir, 77x77 cm",
+          "itemMeasureReferenceText": "77x77 cm",
+          "typeName": "Étagère",
+          "name": "KALLAX",
+          "salesPrice": {
+           "currencyCode": "EUR",
+           "numeral": 39.99
+          }
+         },
+         {
+          "id": "50305739",
+          "pipUrl": "https://www.ikea.com/fr/fr/p/kallax-etagere-brillant-blanc-50305739/",
+          "imageAlt": "KALLAX Étagère, brillant blanc, 77x77 cm",
+          "itemMeasureReferenceText": "77x77 cm",
+          "typeName": "Étagère",
+          "name": "KALLAX",
+          "salesPrice": {
+           "currencyCode": "EUR",
+           "numeral": 49.99
+          }
+         }
+        ]
+       }
+      }
+     },
+     {
+      "type": "PRODUCT",
+      "product": {
+       "id": "00275848",
+       "itemNo": "00275848",
+       "name": "KALLAX",
+       "typeName": "Étagère",
+       "itemMeasureReferenceText": "42x147 cm",
+       "mainImageUrl": "https://www.ikea.com/fr/fr/images/products/kallax-etagere-blanc__0627095_pe693171_s5.jpg",
+       "pipUrl": "https://www.ikea.com/fr/fr/p/kallax-etagere-blanc-00275848/",
+       "onlineSellable": true,
+       "categoryPath": [
+        {
+         "name": "Rangements",
+         "key": "st001"
+        },
+        {
+         "name": "Bibliothèques et étagères",
+         "key": "st002"
+        },
+        {
+         "name": "Meubles étagères",
+         "key": "11465"
+        }
+       ],
+       "colors": [
+        {
+         "name": "blanc",
+         "id": "10156",
+         "hex": "ffffff"
+        }
+       ],
+       "salesPrice": {
+        "currencyCode": "EUR",
+        "numeral": 54.99
+       },
+       "gprDescription": {
+        "numberOfVariants": 3,
+        "variants": [
+         {
+          "id": "40324516",
+          "pipUrl": "https://www.ikea.com/fr/fr/p/kallax-etagere-effet-chene-blanchi-40324516/",
+          "imageAlt": "KALLAX Étagère, effet chêne blanchi, 42x147 cm",
+          "itemMeasureReferenceText": "42x147 cm",
+          "typeName": "Étagère",
+          "name": "KALLAX",
+          "salesPrice": {
+           "currencyCode": "EUR",
+           "numeral": 59.99
+          }
+         },
+         {
+          "id": "40275846",
+          "pipUrl": "https://www.ikea.com/fr/fr/p/kallax-etagere-brun-noir-40275846/",
+          "imageAlt": "KALLAX Étagère, brun noir, 42x147 cm",
+          "itemMeasureReferenceText": "42x147 cm",
+          "typeName": "Étagère",
+          "name": "KALLAX",
+          "salesPrice": {
+           "currencyCode": "EUR",
+           "numeral": 59.99
+          }
+         },
+         {
+          "id": "80653322",
+          "pipUrl": "https://www.ikea.com/fr/fr/p/kallax-etagere-brun-motif-noyer-80653322/",
+          "imageAlt": "KALLAX Étagère, brun motif noyer, 42x147 cm",
+          "itemMeasureReferenceText": "42x147 cm",
+          "typeName": "Étagère",
+          "name": "KALLAX",
+          "salesPrice": {
+           "currencyCode": "EUR",
+           "numeral": 59.99
+          }
+         }
+        ]
+       }
+      }
+     }
+    ]
+   }
+  }
+ }
+}

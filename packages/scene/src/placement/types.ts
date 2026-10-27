@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import type { Scene } from '../schema';
 import { Clearance, Dims, EntityId, ItemMount, Vec2 } from '../primitives';
 
 /**
@@ -13,11 +12,12 @@ import { Clearance, Dims, EntityId, ItemMount, Vec2 } from '../primitives';
  */
 
 const Id = EntityId;
+const kind = <K extends string>(k: K) => z.literal(k).describe(`Relation discriminator, always "${k}".`);
 const Gap = z.number().min(0).max(2).describe('Free gap in metres between the item and what it touches (default 0).');
 
 /** Item flush with a wall: the back (local -z) towards the wall face, facing into the room. */
 const AgainstWall = z.strictObject({
-  kind: z.literal('against_wall'),
+  kind: kind('against_wall'),
   wallId: Id.describe('Wall to stand against (walls[].wallId from describe_room).'),
   roomId: Id.optional().describe('Room on the wall side to use when a wall borders two rooms (rooms[].id).'),
   align: z.enum(['start', 'center', 'end']).default('center').describe('Where along the wall, seen from the room: its start end, its middle, or its end.'),
@@ -27,7 +27,7 @@ const AgainstWall = z.strictObject({
 
 /** Item tucked into a room corner (two walls), back to the longer wall unless `faceWall` says otherwise. */
 const InCorner = z.strictObject({
-  kind: z.literal('in_corner'),
+  kind: kind('in_corner'),
   roomId: Id.describe('Room whose corner to use (rooms[].id).'),
   corner: z.number().int().min(0).describe('Index of the room polygon vertex (rooms[].polygon order); 0 is the first vertex.'),
   gap: Gap.default(0),
@@ -35,20 +35,20 @@ const InCorner = z.strictObject({
 
 /** Item centred in a room (or on one plan axis of it); the front faces `facing` when given. */
 const CenteredIn = z.strictObject({
-  kind: z.literal('centered_in'),
+  kind: kind('centered_in'),
   roomId: Id.describe('Room to centre in (rooms[].id).'),
   axis: z.enum(['both', 'x', 'y']).default('both').describe('Centre on both plan axes, or only on x / y (the other coordinate is then kept).'),
 });
 
 /** Item turned to face another entity (its front points at that entity's centre). Rotation only. */
 const Facing = z.strictObject({
-  kind: z.literal('facing'),
+  kind: kind('facing'),
   targetId: Id.describe('Entity to face: an item id, an opening id, a wall id or a room id.'),
 });
 
 /** Item beside another item, in the other item's frame (a bedside table left of the bed). */
 const NextTo = z.strictObject({
-  kind: z.literal('next_to'),
+  kind: kind('next_to'),
   itemId: Id.describe('The existing item to stand next to (items[].id).'),
   side: z.enum(['left', 'right', 'front', 'back']).describe('Side of that item, as seen from its front.'),
   gap: Gap.default(0.02),
@@ -57,14 +57,14 @@ const NextTo = z.strictObject({
 
 /** Item under a window, against the same wall; only items lower than the sill are allowed. */
 const UnderWindow = z.strictObject({
-  kind: z.literal('under_window'),
+  kind: kind('under_window'),
   openingId: Id.describe('Window (openings[].id) to stand under.'),
   gap: Gap.default(0),
 });
 
 /** Explicit position (the user's drag, or a solver result being stored). */
 const AtPosition = z.strictObject({
-  kind: z.literal('at'),
+  kind: kind('at'),
   position: Vec2.describe('Plan position [x, y] of the item origin (footprint centre).'),
   rotation: z.number().default(0).describe('Degrees counter-clockwise seen from above.'),
   elevation: z.number().min(0).default(0).describe('Height of the item bottom above the floor, in metres.'),
@@ -185,23 +185,3 @@ export interface LayoutReport {
 export const WALKWAY_MIN_M = 0.8;
 /** Minimum free width at the flat entry, in metres (D7). */
 export const WALKWAY_MIN_ENTRY_M = 0.9;
-
-const NOT_IMPLEMENTED = 'not implemented: M5 lane B (story M5.9)';
-
-/**
- * Resolves a placement request against the scene: hard constraints from D7 (inside the room, no
- * overlap, door swings, window clearance, glazing, heavy mounts, walkways, locked items). Pure and
- * deterministic. STUB until lane B: throws.
- */
-export function solvePlacement(scene: Scene, request: PlacementRequestInput): PlacementResult {
-  void scene;
-  void request;
-  throw new Error(NOT_IMPLEMENTED);
-}
-
-/** Checks every placed item of `roomId` (or of all rooms) against the same rules. STUB until lane B: throws. */
-export function validateLayout(scene: Scene, options: { roomId?: string } = {}): LayoutReport {
-  void scene;
-  void options;
-  throw new Error(NOT_IMPLEMENTED);
-}

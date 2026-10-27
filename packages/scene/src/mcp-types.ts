@@ -163,6 +163,34 @@ export const RoomLightDescription = z.strictObject({
   kelvin: z.number(),
 });
 
+/** One placed item as `describe_room` lists it (M5.16). Compact: the LLM reads a dozen of these per room. */
+export const RoomItemDescription = z.strictObject({
+  id: z.string(),
+  /** Product name, else the builtin asset's name, else the id. */
+  name: z.string(),
+  assetId: z.string(),
+  /** `"<provider>:<sku>"` when the item is backed by a product, else null. */
+  productId: z.string().nullable(),
+  /** Snapshot price (TTC) when the item has a product, else null. */
+  price: z.strictObject({ amount: z.number(), currency: z.string() }).nullable(),
+  /** Exact outer dimensions in metres. */
+  dims: z.strictObject({ w: z.number(), d: z.number(), h: z.number() }),
+  mount: z.enum(['floor', 'wall', 'ceiling']),
+  /** Existing furniture the designer plans around. */
+  locked: z.boolean(),
+  /** Where the shape comes from: the provider's model, a library lookalike, a parametric generator, a builtin asset or a placeholder box. */
+  mesh: z.enum(['provider', 'lookalike', 'parametric', 'builtin', 'placeholder']),
+  /** Plan position [x, y] of the item origin (footprint centre). */
+  position: Plan2,
+  /** Degrees counter-clockwise seen from above; the front faces plan +y at 0. */
+  rotationDeg: z.number(),
+  /** Height of the item bottom above the floor in metres. */
+  elevationM: z.number(),
+  /** Position in room terms, e.g. "against the north wall, 0.4 m from the east corner". */
+  where: z.string(),
+});
+export type RoomItemDescription = z.infer<typeof RoomItemDescription>;
+
 /** Full answer of `describe_room`. Budget: JSON <= ~1.5k tokens for the Charme fixture rooms. */
 export const RoomDescription = z.strictObject({
   id: z.string(),
@@ -193,8 +221,8 @@ export const RoomDescription = z.strictObject({
     firstSun: z.string().nullable(),
     lastSun: z.string().nullable(),
   }),
-  /** Placed items; always empty until M5. */
-  items: z.array(z.strictObject({ id: z.string(), assetId: z.string(), position: Plan2 })),
+  /** Placed items of the room, in scene order. */
+  items: z.array(RoomItemDescription),
 });
 export type RoomDescription = z.infer<typeof RoomDescription>;
 
@@ -255,6 +283,8 @@ export const REDUCER_ERROR_CODES = [
   'not_supported',
   'scene_invalid',
   'no_wall_sides',
+  // Added by M5.10: item commands refused by a placement rule (`violation` + `hint` explain which).
+  'placement_invalid',
 ] as const;
 
 /** Codes added by the MCP layer / the scene server. */
@@ -291,6 +321,7 @@ export const MCP_ERROR_HINTS: Readonly<Record<McpErrorCode, string>> = {
   not_supported: 'This command is not available yet; use a supported tool.',
   scene_invalid: 'The change would break the scene; adjust the values.',
   no_wall_sides: 'The room has no wall faces to paint; paint its floor or ceiling instead.',
+  placement_invalid: 'The item cannot stand there (outside the room, over a wall or another item, or in a door swing); follow the hint or call get_placement_options for valid spots.',
   server_unreachable: 'Start the scene server (pnpm server, or pnpm dev:all) and retry; check FLAT_SERVER_URL.',
   stale_scene: 'The scene changed since you read it; call get_scene_summary and retry.',
   rate_limited: 'Too many calls; wait retryAfterMs and retry.',

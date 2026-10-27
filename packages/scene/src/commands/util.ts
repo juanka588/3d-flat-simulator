@@ -1,3 +1,5 @@
+import type { Violation } from '../placement/types';
+
 /**
  * - `invalid_command`: the envelope or command is malformed (unknown type, bad field, too long).
  * - `unknown_entity` / `unknown_material`: an id does not exist; the hint lists the nearest ids.
@@ -6,6 +8,8 @@
  *   `ifRev`, material still in use, room does not border the wall side, structural wall rules).
  * - `not_supported`: a command reserved for a later milestone.
  * - `scene_invalid`: the result would not be a valid scene.
+ * - `placement_invalid`: an item command would put the item outside its room, over a wall or another item, or in
+ *   a door swing; `violation` says which rule and `hint` what to try.
  * - `no_wall_sides`: `room.setWallFinish` on a room none of whose edges run along a wall face
  *   (an unwalled room); there is nothing to paint. Paint the floor/ceiling instead, or fix the room
  *   polygon so its edges follow wall faces.
@@ -18,7 +22,8 @@ export type ErrorCode =
   | 'precondition_failed'
   | 'not_supported'
   | 'scene_invalid'
-  | 'no_wall_sides';
+  | 'no_wall_sides'
+  | 'placement_invalid';
 
 export interface CommandError {
   code: ErrorCode;
@@ -26,6 +31,8 @@ export interface CommandError {
   path: string;
   message: string;
   hint?: string;
+  /** `placement_invalid`: the broken placement rule. */
+  violation?: Violation;
 }
 
 export function err(code: ErrorCode, path: string, message: string, hint?: string): CommandError {

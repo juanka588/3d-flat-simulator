@@ -160,6 +160,7 @@ export class SyncClient {
   start(): void {
     useSyncStore.setState({
       mode: 'server',
+      serverUrl: this.target.url,
       status: 'connecting',
       resolve: { useServer: () => this.core.useServerScene(), keepMine: () => void this.keepMine() },
     });
@@ -192,7 +193,7 @@ export class SyncClient {
     ws?.close();
     this.store.getState().setTransport(null);
     this.store.getState().setRemoteHistory(null);
-    useSyncStore.setState({ mode: 'local', resolve: null, conflict: null, pending: 0 });
+    useSyncStore.setState({ mode: 'local', serverUrl: null, resolve: null, conflict: null, pending: 0 });
   }
 
   // ---- socket ------------------------------------------------------------------------------

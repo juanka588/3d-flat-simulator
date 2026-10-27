@@ -90,7 +90,7 @@ describe('builtin:tv-55', () => {
   });
 
   it('builds screen, body and bracket meshes owned by the item, with outward normals', () => {
-    const mesh = buildShell(flat).items;
+    const mesh = buildItems({ items: flat.items.filter((i) => i.id === 'tv-sejour') }); // the TV alone (the flat also has locked placards)
     expect(mesh.groups.map((g) => g.materialId).sort()).toEqual([ITEM_MATERIALS.tvBody, ITEM_MATERIALS.tvScreen]);
     expect(mesh.owners.every((o) => o.kind === 'item' && o.entityId === 'tv-sejour')).toBe(true);
     const owned = mesh.owners.reduce((n, o) => n + o.count, 0);
@@ -171,5 +171,134 @@ describe('unknown assets', () => {
     const warnings = validateScene(scene).warnings.filter((w) => w.code === 'unknown_asset');
     expect(warnings).toHaveLength(1);
     expect(warnings[0]!.entityIds).toEqual(['mystery']);
+  });
+});
+
+describe('buildItems with M5 mesh sources', () => {
+  const wall = [{ id: 'w', start: [0, 0] as Vec2, end: [8, 0] as Vec2 }];
+  const dims = { w: 1.8, d: 0.6, h: 2.4 };
+  const base = { id: 'it', assetId: 'x', position: [3, 2] as Vec2 };
+  const build = (patch: Record<string, unknown>) => buildItems(makeScene(wall, [], { items: [{ ...base, ...patch }] as never }));
+  const box = (m: MeshData) => {
+    const { min, max } = bounds(m);
+    return { size: max.map((v, i) => v - min[i]!), min, max };
+  };
+
+  it('parametric items are generated at their exact dims, floor-aligned, centred on the position, owned by the item', () => {
+    const mesh = build({ assetId: 'param:wardrobe', dims, locked: true, mesh: { kind: 'parametric', generator: 'wardrobe', params: { w: 1.8, d: 0.6, h: 2.4 } } });
+    const b = box(mesh);
+    expect(b.size[0]).toBeCloseTo(1.8, 3);
+    expect(b.size[1]).toBeCloseTo(2.4, 3);
+    expect(b.size[2]).toBeCloseTo(0.6, 3);
+    expect(b.min[1]).toBeCloseTo(0, 5);
+    expect((b.min[0]! + b.max[0]!) / 2).toBeCloseTo(3, 4);
+    expect((b.min[2]! + b.max[2]!) / 2).toBeCloseTo(2, 4);
+    expect(mesh.owners.every((o) => o.kind === 'item' && o.entityId === 'it')).toBe(true);
+    expect(mesh.groups.length).toBeGreaterThan(1);
+  });
+
+  it('rotation 180 turns the front to plan -y (the doors face the room when the back is on the south wall)', () => {
+    const mesh = build({ assetId: 'param:wardrobe', dims, rotation: 180, mesh: { kind: 'parametric', generator: 'wardrobe', params: { w: 1.8, d: 0.6, h: 2.4 } } });
+    // Handles protrude furthest at the front: the front-most point (largest local z) must be at the smallest world z.
+    const { min, max } = bounds(mesh);
+    expect(min[2]).toBeCloseTo(2 - 0.3, 4);
+    expect(max[2]).toBeCloseTo(2 + 0.3, 4);
+    let handleZ = Infinity;
+    const metal = mesh.groups.find((g) => g.materialId === ITEM_MATERIALS.metal)!;
+    for (let i = metal.start; i < metal.start + metal.count; i++) handleZ = Math.min(handleZ, mesh.positions[mesh.indices[i]! * 3 + 2]!);
+    expect(handleZ).toBeCloseTo(2 - 0.3, 3);
+  });
+
+  it('item dims stretch the generated shape (the scene check allows 2% slack, the footprint stays exact)', () => {
+    const mesh = build({ assetId: 'param:wardrobe', dims: { w: 1.8, d: 0.6, h: 2.4 }, mesh: { kind: 'parametric', generator: 'wardrobe', params: { w: 1.79, d: 0.6, h: 2.4 } } });
+    expect(box(mesh).size[0]).toBeCloseTo(1.8, 3);
+  });
+
+  it('provider and lookalike meshes are exact-dims placeholder boxes (the viewer swaps in the GLB)', () => {
+    const provider = build({ assetId: 'product:mock', dims, productRef: { provider: 'mock', sku: 'A' }, mesh: { kind: 'provider' } });
+    const lookalike = build({ assetId: 'lib:wardrobe', dims, mesh: { kind: 'lookalike', assetId: 'lib:wardrobe' } });
+    for (const m of [provider, lookalike]) {
+      expect(m.groups.map((g) => g.materialId)).toEqual([ITEM_MATERIALS.placeholder]);
+      expect(m.owners).toEqual([{ start: 0, count: 12, kind: 'item', entityId: 'it' }]);
+      const b = box(m);
+      expect(b.size.map((v) => +v.toFixed(4))).toEqual([1.8, 2.4, 0.6]);
+      expect(b.min[1]).toBeCloseTo(0, 6);
+    }
+  });
+
+  it('a parametric mesh with an unknown generator is a placeholder box at its dims (bad params are rejected at parse time)', () => {
+    for (const mesh of [{ kind: 'parametric', generator: 'no-such', params: {} }]) {
+      const m = build({ assetId: 'param:x', dims, mesh });
+      expect(m.groups.map((g) => g.materialId)).toEqual([ITEM_MATERIALS.placeholder]);
+      expect(box(m).size.map((v) => +v.toFixed(4))).toEqual([1.8, 2.4, 0.6]);
+    }
+  });
+
+  it('an item with no mesh but known dims gets a placeholder box at those dims; none keeps the 0.3 m cube', () => {
+    expect(box(build({ assetId: 'custom:thing', dims })).size.map((v) => +v.toFixed(4))).toEqual([1.8, 2.4, 0.6]);
+    expect(box(build({ assetId: 'custom:thing' })).size.map((v) => +v.toFixed(4))).toEqual([0.3, 0.3, 0.3]);
+  });
+
+  it('identical items share one generation but stay independently placed', () => {
+    const mk = (id: string, x: number) => ({ id, assetId: 'param:chair', position: [x, 2] as Vec2, mesh: { kind: 'parametric' as const, generator: 'chair', params: {} } });
+    const m = buildItems(makeScene(wall, [], { items: [mk('c1', 1), mk('c2', 2)] }));
+    expect(new Set(m.owners.map((o) => o.entityId))).toEqual(new Set(['c1', 'c2']));
+    expect(bounds(m, 'c2').min[0]! - bounds(m, 'c1').min[0]!).toBeCloseTo(1, 4);
+  });
+});
+
+describe('built-in placards of Chambre 1 and Chambre 2 (M5.17, transcribed from the plan, locked)', () => {
+  const wardrobes = [
+    { id: 'placard-ch1', room: 'ch1', wall: 'w-ch1-south', door: 'door-ch1' },
+    { id: 'placard-ch2', room: 'ch2', wall: 'w-ch2-south', door: 'door-ch2' },
+  ];
+
+  it.each(wardrobes)('$id is a locked sliding wardrobe flush against the inner face of $wall, opening north into the room', ({ id, room, wall }) => {
+    const item = flat.items.find((i) => i.id === id)!;
+    expect(item).toMatchObject({ assetId: 'param:wardrobe', locked: true, roomId: room, mount: 'floor', rotation: 180, mesh: { kind: 'parametric', generator: 'wardrobe', params: { doorType: 'sliding', h: 2.4 } } });
+    expect(item.product).toBeUndefined(); // existing furniture: no invented product, EUR 0 in the budget
+    expect(itemFrontDirection(item)).toEqual([expect.closeTo(0, 9), -1]);
+
+    const w = flat.walls.find((x) => x.id === wall)!;
+    const face = w.start[1] - w.thickness / 2; // north (room) face of a south wall
+    const { min, max } = bounds(buildShell(flat).items, id);
+    expect(max[2]!).toBeCloseTo(face, 3);
+    expect(max[1]! - min[1]!).toBeCloseTo(2.4, 3);
+    expect(max[2]! - min[2]!).toBeCloseTo(0.6, 3);
+    expect(max[1]!).toBeLessThan(w.height);
+
+    const poly = flat.rooms.find((r) => r.id === room)!.polygon;
+    for (const [x, z] of [[min[0]!, min[2]!], [max[0]!, min[2]!], [max[0]!, max[2]!], [min[0]!, max[2]!]] as Vec2[]) {
+      expect(x).toBeGreaterThanOrEqual(Math.min(...poly.map((p) => p[0])) - 1e-3);
+      expect(x).toBeLessThanOrEqual(Math.max(...poly.map((p) => p[0])) + 1e-3);
+      expect(z).toBeGreaterThanOrEqual(Math.min(...poly.map((p) => p[1])) - 1e-3);
+      expect(z).toBeLessThanOrEqual(face + 1e-3);
+    }
+    const rect: Vec2[] = [[min[0]!, min[2]!], [max[0]!, min[2]!], [max[0]!, max[2]!], [min[0]!, max[2]!]];
+    for (const other of flat.walls) expect(overlapDepth(rect, wallFootprint(other)), other.id).toBeLessThan(1e-3);
+  });
+
+  it.each(wardrobes)('$id stays clear of the swing of $door and leaves the doorway free', ({ id, wall, door }) => {
+    const w = flat.walls.find((x) => x.id === wall)!;
+    const o = flat.openings.find((x) => x.id === door)!;
+    const { min, max } = bounds(buildShell(flat).items, id);
+    const from = w.start[0] + o.offset - o.width / 2;
+    const to = w.start[0] + o.offset + o.width / 2;
+    const hinge = o.hinge === 'end' ? to : from;
+    const face = w.start[1] - w.thickness / 2;
+    // Distance from the hinge point (on the room face) to the placard rectangle must exceed the leaf width.
+    const dx = Math.max(min[0]! - hinge, 0, hinge - max[0]!);
+    const dz = Math.max(min[2]! - face, 0, face - max[2]!);
+    expect(Math.hypot(dx, dz)).toBeGreaterThan(o.width);
+    expect(min[0]! >= to || max[0]! <= from).toBe(true);
+  });
+
+  it('the Charme flat has no warnings and the placards cost nothing in the bill of materials', async () => {
+    expect(validateScene(flat).warnings).toEqual([]);
+    const { billOfMaterials } = await import('../bill-of-materials');
+    const bom = billOfMaterials(flat);
+    expect(bom.lines.filter((l) => l.locked).map((l) => [l.itemId, l.roomId, l.amount])).toEqual([['placard-ch1', 'ch1', 0], ['placard-ch2', 'ch2', 0]]);
+    expect(bom.missingPrice).toEqual(['tv-sejour']); // the legacy TV is the only unpriced, unlocked item
+    expect(bom.totalEur).toBe(0);
   });
 });

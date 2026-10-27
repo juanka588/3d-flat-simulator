@@ -1,8 +1,9 @@
 import { z } from 'zod';
 import type { MeshData } from '../geometry/types';
 import { Clearance, Dims, EntityId, NameString } from '../primitives';
-import { ProductCategory, type ProductId, type ProductRef } from '../products';
+import { ProductCategory, formatProductId, type ProductId, type ProductRef } from '../products';
 import type { Item } from '../schema';
+import { BUILTIN_ASSETS } from './builtin-assets';
 
 /**
  * Mesh catalog contracts (M5.0; implemented by M5.2 resolution, M5.3 generators, M5.4 / M5.5 libraries).
@@ -254,17 +255,6 @@ export interface MeshResolveContext {
   providerModelAvailable?: (product: ProductId) => boolean;
 }
 
-/**
- * Resolves the chain provider -> lookalike -> parametric -> placeholder for one item (D2). Pure: it
- * decides, it does not fetch. STUB (M5.2 implements it): returns a `placeholder` at the item's dims
- * (or a 0.3 m cube) so viewer code can already depend on the shape of the result.
- */
-export function resolveMesh(item: Pick<Item, 'assetId' | 'dims' | 'product' | 'productRef' | 'mesh'>, ctx: MeshResolveContext): ResolvedMesh {
-  void ctx;
-  const dims = item.dims ?? item.product?.dims ?? { w: 0.3, d: 0.3, h: 0.3 };
-  return { source: 'placeholder', dims, scale: [1, 1, 1], reason: 'stub: resolveMesh is implemented by M5.2' };
-}
-
 export interface LookalikeMatch {
   asset: MeshAsset;
   /** Per-axis scale from `asset.nativeDims` to the product's dims. */
@@ -275,16 +265,250 @@ export interface LookalikeMatch {
   score: number;
 }
 
+// ---------------------------------------------------------------------------------------------
+// Scaling and lookalike picking
+// ---------------------------------------------------------------------------------------------
+
 /**
- * Deterministically picks the library asset that best fits a product: same category, then style tags,
- * then closest proportions, rejecting any whose distortion would exceed `MAX_LOOKALIKE_DISTORTION`.
- * `undefined` when none qualifies (the chain falls through to parametric). STUB (M5.2): returns undefined.
+ * Per-axis scale from `native` to `target` and its distortion: the largest relative deviation of an axis
+ * scale from the geometric mean of the three (0 = uniform scaling).
+ */
+export function scaleToDims(native: Dims, target: Dims): { scale: Vec3; distortion: number } {
+  // Item axes (x, y, z) = (w, h, d).
+  const scale: Vec3 = [target.w / native.w, target.h / native.h, target.d / native.d];
+  const gm = Math.cbrt(scale[0] * scale[1] * scale[2]);
+  const distortion = Math.max(...scale.map((s) => Math.abs(s / gm - 1)));
+  return { scale, distortion };
+}
+
+/** Categories that may stand in for each other when no asset of the exact category exists (lower score). */
+const RELATED_CATEGORIES: Partial<Record<ProductCategory, readonly ProductCategory[]>> = {
+  armchair: ['sofa', 'chair'],
+  sofa: ['armchair'],
+  bedside: ['drawers'],
+  drawers: ['bedside', 'sideboard'],
+  sideboard: ['tv_unit', 'drawers'],
+  tv_unit: ['sideboard'],
+  shelf: ['wardrobe'],
+  desk: ['table'],
+  table: ['desk'],
+};
+
+const SCORE_CATEGORY = 1000;
+const SCORE_RELATED_CATEGORY = 500;
+const SCORE_PER_STYLE_TAG = 20;
+const SCORE_PROPORTIONS = 10;
+
+/**
+ * Deterministically picks the library asset that best fits a product: same category (a related one, e.g.
+ * armchair <-> sofa, ranks lower), then the most shared style tags, then the closest proportions. Assets whose
+ * scaling would distort the shape by more than `MAX_LOOKALIKE_DISTORTION` are rejected, and so are
+ * `parametric` assets (the chain's parametric rung covers those). Ties are broken by asset id.
  */
 export function pickLookalike(
   product: { category: ProductCategory; dims: Dims; styleTags?: readonly string[] },
   assets: readonly MeshAsset[],
 ): LookalikeMatch | undefined {
-  void product;
-  void assets;
-  return undefined;
+  const wanted = new Set((product.styleTags ?? []).map((t) => t.toLowerCase()));
+  const related = RELATED_CATEGORIES[product.category] ?? [];
+  let best: LookalikeMatch | undefined;
+  for (const asset of assets) {
+    if (asset.source === 'parametric') continue;
+    const categoryScore = asset.category === product.category ? SCORE_CATEGORY : related.includes(asset.category) ? SCORE_RELATED_CATEGORY : 0;
+    if (categoryScore === 0) continue;
+    const { scale, distortion } = scaleToDims(asset.nativeDims, product.dims);
+    if (!(distortion <= MAX_LOOKALIKE_DISTORTION)) continue;
+    const tags = asset.styleTags.filter((t) => wanted.has(t.toLowerCase())).length;
+    const score = categoryScore + SCORE_PER_STYLE_TAG * tags + SCORE_PROPORTIONS * (1 - distortion / MAX_LOOKALIKE_DISTORTION);
+    if (!best || score > best.score || (score === best.score && asset.id < best.asset.id)) best = { asset, scale, distortion, score };
+  }
+  return best;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Catalog implementation
+// ---------------------------------------------------------------------------------------------
+
+/** An in-memory `MeshCatalog` over `assets` (throws on duplicate ids). Listing and searching are deterministic (id order, best tag matches first). */
+export function createMeshCatalog(assets: readonly MeshAsset[]): MeshCatalog {
+  const byId = new Map<string, MeshAsset>();
+  for (const a of assets) {
+    if (byId.has(a.id)) throw new Error(`duplicate mesh asset id "${a.id}"`);
+    byId.set(a.id, a);
+  }
+  const sorted = [...byId.values()].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  return {
+    list: () => sorted,
+    get: (id) => byId.get(id),
+    search({ category, styleTags, limit }) {
+      const wanted = new Set((styleTags ?? []).map((t) => t.toLowerCase()));
+      const hits = sorted
+        .filter((a) => category === undefined || a.category === category)
+        .map((a) => ({ a, tags: a.styleTags.filter((t) => wanted.has(t.toLowerCase())).length }));
+      hits.sort((x, y) => y.tags - x.tags); // stable: id order within equal tag counts
+      return hits.slice(0, limit ?? hits.length).map((h) => h.a);
+    },
+  };
+}
+
+/** One `parametric` `MeshAsset` per registered generator (`param:<id>`, native dims = the generator's defaults), for `search_assets`. */
+export function parametricMeshAssets(registry: GeneratorRegistry = GENERATORS): MeshAsset[] {
+  return registry.list().map((g) =>
+    MeshAsset.parse({
+      id: `param:${g.id}`,
+      name: g.label,
+      source: 'parametric',
+      licence: 'MIT',
+      category: g.category,
+      nativeDims: g.describeParams(g.params.parse({})).dims,
+      generator: g.id,
+    }),
+  );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Default parametric shape per product category
+// ---------------------------------------------------------------------------------------------
+
+type Params = Record<string, number | string | boolean>;
+const clampInt = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, Math.round(v)));
+
+/**
+ * The generator and params that best stand for a product of `category` at exact `dims` (D6), or `undefined`
+ * for categories without a sensible parametric shape (lamp, appliance, decor, other). The params are NOT
+ * validated here; `resolveMesh` checks them against the registry.
+ */
+export function defaultParametricFor(category: ProductCategory, dims: Dims): { generator: string; params: Params } | undefined {
+  const { w, d, h } = dims;
+  switch (category) {
+    case 'bed':
+      return { generator: 'bed', params: { w, l: d, h, headboard: true } };
+    case 'wardrobe':
+      return { generator: 'wardrobe', params: { w, d, h, doors: clampInt(w / 0.5, 1, 8), doorType: w < 1 ? 'hinged' : 'sliding' } };
+    case 'bedside':
+      return { generator: 'nightstand', params: { w, d, h, drawers: h >= 0.45 ? 2 : 1 } };
+    case 'drawers':
+      return { generator: 'sideboard', params: { w, d, h, doors: 0, drawers: clampInt(h / 0.25, 1, 4) } };
+    case 'shelf':
+      return { generator: 'bookshelf', params: { w, d, h, shelves: clampInt(h / 0.38 - 1, 0, 12) } };
+    case 'sideboard':
+      return { generator: 'sideboard', params: { w, d, h, doors: clampInt(w / 0.6, 0, 6), drawers: 0 } };
+    case 'tv_unit':
+      return { generator: 'tvUnit', params: { w, d, h, doors: clampInt(w / 0.6, 0, 6), drawers: 0 } };
+    case 'table':
+      return { generator: 'table', params: { w, d, h, legs: 4 } };
+    case 'desk':
+      return { generator: 'desk', params: { w, d, h, drawers: w >= 1.2 ? 2 : 0 } };
+    case 'chair':
+      return { generator: 'chair', params: { w, d, h, seat: Math.max(0.3, Math.min(0.55, h * 0.53)) } };
+    case 'armchair':
+      return { generator: 'sofa', params: { w, d, h, seats: 1 } };
+    case 'sofa':
+      return { generator: 'sofa', params: { w, d, h, seats: clampInt((w - 0.3) / 0.65, 1, 6) } };
+    case 'rug':
+      return { generator: 'rug', params: { w, d } };
+    case 'mirror':
+      return { generator: 'mirror', params: { w, h } };
+    case 'wall_cabinet':
+      return { generator: 'kitchenWall', params: { w, d, h, doors: clampInt(w / 0.45, 1, 4) } };
+    case 'kitchen':
+      return { generator: 'kitchenBase', params: { w, d, h, doors: clampInt(w / 0.45, 0, 4), drawers: 0, worktop: true } };
+    case 'lamp':
+    case 'appliance':
+    case 'decor':
+    case 'other':
+      return undefined;
+  }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Resolution (M5.2)
+// ---------------------------------------------------------------------------------------------
+
+const FALLBACK_DIMS: Dims = { w: 0.3, d: 0.3, h: 0.3 };
+
+/**
+ * Resolves the chain provider -> lookalike -> parametric -> placeholder for one item (D2). Pure and
+ * deterministic: it decides, it does not fetch.
+ *
+ * The item's stored `mesh` is the rung to START at (a saved flat re-resolves the same way); when that rung
+ * is unavailable the chain degrades downwards. Without a `mesh` the chain starts at `provider` for items
+ * with a product reference, else at `lookalike`. Per rung:
+ *  - provider:   `ctx.providerModelAvailable(productId)` says the local server has a real model; needs dims;
+ *  - lookalike:  the stored asset (or `pickLookalike` over the catalog by the product's category), only if
+ *                scaling to the dims distorts by at most `MAX_LOOKALIKE_DISTORTION`;
+ *  - parametric: the stored generator, else `defaultParametricFor(product.category)`; both must pass the
+ *                generator's params schema;
+ *  - placeholder: a labelled box at the dims (0.3 m cube when nothing says better).
+ * Legacy `builtin:*` items without a `mesh` resolve to `builtin`.
+ */
+export function resolveMesh(item: Pick<Item, 'assetId' | 'dims' | 'product' | 'productRef' | 'mesh'>, ctx: MeshResolveContext): ResolvedMesh {
+  const unit: Vec3 = [1, 1, 1];
+  const builtin = Object.hasOwn(BUILTIN_ASSETS, item.assetId) ? BUILTIN_ASSETS[item.assetId] : undefined;
+  if (builtin && !item.mesh) {
+    return { source: 'builtin', dims: item.dims ?? builtin.dims, scale: unit, reason: `legacy built-in asset "${item.assetId}"` };
+  }
+  const claimed = item.dims ?? item.product?.dims;
+  const ref = item.productRef ?? (item.product ? { provider: item.product.provider, sku: item.product.sku } : undefined);
+  const productId = ref ? safeProductId(ref) : undefined;
+  const category = item.product?.category;
+  const notes: string[] = [];
+  const mesh = item.mesh;
+
+  const rungs = ['provider', 'lookalike', 'parametric'] as const;
+  const start = mesh ? rungs.indexOf(mesh.kind) : productId ? 0 : 1;
+
+  for (const rung of rungs.slice(start)) {
+    if (rung === 'provider') {
+      if (!productId) notes.push('no product reference for a provider model');
+      else if (!claimed) notes.push('no dims to fit a provider model to');
+      else if (!ctx.providerModelAvailable?.(productId)) notes.push(`no provider model available for ${productId}`);
+      else return { source: 'provider', dims: claimed, scale: unit, product: productId, reason: `real model of ${productId} from the local server` };
+    } else if (rung === 'lookalike') {
+      const stored = mesh?.kind === 'lookalike' ? ctx.catalog.get(mesh.assetId) : undefined;
+      if (mesh?.kind === 'lookalike' && !stored) notes.push(`lookalike asset "${mesh.assetId}" is not in the catalog`);
+      if (stored) {
+        const fit = claimed ? scaleToDims(stored.nativeDims, claimed) : { scale: unit, distortion: 0 };
+        if (fit.distortion <= MAX_LOOKALIKE_DISTORTION) {
+          return { source: 'lookalike', dims: claimed ?? stored.nativeDims, scale: fit.scale, distortion: fit.distortion, asset: stored, reason: `library asset "${stored.id}" scaled to the exact dims (distortion ${(fit.distortion * 100).toFixed(0)}%)` };
+        }
+        notes.push(`lookalike "${stored.id}" would distort ${(fit.distortion * 100).toFixed(0)}% (limit ${MAX_LOOKALIKE_DISTORTION * 100}%)`);
+      } else if (category && claimed && mesh?.kind !== 'lookalike') {
+        const pick = pickLookalike({ category, dims: claimed, styleTags: [] }, ctx.catalog.list());
+        if (pick) {
+          return { source: 'lookalike', dims: claimed, scale: pick.scale, distortion: pick.distortion, asset: pick.asset, reason: `best library lookalike "${pick.asset.id}" (distortion ${(pick.distortion * 100).toFixed(0)}%)` };
+        }
+        notes.push(`no ${category} lookalike within ${MAX_LOOKALIKE_DISTORTION * 100}% distortion`);
+      }
+    } else {
+      const candidates: { generator: string; params: Record<string, unknown> }[] = [];
+      if (mesh?.kind === 'parametric') candidates.push({ generator: mesh.generator, params: mesh.params });
+      const fallback = category && claimed ? defaultParametricFor(category, claimed) : undefined;
+      if (fallback) candidates.push(fallback);
+      for (const c of candidates) {
+        const g = ctx.generators.get(c.generator);
+        if (!g) {
+          notes.push(`generator "${c.generator}" is not registered`);
+          continue;
+        }
+        const parsed = g.params.safeParse(c.params);
+        if (!parsed.success) {
+          notes.push(`generator "${c.generator}" rejects the params`);
+          continue;
+        }
+        const dims = claimed ?? g.describeParams(parsed.data).dims;
+        const stored = c === candidates[0] && mesh?.kind === 'parametric';
+        return { source: 'parametric', dims, scale: unit, generator: { id: c.generator, params: parsed.data }, reason: stored ? `generator "${c.generator}" at the exact dims` : `default ${category} generator "${c.generator}" at the exact dims` };
+      }
+    }
+  }
+  return { source: 'placeholder', dims: claimed ?? FALLBACK_DIMS, scale: unit, reason: notes.length ? `labelled box: ${notes.join('; ')}` : 'labelled box: nothing better is known for this item' };
+}
+
+function safeProductId(ref: { provider: string; sku: string }): ProductId | undefined {
+  try {
+    return formatProductId(ref);
+  } catch {
+    return undefined;
+  }
 }

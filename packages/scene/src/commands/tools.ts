@@ -79,6 +79,59 @@ const DESCRIPTIONS: Record<string, { description: string; example: Record<string
     example: { id: 'light-1', patch: { on: false, lumens: 600 } },
   },
   'light.remove': { description: 'Remove a light by id. Undo restores it at the same position in the list.', example: { id: 'light-1' } },
+  'item.place': {
+    description:
+      'Put a real, purchasable product into a room. Only products returned by search_products may be placed; an item without productRef or product is refused with precondition_failed ("search_products first"). ' +
+      'Normally use place_item, which finds a valid position and rotation and fills in the product facts (price, dims, link) from the server\'s record; never type those yourself. ' +
+      'The item is refused with placement_invalid when it would stand outside its room, overlap a wall or another item, or block a door swing (the message and hint say which and what to try). Windows, glazing, heavy wall mounts and walkways are checked by place_item and validate_layout. ' +
+      'Item frame: the front faces plan +y at rotation 0; rotation is degrees counter-clockwise seen from above; a floor item has elevation 0. The id is derived (item-N) when omitted. At most 60 items per room. Undo removes the item.',
+    example: {
+      item: {
+        assetId: 'ikea-fr:80275887',
+        position: [8.48, 1.1],
+        rotation: 0,
+        roomId: 'ch1',
+        dims: { w: 1.6, d: 2, h: 0.9 },
+        mount: 'floor',
+        productRef: { provider: 'ikea-fr', sku: '80275887' },
+        product: {
+          provider: 'ikea-fr',
+          sku: '80275887',
+          name: 'MALM bed frame 160x200',
+          url: 'https://shop.example/p/bed-frame-160x200/',
+          price: 199,
+          currency: 'EUR',
+          dims: { w: 1.6, d: 2, h: 0.9 },
+          category: 'bed',
+          snapshotAt: '2026-10-27T10:00:00.000Z',
+        },
+        mesh: { kind: 'lookalike', assetId: 'polyhaven:bed_01' },
+        relation: { kind: 'against_wall', wallId: 'w-north', roomId: 'ch1', align: 'start' },
+      },
+    },
+  },
+  'item.move': {
+    description:
+      'Move a placed item (items[].id from describe_room) to a new plan position, optionally with a new rotation, height, room or placement relation. Omitted fields stay as they are; roomId and relation accept null to clear. ' +
+      'Refused with placement_invalid when the new spot is outside the room, over a wall or another item, or in a door swing, and with precondition_failed for a locked item (existing furniture such as a built-in wardrobe; only the user may move it). ' +
+      'Call validate_layout afterwards to check windows and walkways. Undo moves it back.',
+    example: { id: 'item-1', position: [8.2, 1.1], rotation: 0 },
+  },
+  'item.rotate': {
+    description:
+      'Turn a placed item to an absolute rotation in degrees, counter-clockwise seen from above (the front faces plan +y at 0, +x at 90, -y at 180, -x at 270). The footprint turns about the item origin and is checked like item_move (placement_invalid when it no longer fits). Locked items cannot be rotated by an LLM. Undo restores the previous rotation.',
+    example: { id: 'item-1', rotation: 90 },
+  },
+  'item.setVariant': {
+    description:
+      'Switch a placed product to another variant (variants[].sku of the product record): a colour or size, usually another article with its own price and dimensions. Pass the variant SKU and the product snapshot and dims the server resolved for it; variant null clears the choice, dims null returns to the product dimensions. ' +
+      'The new dimensions are checked like item_move (placement_invalid when the item no longer fits). Undo restores the previous variant, price and dimensions.',
+    example: { id: 'item-1', variant: 'white' },
+  },
+  'item.remove': {
+    description: 'Remove a placed item by id (items[].id from describe_room). A locked item (existing furniture) can only be removed by the user. Undo puts it back at the same position in the list.',
+    example: { id: 'item-1' },
+  },
   batch: {
     description:
       'Apply several commands atomically as one undo step: if any fails nothing is applied and the error path says which (commands/N/...). Prefer it for multi-step edits. Batches cannot nest. Each item is a tool\'s arguments plus its "type" (the command type of that tool, e.g. "room.setFloor" for room_set_floor). The server limits the number of commands per batch.',
