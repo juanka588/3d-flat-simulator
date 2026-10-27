@@ -13,12 +13,12 @@ import { toolError } from '../errors';
  * before the arguments become a command.
  */
 
-const PREVIEW = { type: 'boolean', description: 'true: change nothing, return the diff and warnings.' };
+const PREVIEW = { type: 'boolean', description: 'true: change nothing, return diff and warnings.' };
 const RENDER = {
   anyOf: [{ type: 'boolean' }, { type: 'object', additionalProperties: true }],
-  description: 'true, or render_view arguments: also return an image of the result (true = the first changed room, else the flat from above).',
+  description: 'true or render_view arguments: also return an image (true: first changed room, else the whole flat).',
 };
-const IFREV = { type: 'integer', minimum: 0, description: 'Apply only if the flat is still at this revision (rev, or baseRev of a preview), else stale_scene.' };
+const IFREV = { type: 'integer', minimum: 0, description: 'Apply only if the flat is at this rev (or preview baseRev), else stale_scene.' };
 const LABEL = { type: 'string', minLength: 1, maxLength: 200, description: 'Undo-history label.' };
 
 type Json = Record<string, unknown>;

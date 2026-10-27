@@ -111,7 +111,7 @@ test('Pages mode (no ?server): the hint, and no provider or retailer request', a
   const seen: string[] = [];
   page.on('request', (r) => seen.push(r.url()));
   await openApp(page);
-  await expect(page.getByTestId('catalog-server-hint')).toContainText('pnpm dev:all');
+  await expect(page.getByTestId('catalog-server-hint')).toContainText('pnpm@10 dev:all');
   await expect(page.getByTestId('catalog-search')).toHaveCount(0);
   await page.getByRole('tab', { name: 'Library' }).click();
   await expect(page.getByTestId('generator-card').first()).toBeVisible();

@@ -83,7 +83,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "additionalProperties": false,
       "properties": {
         "ifRev": {
-          "description": "Apply only if the flat is still at this revision (rev, or baseRev of a preview), else stale_scene.",
+          "description": "Apply only if the flat is at this rev (or preview baseRev), else stale_scene.",
           "minimum": 0,
           "type": "integer",
         },
@@ -147,7 +147,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "type": "object",
         },
         "preview": {
-          "description": "true: change nothing, return the diff and warnings.",
+          "description": "true: change nothing, return diff and warnings.",
           "type": "boolean",
         },
         "render": {
@@ -160,7 +160,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "type": "object",
             },
           ],
-          "description": "true, or render_view arguments: also return an image of the result (true = the first changed room, else the flat from above).",
+          "description": "true or render_view arguments: also return an image (true: first changed room, else the whole flat).",
         },
       },
       "required": [
@@ -188,7 +188,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "type": "string",
         },
         "ifRev": {
-          "description": "Apply only if the flat is still at this revision (rev, or baseRev of a preview), else stale_scene.",
+          "description": "Apply only if the flat is at this rev (or preview baseRev), else stale_scene.",
           "minimum": 0,
           "type": "integer",
         },
@@ -199,7 +199,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "type": "string",
         },
         "preview": {
-          "description": "true: change nothing, return the diff and warnings.",
+          "description": "true: change nothing, return diff and warnings.",
           "type": "boolean",
         },
         "render": {
@@ -212,7 +212,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "type": "object",
             },
           ],
-          "description": "true, or render_view arguments: also return an image of the result (true = the first changed room, else the flat from above).",
+          "description": "true or render_view arguments: also return an image (true: first changed room, else the whole flat).",
         },
       },
       "required": [
@@ -229,12 +229,12 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "openWorldHint": false,
       "readOnlyHint": false,
     },
-    "description": "Paint one or both faces of a wall (wall ids: walls[].wallId from describe_room, which also says which side faces the room). Pass roomId (strongly recommended) to paint only that room's stretch of the face: the alcove and the sejour can share a wall and get different colours. Without roomId the whole face is painted for every room on it. Precedence on a stretch of face, most specific first: the room-scoped finish (roomId), the whole-face finish, the room's paint-all-walls (room_set_wall_finish), the scene default. Left and right follow the walking direction from wall start to end on the plan (plan y grows down). materialId null clears the finish.",
+    "description": "Paint one or both faces of a wall (wall ids: walls[].wallId from describe_room, which also says which side faces the room). Pass roomId (strongly recommended) to paint only that room's stretch of the face (the alcove and the sejour can share a wall and get different colours); without it the whole face is painted for every room on it. Precedence, most specific first: roomId finish, whole-face finish, room_set_wall_finish, scene default. Left and right follow the walking direction from wall start to end (plan y grows down). materialId null clears.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
         "ifRev": {
-          "description": "Apply only if the flat is still at this revision (rev, or baseRev of a preview), else stale_scene.",
+          "description": "Apply only if the flat is at this rev (or preview baseRev), else stale_scene.",
           "minimum": 0,
           "type": "integer",
         },
@@ -245,7 +245,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "type": "string",
         },
         "materialId": {
-          "description": "Id of a defined material (sceneMaterials[].id from list_materials, or materials[].id from get_scene_summary with detail "full"), or null to clear back to the default. To use a library texture first call material_define with textureUrl "lib:<slug>" (library[].slug from list_materials).",
+          "description": "Material id (sceneMaterials[].id from list_materials, or materials[].id from get_scene_summary with detail "full"), or null to clear. Library texture: first material_define with textureUrl "lib:<slug>" (library[].slug from list_materials).",
           "maxLength": 64,
           "minLength": 1,
           "type": [
@@ -254,7 +254,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           ],
         },
         "preview": {
-          "description": "true: change nothing, return the diff and warnings.",
+          "description": "true: change nothing, return diff and warnings.",
           "type": "boolean",
         },
         "render": {
@@ -267,10 +267,10 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "type": "object",
             },
           ],
-          "description": "true, or render_view arguments: also return an image of the result (true = the first changed room, else the flat from above).",
+          "description": "true or render_view arguments: also return an image (true: first changed room, else the whole flat).",
         },
         "roomId": {
-          "description": "The room whose stretch of this wall side to paint (rooms[].id from list_rooms). Strongly recommended: a wall side can be shared by several rooms (e.g. the alcove and the sejour) and without roomId the whole side is painted for all of them. Fails with precondition_failed if the room does not border that side. A room-scoped finish beats the whole-side finish and room_set_wall_finish.",
+          "description": "Room whose stretch of this side to paint (list_rooms). Strongly recommended: a side can be shared by several rooms (alcove and sejour) and without roomId all of them are painted. precondition_failed if the room does not border that side. A room-scoped finish beats the whole-side finish and room_set_wall_finish.",
           "maxLength": 64,
           "minLength": 1,
           "type": "string",
@@ -312,7 +312,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "additionalProperties": false,
       "properties": {
         "ifRev": {
-          "description": "Apply only if the flat is still at this revision (rev, or baseRev of a preview), else stale_scene.",
+          "description": "Apply only if the flat is at this rev (or preview baseRev), else stale_scene.",
           "minimum": 0,
           "type": "integer",
         },
@@ -323,7 +323,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "type": "string",
         },
         "preview": {
-          "description": "true: change nothing, return the diff and warnings.",
+          "description": "true: change nothing, return diff and warnings.",
           "type": "boolean",
         },
         "render": {
@@ -336,7 +336,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "type": "object",
             },
           ],
-          "description": "true, or render_view arguments: also return an image of the result (true = the first changed room, else the flat from above).",
+          "description": "true or render_view arguments: also return an image (true: first changed room, else the whole flat).",
         },
         "structural": {
           "description": "true marks the wall structural (cannot be removed); false marks it removable; null clears the explicit mark so it is derived (exterior or at least 15 cm thick means structural). Only a user may set false on a wall that is structural by default.",
@@ -372,7 +372,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "additionalProperties": false,
       "properties": {
         "ifRev": {
-          "description": "Apply only if the flat is still at this revision (rev, or baseRev of a preview), else stale_scene.",
+          "description": "Apply only if the flat is at this rev (or preview baseRev), else stale_scene.",
           "minimum": 0,
           "type": "integer",
         },
@@ -383,7 +383,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "type": "string",
         },
         "materialId": {
-          "description": "Id of a defined material (sceneMaterials[].id from list_materials, or materials[].id from get_scene_summary with detail "full"), or null to clear back to the default. To use a library texture first call material_define with textureUrl "lib:<slug>" (library[].slug from list_materials).",
+          "description": "Material id (sceneMaterials[].id from list_materials, or materials[].id from get_scene_summary with detail "full"), or null to clear. Library texture: first material_define with textureUrl "lib:<slug>" (library[].slug from list_materials).",
           "maxLength": 64,
           "minLength": 1,
           "type": [
@@ -392,7 +392,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           ],
         },
         "preview": {
-          "description": "true: change nothing, return the diff and warnings.",
+          "description": "true: change nothing, return diff and warnings.",
           "type": "boolean",
         },
         "render": {
@@ -405,7 +405,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "type": "object",
             },
           ],
-          "description": "true, or render_view arguments: also return an image of the result (true = the first changed room, else the flat from above).",
+          "description": "true or render_view arguments: also return an image (true: first changed room, else the whole flat).",
         },
         "roomId": {
           "description": "Id of the room (rooms[].id from list_rooms).",
@@ -434,7 +434,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "additionalProperties": false,
       "properties": {
         "ifRev": {
-          "description": "Apply only if the flat is still at this revision (rev, or baseRev of a preview), else stale_scene.",
+          "description": "Apply only if the flat is at this rev (or preview baseRev), else stale_scene.",
           "minimum": 0,
           "type": "integer",
         },
@@ -445,7 +445,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "type": "string",
         },
         "materialId": {
-          "description": "Id of a defined material (sceneMaterials[].id from list_materials, or materials[].id from get_scene_summary with detail "full"), or null to clear back to the default. To use a library texture first call material_define with textureUrl "lib:<slug>" (library[].slug from list_materials).",
+          "description": "Material id (sceneMaterials[].id from list_materials, or materials[].id from get_scene_summary with detail "full"), or null to clear. Library texture: first material_define with textureUrl "lib:<slug>" (library[].slug from list_materials).",
           "maxLength": 64,
           "minLength": 1,
           "type": [
@@ -454,7 +454,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           ],
         },
         "preview": {
-          "description": "true: change nothing, return the diff and warnings.",
+          "description": "true: change nothing, return diff and warnings.",
           "type": "boolean",
         },
         "render": {
@@ -467,7 +467,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "type": "object",
             },
           ],
-          "description": "true, or render_view arguments: also return an image of the result (true = the first changed room, else the flat from above).",
+          "description": "true or render_view arguments: also return an image (true: first changed room, else the whole flat).",
         },
         "roomId": {
           "description": "Id of the room (rooms[].id from list_rooms).",
@@ -496,7 +496,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "additionalProperties": false,
       "properties": {
         "ifRev": {
-          "description": "Apply only if the flat is still at this revision (rev, or baseRev of a preview), else stale_scene.",
+          "description": "Apply only if the flat is at this rev (or preview baseRev), else stale_scene.",
           "minimum": 0,
           "type": "integer",
         },
@@ -507,7 +507,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "type": "string",
         },
         "materialId": {
-          "description": "Id of a defined material (sceneMaterials[].id from list_materials, or materials[].id from get_scene_summary with detail "full"), or null to clear back to the default. To use a library texture first call material_define with textureUrl "lib:<slug>" (library[].slug from list_materials).",
+          "description": "Material id (sceneMaterials[].id from list_materials, or materials[].id from get_scene_summary with detail "full"), or null to clear. Library texture: first material_define with textureUrl "lib:<slug>" (library[].slug from list_materials).",
           "maxLength": 64,
           "minLength": 1,
           "type": [
@@ -516,7 +516,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           ],
         },
         "preview": {
-          "description": "true: change nothing, return the diff and warnings.",
+          "description": "true: change nothing, return diff and warnings.",
           "type": "boolean",
         },
         "render": {
@@ -529,7 +529,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "type": "object",
             },
           ],
-          "description": "true, or render_view arguments: also return an image of the result (true = the first changed room, else the flat from above).",
+          "description": "true or render_view arguments: also return an image (true: first changed room, else the whole flat).",
         },
         "roomId": {
           "description": "Id of the room (rooms[].id from list_rooms).",
@@ -576,7 +576,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           ],
         },
         "ifRev": {
-          "description": "Apply only if the flat is still at this revision (rev, or baseRev of a preview), else stale_scene.",
+          "description": "Apply only if the flat is at this rev (or preview baseRev), else stale_scene.",
           "minimum": 0,
           "type": "integer",
         },
@@ -587,7 +587,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "type": "string",
         },
         "preview": {
-          "description": "true: change nothing, return the diff and warnings.",
+          "description": "true: change nothing, return diff and warnings.",
           "type": "boolean",
         },
         "render": {
@@ -600,7 +600,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "type": "object",
             },
           ],
-          "description": "true, or render_view arguments: also return an image of the result (true = the first changed room, else the flat from above).",
+          "description": "true or render_view arguments: also return an image (true: first changed room, else the whole flat).",
         },
         "wall": {
           "description": "Default wall material for faces without a finish. Omit to leave unchanged, null to clear.",
@@ -629,7 +629,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "additionalProperties": false,
       "properties": {
         "ifRev": {
-          "description": "Apply only if the flat is still at this revision (rev, or baseRev of a preview), else stale_scene.",
+          "description": "Apply only if the flat is at this rev (or preview baseRev), else stale_scene.",
           "minimum": 0,
           "type": "integer",
         },
@@ -640,7 +640,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "type": "string",
         },
         "preview": {
-          "description": "true: change nothing, return the diff and warnings.",
+          "description": "true: change nothing, return diff and warnings.",
           "type": "boolean",
         },
         "render": {
@@ -653,7 +653,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "type": "object",
             },
           ],
-          "description": "true, or render_view arguments: also return an image of the result (true = the first changed room, else the flat from above).",
+          "description": "true or render_view arguments: also return an image (true: first changed room, else the whole flat).",
         },
         "site": {
           "additionalProperties": false,
@@ -709,12 +709,12 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "openWorldHint": false,
       "readOnlyHint": false,
     },
-    "description": "Add a light: point (bulb), spot (downward cone), area (panel) or grid: rows x cols identical LED downlights as ONE light (rows, cols, lumensEach, kelvin, angle; fitToRoom + roomId, or position + width + depth). Size a grid by the lighting plan of describe_room. Only about 9 lights cast shadows: light_remove the ceiling light a grid replaces. The id is derived (light-N) when omitted.",
+    "description": "Add a light: point (bulb), spot (downward cone), area (panel) or grid: rows x cols identical LED downlights as ONE light (rows, cols, lumensEach, kelvin, angle; fitToRoom + roomId, or position + width + depth). Size a grid by the lighting plan of describe_room. Only about 9 lights cast shadows: light_remove the ceiling light a grid replaces.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
         "ifRev": {
-          "description": "Apply only if the flat is still at this revision (rev, or baseRev of a preview), else stale_scene.",
+          "description": "Apply only if the flat is at this rev (or preview baseRev), else stale_scene.",
           "minimum": 0,
           "type": "integer",
         },
@@ -730,40 +730,40 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "additionalProperties": false,
               "properties": {
                 "elevation": {
-                  "description": "Height above the floor, in metres.",
+                  "description": "Height above the floor (m).",
                   "minimum": 0,
                   "type": "number",
                 },
                 "id": {
-                  "description": "Optional id; derived as light-N.",
+                  "description": "Id; default light-N.",
                   "maxLength": 64,
                   "minLength": 1,
                   "type": "string",
                 },
                 "kelvin": {
                   "default": 2700,
-                  "description": "Kelvin, 1000-12000 (2700 warm, 6500 daylight). Default 2700.",
+                  "description": "2700 warm, 6500 daylight.",
                   "maximum": 12000,
                   "minimum": 1000,
                   "type": "number",
                 },
                 "lumens": {
-                  "description": "Lumens (a 60 W-equivalent bulb is about 800).",
+                  "description": "Lumens (60 W bulb about 800).",
                   "minimum": 0,
                   "type": "number",
                 },
                 "name": {
-                  "description": "Optional label.",
+                  "description": "Label.",
                   "maxLength": 120,
                   "type": "string",
                 },
                 "on": {
                   "default": true,
-                  "description": "Switched on. Default true.",
+                  "description": "Switched on.",
                   "type": "boolean",
                 },
                 "position": {
-                  "description": "Plan [x, y] in metres (y grows down); a grid: its centre.",
+                  "description": "Plan [x, y] in metres (y down); a grid: its centre.",
                   "items": {
                     "type": "number",
                   },
@@ -772,14 +772,14 @@ exports[`snapshots (the contract) > tools/list 1`] = `
                   "type": "array",
                 },
                 "roomId": {
-                  "description": "Room id (list_rooms). Optional.",
+                  "description": "Room id.",
                   "maxLength": 64,
                   "minLength": 1,
                   "type": "string",
                 },
                 "type": {
                   "const": "point",
-                  "description": "Bulb: radiates in all directions.",
+                  "description": "Bulb.",
                   "type": "string",
                 },
               },
@@ -796,46 +796,46 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "properties": {
                 "angle": {
                   "default": 60,
-                  "description": "Cone angle in degrees (1-179). Default 60.",
+                  "description": "Cone angle, degrees. Default 60.",
                   "maximum": 179,
                   "minimum": 1,
                   "type": "number",
                 },
                 "elevation": {
-                  "description": "Height above the floor, in metres.",
+                  "description": "Height above the floor (m).",
                   "minimum": 0,
                   "type": "number",
                 },
                 "id": {
-                  "description": "Optional id; derived as light-N.",
+                  "description": "Id; default light-N.",
                   "maxLength": 64,
                   "minLength": 1,
                   "type": "string",
                 },
                 "kelvin": {
                   "default": 2700,
-                  "description": "Kelvin, 1000-12000 (2700 warm, 6500 daylight). Default 2700.",
+                  "description": "2700 warm, 6500 daylight.",
                   "maximum": 12000,
                   "minimum": 1000,
                   "type": "number",
                 },
                 "lumens": {
-                  "description": "Lumens (a 60 W-equivalent bulb is about 800).",
+                  "description": "Lumens (60 W bulb about 800).",
                   "minimum": 0,
                   "type": "number",
                 },
                 "name": {
-                  "description": "Optional label.",
+                  "description": "Label.",
                   "maxLength": 120,
                   "type": "string",
                 },
                 "on": {
                   "default": true,
-                  "description": "Switched on. Default true.",
+                  "description": "Switched on.",
                   "type": "boolean",
                 },
                 "position": {
-                  "description": "Plan [x, y] in metres (y grows down); a grid: its centre.",
+                  "description": "Plan [x, y] in metres (y down); a grid: its centre.",
                   "items": {
                     "type": "number",
                   },
@@ -844,14 +844,14 @@ exports[`snapshots (the contract) > tools/list 1`] = `
                   "type": "array",
                 },
                 "roomId": {
-                  "description": "Room id (list_rooms). Optional.",
+                  "description": "Room id.",
                   "maxLength": 64,
                   "minLength": 1,
                   "type": "string",
                 },
                 "type": {
                   "const": "spot",
-                  "description": "Cone shining straight down.",
+                  "description": "Downward cone.",
                   "type": "string",
                 },
               },
@@ -867,45 +867,45 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "additionalProperties": false,
               "properties": {
                 "depth": {
-                  "description": "Depth in metres along plan y before rotation.",
+                  "description": "Depth (m, plan y).",
                   "exclusiveMinimum": 0,
                   "type": "number",
                 },
                 "elevation": {
-                  "description": "Height above the floor, in metres.",
+                  "description": "Height above the floor (m).",
                   "minimum": 0,
                   "type": "number",
                 },
                 "id": {
-                  "description": "Optional id; derived as light-N.",
+                  "description": "Id; default light-N.",
                   "maxLength": 64,
                   "minLength": 1,
                   "type": "string",
                 },
                 "kelvin": {
                   "default": 2700,
-                  "description": "Kelvin, 1000-12000 (2700 warm, 6500 daylight). Default 2700.",
+                  "description": "2700 warm, 6500 daylight.",
                   "maximum": 12000,
                   "minimum": 1000,
                   "type": "number",
                 },
                 "lumens": {
-                  "description": "Lumens (a 60 W-equivalent bulb is about 800).",
+                  "description": "Lumens (60 W bulb about 800).",
                   "minimum": 0,
                   "type": "number",
                 },
                 "name": {
-                  "description": "Optional label.",
+                  "description": "Label.",
                   "maxLength": 120,
                   "type": "string",
                 },
                 "on": {
                   "default": true,
-                  "description": "Switched on. Default true.",
+                  "description": "Switched on.",
                   "type": "boolean",
                 },
                 "position": {
-                  "description": "Plan [x, y] in metres (y grows down); a grid: its centre.",
+                  "description": "Plan [x, y] in metres (y down); a grid: its centre.",
                   "items": {
                     "type": "number",
                   },
@@ -914,23 +914,23 @@ exports[`snapshots (the contract) > tools/list 1`] = `
                   "type": "array",
                 },
                 "roomId": {
-                  "description": "Room id (list_rooms). Optional.",
+                  "description": "Room id.",
                   "maxLength": 64,
                   "minLength": 1,
                   "type": "string",
                 },
                 "rotation": {
                   "default": 0,
-                  "description": "Rotation in degrees, counter-clockwise seen from above. Default 0.",
+                  "description": "Degrees, counter-clockwise. Default 0.",
                   "type": "number",
                 },
                 "type": {
                   "const": "area",
-                  "description": "Rectangular panel facing down.",
+                  "description": "Downward panel.",
                   "type": "string",
                 },
                 "width": {
-                  "description": "Width in metres along plan x before rotation.",
+                  "description": "Width (m, plan x).",
                   "exclusiveMinimum": 0,
                   "type": "number",
                 },
@@ -950,7 +950,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "properties": {
                 "angle": {
                   "default": 100,
-                  "description": "Beam angle in degrees (1-179). Default 100.",
+                  "description": "Beam angle, degrees. Default 100.",
                   "maximum": 179,
                   "minimum": 1,
                   "type": "number",
@@ -976,31 +976,31 @@ exports[`snapshots (the contract) > tools/list 1`] = `
                   "type": "boolean",
                 },
                 "id": {
-                  "description": "Optional id; derived as light-N.",
+                  "description": "Id; default light-N.",
                   "maxLength": 64,
                   "minLength": 1,
                   "type": "string",
                 },
                 "kelvin": {
                   "default": 2700,
-                  "description": "Kelvin, 1000-12000 (2700 warm, 6500 daylight). Default 2700.",
+                  "description": "2700 warm, 6500 daylight.",
                   "maximum": 12000,
                   "minimum": 1000,
                   "type": "number",
                 },
                 "lumensEach": {
-                  "description": "Lumens of EACH fixture (a 6 W LED gives about 450); the total is rows x cols x lumensEach.",
+                  "description": "Lumens of EACH fixture (6 W LED about 450); total = rows x cols x lumensEach.",
                   "minimum": 0,
                   "type": "number",
                 },
                 "name": {
-                  "description": "Optional label.",
+                  "description": "Label.",
                   "maxLength": 120,
                   "type": "string",
                 },
                 "on": {
                   "default": true,
-                  "description": "Switched on. Default true.",
+                  "description": "Switched on.",
                   "type": "boolean",
                 },
                 "position": {
@@ -1013,14 +1013,14 @@ exports[`snapshots (the contract) > tools/list 1`] = `
                   "type": "array",
                 },
                 "roomId": {
-                  "description": "Room id (list_rooms). Optional.",
+                  "description": "Room id.",
                   "maxLength": 64,
                   "minLength": 1,
                   "type": "string",
                 },
                 "rotation": {
                   "default": 0,
-                  "description": "Grid rotation in degrees, counter-clockwise seen from above. Defaults to 0.",
+                  "description": "Degrees, counter-clockwise. Default 0.",
                   "type": "number",
                 },
                 "rows": {
@@ -1052,7 +1052,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "description": "The light: point, spot, area or grid, by "type".",
         },
         "preview": {
-          "description": "true: change nothing, return the diff and warnings.",
+          "description": "true: change nothing, return diff and warnings.",
           "type": "boolean",
         },
         "render": {
@@ -1065,7 +1065,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "type": "object",
             },
           ],
-          "description": "true, or render_view arguments: also return an image of the result (true = the first changed room, else the flat from above).",
+          "description": "true or render_view arguments: also return an image (true: first changed room, else the whole flat).",
         },
       },
       "required": [
@@ -1093,7 +1093,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "type": "string",
         },
         "ifRev": {
-          "description": "Apply only if the flat is still at this revision (rev, or baseRev of a preview), else stale_scene.",
+          "description": "Apply only if the flat is at this rev (or preview baseRev), else stale_scene.",
           "minimum": 0,
           "type": "integer",
         },
@@ -1175,7 +1175,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "type": "boolean",
             },
             "position": {
-              "description": "Plan [x, y] in metres (y grows down); a grid: its centre.",
+              "description": "Plan [x, y] in metres (y down); a grid: its centre.",
               "items": {
                 "type": "number",
               },
@@ -1211,7 +1211,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "type": "object",
         },
         "preview": {
-          "description": "true: change nothing, return the diff and warnings.",
+          "description": "true: change nothing, return diff and warnings.",
           "type": "boolean",
         },
         "render": {
@@ -1224,7 +1224,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "type": "object",
             },
           ],
-          "description": "true, or render_view arguments: also return an image of the result (true = the first changed room, else the flat from above).",
+          "description": "true or render_view arguments: also return an image (true: first changed room, else the whole flat).",
         },
       },
       "required": [
@@ -1253,7 +1253,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "type": "string",
         },
         "ifRev": {
-          "description": "Apply only if the flat is still at this revision (rev, or baseRev of a preview), else stale_scene.",
+          "description": "Apply only if the flat is at this rev (or preview baseRev), else stale_scene.",
           "minimum": 0,
           "type": "integer",
         },
@@ -1264,7 +1264,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "type": "string",
         },
         "preview": {
-          "description": "true: change nothing, return the diff and warnings.",
+          "description": "true: change nothing, return diff and warnings.",
           "type": "boolean",
         },
         "render": {
@@ -1277,7 +1277,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "type": "object",
             },
           ],
-          "description": "true, or render_view arguments: also return an image of the result (true = the first changed room, else the flat from above).",
+          "description": "true or render_view arguments: also return an image (true: first changed room, else the whole flat).",
         },
       },
       "required": [
@@ -1310,7 +1310,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "type": "string",
         },
         "ifRev": {
-          "description": "Apply only if the flat is still at this revision (rev, or baseRev of a preview), else stale_scene.",
+          "description": "Apply only if the flat is at this rev (or preview baseRev), else stale_scene.",
           "minimum": 0,
           "type": "integer",
         },
@@ -1330,7 +1330,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "type": "array",
         },
         "preview": {
-          "description": "true: change nothing, return the diff and warnings.",
+          "description": "true: change nothing, return diff and warnings.",
           "type": "boolean",
         },
         "relation": {
@@ -1352,7 +1352,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
                     },
                     "gap": {
                       "default": 0,
-                      "description": "Free gap in metres between the item and what it touches (default 0).",
+                      "description": "Gap in m to what it touches (0).",
                       "maximum": 2,
                       "minimum": 0,
                       "type": "number",
@@ -1397,7 +1397,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
                     },
                     "gap": {
                       "default": 0,
-                      "description": "Free gap in metres between the item and what it touches (default 0).",
+                      "description": "Gap in m to what it touches (0).",
                       "maximum": 2,
                       "minimum": 0,
                       "type": "number",
@@ -1488,7 +1488,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
                     },
                     "gap": {
                       "default": 0.02,
-                      "description": "Free gap in metres between the item and what it touches (default 0).",
+                      "description": "Gap in m to what it touches (0).",
                       "maximum": 2,
                       "minimum": 0,
                       "type": "number",
@@ -1527,7 +1527,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
                   "properties": {
                     "gap": {
                       "default": 0,
-                      "description": "Free gap in metres between the item and what it touches (default 0).",
+                      "description": "Gap in m to what it touches (0).",
                       "maximum": 2,
                       "minimum": 0,
                       "type": "number",
@@ -1603,7 +1603,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "type": "object",
             },
           ],
-          "description": "true, or render_view arguments: also return an image of the result (true = the first changed room, else the flat from above).",
+          "description": "true or render_view arguments: also return an image (true: first changed room, else the whole flat).",
         },
         "roomId": {
           "description": "Room the item now belongs to (rooms[].id); null clears it. Optional.",
@@ -1645,7 +1645,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "type": "string",
         },
         "ifRev": {
-          "description": "Apply only if the flat is still at this revision (rev, or baseRev of a preview), else stale_scene.",
+          "description": "Apply only if the flat is at this rev (or preview baseRev), else stale_scene.",
           "minimum": 0,
           "type": "integer",
         },
@@ -1656,7 +1656,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "type": "string",
         },
         "preview": {
-          "description": "true: change nothing, return the diff and warnings.",
+          "description": "true: change nothing, return diff and warnings.",
           "type": "boolean",
         },
         "render": {
@@ -1669,7 +1669,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "type": "object",
             },
           ],
-          "description": "true, or render_view arguments: also return an image of the result (true = the first changed room, else the flat from above).",
+          "description": "true or render_view arguments: also return an image (true: first changed room, else the whole flat).",
         },
         "rotation": {
           "description": "Absolute rotation in degrees, counter-clockwise seen from above (the front faces plan +y at 0).",
@@ -1702,7 +1702,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "type": "string",
         },
         "ifRev": {
-          "description": "Apply only if the flat is still at this revision (rev, or baseRev of a preview), else stale_scene.",
+          "description": "Apply only if the flat is at this rev (or preview baseRev), else stale_scene.",
           "minimum": 0,
           "type": "integer",
         },
@@ -1713,7 +1713,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "type": "string",
         },
         "preview": {
-          "description": "true: change nothing, return the diff and warnings.",
+          "description": "true: change nothing, return diff and warnings.",
           "type": "boolean",
         },
         "render": {
@@ -1726,7 +1726,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "type": "object",
             },
           ],
-          "description": "true, or render_view arguments: also return an image of the result (true = the first changed room, else the flat from above).",
+          "description": "true or render_view arguments: also return an image (true: first changed room, else the whole flat).",
         },
       },
       "required": [
@@ -1748,7 +1748,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "additionalProperties": false,
       "properties": {
         "ifRev": {
-          "description": "Apply only if the flat is still at this revision (rev, or baseRev of a preview), else stale_scene.",
+          "description": "Apply only if the flat is at this rev (or preview baseRev), else stale_scene.",
           "minimum": 0,
           "type": "integer",
         },
@@ -1759,7 +1759,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "type": "string",
         },
         "preview": {
-          "description": "true: change nothing, return the diff and warnings.",
+          "description": "true: change nothing, return diff and warnings.",
           "type": "boolean",
         },
         "render": {
@@ -1772,7 +1772,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "type": "object",
             },
           ],
-          "description": "true, or render_view arguments: also return an image of the result (true = the first changed room, else the flat from above).",
+          "description": "true or render_view arguments: also return an image (true: first changed room, else the whole flat).",
         },
         "roomId": {
           "description": "Id of the room (rooms[].id from list_rooms).",
@@ -1797,7 +1797,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "type": "string",
             },
             "name": {
-              "description": "Optional label.",
+              "description": "Label.",
               "maxLength": 120,
               "type": "string",
             },
@@ -1844,7 +1844,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "additionalProperties": false,
       "properties": {
         "ifRev": {
-          "description": "Apply only if the flat is still at this revision (rev, or baseRev of a preview), else stale_scene.",
+          "description": "Apply only if the flat is at this rev (or preview baseRev), else stale_scene.",
           "minimum": 0,
           "type": "integer",
         },
@@ -1855,7 +1855,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "type": "string",
         },
         "preview": {
-          "description": "true: change nothing, return the diff and warnings.",
+          "description": "true: change nothing, return diff and warnings.",
           "type": "boolean",
         },
         "render": {
@@ -1868,7 +1868,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "type": "object",
             },
           ],
-          "description": "true, or render_view arguments: also return an image of the result (true = the first changed room, else the flat from above).",
+          "description": "true or render_view arguments: also return an image (true: first changed room, else the whole flat).",
         },
         "roomId": {
           "description": "Id of the room (rooms[].id from list_rooms).",
@@ -1903,7 +1903,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "additionalProperties": false,
       "properties": {
         "ifRev": {
-          "description": "Apply only if the flat is still at this revision (rev, or baseRev of a preview), else stale_scene.",
+          "description": "Apply only if the flat is at this rev (or preview baseRev), else stale_scene.",
           "minimum": 0,
           "type": "integer",
         },
@@ -1920,7 +1920,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "type": "string",
         },
         "preview": {
-          "description": "true: change nothing, return the diff and warnings.",
+          "description": "true: change nothing, return diff and warnings.",
           "type": "boolean",
         },
         "render": {
@@ -1933,7 +1933,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "type": "object",
             },
           ],
-          "description": "true, or render_view arguments: also return an image of the result (true = the first changed room, else the flat from above).",
+          "description": "true or render_view arguments: also return an image (true: first changed room, else the whole flat).",
         },
         "roomId": {
           "description": "Id of the room (rooms[].id from list_rooms).",
@@ -3200,7 +3200,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "type": "array",
         },
         "ifRev": {
-          "description": "Apply only if the flat is still at this revision (rev, or baseRev of a preview), else stale_scene.",
+          "description": "Apply only if the flat is at this rev (or preview baseRev), else stale_scene.",
           "minimum": 0,
           "type": "integer",
         },
@@ -3211,7 +3211,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "type": "string",
         },
         "preview": {
-          "description": "true: change nothing, return the diff and warnings.",
+          "description": "true: change nothing, return diff and warnings.",
           "type": "boolean",
         },
         "render": {
@@ -3224,7 +3224,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "type": "object",
             },
           ],
-          "description": "true, or render_view arguments: also return an image of the result (true = the first changed room, else the flat from above).",
+          "description": "true or render_view arguments: also return an image (true: first changed room, else the whole flat).",
         },
       },
       "required": [
@@ -3242,7 +3242,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "openWorldHint": false,
       "readOnlyHint": false,
     },
-    "description": "Put a real product into a room. The productId must come from search_products or get_product in this session (else unknown_product); name, price, dimensions and link are read from the server's own product record, never from you, so there are no such arguments. Give a relation (against_wall, in_corner, centered_in, facing, next_to, under_window: the server finds a valid position and rotation) or an explicit position + rotation. Several products: pass items[] (up to 12, one undo step, placed in order). An invalid spot gives placement_invalid with the violations and alternative candidates. The shape defaults to the real 3D model, else a lookalike, else a parametric shape at the exact dims. To switch an already placed item to another colour or size, pass only itemId + variantSku (a variants[].sku from get_product): the server rebuilds its price and dims from the product record. A lamp comes with a light (placed[].light, switch or dim it with light_update). Check the result with validate_layout.",
+    "description": "Put a real product into a room. The productId must come from search_products or get_product in this session (else unknown_product); name, price, dimensions and link come from the server's product record, not from you. Give a relation (against_wall, in_corner, centered_in, facing, next_to, under_window: the server finds a valid position and rotation) or an explicit position + rotation. Several products: pass items[] (up to 12, one undo step, placed in order). An invalid spot gives placement_invalid with the violations and alternative candidates. The shape defaults to the real 3D model, else a lookalike, else a parametric shape at the exact dims. To switch a placed item to another colour or size, pass only itemId + variantSku (variants[].sku from get_product); price and dims are rebuilt. A lamp comes with a light (placed[].light, switch or dim it with light_update). Check the result with validate_layout.",
     "inputSchema": {
       "$defs": {
         "mesh": {
@@ -3393,7 +3393,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
                 },
                 "gap": {
                   "default": 0,
-                  "description": "Free gap in metres between the item and what it touches (default 0).",
+                  "description": "Gap in m to what it touches (0).",
                   "maximum": 2,
                   "minimum": 0,
                   "type": "number",
@@ -3439,7 +3439,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
                 },
                 "gap": {
                   "default": 0,
-                  "description": "Free gap in metres between the item and what it touches (default 0).",
+                  "description": "Gap in m to what it touches (0).",
                   "maximum": 2,
                   "minimum": 0,
                   "type": "number",
@@ -3530,7 +3530,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
                 },
                 "gap": {
                   "default": 0.02,
-                  "description": "Free gap in metres between the item and what it touches (default 0).",
+                  "description": "Gap in m to what it touches (0).",
                   "maximum": 2,
                   "minimum": 0,
                   "type": "number",
@@ -3569,7 +3569,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "properties": {
                 "gap": {
                   "default": 0,
-                  "description": "Free gap in metres between the item and what it touches (default 0).",
+                  "description": "Gap in m to what it touches (0).",
                   "maximum": 2,
                   "minimum": 0,
                   "type": "number",
@@ -3645,7 +3645,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "$ref": "#/$defs/placement/properties/elevation",
         },
         "ifRev": {
-          "description": "Apply only if the flat is still at this revision (rev, or baseRev of a preview), else stale_scene.",
+          "description": "Apply only if the flat is at this rev (or preview baseRev), else stale_scene.",
           "minimum": 0,
           "type": "integer",
         },
@@ -3675,7 +3675,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "$ref": "#/$defs/placement/properties/position",
         },
         "preview": {
-          "description": "true: change nothing, return the diff and warnings.",
+          "description": "true: change nothing, return diff and warnings.",
           "type": "boolean",
         },
         "productId": {
@@ -3694,7 +3694,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "type": "object",
             },
           ],
-          "description": "true, or render_view arguments: also return an image of the result (true = the first changed room, else the flat from above).",
+          "description": "true or render_view arguments: also return an image (true: first changed room, else the whole flat).",
         },
         "roomId": {
           "$ref": "#/$defs/placement/properties/roomId",
@@ -4017,7 +4017,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "openWorldHint": false,
       "readOnlyHint": true,
     },
-    "description": "Dry run of the placement solver, nothing is changed: where could this product go in this room for a relation (against_wall, in_corner, centered_in, facing, next_to, under_window, at)? Returns up to 3 candidate spots (position, rotation, elevation, the relation to pass to place_item) each with the reasons, or the violations (outside_room, overlap, door_swing_blocked, window_blocked, walkway_too_narrow, ...) with alternative spots. The product must come from search_products in this session.",
+    "description": "Dry run of the placement solver, nothing changes: where could this product go in this room for a relation (against_wall, in_corner, centered_in, facing, next_to, under_window, at)? Returns up to 3 candidate spots (position, rotation, elevation, the relation to pass to place_item) with reasons, or the violations (outside_room, overlap, door_swing_blocked, ...) with alternatives. The product must come from search_products in this session.",
     "inputSchema": {
       "$defs": {
         "relation": {
@@ -4037,7 +4037,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
                 },
                 "gap": {
                   "default": 0,
-                  "description": "Free gap in metres between the item and what it touches (default 0).",
+                  "description": "Gap in m to what it touches (0).",
                   "maximum": 2,
                   "minimum": 0,
                   "type": "number",
@@ -4083,7 +4083,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
                 },
                 "gap": {
                   "default": 0,
-                  "description": "Free gap in metres between the item and what it touches (default 0).",
+                  "description": "Gap in m to what it touches (0).",
                   "maximum": 2,
                   "minimum": 0,
                   "type": "number",
@@ -4174,7 +4174,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
                 },
                 "gap": {
                   "default": 0.02,
-                  "description": "Free gap in metres between the item and what it touches (default 0).",
+                  "description": "Gap in m to what it touches (0).",
                   "maximum": 2,
                   "minimum": 0,
                   "type": "number",
@@ -4213,7 +4213,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "properties": {
                 "gap": {
                   "default": 0,
-                  "description": "Free gap in metres between the item and what it touches (default 0).",
+                  "description": "Gap in m to what it touches (0).",
                   "maximum": 2,
                   "minimum": 0,
                   "type": "number",
@@ -4315,7 +4315,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "openWorldHint": false,
       "readOnlyHint": true,
     },
-    "description": "Check the placed furniture of one room (or the whole flat) against the layout rules: inside the room, no overlaps, door swings and landings, window sills, glazing, walkways at least 0.8 m (0.9 m at the entry). Returns violations and warnings with the entities involved and a hint, the free floor area, the narrowest walkway, and the cost: totalEur (TTC prices of the unlocked items; locked existing furniture counts 0) and overBudget when budgetEur is given. Call it after placing and before you finish.",
+    "description": "Check the placed furniture of one room (or the whole flat) against the layout rules: inside the room, no overlaps, door swings and landings, window sills, glazing, walkways at least 0.8 m (0.9 m at the entry). Returns violations and warnings with the entities and a hint, the free floor area, the narrowest walkway, and totalEur (TTC prices of unlocked items; locked existing furniture counts 0) plus overBudget when budgetEur is given. Call it after placing and before you finish.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {

@@ -137,7 +137,9 @@ test.describe('desktop', () => {
     await finish.getByRole('tab', { name: 'Textures' }).click();
     const card = finish.getByRole('button', { name: 'Light oak parquet' });
     await expect(card).toBeVisible();
-    await expect(card.locator('img')).toHaveAttribute('loading', 'lazy');
+    // Texture tiles load eagerly (a lazy image in a freshly shown panel can stay blank; see TextureThumb): the thumbnail has loaded.
+    await expect(card.locator('img')).not.toHaveAttribute('loading', 'lazy');
+    await expect.poll(() => card.locator('img').evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth > 0)).toBe(true);
     await card.click();
     await rendered(page);
     let room = (await getScene(page)).rooms.find((r) => r.id === ROOM)!;

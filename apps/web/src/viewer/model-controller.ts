@@ -141,12 +141,16 @@ export class ModelController<T extends ModelLike> {
   stats(): ModelStats {
     const sources: Record<string, ModelSource> = {};
     const offline: string[] = [];
+    const loading: string[] = [];
+    const reasons: Record<string, string> = {};
     const warnings: ModelStats['warnings'] = [];
     let loaded = 0;
     for (const id of this.plain) sources[id] = 'parametric';
     for (const [id, r] of this.records) {
       sources[id] = r.state.status === 'loading' ? 'placeholder' : r.state.source;
       if (r.state.status === 'ready') loaded++;
+      if (r.state.status === 'loading') loading.push(id);
+      reasons[id] = r.state.failures.length > 0 && !r.state.reason.includes('failed') ? `${r.state.reason} (failed: ${r.state.failures.join(', ')})` : r.state.reason;
       if (r.state.offline) offline.push(id);
       if (r.state.warning) warnings.push({ itemId: id, warning: r.state.warning });
     }
@@ -156,6 +160,8 @@ export class ModelController<T extends ModelLike> {
       pending: this.pending(),
       failed: this.failedFiles,
       sources,
+      loading,
+      reasons,
       offline,
       warnings,
       requests: [...this.requested],
@@ -354,6 +360,7 @@ export class ModelController<T extends ModelLike> {
     // Pathological resolver that keeps offering models: stop at a placeholder.
     state.status = 'settled';
     state.source = 'placeholder';
+    state.reason = `no model could be loaded${state.failures.length ? ` (${state.failures.length} failed)` : ''}; a plain box at the exact size is drawn`;
     this.notify();
   }
 

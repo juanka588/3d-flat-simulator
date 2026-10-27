@@ -9,9 +9,10 @@ import { flashNotice, useCatalogStore } from '../catalog/catalogStore';
 import { formatDims, formatPrice } from '../catalog/format';
 import { productSource } from '../catalog/place';
 import { RecordCache } from '../catalog/record-cache';
-import { providerView, personalUseBanner, productsAvailability, SERVER_HINT, SEARCH_MIN_CHARS, SEARCH_DEBOUNCE_MS } from '../catalog/panel-state';
+import { providerView, personalUseBanner, productsAvailability, noResults, DEV_OFFLINE_HINT, NO_PROVIDER_HINT, SERVER_HINT, SEARCH_MIN_CHARS, SEARCH_DEBOUNCE_MS } from '../catalog/panel-state';
 import { useCardDrag } from '../catalog/use-card-drag';
 import { useProductPhoto } from '../catalog/use-product-photo';
+import { retryServerNow } from '../sync/client';
 import { useSyncStore } from '../sync/sync-store';
 
 /** Records already read from the server (a card warms its record on press / hover so a drop does not wait). */
@@ -30,8 +31,25 @@ export function ProductsTab({ onDragStart }: { onDragStart?: (() => void) | unde
   const status = useSyncStore((s) => s.status);
   const serverUrl = useSyncStore((s) => s.serverUrl);
   const availability = productsAvailability({ mode, status, serverUrl });
-  if (availability === 'no-server') return <p className="hint" data-testid="catalog-server-hint">{SERVER_HINT}</p>;
+  if (availability === 'no-server') return <OfflineHint />;
   return <ServerProducts onDragStart={onDragStart} />;
+}
+
+function OfflineHint() {
+  const [busy, setBusy] = useState(false);
+  if (!import.meta.env.DEV) return <p className="hint" data-testid="catalog-server-hint">{SERVER_HINT}</p>;
+  const retry = () => {
+    setBusy(true);
+    void retryServerNow().finally(() => setBusy(false));
+  };
+  return (
+    <div data-testid="catalog-server-hint">
+      <p className="hint">{DEV_OFFLINE_HINT}</p>
+      <button type="button" onClick={retry} disabled={busy} data-testid="catalog-retry">
+        {busy ? 'Looking…' : 'Retry'}
+      </button>
+    </div>
+  );
 }
 
 function ServerProducts({ onDragStart }: { onDragStart?: (() => void) | undefined }) {
@@ -39,19 +57,27 @@ function ServerProducts({ onDragStart }: { onDragStart?: (() => void) | undefine
   const store = useCatalogStore.getState;
   const [pasted, setPasted] = useState<ProductSummary[]>([]);
 
-  // Providers: read once the server is there.
+  // Providers: read once the server is connected, and again whenever it (re)connects (it may have started after the page).
   const serverUrl = useSyncStore((s) => s.serverUrl);
+  const syncStatus = useSyncStore((s) => s.status);
+  const connected = syncStatus === 'connected';
+  const [providersError, setProvidersError] = useState<string | null>(null);
   useEffect(() => {
+    if (!connected) return;
     const ref = serverRef();
     if (!ref) return;
     let live = true;
     fetchProviders(ref)
-      .then((p) => live && store().setProviders(p))
-      .catch(() => live && store().setProviders([]));
+      .then((p) => {
+        if (!live) return;
+        setProvidersError(null);
+        store().setProviders(p);
+      })
+      .catch((e: unknown) => live && setProvidersError(e instanceof ApiError ? e.message : 'The scene server did not answer the provider list.'));
     return () => {
       live = false;
     };
-  }, [serverUrl, store]);
+  }, [serverUrl, connected, store]);
 
   // Search, debounced; a newer query supersedes an older answer.
   const seq = useRef(0);
@@ -88,15 +114,29 @@ function ServerProducts({ onDragStart }: { onDragStart?: (() => void) | undefine
           {banner}
         </p>
       )}
-      <ProviderChips providers={providers} loaded={providersLoaded} />
+      {!connected && (
+        <p className="hint" role="status" data-testid="catalog-connecting">
+          <span className="spinner" aria-hidden="true" /> {syncStatus === 'reconnecting' ? 'Reconnecting to the scene server…' : 'Connecting to the scene server…'}
+        </p>
+      )}
+      {providersError && (
+        <p className="catalog-error" role="alert" data-testid="providers-error">
+          {providersError}
+        </p>
+      )}
+      <ProviderChips providers={providers} loaded={providersLoaded && connected} />
       <label className="catalog-search">
         <span className="visually-hidden">Search products</span>
         <input type="search" placeholder="Search products (bed, sofa, desk…)" value={query} onChange={(e) => store().setQuery(e.target.value)} data-testid="catalog-search" />
       </label>
       <PasteUrl onResolved={(r) => setPasted((p) => [summarizeProduct(r), ...p.filter((x) => x.productId !== summarizeProduct(r).productId)])} />
-      {searching && <p className="hint" role="status">Searching…</p>}
+      {searching && (
+        <p className="hint searching" role="status" data-testid="catalog-searching">
+          <span className="spinner" aria-hidden="true" /> Searching… (the retailer can take about 10 s)
+        </p>
+      )}
       {searchError && <p className="catalog-error" role="alert">{searchError}</p>}
-      {failing.map((s) => (
+      {results.length > 0 && failing.map((s) => (
         <p key={s.provider} className="catalog-error" role="status">
           {s.provider}: {s.message ?? s.code ?? 'failed'}
         </p>
@@ -109,7 +149,16 @@ function ServerProducts({ onDragStart }: { onDragStart?: (() => void) | undefine
           <ProductCard key={p.productId} product={p} onDragStart={onDragStart} />
         ))}
       </ul>
-      {!searching && query.trim().length >= SEARCH_MIN_CHARS && results.length === 0 && !searchError && failing.length === 0 && <p className="hint">No product found.</p>}
+      {!searching && query.trim().length >= SEARCH_MIN_CHARS && results.length === 0 && !searchError && (
+        <div className="hint" data-testid="catalog-no-results">
+          <p>{noResults(query, statuses, providers).title}</p>
+          <ul>
+            {noResults(query, statuses, providers).details.map((d) => (
+              <li key={d}>{d}</li>
+            ))}
+          </ul>
+        </div>
+      )}
       {query.trim().length < SEARCH_MIN_CHARS && results.length === 0 && pasted.length === 0 && <p className="hint">Type at least {SEARCH_MIN_CHARS} letters, then drag a card onto the view.</p>}
     </div>
   );
@@ -119,7 +168,7 @@ function ProviderChips({ providers, loaded }: { providers: ProviderInfo[]; loade
   const filter = useCatalogStore((s) => s.providerFilter);
   const setFilter = useCatalogStore((s) => s.setProviderFilter);
   if (!loaded) return null;
-  if (providers.length === 0) return <p className="hint">No product provider is enabled on the server (set FLAT_PROVIDERS).</p>;
+  if (providers.length === 0 || !providers.some((p) => p.enabled)) return <p className="hint" data-testid="no-provider">{NO_PROVIDER_HINT}</p>;
   return (
     <div className="provider-chips" role="group" aria-label="Providers">
       {providers.map((p) => {

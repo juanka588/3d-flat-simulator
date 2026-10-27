@@ -1,5 +1,6 @@
 import { EMPTY_MESH_CATALOG, MeshAsset, createMeshCatalog, parseProductId } from '@flat/scene';
 import type { MeshCatalog } from '@flat/scene';
+import { registerLibraryNames } from '../catalog/format';
 import { useSyncStore } from '../sync/sync-store';
 
 /**
@@ -97,7 +98,9 @@ export function createCatalogLoader(fetcher: typeof fetch = (...a) => fetch(...a
       try {
         const res = await fetcher(url());
         if (!res.ok) return EMPTY_MESH_CATALOG;
-        return catalogFromAssets(parseCatalogJson(await res.json()));
+        const assets = parseCatalogJson(await res.json());
+        registerLibraryNames(assets);
+        return catalogFromAssets(assets);
       } catch {
         return EMPTY_MESH_CATALOG;
       }

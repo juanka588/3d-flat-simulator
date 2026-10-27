@@ -263,7 +263,8 @@ function builtin(id: string): MeshStandardMaterial {
     case ITEM_MATERIALS.tvScreen:
       return new MeshStandardMaterial({ color: '#08090b', roughness: 0.08, metalness: 0.2 });
     case ITEM_MATERIALS.placeholder:
-      return new MeshStandardMaterial({ color: '#d048d0', roughness: 0.8, wireframe: true });
+      // A neutral solid box at the exact size (never a magenta wireframe): the badge in the item panel says why it is a stand-in.
+      return new MeshStandardMaterial({ color: '#cfd2d8', roughness: 0.9, metalness: 0 });
     case BUILTIN_MATERIALS.fallbackFloor:
       return new MeshStandardMaterial({ color: '#c8b89e', roughness: 0.8 });
     case BUILTIN_MATERIALS.fallbackCeiling:

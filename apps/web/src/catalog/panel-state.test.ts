@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ProviderInfo } from '@flat/scene';
-import { personalUseBanner, productsAvailability, providerView, SERVER_HINT } from './panel-state';
+import { DEV_OFFLINE_HINT, noResults, personalUseBanner, productsAvailability, providerView, SERVER_HINT, statusLine } from './panel-state';
 import { armDecision } from './use-card-drag';
 import { floorPoint, lineHeight } from './placement';
 
@@ -52,5 +52,21 @@ describe('pointer rays', () => {
   it('reads a height on the vertical line through a point', () => {
     expect(lineHeight({ origin: [0, 1.2, 5], dir: [0, 0, -1] }, 0, 0)).toBeCloseTo(1.2, 9);
     expect(lineHeight({ origin: [3, 4, 0], dir: [0, -1, 0] }, 0, 0)).toBeNull();
+  });
+});
+
+describe('empty search explanations', () => {
+  it('names the query and each provider status', () => {
+    const r = noResults(' lit ', [{ provider: 'ikea-fr', ok: false, code: 'blocked', message: 'HTTP 403' }, { provider: 'mock', ok: true }]);
+    expect(r.title).toBe('No results for "lit"');
+    expect(r.details).toEqual(['ikea-fr: HTTP 403', 'mock: no match']);
+  });
+  it('adds circuit open and the retry delay', () => {
+    const line = statusLine({ provider: 'ikea-fr', ok: false, code: 'circuit_open' }, [info({ id: 'ikea-fr', circuit: 'open', retryAt: 130_000 })], 100_000);
+    expect(line).toBe('ikea-fr: circuit_open, circuit open, retry in 30 s');
+  });
+  it('the offline hint explains how to start the server', () => {
+    expect(DEV_OFFLINE_HINT).toContain('dev:all');
+    expect(DEV_OFFLINE_HINT).toContain('FLAT_PROVIDERS=ikea-fr');
   });
 });

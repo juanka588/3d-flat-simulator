@@ -1,4 +1,5 @@
 import { MeshAsset } from '@flat/scene';
+import { registerLibraryNames } from './format';
 import { modelsBase, parseCatalogJson } from '../viewer/model-env';
 
 /** A library model for the Library tab: the asset plus its thumbnail URL. */
@@ -19,7 +20,9 @@ export async function loadLibraryModels(fetcher: typeof fetch = (...a) => fetch(
       for (const e of raw as { id?: unknown; thumb?: unknown }[]) if (typeof e?.id === 'string' && typeof e.thumb === 'string' && /^[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(e.thumb) && !e.thumb.includes('..')) thumbs.set(e.id, `${base}${e.thumb}`);
     }
     // Only committed library files (cc0) are listed here: local-only packs never show on a static site.
-    return parseCatalogJson(json)
+    const assets = parseCatalogJson(json);
+    registerLibraryNames(assets);
+    return assets
       .filter((a) => a.source === 'cc0')
       .map((asset) => ({ asset, ...(thumbs.has(asset.id) ? { thumb: thumbs.get(asset.id)! } : {}) }));
   } catch {

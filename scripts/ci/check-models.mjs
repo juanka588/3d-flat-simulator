@@ -19,6 +19,9 @@ import { fileURLToPath } from 'node:url';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 export const BUDGETS = { modelBytes: 300 * 1024, totalBytes: 6 * 1024 * 1024, triangles: 20_000, materials: 4, textureSize: 1024 };
 /** How far (m) the model's bottom may be from y = 0, its footprint centre from the origin, and its measured size from `nativeDims`. */
+/** Library thumbnails of the parametric generators (`pnpm assets:thumbs`): generated, not catalogued, small. */
+export const PARAM_THUMB = /^thumbs\/param-[A-Za-z0-9]+\.webp$/;
+export const PARAM_THUMB_MAX_BYTES = 8 * 1024;
 export const FRAME_TOLERANCE_M = 0.02;
 const ALLOWED_LICENCES = new Set(['CC0-1.0', 'CC-BY-4.0']);
 const sha = (buf) => createHash('sha256').update(buf).digest('hex');
@@ -65,7 +68,13 @@ export function checkModelsDir(dir, { credits, budgets = BUDGETS } = {}) {
     }
   }
   const found = listFiles(dir);
-  for (const f of found) if (!listed.has(f.path)) problems.push(`${f.path}: not listed in catalog.json`);
+  for (const f of found) {
+    if (PARAM_THUMB.test(f.path)) {
+      const head = readFileSync(join(dir, f.path)).subarray(0, 12);
+      if (f.bytes > PARAM_THUMB_MAX_BYTES) problems.push(`${f.path}: ${f.bytes} B exceeds ${PARAM_THUMB_MAX_BYTES} B per generator thumbnail`);
+      if (head.subarray(0, 4).toString('latin1') !== 'RIFF' || head.subarray(8, 12).toString('latin1') !== 'WEBP') problems.push(`${f.path}: not a WebP file`);
+    } else if (!listed.has(f.path)) problems.push(`${f.path}: not listed in catalog.json`);
+  }
   for (const [path, hash] of listed) {
     const p = join(dir, path);
     if (!existsSync(p)) problems.push(`${path}: listed in catalog.json but missing`);

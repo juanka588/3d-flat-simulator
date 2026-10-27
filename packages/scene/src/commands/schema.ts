@@ -6,11 +6,11 @@ const Id = EntityId;
 const WallId = Id.describe('Id of the wall (walls[].wallId from describe_room).');
 const RoomId = Id.describe('Id of the room (rooms[].id from list_rooms).');
 const MaterialRef = Id.nullable().describe(
-  'Id of a defined material (sceneMaterials[].id from list_materials, or materials[].id from get_scene_summary with detail "full"), or null to clear back to the default. ' +
-    'To use a library texture first call material_define with textureUrl "lib:<slug>" (library[].slug from list_materials).',
+  'Material id (sceneMaterials[].id from list_materials, or materials[].id from get_scene_summary with detail "full"), or null to clear. Library texture: first material_define with textureUrl "lib:<slug>" (library[].slug from list_materials).',
 );
 
-const OptionalLightId = Id.describe('Optional id; derived as light-N.').optional();
+
+const OptionalLightId = Id.describe('Id; default light-N.').optional();
 /** Fields of a light that only the item commands manage (a lamp item's own light). */
 const LINK_FIELDS = { itemId: true, offset: true, lumensSource: true } as const;
 const FIT_DESC = "true: cover the room's largest rectangle (needs roomId).";
@@ -96,8 +96,8 @@ export const WallSetFinish = z.strictObject({
     ),
   materialId: MaterialRef,
   roomId: RoomId.describe(
-    'The room whose stretch of this wall side to paint (rooms[].id from list_rooms). Strongly recommended: a wall side can be shared by several rooms (e.g. the alcove and the sejour) and without roomId the whole side is painted for all of them. ' +
-      'Fails with precondition_failed if the room does not border that side. A room-scoped finish beats the whole-side finish and room_set_wall_finish.',
+    'Room whose stretch of this side to paint (list_rooms). Strongly recommended: a side can be shared by several rooms (alcove and sejour) and without roomId all of them are painted. ' +
+      'precondition_failed if the room does not border that side. A room-scoped finish beats the whole-side finish and room_set_wall_finish.',
   ).optional(),
 });
 export const WallSetStructural = z.strictObject({

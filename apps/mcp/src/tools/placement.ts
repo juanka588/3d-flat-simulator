@@ -273,7 +273,7 @@ function parametric(generator: string, params: Record<string, number | string | 
 const getPlacementOptions: ToolDef = {
   name: 'get_placement_options',
   description:
-    'Dry run of the placement solver, nothing is changed: where could this product go in this room for a relation (against_wall, in_corner, centered_in, facing, next_to, under_window, at)? Returns up to 3 candidate spots (position, rotation, elevation, the relation to pass to place_item) each with the reasons, or the violations (outside_room, overlap, door_swing_blocked, window_blocked, walkway_too_narrow, ...) with alternative spots. The product must come from search_products in this session.',
+    'Dry run of the placement solver, nothing changes: where could this product go in this room for a relation (against_wall, in_corner, centered_in, facing, next_to, under_window, at)? Returns up to 3 candidate spots (position, rotation, elevation, the relation to pass to place_item) with reasons, or the violations (outside_room, overlap, door_swing_blocked, ...) with alternatives. The product must come from search_products in this session.',
   inputSchema: { ...obj({ productId: ENTRY_PROPS.productId!, roomId: ENTRY_PROPS.roomId!, relation: { ...RELATION_REF, description: 'The relation to try.' }, variantSku: ENTRY_PROPS.variantSku! }, ['productId', 'roomId', 'relation']), $defs: { relation: jsonSchema(Relation) } },
   annotations: READ,
   group: 'read',
@@ -325,7 +325,7 @@ const getPlacementOptions: ToolDef = {
 const validateLayoutTool: ToolDef = {
   name: 'validate_layout',
   description:
-    'Check the placed furniture of one room (or the whole flat) against the layout rules: inside the room, no overlaps, door swings and landings, window sills, glazing, walkways at least 0.8 m (0.9 m at the entry). Returns violations and warnings with the entities involved and a hint, the free floor area, the narrowest walkway, and the cost: totalEur (TTC prices of the unlocked items; locked existing furniture counts 0) and overBudget when budgetEur is given. Call it after placing and before you finish.',
+    'Check the placed furniture of one room (or the whole flat) against the layout rules: inside the room, no overlaps, door swings and landings, window sills, glazing, walkways at least 0.8 m (0.9 m at the entry). Returns violations and warnings with the entities and a hint, the free floor area, the narrowest walkway, and totalEur (TTC prices of unlocked items; locked existing furniture counts 0) plus overBudget when budgetEur is given. Call it after placing and before you finish.',
   inputSchema: obj({
     roomId: { type: 'string', description: 'Room to check (list_rooms). Default: every room.' },
     budgetEur: { type: 'number', minimum: 0, description: 'Budget in EUR (TTC prices only). With roomId it is compared with that room\'s items, else with the whole flat.' },
@@ -419,11 +419,11 @@ const getBillOfMaterials: ToolDef = {
 // ---------------------------------------------------------------------------------------------
 
 const PLACE_DESCRIPTION =
-  'Put a real product into a room. The productId must come from search_products or get_product in this session (else unknown_product); name, price, dimensions and link are read from the server\'s own product record, never from you, so there are no such arguments. ' +
+  'Put a real product into a room. The productId must come from search_products or get_product in this session (else unknown_product); name, price, dimensions and link come from the server\'s product record, not from you. ' +
   'Give a relation (against_wall, in_corner, centered_in, facing, next_to, under_window: the server finds a valid position and rotation) or an explicit position + rotation. ' +
   'Several products: pass items[] (up to 12, one undo step, placed in order). An invalid spot gives placement_invalid with the violations and alternative candidates. ' +
   'The shape defaults to the real 3D model, else a lookalike, else a parametric shape at the exact dims. ' +
-  'To switch an already placed item to another colour or size, pass only itemId + variantSku (a variants[].sku from get_product): the server rebuilds its price and dims from the product record. ' +
+  'To switch a placed item to another colour or size, pass only itemId + variantSku (variants[].sku from get_product); price and dims are rebuilt. ' +
   'A lamp comes with a light (placed[].light, switch or dim it with light_update). Check the result with validate_layout.';
 
 function placeSchema(): Json {

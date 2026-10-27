@@ -1,6 +1,9 @@
-import type { ProviderInfo } from '@flat/scene';
+import type { ProviderInfo, ProviderStatus } from '@flat/scene';
 
 export const SERVER_HINT = 'Connect the local scene server (`pnpm dev:all`) to search real products.';
+/** Dev build, no server found yet: the page keeps probing, and says how to start one. */
+export const DEV_OFFLINE_HINT = 'Scene server not running: run `npx pnpm@10 dev:all`. The page connects by itself once it is up. IKEA search needs `FLAT_PROVIDERS=ikea-fr` in `apps/server/.env.local`.';
+export const NO_PROVIDER_HINT = 'Connected, but no product provider is enabled on the server. Set `FLAT_PROVIDERS=ikea-fr` in `apps/server/.env.local` and restart it.';
 export const SEARCH_MIN_CHARS = 2;
 export const SEARCH_DEBOUNCE_MS = 300;
 
@@ -33,4 +36,21 @@ export function providerView(p: ProviderInfo, now: number = Date.now()): { state
   if (p.personalUseOnly) parts.push('Personal use only.');
   if (p.note) parts.push(p.note);
   return { state, tooltip: parts.join(' ') };
+}
+
+/** One line per provider that was asked, to explain an empty or partial result ("ikea-fr: circuit open, retry in 40 s"). */
+export function statusLine(s: ProviderStatus, providers: readonly ProviderInfo[] = [], now: number = Date.now()): string {
+  const info = providers.find((p) => p.id === s.provider);
+  const parts: string[] = [];
+  if (s.message ?? s.code) parts.push(s.message ?? s.code ?? 'failed');
+  if (info?.circuit === 'open') {
+    parts.push('circuit open');
+    if (info.retryAt !== undefined) parts.push(`retry in ${Math.max(1, Math.ceil((info.retryAt - now) / 1000))} s`);
+  }
+  return `${s.provider}: ${parts.length ? parts.join(', ') : s.ok ? 'no match' : 'failed'}`;
+}
+
+/** The "No results" message and the per-provider details under it. */
+export function noResults(query: string, statuses: readonly ProviderStatus[], providers: readonly ProviderInfo[] = [], now: number = Date.now()): { title: string; details: string[] } {
+  return { title: `No results for "${query.trim()}"`, details: statuses.map((s) => statusLine(s, providers, now)) };
 }

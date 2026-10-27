@@ -130,13 +130,13 @@
               "type": "null"
             }
           ],
-          "description": "Id of a defined material (sceneMaterials[].id from list_materials, or materials[].id from get_scene_summary with detail \"full\"), or null to clear back to the default. To use a library texture first call material_define with textureUrl \"lib:<slug>\" (library[].slug from list_materials)."
+          "description": "Material id (sceneMaterials[].id from list_materials, or materials[].id from get_scene_summary with detail \"full\"), or null to clear. Library texture: first material_define with textureUrl \"lib:<slug>\" (library[].slug from list_materials)."
         },
         "roomId": {
           "type": "string",
           "minLength": 1,
           "maxLength": 64,
-          "description": "The room whose stretch of this wall side to paint (rooms[].id from list_rooms). Strongly recommended: a wall side can be shared by several rooms (e.g. the alcove and the sejour) and without roomId the whole side is painted for all of them. Fails with precondition_failed if the room does not border that side. A room-scoped finish beats the whole-side finish and room_set_wall_finish."
+          "description": "Room whose stretch of this side to paint (list_rooms). Strongly recommended: a side can be shared by several rooms (alcove and sejour) and without roomId all of them are painted. precondition_failed if the room does not border that side. A room-scoped finish beats the whole-side finish and room_set_wall_finish."
         }
       },
       "required": [
@@ -201,7 +201,7 @@
               "type": "null"
             }
           ],
-          "description": "Id of a defined material (sceneMaterials[].id from list_materials, or materials[].id from get_scene_summary with detail \"full\"), or null to clear back to the default. To use a library texture first call material_define with textureUrl \"lib:<slug>\" (library[].slug from list_materials)."
+          "description": "Material id (sceneMaterials[].id from list_materials, or materials[].id from get_scene_summary with detail \"full\"), or null to clear. Library texture: first material_define with textureUrl \"lib:<slug>\" (library[].slug from list_materials)."
         }
       },
       "required": [
@@ -236,7 +236,7 @@
               "type": "null"
             }
           ],
-          "description": "Id of a defined material (sceneMaterials[].id from list_materials, or materials[].id from get_scene_summary with detail \"full\"), or null to clear back to the default. To use a library texture first call material_define with textureUrl \"lib:<slug>\" (library[].slug from list_materials)."
+          "description": "Material id (sceneMaterials[].id from list_materials, or materials[].id from get_scene_summary with detail \"full\"), or null to clear. Library texture: first material_define with textureUrl \"lib:<slug>\" (library[].slug from list_materials)."
         }
       },
       "required": [
@@ -271,7 +271,7 @@
               "type": "null"
             }
           ],
-          "description": "Id of a defined material (sceneMaterials[].id from list_materials, or materials[].id from get_scene_summary with detail \"full\"), or null to clear back to the default. To use a library texture first call material_define with textureUrl \"lib:<slug>\" (library[].slug from list_materials)."
+          "description": "Material id (sceneMaterials[].id from list_materials, or materials[].id from get_scene_summary with detail \"full\"), or null to clear. Library texture: first material_define with textureUrl \"lib:<slug>\" (library[].slug from list_materials)."
         }
       },
       "required": [
@@ -409,18 +409,18 @@
                   "type": "string",
                   "minLength": 1,
                   "maxLength": 64,
-                  "description": "Optional id; derived as light-N."
+                  "description": "Id; default light-N."
                 },
                 "name": {
                   "type": "string",
                   "maxLength": 120,
-                  "description": "Optional label."
+                  "description": "Label."
                 },
                 "roomId": {
                   "type": "string",
                   "minLength": 1,
                   "maxLength": 64,
-                  "description": "Room id (list_rooms). Optional."
+                  "description": "Room id."
                 },
                 "position": {
                   "type": "array",
@@ -435,34 +435,34 @@
                   "items": false,
                   "minItems": 2,
                   "maxItems": 2,
-                  "description": "Plan [x, y] in metres (y grows down); a grid: its centre."
+                  "description": "Plan [x, y] in metres (y down); a grid: its centre."
                 },
                 "elevation": {
                   "type": "number",
                   "minimum": 0,
-                  "description": "Height above the floor, in metres."
+                  "description": "Height above the floor (m)."
                 },
                 "kelvin": {
                   "default": 2700,
-                  "description": "Kelvin, 1000-12000 (2700 warm, 6500 daylight). Default 2700.",
+                  "description": "2700 warm, 6500 daylight.",
                   "type": "number",
                   "minimum": 1000,
                   "maximum": 12000
                 },
                 "on": {
                   "default": true,
-                  "description": "Switched on. Default true.",
+                  "description": "Switched on.",
                   "type": "boolean"
                 },
                 "lumens": {
                   "type": "number",
                   "minimum": 0,
-                  "description": "Lumens (a 60 W-equivalent bulb is about 800)."
+                  "description": "Lumens (60 W bulb about 800)."
                 },
                 "type": {
                   "type": "string",
                   "const": "point",
-                  "description": "Bulb: radiates in all directions."
+                  "description": "Bulb."
                 }
               },
               "required": [
@@ -480,18 +480,18 @@
                   "type": "string",
                   "minLength": 1,
                   "maxLength": 64,
-                  "description": "Optional id; derived as light-N."
+                  "description": "Id; default light-N."
                 },
                 "name": {
                   "type": "string",
                   "maxLength": 120,
-                  "description": "Optional label."
+                  "description": "Label."
                 },
                 "roomId": {
                   "type": "string",
                   "minLength": 1,
                   "maxLength": 64,
-                  "description": "Room id (list_rooms). Optional."
+                  "description": "Room id."
                 },
                 "position": {
                   "type": "array",
@@ -506,38 +506,38 @@
                   "items": false,
                   "minItems": 2,
                   "maxItems": 2,
-                  "description": "Plan [x, y] in metres (y grows down); a grid: its centre."
+                  "description": "Plan [x, y] in metres (y down); a grid: its centre."
                 },
                 "elevation": {
                   "type": "number",
                   "minimum": 0,
-                  "description": "Height above the floor, in metres."
+                  "description": "Height above the floor (m)."
                 },
                 "kelvin": {
                   "default": 2700,
-                  "description": "Kelvin, 1000-12000 (2700 warm, 6500 daylight). Default 2700.",
+                  "description": "2700 warm, 6500 daylight.",
                   "type": "number",
                   "minimum": 1000,
                   "maximum": 12000
                 },
                 "on": {
                   "default": true,
-                  "description": "Switched on. Default true.",
+                  "description": "Switched on.",
                   "type": "boolean"
                 },
                 "lumens": {
                   "type": "number",
                   "minimum": 0,
-                  "description": "Lumens (a 60 W-equivalent bulb is about 800)."
+                  "description": "Lumens (60 W bulb about 800)."
                 },
                 "type": {
                   "type": "string",
                   "const": "spot",
-                  "description": "Cone shining straight down."
+                  "description": "Downward cone."
                 },
                 "angle": {
                   "default": 60,
-                  "description": "Cone angle in degrees (1-179). Default 60.",
+                  "description": "Cone angle, degrees. Default 60.",
                   "type": "number",
                   "minimum": 1,
                   "maximum": 179
@@ -558,18 +558,18 @@
                   "type": "string",
                   "minLength": 1,
                   "maxLength": 64,
-                  "description": "Optional id; derived as light-N."
+                  "description": "Id; default light-N."
                 },
                 "name": {
                   "type": "string",
                   "maxLength": 120,
-                  "description": "Optional label."
+                  "description": "Label."
                 },
                 "roomId": {
                   "type": "string",
                   "minLength": 1,
                   "maxLength": 64,
-                  "description": "Room id (list_rooms). Optional."
+                  "description": "Room id."
                 },
                 "position": {
                   "type": "array",
@@ -584,48 +584,48 @@
                   "items": false,
                   "minItems": 2,
                   "maxItems": 2,
-                  "description": "Plan [x, y] in metres (y grows down); a grid: its centre."
+                  "description": "Plan [x, y] in metres (y down); a grid: its centre."
                 },
                 "elevation": {
                   "type": "number",
                   "minimum": 0,
-                  "description": "Height above the floor, in metres."
+                  "description": "Height above the floor (m)."
                 },
                 "kelvin": {
                   "default": 2700,
-                  "description": "Kelvin, 1000-12000 (2700 warm, 6500 daylight). Default 2700.",
+                  "description": "2700 warm, 6500 daylight.",
                   "type": "number",
                   "minimum": 1000,
                   "maximum": 12000
                 },
                 "on": {
                   "default": true,
-                  "description": "Switched on. Default true.",
+                  "description": "Switched on.",
                   "type": "boolean"
                 },
                 "lumens": {
                   "type": "number",
                   "minimum": 0,
-                  "description": "Lumens (a 60 W-equivalent bulb is about 800)."
+                  "description": "Lumens (60 W bulb about 800)."
                 },
                 "type": {
                   "type": "string",
                   "const": "area",
-                  "description": "Rectangular panel facing down."
+                  "description": "Downward panel."
                 },
                 "width": {
                   "type": "number",
                   "exclusiveMinimum": 0,
-                  "description": "Width in metres along plan x before rotation."
+                  "description": "Width (m, plan x)."
                 },
                 "depth": {
                   "type": "number",
                   "exclusiveMinimum": 0,
-                  "description": "Depth in metres along plan y before rotation."
+                  "description": "Depth (m, plan y)."
                 },
                 "rotation": {
                   "default": 0,
-                  "description": "Rotation in degrees, counter-clockwise seen from above. Default 0.",
+                  "description": "Degrees, counter-clockwise. Default 0.",
                   "type": "number"
                 }
               },
@@ -646,18 +646,18 @@
                   "type": "string",
                   "minLength": 1,
                   "maxLength": 64,
-                  "description": "Optional id; derived as light-N."
+                  "description": "Id; default light-N."
                 },
                 "name": {
                   "type": "string",
                   "maxLength": 120,
-                  "description": "Optional label."
+                  "description": "Label."
                 },
                 "roomId": {
                   "type": "string",
                   "minLength": 1,
                   "maxLength": 64,
-                  "description": "Room id (list_rooms). Optional."
+                  "description": "Room id."
                 },
                 "position": {
                   "description": "Grid centre [x, y] in metres. Needed unless fitToRoom.",
@@ -681,14 +681,14 @@
                 },
                 "kelvin": {
                   "default": 2700,
-                  "description": "Kelvin, 1000-12000 (2700 warm, 6500 daylight). Default 2700.",
+                  "description": "2700 warm, 6500 daylight.",
                   "type": "number",
                   "minimum": 1000,
                   "maximum": 12000
                 },
                 "on": {
                   "default": true,
-                  "description": "Switched on. Default true.",
+                  "description": "Switched on.",
                   "type": "boolean"
                 },
                 "type": {
@@ -720,17 +720,17 @@
                 },
                 "rotation": {
                   "default": 0,
-                  "description": "Grid rotation in degrees, counter-clockwise seen from above. Defaults to 0.",
+                  "description": "Degrees, counter-clockwise. Default 0.",
                   "type": "number"
                 },
                 "lumensEach": {
                   "type": "number",
                   "minimum": 0,
-                  "description": "Lumens of EACH fixture (a 6 W LED gives about 450); the total is rows x cols x lumensEach."
+                  "description": "Lumens of EACH fixture (6 W LED about 450); total = rows x cols x lumensEach."
                 },
                 "angle": {
                   "default": 100,
-                  "description": "Beam angle in degrees (1-179). Default 100.",
+                  "description": "Beam angle, degrees. Default 100.",
                   "type": "number",
                   "minimum": 1,
                   "maximum": 179
@@ -819,7 +819,7 @@
               "items": false,
               "minItems": 2,
               "maxItems": 2,
-              "description": "Plan [x, y] in metres (y grows down); a grid: its centre."
+              "description": "Plan [x, y] in metres (y down); a grid: its centre."
             },
             "elevation": {
               "type": "number",
@@ -1340,7 +1340,7 @@
                       "type": "number",
                       "minimum": 0,
                       "maximum": 2,
-                      "description": "Free gap in metres between the item and what it touches (default 0)."
+                      "description": "Gap in m to what it touches (0)."
                     }
                   },
                   "required": [
@@ -1374,7 +1374,7 @@
                       "type": "number",
                       "minimum": 0,
                       "maximum": 2,
-                      "description": "Free gap in metres between the item and what it touches (default 0)."
+                      "description": "Gap in m to what it touches (0)."
                     }
                   },
                   "required": [
@@ -1465,7 +1465,7 @@
                       "type": "number",
                       "minimum": 0,
                       "maximum": 2,
-                      "description": "Free gap in metres between the item and what it touches (default 0)."
+                      "description": "Gap in m to what it touches (0)."
                     },
                     "align": {
                       "default": "center",
@@ -1504,7 +1504,7 @@
                       "type": "number",
                       "minimum": 0,
                       "maximum": 2,
-                      "description": "Free gap in metres between the item and what it touches (default 0)."
+                      "description": "Gap in m to what it touches (0)."
                     }
                   },
                   "required": [
@@ -1587,18 +1587,18 @@
                       "type": "string",
                       "minLength": 1,
                       "maxLength": 64,
-                      "description": "Light id (1-64 characters), unique across all entities."
+                      "description": "Light id (1-64 chars), unique across all entities."
                     },
                     "name": {
                       "type": "string",
                       "maxLength": 120,
-                      "description": "Optional label."
+                      "description": "Label."
                     },
                     "roomId": {
                       "type": "string",
                       "minLength": 1,
                       "maxLength": 64,
-                      "description": "Room id (list_rooms). Optional."
+                      "description": "Room id."
                     },
                     "position": {
                       "type": "array",
@@ -1613,30 +1613,30 @@
                       "items": false,
                       "minItems": 2,
                       "maxItems": 2,
-                      "description": "Plan [x, y] in metres (y grows down); a grid: its centre."
+                      "description": "Plan [x, y] in metres (y down); a grid: its centre."
                     },
                     "elevation": {
                       "type": "number",
                       "minimum": 0,
-                      "description": "Height above the floor, in metres."
+                      "description": "Height above the floor (m)."
                     },
                     "kelvin": {
                       "default": 2700,
-                      "description": "Kelvin, 1000-12000 (2700 warm, 6500 daylight). Default 2700.",
+                      "description": "2700 warm, 6500 daylight.",
                       "type": "number",
                       "minimum": 1000,
                       "maximum": 12000
                     },
                     "on": {
                       "default": true,
-                      "description": "Switched on. Default true.",
+                      "description": "Switched on.",
                       "type": "boolean"
                     },
                     "itemId": {
                       "type": "string",
                       "minLength": 1,
                       "maxLength": 64,
-                      "description": "Id of the lamp item this light belongs to (it moves with the item). Set by the editor, not by you."
+                      "description": "Lamp item this light follows. Set by the editor, not by you."
                     },
                     "offset": {
                       "type": "array",
@@ -1654,7 +1654,7 @@
                       "items": false,
                       "minItems": 3,
                       "maxItems": 3,
-                      "description": "Linked lights only: [dx, dy, dz] of the bulb from the item origin, in metres."
+                      "description": "Linked lights: [dx, dy, dz] of the bulb from the item origin (m)."
                     },
                     "lumensSource": {
                       "type": "string",
@@ -1663,17 +1663,17 @@
                         "estimated",
                         "user"
                       ],
-                      "description": "Where the lumen figure comes from: \"product\" (retailer data), \"estimated\" (category default) or \"user\". Optional."
+                      "description": "Origin of the lumens: product, estimated or user. Optional."
                     },
                     "lumens": {
                       "type": "number",
                       "minimum": 0,
-                      "description": "Lumens (a 60 W-equivalent bulb is about 800)."
+                      "description": "Lumens (60 W bulb about 800)."
                     },
                     "type": {
                       "type": "string",
                       "const": "point",
-                      "description": "Bulb: radiates in all directions."
+                      "description": "Bulb."
                     }
                   },
                   "required": [
@@ -1692,18 +1692,18 @@
                       "type": "string",
                       "minLength": 1,
                       "maxLength": 64,
-                      "description": "Light id (1-64 characters), unique across all entities."
+                      "description": "Light id (1-64 chars), unique across all entities."
                     },
                     "name": {
                       "type": "string",
                       "maxLength": 120,
-                      "description": "Optional label."
+                      "description": "Label."
                     },
                     "roomId": {
                       "type": "string",
                       "minLength": 1,
                       "maxLength": 64,
-                      "description": "Room id (list_rooms). Optional."
+                      "description": "Room id."
                     },
                     "position": {
                       "type": "array",
@@ -1718,30 +1718,30 @@
                       "items": false,
                       "minItems": 2,
                       "maxItems": 2,
-                      "description": "Plan [x, y] in metres (y grows down); a grid: its centre."
+                      "description": "Plan [x, y] in metres (y down); a grid: its centre."
                     },
                     "elevation": {
                       "type": "number",
                       "minimum": 0,
-                      "description": "Height above the floor, in metres."
+                      "description": "Height above the floor (m)."
                     },
                     "kelvin": {
                       "default": 2700,
-                      "description": "Kelvin, 1000-12000 (2700 warm, 6500 daylight). Default 2700.",
+                      "description": "2700 warm, 6500 daylight.",
                       "type": "number",
                       "minimum": 1000,
                       "maximum": 12000
                     },
                     "on": {
                       "default": true,
-                      "description": "Switched on. Default true.",
+                      "description": "Switched on.",
                       "type": "boolean"
                     },
                     "itemId": {
                       "type": "string",
                       "minLength": 1,
                       "maxLength": 64,
-                      "description": "Id of the lamp item this light belongs to (it moves with the item). Set by the editor, not by you."
+                      "description": "Lamp item this light follows. Set by the editor, not by you."
                     },
                     "offset": {
                       "type": "array",
@@ -1759,7 +1759,7 @@
                       "items": false,
                       "minItems": 3,
                       "maxItems": 3,
-                      "description": "Linked lights only: [dx, dy, dz] of the bulb from the item origin, in metres."
+                      "description": "Linked lights: [dx, dy, dz] of the bulb from the item origin (m)."
                     },
                     "lumensSource": {
                       "type": "string",
@@ -1768,21 +1768,21 @@
                         "estimated",
                         "user"
                       ],
-                      "description": "Where the lumen figure comes from: \"product\" (retailer data), \"estimated\" (category default) or \"user\". Optional."
+                      "description": "Origin of the lumens: product, estimated or user. Optional."
                     },
                     "lumens": {
                       "type": "number",
                       "minimum": 0,
-                      "description": "Lumens (a 60 W-equivalent bulb is about 800)."
+                      "description": "Lumens (60 W bulb about 800)."
                     },
                     "type": {
                       "type": "string",
                       "const": "spot",
-                      "description": "Cone shining straight down."
+                      "description": "Downward cone."
                     },
                     "angle": {
                       "default": 60,
-                      "description": "Cone angle in degrees (1-179). Default 60.",
+                      "description": "Cone angle, degrees. Default 60.",
                       "type": "number",
                       "minimum": 1,
                       "maximum": 179
@@ -1804,18 +1804,18 @@
                       "type": "string",
                       "minLength": 1,
                       "maxLength": 64,
-                      "description": "Light id (1-64 characters), unique across all entities."
+                      "description": "Light id (1-64 chars), unique across all entities."
                     },
                     "name": {
                       "type": "string",
                       "maxLength": 120,
-                      "description": "Optional label."
+                      "description": "Label."
                     },
                     "roomId": {
                       "type": "string",
                       "minLength": 1,
                       "maxLength": 64,
-                      "description": "Room id (list_rooms). Optional."
+                      "description": "Room id."
                     },
                     "position": {
                       "type": "array",
@@ -1830,30 +1830,30 @@
                       "items": false,
                       "minItems": 2,
                       "maxItems": 2,
-                      "description": "Plan [x, y] in metres (y grows down); a grid: its centre."
+                      "description": "Plan [x, y] in metres (y down); a grid: its centre."
                     },
                     "elevation": {
                       "type": "number",
                       "minimum": 0,
-                      "description": "Height above the floor, in metres."
+                      "description": "Height above the floor (m)."
                     },
                     "kelvin": {
                       "default": 2700,
-                      "description": "Kelvin, 1000-12000 (2700 warm, 6500 daylight). Default 2700.",
+                      "description": "2700 warm, 6500 daylight.",
                       "type": "number",
                       "minimum": 1000,
                       "maximum": 12000
                     },
                     "on": {
                       "default": true,
-                      "description": "Switched on. Default true.",
+                      "description": "Switched on.",
                       "type": "boolean"
                     },
                     "itemId": {
                       "type": "string",
                       "minLength": 1,
                       "maxLength": 64,
-                      "description": "Id of the lamp item this light belongs to (it moves with the item). Set by the editor, not by you."
+                      "description": "Lamp item this light follows. Set by the editor, not by you."
                     },
                     "offset": {
                       "type": "array",
@@ -1871,7 +1871,7 @@
                       "items": false,
                       "minItems": 3,
                       "maxItems": 3,
-                      "description": "Linked lights only: [dx, dy, dz] of the bulb from the item origin, in metres."
+                      "description": "Linked lights: [dx, dy, dz] of the bulb from the item origin (m)."
                     },
                     "lumensSource": {
                       "type": "string",
@@ -1880,31 +1880,31 @@
                         "estimated",
                         "user"
                       ],
-                      "description": "Where the lumen figure comes from: \"product\" (retailer data), \"estimated\" (category default) or \"user\". Optional."
+                      "description": "Origin of the lumens: product, estimated or user. Optional."
                     },
                     "lumens": {
                       "type": "number",
                       "minimum": 0,
-                      "description": "Lumens (a 60 W-equivalent bulb is about 800)."
+                      "description": "Lumens (60 W bulb about 800)."
                     },
                     "type": {
                       "type": "string",
                       "const": "area",
-                      "description": "Rectangular panel facing down."
+                      "description": "Downward panel."
                     },
                     "width": {
                       "type": "number",
                       "exclusiveMinimum": 0,
-                      "description": "Width in metres along plan x before rotation."
+                      "description": "Width (m, plan x)."
                     },
                     "depth": {
                       "type": "number",
                       "exclusiveMinimum": 0,
-                      "description": "Depth in metres along plan y before rotation."
+                      "description": "Depth (m, plan y)."
                     },
                     "rotation": {
                       "default": 0,
-                      "description": "Rotation in degrees, counter-clockwise seen from above. Default 0.",
+                      "description": "Degrees, counter-clockwise. Default 0.",
                       "type": "number"
                     }
                   },
@@ -1926,18 +1926,18 @@
                       "type": "string",
                       "minLength": 1,
                       "maxLength": 64,
-                      "description": "Light id (1-64 characters), unique across all entities."
+                      "description": "Light id (1-64 chars), unique across all entities."
                     },
                     "name": {
                       "type": "string",
                       "maxLength": 120,
-                      "description": "Optional label."
+                      "description": "Label."
                     },
                     "roomId": {
                       "type": "string",
                       "minLength": 1,
                       "maxLength": 64,
-                      "description": "Room id (list_rooms). Optional."
+                      "description": "Room id."
                     },
                     "position": {
                       "type": "array",
@@ -1952,30 +1952,30 @@
                       "items": false,
                       "minItems": 2,
                       "maxItems": 2,
-                      "description": "Plan [x, y] in metres (y grows down); a grid: its centre."
+                      "description": "Plan [x, y] in metres (y down); a grid: its centre."
                     },
                     "elevation": {
                       "type": "number",
                       "minimum": 0,
-                      "description": "Height above the floor, in metres."
+                      "description": "Height above the floor (m)."
                     },
                     "kelvin": {
                       "default": 2700,
-                      "description": "Kelvin, 1000-12000 (2700 warm, 6500 daylight). Default 2700.",
+                      "description": "2700 warm, 6500 daylight.",
                       "type": "number",
                       "minimum": 1000,
                       "maximum": 12000
                     },
                     "on": {
                       "default": true,
-                      "description": "Switched on. Default true.",
+                      "description": "Switched on.",
                       "type": "boolean"
                     },
                     "itemId": {
                       "type": "string",
                       "minLength": 1,
                       "maxLength": 64,
-                      "description": "Id of the lamp item this light belongs to (it moves with the item). Set by the editor, not by you."
+                      "description": "Lamp item this light follows. Set by the editor, not by you."
                     },
                     "offset": {
                       "type": "array",
@@ -1993,7 +1993,7 @@
                       "items": false,
                       "minItems": 3,
                       "maxItems": 3,
-                      "description": "Linked lights only: [dx, dy, dz] of the bulb from the item origin, in metres."
+                      "description": "Linked lights: [dx, dy, dz] of the bulb from the item origin (m)."
                     },
                     "lumensSource": {
                       "type": "string",
@@ -2002,7 +2002,7 @@
                         "estimated",
                         "user"
                       ],
-                      "description": "Where the lumen figure comes from: \"product\" (retailer data), \"estimated\" (category default) or \"user\". Optional."
+                      "description": "Origin of the lumens: product, estimated or user. Optional."
                     },
                     "type": {
                       "type": "string",
@@ -2024,26 +2024,26 @@
                     "width": {
                       "type": "number",
                       "exclusiveMinimum": 0,
-                      "description": "Width in metres (plan x before rotation) the grid covers; fixtures sit at the centres of equal cells."
+                      "description": "Width (m, plan x) the grid covers."
                     },
                     "depth": {
                       "type": "number",
                       "exclusiveMinimum": 0,
-                      "description": "Depth in metres (plan y before rotation) the grid covers."
+                      "description": "Depth (m, plan y) the grid covers."
                     },
                     "rotation": {
                       "default": 0,
-                      "description": "Grid rotation in degrees, counter-clockwise seen from above. Defaults to 0.",
+                      "description": "Degrees, counter-clockwise. Default 0.",
                       "type": "number"
                     },
                     "lumensEach": {
                       "type": "number",
                       "minimum": 0,
-                      "description": "Lumens of EACH fixture (a 6 W LED gives about 450); the total is rows x cols x lumensEach."
+                      "description": "Lumens of EACH fixture (6 W LED about 450); total = rows x cols x lumensEach."
                     },
                     "angle": {
                       "default": 100,
-                      "description": "Beam angle in degrees (1-179). Default 100.",
+                      "description": "Beam angle, degrees. Default 100.",
                       "type": "number",
                       "minimum": 1,
                       "maximum": 179
@@ -2180,7 +2180,7 @@
                       "type": "number",
                       "minimum": 0,
                       "maximum": 2,
-                      "description": "Free gap in metres between the item and what it touches (default 0)."
+                      "description": "Gap in m to what it touches (0)."
                     }
                   },
                   "required": [
@@ -2214,7 +2214,7 @@
                       "type": "number",
                       "minimum": 0,
                       "maximum": 2,
-                      "description": "Free gap in metres between the item and what it touches (default 0)."
+                      "description": "Gap in m to what it touches (0)."
                     }
                   },
                   "required": [
@@ -2305,7 +2305,7 @@
                       "type": "number",
                       "minimum": 0,
                       "maximum": 2,
-                      "description": "Free gap in metres between the item and what it touches (default 0)."
+                      "description": "Gap in m to what it touches (0)."
                     },
                     "align": {
                       "default": "center",
@@ -2344,7 +2344,7 @@
                       "type": "number",
                       "minimum": 0,
                       "maximum": 2,
-                      "description": "Free gap in metres between the item and what it touches (default 0)."
+                      "description": "Gap in m to what it touches (0)."
                     }
                   },
                   "required": [
@@ -2772,7 +2772,7 @@
             "name": {
               "type": "string",
               "maxLength": 120,
-              "description": "Optional label."
+              "description": "Label."
             },
             "polygon": {
               "minItems": 3,
@@ -3034,13 +3034,13 @@
                         "type": "null"
                       }
                     ],
-                    "description": "Id of a defined material (sceneMaterials[].id from list_materials, or materials[].id from get_scene_summary with detail \"full\"), or null to clear back to the default. To use a library texture first call material_define with textureUrl \"lib:<slug>\" (library[].slug from list_materials)."
+                    "description": "Material id (sceneMaterials[].id from list_materials, or materials[].id from get_scene_summary with detail \"full\"), or null to clear. Library texture: first material_define with textureUrl \"lib:<slug>\" (library[].slug from list_materials)."
                   },
                   "roomId": {
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 64,
-                    "description": "The room whose stretch of this wall side to paint (rooms[].id from list_rooms). Strongly recommended: a wall side can be shared by several rooms (e.g. the alcove and the sejour) and without roomId the whole side is painted for all of them. Fails with precondition_failed if the room does not border that side. A room-scoped finish beats the whole-side finish and room_set_wall_finish."
+                    "description": "Room whose stretch of this side to paint (list_rooms). Strongly recommended: a side can be shared by several rooms (alcove and sejour) and without roomId all of them are painted. precondition_failed if the room does not border that side. A room-scoped finish beats the whole-side finish and room_set_wall_finish."
                   }
                 },
                 "required": [
@@ -3105,7 +3105,7 @@
                         "type": "null"
                       }
                     ],
-                    "description": "Id of a defined material (sceneMaterials[].id from list_materials, or materials[].id from get_scene_summary with detail \"full\"), or null to clear back to the default. To use a library texture first call material_define with textureUrl \"lib:<slug>\" (library[].slug from list_materials)."
+                    "description": "Material id (sceneMaterials[].id from list_materials, or materials[].id from get_scene_summary with detail \"full\"), or null to clear. Library texture: first material_define with textureUrl \"lib:<slug>\" (library[].slug from list_materials)."
                   }
                 },
                 "required": [
@@ -3140,7 +3140,7 @@
                         "type": "null"
                       }
                     ],
-                    "description": "Id of a defined material (sceneMaterials[].id from list_materials, or materials[].id from get_scene_summary with detail \"full\"), or null to clear back to the default. To use a library texture first call material_define with textureUrl \"lib:<slug>\" (library[].slug from list_materials)."
+                    "description": "Material id (sceneMaterials[].id from list_materials, or materials[].id from get_scene_summary with detail \"full\"), or null to clear. Library texture: first material_define with textureUrl \"lib:<slug>\" (library[].slug from list_materials)."
                   }
                 },
                 "required": [
@@ -3175,7 +3175,7 @@
                         "type": "null"
                       }
                     ],
-                    "description": "Id of a defined material (sceneMaterials[].id from list_materials, or materials[].id from get_scene_summary with detail \"full\"), or null to clear back to the default. To use a library texture first call material_define with textureUrl \"lib:<slug>\" (library[].slug from list_materials)."
+                    "description": "Material id (sceneMaterials[].id from list_materials, or materials[].id from get_scene_summary with detail \"full\"), or null to clear. Library texture: first material_define with textureUrl \"lib:<slug>\" (library[].slug from list_materials)."
                   }
                 },
                 "required": [
@@ -3313,18 +3313,18 @@
                             "type": "string",
                             "minLength": 1,
                             "maxLength": 64,
-                            "description": "Optional id; derived as light-N."
+                            "description": "Id; default light-N."
                           },
                           "name": {
                             "type": "string",
                             "maxLength": 120,
-                            "description": "Optional label."
+                            "description": "Label."
                           },
                           "roomId": {
                             "type": "string",
                             "minLength": 1,
                             "maxLength": 64,
-                            "description": "Room id (list_rooms). Optional."
+                            "description": "Room id."
                           },
                           "position": {
                             "type": "array",
@@ -3339,34 +3339,34 @@
                             "items": false,
                             "minItems": 2,
                             "maxItems": 2,
-                            "description": "Plan [x, y] in metres (y grows down); a grid: its centre."
+                            "description": "Plan [x, y] in metres (y down); a grid: its centre."
                           },
                           "elevation": {
                             "type": "number",
                             "minimum": 0,
-                            "description": "Height above the floor, in metres."
+                            "description": "Height above the floor (m)."
                           },
                           "kelvin": {
                             "default": 2700,
-                            "description": "Kelvin, 1000-12000 (2700 warm, 6500 daylight). Default 2700.",
+                            "description": "2700 warm, 6500 daylight.",
                             "type": "number",
                             "minimum": 1000,
                             "maximum": 12000
                           },
                           "on": {
                             "default": true,
-                            "description": "Switched on. Default true.",
+                            "description": "Switched on.",
                             "type": "boolean"
                           },
                           "lumens": {
                             "type": "number",
                             "minimum": 0,
-                            "description": "Lumens (a 60 W-equivalent bulb is about 800)."
+                            "description": "Lumens (60 W bulb about 800)."
                           },
                           "type": {
                             "type": "string",
                             "const": "point",
-                            "description": "Bulb: radiates in all directions."
+                            "description": "Bulb."
                           }
                         },
                         "required": [
@@ -3384,18 +3384,18 @@
                             "type": "string",
                             "minLength": 1,
                             "maxLength": 64,
-                            "description": "Optional id; derived as light-N."
+                            "description": "Id; default light-N."
                           },
                           "name": {
                             "type": "string",
                             "maxLength": 120,
-                            "description": "Optional label."
+                            "description": "Label."
                           },
                           "roomId": {
                             "type": "string",
                             "minLength": 1,
                             "maxLength": 64,
-                            "description": "Room id (list_rooms). Optional."
+                            "description": "Room id."
                           },
                           "position": {
                             "type": "array",
@@ -3410,38 +3410,38 @@
                             "items": false,
                             "minItems": 2,
                             "maxItems": 2,
-                            "description": "Plan [x, y] in metres (y grows down); a grid: its centre."
+                            "description": "Plan [x, y] in metres (y down); a grid: its centre."
                           },
                           "elevation": {
                             "type": "number",
                             "minimum": 0,
-                            "description": "Height above the floor, in metres."
+                            "description": "Height above the floor (m)."
                           },
                           "kelvin": {
                             "default": 2700,
-                            "description": "Kelvin, 1000-12000 (2700 warm, 6500 daylight). Default 2700.",
+                            "description": "2700 warm, 6500 daylight.",
                             "type": "number",
                             "minimum": 1000,
                             "maximum": 12000
                           },
                           "on": {
                             "default": true,
-                            "description": "Switched on. Default true.",
+                            "description": "Switched on.",
                             "type": "boolean"
                           },
                           "lumens": {
                             "type": "number",
                             "minimum": 0,
-                            "description": "Lumens (a 60 W-equivalent bulb is about 800)."
+                            "description": "Lumens (60 W bulb about 800)."
                           },
                           "type": {
                             "type": "string",
                             "const": "spot",
-                            "description": "Cone shining straight down."
+                            "description": "Downward cone."
                           },
                           "angle": {
                             "default": 60,
-                            "description": "Cone angle in degrees (1-179). Default 60.",
+                            "description": "Cone angle, degrees. Default 60.",
                             "type": "number",
                             "minimum": 1,
                             "maximum": 179
@@ -3462,18 +3462,18 @@
                             "type": "string",
                             "minLength": 1,
                             "maxLength": 64,
-                            "description": "Optional id; derived as light-N."
+                            "description": "Id; default light-N."
                           },
                           "name": {
                             "type": "string",
                             "maxLength": 120,
-                            "description": "Optional label."
+                            "description": "Label."
                           },
                           "roomId": {
                             "type": "string",
                             "minLength": 1,
                             "maxLength": 64,
-                            "description": "Room id (list_rooms). Optional."
+                            "description": "Room id."
                           },
                           "position": {
                             "type": "array",
@@ -3488,48 +3488,48 @@
                             "items": false,
                             "minItems": 2,
                             "maxItems": 2,
-                            "description": "Plan [x, y] in metres (y grows down); a grid: its centre."
+                            "description": "Plan [x, y] in metres (y down); a grid: its centre."
                           },
                           "elevation": {
                             "type": "number",
                             "minimum": 0,
-                            "description": "Height above the floor, in metres."
+                            "description": "Height above the floor (m)."
                           },
                           "kelvin": {
                             "default": 2700,
-                            "description": "Kelvin, 1000-12000 (2700 warm, 6500 daylight). Default 2700.",
+                            "description": "2700 warm, 6500 daylight.",
                             "type": "number",
                             "minimum": 1000,
                             "maximum": 12000
                           },
                           "on": {
                             "default": true,
-                            "description": "Switched on. Default true.",
+                            "description": "Switched on.",
                             "type": "boolean"
                           },
                           "lumens": {
                             "type": "number",
                             "minimum": 0,
-                            "description": "Lumens (a 60 W-equivalent bulb is about 800)."
+                            "description": "Lumens (60 W bulb about 800)."
                           },
                           "type": {
                             "type": "string",
                             "const": "area",
-                            "description": "Rectangular panel facing down."
+                            "description": "Downward panel."
                           },
                           "width": {
                             "type": "number",
                             "exclusiveMinimum": 0,
-                            "description": "Width in metres along plan x before rotation."
+                            "description": "Width (m, plan x)."
                           },
                           "depth": {
                             "type": "number",
                             "exclusiveMinimum": 0,
-                            "description": "Depth in metres along plan y before rotation."
+                            "description": "Depth (m, plan y)."
                           },
                           "rotation": {
                             "default": 0,
-                            "description": "Rotation in degrees, counter-clockwise seen from above. Default 0.",
+                            "description": "Degrees, counter-clockwise. Default 0.",
                             "type": "number"
                           }
                         },
@@ -3550,18 +3550,18 @@
                             "type": "string",
                             "minLength": 1,
                             "maxLength": 64,
-                            "description": "Optional id; derived as light-N."
+                            "description": "Id; default light-N."
                           },
                           "name": {
                             "type": "string",
                             "maxLength": 120,
-                            "description": "Optional label."
+                            "description": "Label."
                           },
                           "roomId": {
                             "type": "string",
                             "minLength": 1,
                             "maxLength": 64,
-                            "description": "Room id (list_rooms). Optional."
+                            "description": "Room id."
                           },
                           "position": {
                             "description": "Grid centre [x, y] in metres. Needed unless fitToRoom.",
@@ -3585,14 +3585,14 @@
                           },
                           "kelvin": {
                             "default": 2700,
-                            "description": "Kelvin, 1000-12000 (2700 warm, 6500 daylight). Default 2700.",
+                            "description": "2700 warm, 6500 daylight.",
                             "type": "number",
                             "minimum": 1000,
                             "maximum": 12000
                           },
                           "on": {
                             "default": true,
-                            "description": "Switched on. Default true.",
+                            "description": "Switched on.",
                             "type": "boolean"
                           },
                           "type": {
@@ -3624,17 +3624,17 @@
                           },
                           "rotation": {
                             "default": 0,
-                            "description": "Grid rotation in degrees, counter-clockwise seen from above. Defaults to 0.",
+                            "description": "Degrees, counter-clockwise. Default 0.",
                             "type": "number"
                           },
                           "lumensEach": {
                             "type": "number",
                             "minimum": 0,
-                            "description": "Lumens of EACH fixture (a 6 W LED gives about 450); the total is rows x cols x lumensEach."
+                            "description": "Lumens of EACH fixture (6 W LED about 450); total = rows x cols x lumensEach."
                           },
                           "angle": {
                             "default": 100,
-                            "description": "Beam angle in degrees (1-179). Default 100.",
+                            "description": "Beam angle, degrees. Default 100.",
                             "type": "number",
                             "minimum": 1,
                             "maximum": 179
@@ -3723,7 +3723,7 @@
                         "items": false,
                         "minItems": 2,
                         "maxItems": 2,
-                        "description": "Plan [x, y] in metres (y grows down); a grid: its centre."
+                        "description": "Plan [x, y] in metres (y down); a grid: its centre."
                       },
                       "elevation": {
                         "type": "number",
@@ -4244,7 +4244,7 @@
                                 "type": "number",
                                 "minimum": 0,
                                 "maximum": 2,
-                                "description": "Free gap in metres between the item and what it touches (default 0)."
+                                "description": "Gap in m to what it touches (0)."
                               }
                             },
                             "required": [
@@ -4278,7 +4278,7 @@
                                 "type": "number",
                                 "minimum": 0,
                                 "maximum": 2,
-                                "description": "Free gap in metres between the item and what it touches (default 0)."
+                                "description": "Gap in m to what it touches (0)."
                               }
                             },
                             "required": [
@@ -4369,7 +4369,7 @@
                                 "type": "number",
                                 "minimum": 0,
                                 "maximum": 2,
-                                "description": "Free gap in metres between the item and what it touches (default 0)."
+                                "description": "Gap in m to what it touches (0)."
                               },
                               "align": {
                                 "default": "center",
@@ -4408,7 +4408,7 @@
                                 "type": "number",
                                 "minimum": 0,
                                 "maximum": 2,
-                                "description": "Free gap in metres between the item and what it touches (default 0)."
+                                "description": "Gap in m to what it touches (0)."
                               }
                             },
                             "required": [
@@ -4491,18 +4491,18 @@
                                 "type": "string",
                                 "minLength": 1,
                                 "maxLength": 64,
-                                "description": "Light id (1-64 characters), unique across all entities."
+                                "description": "Light id (1-64 chars), unique across all entities."
                               },
                               "name": {
                                 "type": "string",
                                 "maxLength": 120,
-                                "description": "Optional label."
+                                "description": "Label."
                               },
                               "roomId": {
                                 "type": "string",
                                 "minLength": 1,
                                 "maxLength": 64,
-                                "description": "Room id (list_rooms). Optional."
+                                "description": "Room id."
                               },
                               "position": {
                                 "type": "array",
@@ -4517,30 +4517,30 @@
                                 "items": false,
                                 "minItems": 2,
                                 "maxItems": 2,
-                                "description": "Plan [x, y] in metres (y grows down); a grid: its centre."
+                                "description": "Plan [x, y] in metres (y down); a grid: its centre."
                               },
                               "elevation": {
                                 "type": "number",
                                 "minimum": 0,
-                                "description": "Height above the floor, in metres."
+                                "description": "Height above the floor (m)."
                               },
                               "kelvin": {
                                 "default": 2700,
-                                "description": "Kelvin, 1000-12000 (2700 warm, 6500 daylight). Default 2700.",
+                                "description": "2700 warm, 6500 daylight.",
                                 "type": "number",
                                 "minimum": 1000,
                                 "maximum": 12000
                               },
                               "on": {
                                 "default": true,
-                                "description": "Switched on. Default true.",
+                                "description": "Switched on.",
                                 "type": "boolean"
                               },
                               "itemId": {
                                 "type": "string",
                                 "minLength": 1,
                                 "maxLength": 64,
-                                "description": "Id of the lamp item this light belongs to (it moves with the item). Set by the editor, not by you."
+                                "description": "Lamp item this light follows. Set by the editor, not by you."
                               },
                               "offset": {
                                 "type": "array",
@@ -4558,7 +4558,7 @@
                                 "items": false,
                                 "minItems": 3,
                                 "maxItems": 3,
-                                "description": "Linked lights only: [dx, dy, dz] of the bulb from the item origin, in metres."
+                                "description": "Linked lights: [dx, dy, dz] of the bulb from the item origin (m)."
                               },
                               "lumensSource": {
                                 "type": "string",
@@ -4567,17 +4567,17 @@
                                   "estimated",
                                   "user"
                                 ],
-                                "description": "Where the lumen figure comes from: \"product\" (retailer data), \"estimated\" (category default) or \"user\". Optional."
+                                "description": "Origin of the lumens: product, estimated or user. Optional."
                               },
                               "lumens": {
                                 "type": "number",
                                 "minimum": 0,
-                                "description": "Lumens (a 60 W-equivalent bulb is about 800)."
+                                "description": "Lumens (60 W bulb about 800)."
                               },
                               "type": {
                                 "type": "string",
                                 "const": "point",
-                                "description": "Bulb: radiates in all directions."
+                                "description": "Bulb."
                               }
                             },
                             "required": [
@@ -4596,18 +4596,18 @@
                                 "type": "string",
                                 "minLength": 1,
                                 "maxLength": 64,
-                                "description": "Light id (1-64 characters), unique across all entities."
+                                "description": "Light id (1-64 chars), unique across all entities."
                               },
                               "name": {
                                 "type": "string",
                                 "maxLength": 120,
-                                "description": "Optional label."
+                                "description": "Label."
                               },
                               "roomId": {
                                 "type": "string",
                                 "minLength": 1,
                                 "maxLength": 64,
-                                "description": "Room id (list_rooms). Optional."
+                                "description": "Room id."
                               },
                               "position": {
                                 "type": "array",
@@ -4622,30 +4622,30 @@
                                 "items": false,
                                 "minItems": 2,
                                 "maxItems": 2,
-                                "description": "Plan [x, y] in metres (y grows down); a grid: its centre."
+                                "description": "Plan [x, y] in metres (y down); a grid: its centre."
                               },
                               "elevation": {
                                 "type": "number",
                                 "minimum": 0,
-                                "description": "Height above the floor, in metres."
+                                "description": "Height above the floor (m)."
                               },
                               "kelvin": {
                                 "default": 2700,
-                                "description": "Kelvin, 1000-12000 (2700 warm, 6500 daylight). Default 2700.",
+                                "description": "2700 warm, 6500 daylight.",
                                 "type": "number",
                                 "minimum": 1000,
                                 "maximum": 12000
                               },
                               "on": {
                                 "default": true,
-                                "description": "Switched on. Default true.",
+                                "description": "Switched on.",
                                 "type": "boolean"
                               },
                               "itemId": {
                                 "type": "string",
                                 "minLength": 1,
                                 "maxLength": 64,
-                                "description": "Id of the lamp item this light belongs to (it moves with the item). Set by the editor, not by you."
+                                "description": "Lamp item this light follows. Set by the editor, not by you."
                               },
                               "offset": {
                                 "type": "array",
@@ -4663,7 +4663,7 @@
                                 "items": false,
                                 "minItems": 3,
                                 "maxItems": 3,
-                                "description": "Linked lights only: [dx, dy, dz] of the bulb from the item origin, in metres."
+                                "description": "Linked lights: [dx, dy, dz] of the bulb from the item origin (m)."
                               },
                               "lumensSource": {
                                 "type": "string",
@@ -4672,21 +4672,21 @@
                                   "estimated",
                                   "user"
                                 ],
-                                "description": "Where the lumen figure comes from: \"product\" (retailer data), \"estimated\" (category default) or \"user\". Optional."
+                                "description": "Origin of the lumens: product, estimated or user. Optional."
                               },
                               "lumens": {
                                 "type": "number",
                                 "minimum": 0,
-                                "description": "Lumens (a 60 W-equivalent bulb is about 800)."
+                                "description": "Lumens (60 W bulb about 800)."
                               },
                               "type": {
                                 "type": "string",
                                 "const": "spot",
-                                "description": "Cone shining straight down."
+                                "description": "Downward cone."
                               },
                               "angle": {
                                 "default": 60,
-                                "description": "Cone angle in degrees (1-179). Default 60.",
+                                "description": "Cone angle, degrees. Default 60.",
                                 "type": "number",
                                 "minimum": 1,
                                 "maximum": 179
@@ -4708,18 +4708,18 @@
                                 "type": "string",
                                 "minLength": 1,
                                 "maxLength": 64,
-                                "description": "Light id (1-64 characters), unique across all entities."
+                                "description": "Light id (1-64 chars), unique across all entities."
                               },
                               "name": {
                                 "type": "string",
                                 "maxLength": 120,
-                                "description": "Optional label."
+                                "description": "Label."
                               },
                               "roomId": {
                                 "type": "string",
                                 "minLength": 1,
                                 "maxLength": 64,
-                                "description": "Room id (list_rooms). Optional."
+                                "description": "Room id."
                               },
                               "position": {
                                 "type": "array",
@@ -4734,30 +4734,30 @@
                                 "items": false,
                                 "minItems": 2,
                                 "maxItems": 2,
-                                "description": "Plan [x, y] in metres (y grows down); a grid: its centre."
+                                "description": "Plan [x, y] in metres (y down); a grid: its centre."
                               },
                               "elevation": {
                                 "type": "number",
                                 "minimum": 0,
-                                "description": "Height above the floor, in metres."
+                                "description": "Height above the floor (m)."
                               },
                               "kelvin": {
                                 "default": 2700,
-                                "description": "Kelvin, 1000-12000 (2700 warm, 6500 daylight). Default 2700.",
+                                "description": "2700 warm, 6500 daylight.",
                                 "type": "number",
                                 "minimum": 1000,
                                 "maximum": 12000
                               },
                               "on": {
                                 "default": true,
-                                "description": "Switched on. Default true.",
+                                "description": "Switched on.",
                                 "type": "boolean"
                               },
                               "itemId": {
                                 "type": "string",
                                 "minLength": 1,
                                 "maxLength": 64,
-                                "description": "Id of the lamp item this light belongs to (it moves with the item). Set by the editor, not by you."
+                                "description": "Lamp item this light follows. Set by the editor, not by you."
                               },
                               "offset": {
                                 "type": "array",
@@ -4775,7 +4775,7 @@
                                 "items": false,
                                 "minItems": 3,
                                 "maxItems": 3,
-                                "description": "Linked lights only: [dx, dy, dz] of the bulb from the item origin, in metres."
+                                "description": "Linked lights: [dx, dy, dz] of the bulb from the item origin (m)."
                               },
                               "lumensSource": {
                                 "type": "string",
@@ -4784,31 +4784,31 @@
                                   "estimated",
                                   "user"
                                 ],
-                                "description": "Where the lumen figure comes from: \"product\" (retailer data), \"estimated\" (category default) or \"user\". Optional."
+                                "description": "Origin of the lumens: product, estimated or user. Optional."
                               },
                               "lumens": {
                                 "type": "number",
                                 "minimum": 0,
-                                "description": "Lumens (a 60 W-equivalent bulb is about 800)."
+                                "description": "Lumens (60 W bulb about 800)."
                               },
                               "type": {
                                 "type": "string",
                                 "const": "area",
-                                "description": "Rectangular panel facing down."
+                                "description": "Downward panel."
                               },
                               "width": {
                                 "type": "number",
                                 "exclusiveMinimum": 0,
-                                "description": "Width in metres along plan x before rotation."
+                                "description": "Width (m, plan x)."
                               },
                               "depth": {
                                 "type": "number",
                                 "exclusiveMinimum": 0,
-                                "description": "Depth in metres along plan y before rotation."
+                                "description": "Depth (m, plan y)."
                               },
                               "rotation": {
                                 "default": 0,
-                                "description": "Rotation in degrees, counter-clockwise seen from above. Default 0.",
+                                "description": "Degrees, counter-clockwise. Default 0.",
                                 "type": "number"
                               }
                             },
@@ -4830,18 +4830,18 @@
                                 "type": "string",
                                 "minLength": 1,
                                 "maxLength": 64,
-                                "description": "Light id (1-64 characters), unique across all entities."
+                                "description": "Light id (1-64 chars), unique across all entities."
                               },
                               "name": {
                                 "type": "string",
                                 "maxLength": 120,
-                                "description": "Optional label."
+                                "description": "Label."
                               },
                               "roomId": {
                                 "type": "string",
                                 "minLength": 1,
                                 "maxLength": 64,
-                                "description": "Room id (list_rooms). Optional."
+                                "description": "Room id."
                               },
                               "position": {
                                 "type": "array",
@@ -4856,30 +4856,30 @@
                                 "items": false,
                                 "minItems": 2,
                                 "maxItems": 2,
-                                "description": "Plan [x, y] in metres (y grows down); a grid: its centre."
+                                "description": "Plan [x, y] in metres (y down); a grid: its centre."
                               },
                               "elevation": {
                                 "type": "number",
                                 "minimum": 0,
-                                "description": "Height above the floor, in metres."
+                                "description": "Height above the floor (m)."
                               },
                               "kelvin": {
                                 "default": 2700,
-                                "description": "Kelvin, 1000-12000 (2700 warm, 6500 daylight). Default 2700.",
+                                "description": "2700 warm, 6500 daylight.",
                                 "type": "number",
                                 "minimum": 1000,
                                 "maximum": 12000
                               },
                               "on": {
                                 "default": true,
-                                "description": "Switched on. Default true.",
+                                "description": "Switched on.",
                                 "type": "boolean"
                               },
                               "itemId": {
                                 "type": "string",
                                 "minLength": 1,
                                 "maxLength": 64,
-                                "description": "Id of the lamp item this light belongs to (it moves with the item). Set by the editor, not by you."
+                                "description": "Lamp item this light follows. Set by the editor, not by you."
                               },
                               "offset": {
                                 "type": "array",
@@ -4897,7 +4897,7 @@
                                 "items": false,
                                 "minItems": 3,
                                 "maxItems": 3,
-                                "description": "Linked lights only: [dx, dy, dz] of the bulb from the item origin, in metres."
+                                "description": "Linked lights: [dx, dy, dz] of the bulb from the item origin (m)."
                               },
                               "lumensSource": {
                                 "type": "string",
@@ -4906,7 +4906,7 @@
                                   "estimated",
                                   "user"
                                 ],
-                                "description": "Where the lumen figure comes from: \"product\" (retailer data), \"estimated\" (category default) or \"user\". Optional."
+                                "description": "Origin of the lumens: product, estimated or user. Optional."
                               },
                               "type": {
                                 "type": "string",
@@ -4928,26 +4928,26 @@
                               "width": {
                                 "type": "number",
                                 "exclusiveMinimum": 0,
-                                "description": "Width in metres (plan x before rotation) the grid covers; fixtures sit at the centres of equal cells."
+                                "description": "Width (m, plan x) the grid covers."
                               },
                               "depth": {
                                 "type": "number",
                                 "exclusiveMinimum": 0,
-                                "description": "Depth in metres (plan y before rotation) the grid covers."
+                                "description": "Depth (m, plan y) the grid covers."
                               },
                               "rotation": {
                                 "default": 0,
-                                "description": "Grid rotation in degrees, counter-clockwise seen from above. Defaults to 0.",
+                                "description": "Degrees, counter-clockwise. Default 0.",
                                 "type": "number"
                               },
                               "lumensEach": {
                                 "type": "number",
                                 "minimum": 0,
-                                "description": "Lumens of EACH fixture (a 6 W LED gives about 450); the total is rows x cols x lumensEach."
+                                "description": "Lumens of EACH fixture (6 W LED about 450); total = rows x cols x lumensEach."
                               },
                               "angle": {
                                 "default": 100,
-                                "description": "Beam angle in degrees (1-179). Default 100.",
+                                "description": "Beam angle, degrees. Default 100.",
                                 "type": "number",
                                 "minimum": 1,
                                 "maximum": 179
@@ -5084,7 +5084,7 @@
                                 "type": "number",
                                 "minimum": 0,
                                 "maximum": 2,
-                                "description": "Free gap in metres between the item and what it touches (default 0)."
+                                "description": "Gap in m to what it touches (0)."
                               }
                             },
                             "required": [
@@ -5118,7 +5118,7 @@
                                 "type": "number",
                                 "minimum": 0,
                                 "maximum": 2,
-                                "description": "Free gap in metres between the item and what it touches (default 0)."
+                                "description": "Gap in m to what it touches (0)."
                               }
                             },
                             "required": [
@@ -5209,7 +5209,7 @@
                                 "type": "number",
                                 "minimum": 0,
                                 "maximum": 2,
-                                "description": "Free gap in metres between the item and what it touches (default 0)."
+                                "description": "Gap in m to what it touches (0)."
                               },
                               "align": {
                                 "default": "center",
@@ -5248,7 +5248,7 @@
                                 "type": "number",
                                 "minimum": 0,
                                 "maximum": 2,
-                                "description": "Free gap in metres between the item and what it touches (default 0)."
+                                "description": "Gap in m to what it touches (0)."
                               }
                             },
                             "required": [
@@ -5676,7 +5676,7 @@
                       "name": {
                         "type": "string",
                         "maxLength": 120,
-                        "description": "Optional label."
+                        "description": "Label."
                       },
                       "polygon": {
                         "minItems": 3,

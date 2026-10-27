@@ -44,9 +44,9 @@ const DESCRIPTIONS: Record<string, { description: string; example: Record<string
   },
   'wall.setFinish': {
     description:
-      'Paint one or both faces of a wall (wall ids: walls[].wallId from describe_room, which also says which side faces the room). Pass roomId (strongly recommended) to paint only that room\'s stretch of the face: the alcove and the sejour can share a wall and get different colours. ' +
-      'Without roomId the whole face is painted for every room on it. Precedence on a stretch of face, most specific first: the room-scoped finish (roomId), the whole-face finish, the room\'s paint-all-walls (room_set_wall_finish), the scene default. ' +
-      'Left and right follow the walking direction from wall start to end on the plan (plan y grows down). materialId null clears the finish.',
+      'Paint one or both faces of a wall (wall ids: walls[].wallId from describe_room, which also says which side faces the room). Pass roomId (strongly recommended) to paint only that room\'s stretch of the face (the alcove and the sejour can share a wall and get different colours); without it the whole face is painted for every room on it. ' +
+      'Precedence, most specific first: roomId finish, whole-face finish, room_set_wall_finish, scene default. ' +
+      'Left and right follow the walking direction from wall start to end (plan y grows down). materialId null clears.',
     example: { wallId: 'w-west', side: 'right', materialId: 'paint-sage', roomId: 'sejour' },
   },
   'wall.setStructural': {
@@ -73,7 +73,7 @@ const DESCRIPTIONS: Record<string, { description: string; example: Record<string
   'light.add': {
     description:
       'Add a light: point (bulb), spot (downward cone), area (panel) or grid: rows x cols identical LED downlights as ONE light (rows, cols, lumensEach, kelvin, angle; fitToRoom + roomId, or position + width + depth). ' +
-      'Size a grid by the lighting plan of describe_room. Only about 9 lights cast shadows: light_remove the ceiling light a grid replaces. The id is derived (light-N) when omitted.',
+      'Size a grid by the lighting plan of describe_room. Only about 9 lights cast shadows: light_remove the ceiling light a grid replaces.',
     example: { light: { type: 'grid', roomId: 'sejour', fitToRoom: true, rows: 3, cols: 4, lumensEach: 450, kelvin: 2700, angle: 100 } },
   },
   'light.update': {

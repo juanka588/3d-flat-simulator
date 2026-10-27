@@ -25,11 +25,20 @@ export interface RayRoom {
   id: string;
   type?: string;
   polygon: P2[];
+  /** A part of the floor with its own material: its albedo differs from the room's, so ratios across it mean nothing. */
+  floorZones?: { polygon: P2[] }[] | null;
+}
+export interface RayItem {
+  position: P2;
+  rotation: number;
+  dims?: { w: number; d: number; h: number } | null;
 }
 export interface RayFlat {
   walls: RayWall[];
   openings: RayOpening[];
   rooms: RayRoom[];
+  /** Furniture: a probe point under one would read the top of the item in a top view, not the floor, so it is skipped. */
+  items?: RayItem[];
 }
 
 const DEFAULT_WALL_HEIGHT = 2.5;
@@ -38,6 +47,8 @@ const CEILING = 2.5;
 const EDGE = 0.12;
 /** Partitions are walls up to this thick. */
 const PARTITION_MAX = 0.1;
+/** Probe points keep this far (metres) from furniture and from other walls, so the luma reads bare floor. */
+const ITEM_MARGIN = 0.1;
 
 export function inPoly(p: P2, polygon: readonly P2[]): boolean {
   let inside = false;
@@ -47,6 +58,39 @@ export function inPoly(p: P2, polygon: readonly P2[]): boolean {
     if (yi > p[1] !== yj > p[1] && p[0] < ((xj - xi) * (p[1] - yi)) / (yj - yi) + xi) inside = !inside;
   }
   return inside;
+}
+
+/** True when a floor point is within `margin` of an item footprint (a rotated w x d rectangle about its position). */
+function onItem(flat: RayFlat, p: P2, margin: number): boolean {
+  for (const it of flat.items ?? []) {
+    if (!it.dims) continue;
+    const a = (it.rotation * Math.PI) / 180;
+    const dx = p[0] - it.position[0];
+    const dy = p[1] - it.position[1];
+    // item local x is plan x at rotation 0; rotation is counter-clockwise seen from above (plan y grows down)
+    const lx = dx * Math.cos(a) - dy * Math.sin(a);
+    const ly = dx * Math.sin(a) + dy * Math.cos(a);
+    if (Math.abs(lx) <= it.dims.w / 2 + margin && Math.abs(ly) <= it.dims.d / 2 + margin) return true;
+  }
+  return false;
+}
+
+function onZone(flat: RayFlat, p: P2): boolean {
+  return flat.rooms.some((r) => (r.floorZones ?? []).some((z) => inPoly(p, z.polygon)));
+}
+
+/** True when a floor point lies inside (or within `margin` of) a wall other than `except`: columns and partitions read as wall tops. */
+function onOtherWall(flat: RayFlat, p: P2, margin: number, except: string): boolean {
+  for (const w of flat.walls) {
+    if (w.id === except) continue;
+    const length = Math.hypot(w.end[0] - w.start[0], w.end[1] - w.start[1]);
+    if (length < 1e-9) continue;
+    const d: P2 = [(w.end[0] - w.start[0]) / length, (w.end[1] - w.start[1]) / length];
+    const a = (p[0] - w.start[0]) * d[0] + (p[1] - w.start[1]) * d[1];
+    const c = -(p[0] - w.start[0]) * d[1] + (p[1] - w.start[1]) * d[0];
+    if (a >= -w.thickness / 2 - margin && a <= length + w.thickness / 2 + margin && Math.abs(c) <= w.thickness / 2 + margin) return true;
+  }
+  return false;
 }
 
 /** An opening lets light through when it is a window, a glazed door or a passage. */
@@ -159,7 +203,7 @@ export function findWallShadowProbes(flat: RayFlat, direction: [number, number, 
     for (let s = 0.3; s < length - 0.3; s += 0.1) {
       const c: P2 = [wall.start[0] + d[0] * s, wall.start[1] + d[1] * s];
       const behind: P2 = [c[0] + lee[0] * off, c[1] + lee[1] * off];
-      if (!inRoom(behind)) continue;
+      if (!inRoom(behind) || onItem(flat, behind, ITEM_MARGIN) || onZone(flat, behind) || onOtherWall(flat, behind, ITEM_MARGIN, wall.id)) continue;
       const tb = traceToSun(flat, behind, u, tanAlt);
       if (tb.uncertain || tb.ceiling || tb.hits.length !== 1 || tb.hits[0] !== wall.id) continue;
       if (!partitions) {
@@ -167,7 +211,7 @@ export function findWallShadowProbes(flat: RayFlat, direction: [number, number, 
         continue;
       }
       const lit: P2 = [c[0] - lee[0] * off, c[1] - lee[1] * off];
-      if (!inRoom(lit)) continue;
+      if (!inRoom(lit) || onItem(flat, lit, ITEM_MARGIN) || onZone(flat, lit) || onOtherWall(flat, lit, ITEM_MARGIN, wall.id)) continue;
       const tl = traceToSun(flat, lit, u, tanAlt);
       if (!tl.uncertain && !tl.ceiling && tl.hits.length === 0) probes.push({ wallId: wall.id, behind, lit });
     }

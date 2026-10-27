@@ -7,6 +7,8 @@ import { loadLibraryModels, matchesFilter } from '../catalog/library';
 import type { LibraryModel } from '../catalog/library';
 import { defaultParams, paramFields, resolveParams } from '../catalog/param-fields';
 import type { ParamValues } from '../catalog/param-fields';
+import { generatorTitle } from '../catalog/generator-titles';
+import { modelsBase } from '../viewer/model-env';
 import { generatorSource, libraryModelSource } from '../catalog/place';
 import { useCardDrag } from '../catalog/use-card-drag';
 
@@ -23,7 +25,7 @@ export function LibraryTab({ onDragStart }: { onDragStart?: (() => void) | undef
       live = false;
     };
   }, []);
-  const generators = GENERATORS.list().filter((g) => matchesFilter(filter, g.label, g.category, g.id));
+  const generators = GENERATORS.list().filter((g) => matchesFilter(filter, generatorTitle(g), g.label, g.category, g.id));
   const shown = models.filter((m) => matchesFilter(filter, m.asset.name, m.asset.category, ...m.asset.styleTags));
   return (
     <div className="catalog-library" data-testid="catalog-library">
@@ -53,6 +55,8 @@ function GeneratorCard({ generator, onDragStart }: { generator: AnyGenerator; on
   const fields = useMemo(() => paramFields(generator), [generator]);
   const [values, setValues] = useState<ParamValues>(() => defaultParams(generator));
   const [open, setOpen] = useState(false);
+  const [thumbFailed, setThumbFailed] = useState(false);
+  const title = generatorTitle(generator);
   const result = useMemo(() => resolveParams(generator, values), [generator, values]);
   const drag = useCardDrag({
     source: () => {
@@ -64,16 +68,16 @@ function GeneratorCard({ generator, onDragStart }: { generator: AnyGenerator; on
     disabled: !result.ok,
   });
   return (
-    <li className="product-card generator-card" data-testid="generator-card" data-generator={generator.id} onPointerDown={drag.onPointerDown} onDragStart={(e) => e.preventDefault()}>
+    <li className="product-card generator-card" data-testid="generator-card" data-generator={generator.id} title={generator.label} onPointerDown={drag.onPointerDown} onDragStart={(e) => e.preventDefault()}>
       <div className="thumb" aria-hidden="true">
-        <span>{generator.label.slice(0, 1)}</span>
+        {thumbFailed ? <span>{title.slice(0, 1)}</span> : <img src={`${modelsBase()}thumbs/param-${generator.id}.webp`} alt="" decoding="async" draggable={false} onError={() => setThumbFailed(true)} />}
       </div>
       <div className="meta">
-        <strong className="name">{generator.label}</strong>
+        <strong className="name">{title}</strong>
         <span className="dims">{result.ok ? formatDims(result.dims) : 'invalid parameters'}</span>
         <span className="badges">
           <span className="badge">parametric</span>
-          <button type="button" className="add-to-room" data-testid="add-to-room" disabled={!result.ok} aria-label={`Add ${generator.label} to the room`} title="Place it in the selected room (or the first room) at a spot the solver finds" onClick={() => result.ok && void addToRoom(generatorSource(generator, result.params, result.dims))}>
+          <button type="button" className="add-to-room" data-testid="add-to-room" disabled={!result.ok} aria-label={`Add ${title} to the room`} title="Place it in the selected room (or the first room) at a spot the solver finds" onClick={() => result.ok && void addToRoom(generatorSource(generator, result.params, result.dims))}>
             Add to room
           </button>
           {fields.length > 0 && (
@@ -114,7 +118,7 @@ function ModelCard({ model, onDragStart }: { model: LibraryModel; onDragStart?: 
   return (
     <li className="product-card model-card" data-testid="model-card" data-asset-id={asset.id} onPointerDown={drag.onPointerDown} onDragStart={(e) => e.preventDefault()} title={asset.credit ?? asset.licence}>
       <div className="thumb" aria-hidden="true">
-        {model.thumb ? <img src={model.thumb} alt="" loading="lazy" draggable={false} /> : <span>{asset.name.slice(0, 1)}</span>}
+        {model.thumb ? <img src={model.thumb} alt="" decoding="async" draggable={false} /> : <span>{asset.name.slice(0, 1)}</span>}
       </div>
       <div className="meta">
         <strong className="name">{asset.name}</strong>

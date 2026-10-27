@@ -168,7 +168,9 @@ test.describe('lamp shadows have no acne (no stripes on walls in walk view)', ()
   test('kitchen panel: the lit side wall is smooth along a vertical scanline', async ({ page }) => {
     await setLighting(page, { sunEnabled: false, lamps: onlyLamps(['l-cuisine']) });
     await walk(page, 2.0, 4.6, 180);
-    for (const xFrac of [0.04, 0.09, 0.14]) {
+    // The right-hand part of the view: the wall beside the cooktop. (The left of it is now the 80 cm structural column
+    // w-kitchen-column and the fridge: its edges are geometry, not acne.)
+    for (const xFrac of [0.83, 0.88, 0.93]) {
       const scan = await columnLuma(page, xFrac, 0.35, 0.7);
       expect(Math.min(...scan), 'the wall is lit').toBeGreaterThan(40);
       const step = maxSecondDifference(scan);
@@ -311,7 +313,8 @@ test.describe('shadows are tight (no light under walls)', () => {
         const lit = measured[2 * i]!;
         const behind = measured[2 * i + 1]!;
         // The probe must be sunlit in the render (the neighbouring buildings can shade it): then the wall's shadow must hold.
-        if (lit < 0.5) continue;
+        // (0.3: the low sun's lit floor reads about 0.37-0.5 since the indirect/bounce lighting and the exposure retune.)
+        if (lit < 0.3) continue;
         compared++;
         expect(behind, `behind ${probe.wallId} at ${probe.behind}: ${behind} vs sunlit side ${lit}`).toBeLessThan(lit * 0.87);
       }
@@ -331,7 +334,7 @@ test.describe('shadows are tight (no light under walls)', () => {
     expect(lit).toBeGreaterThan(0.5);
     for (const [i, probe] of behindProbes.entries()) {
       const behind = behinds[i]!;
-      expect(behind, `behind ${probe.wallId} at ${probe.behind}: ${behind} vs patch ${lit}`).toBeLessThan(lit! * 0.6);
+      expect(behind, `behind ${probe.wallId} at ${probe.behind}: ${behind} vs patch ${lit}`).toBeLessThan(lit! * 0.7); // a leak under the wall reads about 1.0; the ambient and bounce fill lift a real shadow to about 0.6
     }
   });
 
@@ -342,7 +345,7 @@ test.describe('shadows are tight (no light under walls)', () => {
     // [room, floor point 12 cm inside a wall facing the sun, floor point in the middle of the room]
     const pairs: [string, [number, number], [number, number]][] = [
       ['ch1', [9.93, 3.2], [8.0, 3.4]],
-      ['sejour', [2.5, 8.16], [2.5, 5.2]],
+      ['sejour', [0.55, 8.16], [2.5, 5.2]], // west of the kitchen run (the worktop and the grey tile zone of the cuisine read differently)
     ];
     for (const [room, beside, middle] of pairs) {
       expect(inPolygon(beside, roomPolygon(room)) && inPolygon(middle, roomPolygon(room)), room).toBe(true);
@@ -371,7 +374,7 @@ test('windowless rooms get less sky ambient: at noon the WC and SDB floors are d
   await setLighting(page, { ...SUMMER_NOON, sunEnabled: true, lamps: noLamps });
   const sejourPoint: [number, number] = [2.5, 5.2];
   const wcPoint: [number, number] = [9.0, 4.75];
-  const sdbPoint: [number, number] = [5.8, 7.9];
+  const sdbPoint: [number, number] = [5.2, 7.2]; // bare floor (the LL washing machine, the vanity and the tub read as bright appliance tops)
   expect(inPolygon(sejourPoint, roomPolygon('sejour'))).toBe(true);
   expect(inPolygon(wcPoint, roomPolygon('wc'))).toBe(true);
   expect(inPolygon(sdbPoint, roomPolygon('sdb'))).toBe(true);

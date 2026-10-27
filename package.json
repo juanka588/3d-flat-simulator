@@ -23,6 +23,7 @@
     "materials:build": "node scripts/materials/build.mjs",
     "materials:credits": "node scripts/materials/credits.mjs",
     "assets:sheet": "tsx scripts/assets/contact-sheet.mjs",
+    "assets:thumbs": "tsx scripts/assets/param-thumbs.mjs",
     "models:build": "node scripts/models/build.mjs",
     "models:credits": "node scripts/models/credits.mjs",
     "models:contact-sheet": "node scripts/models/contact-sheet.mjs",

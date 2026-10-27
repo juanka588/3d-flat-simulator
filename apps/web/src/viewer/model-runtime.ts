@@ -63,7 +63,7 @@ export function activeModelController(): ModelController<ModelTemplate> | null {
   return active;
 }
 
-const NO_STATS: ModelStats = { loaded: 0, pending: 0, failed: 0, sources: {}, offline: [], warnings: [], requests: [], cache: { models: 0, inUse: 0, bytes: 0, evictions: 0 } };
+const NO_STATS: ModelStats = { loaded: 0, pending: 0, failed: 0, sources: {}, loading: [], reasons: {}, offline: [], warnings: [], requests: [], cache: { models: 0, inUse: 0, bytes: 0, evictions: 0 } };
 
 export function modelStats(): ModelStats {
   return active?.stats() ?? NO_STATS;

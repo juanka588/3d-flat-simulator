@@ -40,6 +40,14 @@ describe('models directory gate', () => {
     );
     expect(checkModelsDir(make([entry({ file: 'gone.glb', sha256: 'a'.repeat(64) }), ]), { credits }).problems).toContain('gone.glb: listed in catalog.json but missing');
   });
+  it('accepts generator thumbnails (small WebP files) without a catalog entry, and flags big or fake ones', () => {
+    const webp = (n) => Buffer.concat([Buffer.from('RIFF'), Buffer.alloc(4), Buffer.from('WEBP'), Buffer.alloc(n)]);
+    const withParam = (name, body) => make(undefined, (d) => writeFileSync(join(d, 'thumbs', name), body));
+    expect(checkModelsDir(withParam('param-bed.webp', webp(100)), { credits }).problems).toEqual([]);
+    expect(checkModelsDir(withParam('param-bed.webp', webp(9000)), { credits }).problems).toEqual([expect.stringContaining('exceeds 8192 B per generator thumbnail')]);
+    expect(checkModelsDir(withParam('param-bed.webp', Buffer.from('nope, not an image')), { credits }).problems).toEqual(['thumbs/param-bed.webp: not a WebP file']);
+    expect(checkModelsDir(withParam('other.webp', webp(10)), { credits }).problems).toEqual(['thumbs/other.webp: not listed in catalog.json']);
+  });
   it('enforces the budgets', () => {
     expect(checkModelsDir(make([entry({ triangles: 20_001 })]), { credits }).problems).toContain('polyhaven:chair: 20001 triangles exceed 20000');
     expect(checkModelsDir(make([entry({ materials: 5 })]), { credits }).problems).toContain('polyhaven:chair: 5 materials exceed 4');

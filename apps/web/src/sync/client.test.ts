@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { backoffMs, normalizeServerUrl, probeServer, readServerParams, resolveTarget } from './client';
+import { backoffMs, devProbeDelayMs, normalizeServerUrl, probeServer, readServerParams, resolveTarget } from './client';
 import { statusLabel } from './sync-store';
 
 const refuse = (() => Promise.reject(new TypeError('Failed to fetch'))) as unknown as typeof fetch;
@@ -71,5 +71,13 @@ describe('backoff and labels', () => {
     expect(statusLabel({ mode: 'server', status: 'connected', rev: 3 })).toBe('Connected · rev 3');
     expect(statusLabel({ mode: 'server', status: 'reconnecting', rev: 3 })).toBe('Reconnecting…');
     expect(statusLabel({ mode: 'server', status: 'conflict', rev: 3 })).toBe('Conflict: choose');
+  });
+});
+
+describe('devProbeDelayMs', () => {
+  it('probes every 3 s for the first 30 s, then every 15 s', () => {
+    expect(devProbeDelayMs(0)).toBe(3000);
+    expect(devProbeDelayMs(29_999)).toBe(3000);
+    expect(devProbeDelayMs(30_000)).toBe(15_000);
   });
 });

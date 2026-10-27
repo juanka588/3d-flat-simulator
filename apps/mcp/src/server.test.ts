@@ -150,11 +150,12 @@ describe('stubs and modes', () => {
 });
 
 describe('tools/list token budget', () => {
-  it('stays under about 21k tokens (chars / 4); item_place and item_set_variant are not listed', async () => {
+  it('stays under about 22k tokens (chars / 4); item_place and item_set_variant are not listed', async () => {
     const { client } = await connect();
     const { tools } = await client.listTools();
+    // 21.0k before grid lights (M5 lighting) and floor zones; those add ~1.1k tokens of unavoidable schema (4 light variants repeated in light_add / light_update / batch).
     const chars = JSON.stringify(tools).length;
-    expect(Math.round(chars / 4), `tools/list is ${chars} chars`).toBeLessThan(21_000);
+    expect(Math.round(chars / 4), `tools/list is ${chars} chars`).toBeLessThan(22_000);
   });
 });
 

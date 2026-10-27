@@ -41,6 +41,8 @@ export interface ServerParams {
   /** `?server=off|none|local` forces Local mode (no probe either). */
   off: boolean;
   token: string | null;
+  /** `?probe=<url>` (dev builds only act on it, even in automated browsers): the address to keep probing instead of `DEV_SERVER`. */
+  probe: string | null;
   /** The URL without `token`, when it had one (to hand to `history.replaceState`). */
   withoutToken: string | null;
 }
@@ -55,7 +57,8 @@ export function readServerParams(href: string): ServerParams {
     withoutToken = `${url.pathname}${url.search}${url.hash}`;
   }
   const off = raw !== null && ['off', 'none', 'local'].includes(raw.toLowerCase());
-  return { server: raw && !off ? normalizeServerUrl(raw) : null, off, token: token || null, withoutToken };
+  const probeRaw = url.searchParams.get('probe');
+  return { server: raw && !off ? normalizeServerUrl(raw) : null, off, probe: probeRaw ? normalizeServerUrl(probeRaw) : null, token: token || null, withoutToken };
 }
 
 /** True when something answers at the dev server address (the reply is opaque: CORS does not matter). */
@@ -486,7 +489,55 @@ export class SyncClient {
   }
 }
 
-/** Starts live sync when a server is configured (`?server=`) or, in dev, found. Never throws. */
+/** Delay before the next dev-server probe: every 3 s for the first 30 s, then every 15 s. */
+export function devProbeDelayMs(elapsedMs: number): number {
+  return elapsedMs < 30_000 ? 3000 : 15_000;
+}
+
+let devProbeTimer: ReturnType<typeof setTimeout> | undefined;
+let devProbeStart = 0;
+let devProbeUrl = DEV_SERVER;
+let devProbeRunning = false;
+
+function connectTo(target: ServerTarget): SyncClient {
+  const client = new SyncClient(target);
+  client.start();
+  return client;
+}
+
+/** Dev only: keeps looking for the default server so a page opened before `pnpm dev:all` connects by itself. */
+function scheduleDevProbe(token: string | null): void {
+  clearTimeout(devProbeTimer);
+  const delay = devProbeDelayMs(Date.now() - devProbeStart);
+  devProbeTimer = setTimeout(() => void devProbeOnce(token), delay);
+}
+
+async function devProbeOnce(token: string | null): Promise<void> {
+  if (getTransport() || devProbeRunning) return;
+  devProbeRunning = true;
+  try {
+    if (await probeServer((...a) => fetch(...a), devProbeUrl)) {
+      connectTo({ url: devProbeUrl, token });
+      return;
+    }
+  } catch {
+    // keep probing
+  } finally {
+    devProbeRunning = false;
+  }
+  if (!getTransport()) scheduleDevProbe(token);
+}
+
+/** "Retry" in the Products tab: probes right now (and keeps the background probe going). */
+export async function retryServerNow(): Promise<void> {
+  if (getTransport()) return;
+  const params = readServerParams(window.location.href);
+  if (params.off) return;
+  devProbeUrl = params.probe ?? devProbeUrl;
+  await devProbeOnce(params.token);
+}
+
+/** Starts live sync when a server is configured (`?server=`) or, in dev, found (and keeps looking). Never throws. */
 export async function startSync(): Promise<SyncClient | null> {
   try {
     const href = window.location.href;
@@ -494,16 +545,18 @@ export async function startSync(): Promise<SyncClient | null> {
     // The token lives in memory only: take it off the address bar (and history) right away.
     if (params.withoutToken !== null) window.history.replaceState(window.history.state, '', params.withoutToken);
     if (getTransport()) return null;
-    const target = await resolveTarget({
-      href,
-      dev: import.meta.env.DEV,
-      automated: typeof navigator !== 'undefined' && navigator.webdriver === true,
-      fetchImpl: (...a) => fetch(...a),
-    });
-    if (!target) return null;
-    const client = new SyncClient(target);
-    client.start();
-    return client;
+    const automated = typeof navigator !== 'undefined' && navigator.webdriver === true;
+    const dev = import.meta.env.DEV;
+    const target = await resolveTarget({ href, dev, automated, fetchImpl: (...a) => fetch(...a) });
+    if (!target) {
+      if (dev && (!automated || params.probe) && !params.off && !params.server) {
+        devProbeUrl = params.probe ?? DEV_SERVER;
+        devProbeStart = Date.now();
+        scheduleDevProbe(params.token);
+      }
+      return null;
+    }
+    return connectTo(target);
   } catch {
     return null;
   }

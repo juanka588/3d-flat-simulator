@@ -134,7 +134,7 @@ export type RoomType = z.infer<typeof RoomType>;
  */
 export const FloorZone = z.strictObject({
   id: Id.describe('Zone id, unique within its room.'),
-  name: NameString('Optional label.').optional(),
+  name: NameString('Label.').optional(),
   polygon: z.array(Vec2).min(3).max(LIMITS.polygonVertices, `too many polygon vertices (max ${LIMITS.polygonVertices})`).describe('Outline: [x, y] plan points in metres.'),
   material: Id.describe('Defined material id (list_materials).'),
 });
@@ -235,53 +235,53 @@ export const LumensSource = z.enum(['product', 'estimated', 'user']);
 export type LumensSource = z.infer<typeof LumensSource>;
 
 const lightCommon = {
-  id: Id.describe('Light id (1-64 characters), unique across all entities.'),
-  name: NameString('Optional label.').optional(),
-  roomId: Id.describe('Room id (list_rooms). Optional.').optional(),
-  position: Vec2.describe('Plan [x, y] in metres (y grows down); a grid: its centre.'),
+  id: Id.describe('Light id (1-64 chars), unique across all entities.'),
+  name: NameString('Label.').optional(),
+  roomId: Id.describe('Room id.').optional(),
+  position: Vec2.describe('Plan [x, y] in metres (y down); a grid: its centre.'),
   /** Height of the light source above the floor. */
-  elevation: z.number().nonnegative().describe('Height above the floor, in metres.'),
-  kelvin: z.number().min(1000).max(12000).default(2700).describe('Kelvin, 1000-12000 (2700 warm, 6500 daylight). Default 2700.'),
-  on: z.boolean().default(true).describe('Switched on. Default true.'),
+  elevation: z.number().nonnegative().describe('Height above the floor (m).'),
+  kelvin: z.number().min(1000).max(12000).default(2700).describe('2700 warm, 6500 daylight.'),
+  on: z.boolean().default(true).describe('Switched on.'),
   /**
    * Set on the light of a lamp item (floor lamp, pendant...): it follows that item. The pose is DERIVED from the item
    * (`linkedLightPose`) and kept in step by the item commands; never edit `position` / `elevation` / `roomId` of a linked light.
    */
-  itemId: Id.describe('Id of the lamp item this light belongs to (it moves with the item). Set by the editor, not by you.').optional(),
+  itemId: Id.describe('Lamp item this light follows. Set by the editor, not by you.').optional(),
   /** Offset of the bulb from the item origin: `[dx, dy]` in the item frame (metres, rotated with the item), `dz` above the item bottom. */
-  offset: z.tuple([z.number(), z.number(), z.number()]).describe('Linked lights only: [dx, dy, dz] of the bulb from the item origin, in metres.').optional(),
-  lumensSource: LumensSource.describe('Where the lumen figure comes from: "product" (retailer data), "estimated" (category default) or "user". Optional.').optional(),
+  offset: z.tuple([z.number(), z.number(), z.number()]).describe('Linked lights: [dx, dy, dz] of the bulb from the item origin (m).').optional(),
+  lumensSource: LumensSource.describe('Origin of the lumens: product, estimated or user. Optional.').optional(),
 };
-const lumensField = z.number().nonnegative().describe('Lumens (a 60 W-equivalent bulb is about 800).');
+const lumensField = z.number().nonnegative().describe('Lumens (60 W bulb about 800).');
 
 export const Light = z.discriminatedUnion('type', [
-  z.strictObject({ ...lightCommon, lumens: lumensField, type: z.literal('point').describe('Bulb: radiates in all directions.') }),
+  z.strictObject({ ...lightCommon, lumens: lumensField, type: z.literal('point').describe('Bulb.') }),
   z.strictObject({
     ...lightCommon,
     lumens: lumensField,
-    type: z.literal('spot').describe('Cone shining straight down.'),
+    type: z.literal('spot').describe('Downward cone.'),
     /** Full cone angle in degrees. Spots point straight down. */
-    angle: z.number().min(1).max(179).default(60).describe('Cone angle in degrees (1-179). Default 60.'),
+    angle: z.number().min(1).max(179).default(60).describe('Cone angle, degrees. Default 60.'),
   }),
   z.strictObject({
     ...lightCommon,
     lumens: lumensField,
-    type: z.literal('area').describe('Rectangular panel facing down.'),
+    type: z.literal('area').describe('Downward panel.'),
     /** Rectangular panel facing down; `width` runs along plan x before rotation. */
-    width: z.number().positive().describe('Width in metres along plan x before rotation.'),
-    depth: z.number().positive().describe('Depth in metres along plan y before rotation.'),
-    rotation: z.number().default(0).describe('Rotation in degrees, counter-clockwise seen from above. Default 0.'),
+    width: z.number().positive().describe('Width (m, plan x).'),
+    depth: z.number().positive().describe('Depth (m, plan y).'),
+    rotation: z.number().default(0).describe('Degrees, counter-clockwise. Default 0.'),
   }),
   z.strictObject({
     ...lightCommon,
     type: z.literal('grid').describe('rows x cols identical LED downlights, edited as ONE light.'),
     rows: z.number().int().min(1).max(GRID_MAX_SIDE).describe('Rows, 1-20.'),
     cols: z.number().int().min(1).max(GRID_MAX_SIDE).describe('Columns, 1-20 (rows x cols at most 100).'),
-    width: z.number().positive().describe('Width in metres (plan x before rotation) the grid covers; fixtures sit at the centres of equal cells.'),
-    depth: z.number().positive().describe('Depth in metres (plan y before rotation) the grid covers.'),
-    rotation: z.number().default(0).describe('Grid rotation in degrees, counter-clockwise seen from above. Defaults to 0.'),
-    lumensEach: z.number().nonnegative().describe('Lumens of EACH fixture (a 6 W LED gives about 450); the total is rows x cols x lumensEach.'),
-    angle: z.number().min(1).max(179).default(100).describe('Beam angle in degrees (1-179). Default 100.'),
+    width: z.number().positive().describe('Width (m, plan x) the grid covers.'),
+    depth: z.number().positive().describe('Depth (m, plan y) the grid covers.'),
+    rotation: z.number().default(0).describe('Degrees, counter-clockwise. Default 0.'),
+    lumensEach: z.number().nonnegative().describe('Lumens of EACH fixture (6 W LED about 450); total = rows x cols x lumensEach.'),
+    angle: z.number().min(1).max(179).default(100).describe('Beam angle, degrees. Default 100.'),
   }),
 ]);
 export type Light = z.infer<typeof Light>;

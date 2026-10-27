@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { billOfMaterials, parseScene } from '@flat/scene';
 import { readFileSync } from 'node:fs';
-import { bomView, formatDate, formatDims, formatPrice, isBuiltIn, isStale, itemName } from './format';
+import { bomView, formatDate, formatDims, formatPrice, isBuiltIn, isStale, itemName, registerLibraryNames } from './format';
 import { defaultParams, paramFields, resolveParams } from './param-fields';
 import { GENERATORS } from '@flat/scene';
 
@@ -50,7 +50,13 @@ describe('formatting', () => {
   it('names items and spots built-ins', () => {
     const placard = base.scene.items.find((i) => i.id === 'placard-ch1')!;
     expect(isBuiltIn(placard)).toBe(true);
-    expect(itemName(placard)).toBe(GENERATORS.get('wardrobe')!.label);
+    expect(itemName(placard)).toBe('Wardrobe · placard-ch1');
+    expect(itemName({ ...placard, id: '01JABCDEFGHJKMNPQRSTVWXYZ0' })).toBe('Wardrobe');
+    expect(itemName({ ...placard, id: 'item-14' })).toBe('Wardrobe');
+    const lookalike = { id: 'item-3', assetId: 'lookalike:x', mesh: { kind: 'lookalike' as const, assetId: 'kenney:kenney_bed_double' } };
+    expect(itemName(lookalike)).toBe('kenney bed double');
+    registerLibraryNames([{ id: 'kenney:kenney_bed_double', name: 'Double Bed' }]);
+    expect(itemName(lookalike)).toBe('Double Bed');
   });
 });
 

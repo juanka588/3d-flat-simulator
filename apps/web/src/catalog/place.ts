@@ -1,5 +1,6 @@
 import { DEFAULT_CEILING_HEIGHT, DEFAULT_WALL_MOUNT_ELEVATION_M, itemCoalesceKey, meshAssetId, productSnapshot } from '@flat/scene';
 import type { Command, Dims, Item, ItemMount, MeshSource, ProductRecord, ProductSnapshot, Relation, Vec2 } from '@flat/scene';
+import { generatorTitle } from './generator-titles';
 import type { GhostPose, GhostSubject } from './ghost';
 
 /** What a drag carries: everything `item.place` needs except the pose. */
@@ -50,9 +51,9 @@ export function productSource(p: { provider: string; sku?: string; productId?: s
 }
 
 /** A source for a parametric generator at the dims it promises. */
-export function generatorSource(g: { id: string; label: string }, params: Record<string, number | string | boolean>, dims: Dims, mount: ItemMount = 'floor'): PlaceSource {
+export function generatorSource(g: { id: string; label?: string }, params: Record<string, number | string | boolean>, dims: Dims, mount: ItemMount = 'floor'): PlaceSource {
   const mesh: MeshSource = { kind: 'parametric', generator: g.id, params };
-  return { label: g.label, assetId: meshAssetId(mesh), dims: { w: round3(dims.w), d: round3(dims.d), h: round3(dims.h) }, mount, elevation: defaultElevation(mount, dims.h), mesh, noProduct: true };
+  return { label: generatorTitle(g), assetId: meshAssetId(mesh), dims: { w: round3(dims.w), d: round3(dims.d), h: round3(dims.h) }, mount, elevation: defaultElevation(mount, dims.h), mesh, noProduct: true };
 }
 
 /** A source for a library (CC0) model at its native dims. */

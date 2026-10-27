@@ -41,7 +41,12 @@ describe('isStructural defaults', () => {
   it('Charme: facades, w-landing, w-sdb-east structural; 7 cm partitions removable', () => {
     const res = Object.fromEntries(charme.walls.map((w) => [w.id, structuralInfo(charme, w).structural]));
     for (const id of ['w-north', 'w-east', 'w-south', 'w-west', 'w-wc-south', 'w-landing', 'w-sdb-east']) expect(res[id], id).toBe(true);
-    for (const w of charme.walls.filter((w) => w.thickness === 0.07)) expect(res[w.id], w.id).toBe(false);
+    // w-sdb-north-east is the 7 cm stub (6.39 -> 6.49) closing the SDB/Entrée wall onto w-sdb-east beside the TE recess. The SDB
+    // polygon ends at the inner face of w-sdb-east (x 6.39), so only the Entrée sees the stub: it reads as 'exterior', hence
+    // structural. That is the wanted behaviour (nobody should open a hole in the corner next to the electrical panel).
+    expect(structuralInfo(charme, charme.walls.find((w) => w.id === 'w-sdb-north-east')!)).toEqual({ structural: true, source: 'exterior' });
+    for (const w of charme.walls.filter((w) => w.thickness === 0.07 && w.id !== 'w-sdb-north-east')) expect(res[w.id], w.id).toBe(false);
+    for (const id of ['w-kitchen-column', 'w-ch1-column', 'w-sdb-column']) expect(res[id], id).toBe(true);
   });
 
   it('explicit value wins; thickness >= 0.15 is structural without rooms', () => {

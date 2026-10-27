@@ -49,7 +49,7 @@ const FIXTURE_ITEMS: Record<string, { generator: string; room: string }> = {
   'sdb-vanity-basin': { generator: 'washbasin', room: 'sdb' },
   'sdb-washing-machine-ll': { generator: 'kitchenBase', room: 'sdb' },
   'wc-toilet': { generator: 'toilet', room: 'wc' },
-  'te-electrical-panel': { generator: 'kitchenWall', room: 'entree' },
+  'te-electrical-panel': { generator: 'wardrobe', room: 'entree' },
 };
 
 describe('fixed fixtures: locked, existing, exact', () => {
@@ -250,18 +250,84 @@ describe('bathroom and WC, transcribed from the plan', () => {
     expect(penetration(strip, wallRect('w-wc-west'))).toBeLessThan(1e-3);
   });
 
-  it('mounts the electrical panel TE on the hall face of the wall beside the SDB door, above walking height, its door facing the Entrée', () => {
+  it('recesses the electrical panel TE (a hall-facing cupboard) in the north-east corner of the SDB, front onto the Entrée', () => {
     const it = item('te-electrical-panel');
-    expect(it).toMatchObject({ roomId: 'entree', mount: 'wall' });
-    expect(it.elevation).toBeGreaterThanOrEqual(0.6); // does not block walking
-    expect(frontOf(it.rotation)[1]).toBeCloseTo(-1, 9);
+    expect(it).toMatchObject({ roomId: 'entree', mount: 'floor', locked: true, rotation: 180, mesh: { params: { doors: 1, doorType: 'hinged', h: 2.5 } } }); // full height: the wall gap above it is closed
+    expect(frontOf(it.rotation)[1]).toBeCloseTo(-1, 9); // front faces -y, onto the Entrée
     const r = rect('te-electrical-panel');
-    near(r.maxY, 6.03); // back on the hall face of w-sdb-north
-    expect(r.minX).toBeGreaterThan(5.9); // east of the SDB door span (5.1 to 5.9)
+    const west = wall('w-te-west');
+    const south = wall('w-te-south');
+    const east = wall('w-sdb-east');
+    const north = wall('w-sdb-north');
+    const stub = wall('w-sdb-north-east');
+    // the gap of w-sdb-north is the cupboard front: 4.505 -> 5.95 keeps the door, the stub runs 6.39 -> 6.49
+    near(north.end[0], 5.95);
+    near(stub.start[0], 6.39);
+    near(stub.end[0], east.start[0]);
+    near(r.maxY - r.minY, 0.335);
+    near(r.minY, north.start[1]); // front flush with the wall axis, like placard-ch2: 3.5 cm behind the hall face
+    // snug inside the recess: against the west and south walls, and against the east wall's inner face
+    near(r.minX, west.start[0] + west.thickness / 2);
+    near(r.maxY, south.start[1] - south.thickness / 2);
+    near(r.maxX, east.start[0] - east.thickness / 2);
+    for (const id of ['w-te-west', 'w-te-south', 'w-sdb-east']) expect(penetration(r.pts, wallRect(id)), id).toBeLessThan(1e-3);
+    // the cupboard sits between the recess walls, east of the SDB door span (5.1 to 5.9) and clear of its swing and the entry's
+    expect(r.minX).toBeGreaterThan(5.9);
     for (const z of openingZones(scene).filter((x) => x.openingId === 'door-sdb' || x.openingId === 'door-entry')) expect(penetration(r.pts, z.polygon), `${z.openingId} ${z.kind}`).toBeLessThan(1e-3);
-    // 0.6 m of clear floor in front of the panel
+    // 0.6 m of clear floor in front of it, in the Entrée
     const ctx = layoutContext(scene);
     const front: Vec2[] = [[r.minX, r.minY - 0.6], [r.maxX, r.minY - 0.6], [r.maxX, r.minY], [r.minX, r.minY]];
     for (const b of ctx.boxes) if (b.id !== it.id && b.mount !== 'wall') expect(penetration(front, b.footprint), b.id).toBeLessThan(1e-3);
+  });
+});
+
+describe('structural columns: kitchen, Chambre 1 and SDB', () => {
+  /** Axis-aligned bounds of a wall rectangle. */
+  const box = (id: string) => {
+    const pts = wallRect(id);
+    return { minX: Math.min(...pts.map((p) => p[0])), maxX: Math.max(...pts.map((p) => p[0])), minY: Math.min(...pts.map((p) => p[1])), maxY: Math.max(...pts.map((p) => p[1])), pts };
+  };
+
+  it.each([
+    ['w-kitchen-column', 2.91, 3.71, 7.68, 8.28],
+    ['w-ch1-column', 9.6, 10.05, 3.82, 4.42],
+    ['w-sdb-column', 6.15, 6.39, 6.9, 7.66],
+  ])('%s is a structural wall rectangle at x %f-%f, y %f-%f', (id, x0, x1, y0, y1) => {
+    expect(wall(id).structural).toBe(true);
+    const b = box(id);
+    near(b.minX, x0);
+    near(b.maxX, x1);
+    near(b.minY, y0);
+    near(b.maxY, y1);
+  });
+
+  it('the kitchen column fills the box between the sink and the bathroom niche wall; the dishwasher and the third wall unit are gone', () => {
+    const b = box('w-kitchen-column');
+    near(b.maxX - b.minX, 0.8);
+    near(b.maxY - b.minY, 0.6);
+    near(b.minX, rect('kitchen-sink-tri').maxX); // flush against the sink
+    expect(scene.items.find((i) => i.id === 'kitchen-dishwasher-lv')).toBeUndefined();
+    expect(scene.items.find((i) => i.id === 'kitchen-wall-est-3')).toBeUndefined();
+    for (const id of ['kitchen-cooktop-cui', 'kitchen-sink-tri']) expect(penetration(rect(id).pts, b.pts), id).toBeLessThan(1e-3);
+  });
+
+  it('the Chambre 1 column is flush with the placard and with the outer east wall', () => {
+    const b = box('w-ch1-column');
+    near(b.minX, rect('placard-ch1').maxX); // fills the gap between the placard and the east wall
+    near(b.maxX, wall('w-east').start[0] - wall('w-east').thickness / 2);
+    near(b.maxY, 4.42); // flush with the south edge of the Chambre 1 polygon
+    near(b.maxX - b.minX, 0.45);
+    expect(penetration(rect('placard-ch1').pts, b.pts)).toBeLessThan(1e-3);
+  });
+
+  it('the SDB column stands against the east wall, about 2 cm from the LL washing machine', () => {
+    const b = box('w-sdb-column');
+    near(b.maxX, wall('w-sdb-east').start[0] - wall('w-sdb-east').thickness / 2); // against the inner face of w-sdb-east (6.39)
+    const ll = rect('sdb-washing-machine-ll');
+    near(b.maxY, 7.66);
+    near(ll.minY - b.maxY, 0.02, 1e-6); // washing machine stays about 2 cm south of the column
+    expect(penetration(ll.pts, b.pts)).toBeLessThan(1e-3);
+    // and it leaves the TE recess walls alone
+    for (const id of ['w-te-west', 'w-te-south']) expect(penetration(box(id).pts, b.pts), id).toBeLessThan(1e-3);
   });
 });

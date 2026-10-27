@@ -14,7 +14,7 @@ import { modelStats } from '../viewer/model-runtime';
 import { useModelRevision } from '../viewer/use-model-revision';
 
 export type MeshBadge = {
-  kind: 'real' | 'lookalike' | 'parametric' | 'offline' | 'loading';
+  kind: 'real' | 'lookalike' | 'parametric' | 'offline' | 'loading' | 'placeholder';
   label: string;
   title: string;
   /** Set when the model had to be stretched more than its limit to fit the item's size (`dims_mismatch`). */
@@ -22,21 +22,25 @@ export type MeshBadge = {
 };
 
 /** The mesh source badge (real / lookalike / parametric / offline), from the model controller's stats. */
-export function meshBadge(source: string | undefined, offline: boolean, dimsWarning?: DimsWarning): MeshBadge {
+export function meshBadge(source: string | undefined, offline: boolean, dimsWarning?: DimsWarning, opts: { loading?: boolean; reason?: string } = {}): MeshBadge {
+  const why = opts.reason ? ` Why: ${opts.reason}.` : '';
   const base = ((): MeshBadge => {
-    if (offline) return { kind: 'offline', label: 'offline', title: 'The real model needs the local scene server; a stand-in shape at the exact size is drawn.' };
+    if (offline && source !== 'placeholder') return { kind: 'offline', label: 'offline', title: `The real model needs the local scene server; a stand-in shape at the exact size is drawn.${why}` };
+    if (source === 'placeholder' && opts.loading === false) {
+      return { kind: 'placeholder', label: offline ? 'offline: plain box' : 'plain box', title: `No model could be shown for this item, so a plain grey box at its exact size stands in.${why}` };
+    }
     switch (source) {
       case 'provider':
-        return { kind: 'real', label: 'real model', title: "The retailer's own 3D model, streamed by the local server." };
+        return { kind: 'real', label: 'real model', title: `The retailer's own 3D model, streamed by the local server.${why}` };
       case 'lookalike':
-        return { kind: 'lookalike', label: 'lookalike', title: 'A similar library model scaled to the exact size.' };
+        return { kind: 'lookalike', label: 'lookalike', title: `A similar library model scaled to the exact size.${why}` };
       case 'parametric':
-        return { kind: 'parametric', label: 'parametric', title: 'A generated shape at the exact size.' };
+        return { kind: 'parametric', label: 'parametric', title: `A generated shape at the exact size.${why}` };
       default:
         return { kind: 'loading', label: 'loading', title: 'The model is loading.' };
     }
   })();
-  if (!dimsWarning || base.kind === 'offline' || base.kind === 'loading') return base;
+  if (!dimsWarning || base.kind === 'offline' || base.kind === 'loading' || base.kind === 'placeholder') return base;
   const warning = `This ${dimsWarning.kind === 'provider' ? 'model' : 'lookalike'} is stretched about ${Math.round(dimsWarning.distortion * 100)}% out of proportion to fit the exact size (limit ${Math.round(dimsWarning.limit * 100)}%).`;
   return { ...base, warning, title: `${base.title} ${warning}` };
 }
@@ -44,7 +48,7 @@ export function meshBadge(source: string | undefined, offline: boolean, dimsWarn
 export function useMeshBadge(itemId: string): MeshBadge {
   useModelRevision();
   const stats = modelStats();
-  return meshBadge(stats.sources[itemId], stats.offline.includes(itemId), stats.warnings.find((w) => w.itemId === itemId)?.warning);
+  return meshBadge(stats.sources[itemId], stats.offline.includes(itemId), stats.warnings.find((w) => w.itemId === itemId)?.warning, { loading: stats.loading.includes(itemId), ...(stats.reasons[itemId] !== undefined ? { reason: stats.reasons[itemId] } : {}) });
 }
 
 /** What `validateLayout` says about one item. */

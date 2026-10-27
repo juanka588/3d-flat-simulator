@@ -16,12 +16,16 @@ const flat: Scene = parsed.scene;
 
 /**
  * The placard of Chambre 2 is a closet in the wall thickness: Chambre 2's polygon keeps it (the official 11.13 m2 includes
- * it) but its doors open onto the Entrée, so neither room has a wall along the closet front. These two `room-edge-unwalled`
- * warnings are expected and nothing else is.
+ * it) but its doors open onto the Entrée, so neither room has a wall along the closet front; same for the TE cupboard in the
+ * SDB corner. These four `room-edge-unwalled` warnings are expected and nothing else is.
  */
 const PLACARD_CH2_WARNINGS = [
   { code: 'room-edge-unwalled', room: 'ch2' },
   { code: 'room-edge-unwalled', room: 'entree' },
+  // The TE cupboard, recessed in the SDB corner and open onto the Entrée: the gap of w-sdb-north leaves one unwalled edge on
+  // each side (the SDB polygon keeps the recess, the Entrée's south edge has no wall along the cupboard front).
+  { code: 'room-edge-unwalled', room: 'entree' },
+  { code: 'room-edge-unwalled', room: 'sdb' },
 ];
 const warningsOf = (scene: Scene) => validateScene(scene).warnings.map((w) => ({ code: w.code, room: w.entityIds[0] }));
 

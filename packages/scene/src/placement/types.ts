@@ -14,7 +14,7 @@ import { Clearance, Dims, EntityId, ItemMount, Vec2 } from '../primitives';
 
 const Id = EntityId;
 const kind = <K extends string>(k: K) => z.literal(k).describe(`Relation discriminator, always "${k}".`);
-const Gap = z.number().min(0).max(2).describe('Free gap in metres between the item and what it touches (default 0).');
+const Gap = z.number().min(0).max(2).describe('Gap in m to what it touches (0).');
 
 /** Item flush with a wall: the back (local -z) towards the wall face, facing into the room. */
 const AgainstWall = z.strictObject({

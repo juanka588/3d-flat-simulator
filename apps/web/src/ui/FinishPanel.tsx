@@ -399,7 +399,7 @@ function FinishPanelBody({ scene, selection }: { scene: Scene; selection: Select
                       aria-label={entry.name}
                       onClick={() => apply({ kind: 'catalog', entry })}
                     >
-                      <img src={thumbUrl(entry.id)} alt="" loading="lazy" decoding="async" width={64} height={64} />
+                      <TextureThumb id={entry.id} color={entry.meanColor} />
                       <span>{entry.name}</span>
                     </button>
                   </li>
@@ -457,4 +457,15 @@ export function FinishPanel({ scene, selection }: { scene: Scene; selection: Sel
   }
   const key = `${selection.kind}:${selection.entityId}:${selection.face ?? ''}:${selection.roomId ?? ''}:${selection.zoneId ?? ''}`;
   return <FinishPanelBody key={key} scene={scene} selection={selection} />;
+}
+
+/**
+ * A texture tile. Loaded eagerly (the grid has a few dozen 1-2 kB images; `loading="lazy"` inside a scrolled or
+ * freshly shown panel can leave tiles blank), over the texture's mean colour so a slow or failed image still shows
+ * what the material looks like; one retry with a cache-busting query after an error.
+ */
+function TextureThumb({ id, color }: { id: string; color: string }) {
+  const [attempt, setAttempt] = useState(0);
+  const src = attempt === 0 ? thumbUrl(id) : `${thumbUrl(id)}?retry=${attempt}`;
+  return <img src={src} alt="" decoding="async" width={64} height={64} style={{ backgroundColor: color }} onError={() => attempt < 1 && setAttempt(attempt + 1)} />;
 }

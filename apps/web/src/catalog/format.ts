@@ -1,13 +1,27 @@
-import { BUILTIN_ASSETS, GENERATORS, STALE_PRICE_DAYS } from '@flat/scene';
+import { BUILTIN_ASSETS, STALE_PRICE_DAYS } from '@flat/scene';
+import { generatorTitleById } from './generator-titles';
 import type { BillOfMaterials, Dims, Item, Scene } from '@flat/scene';
 
 const DAY_MS = 86_400_000;
 
+/** Display names of library (CC0) assets by id, registered when the library catalog loads. */
+const libraryNames = new Map<string, string>();
+export function registerLibraryNames(assets: readonly { id: string; name: string }[]): void {
+  for (const a of assets) libraryNames.set(a.id, a.name);
+}
+
+/** Ids made by the app (`item-14`, or a ULID); anything else was written by hand and tells more than a generic title. */
+const isGeneratedId = (id: string): boolean => /^item-\d+$/.test(id) || /^[0-9A-Z]{26}$/.test(id);
+
 /** What to call an item: its product name, else its generator / library / built-in name, else its id. */
 export function itemName(item: Pick<Item, 'id' | 'assetId' | 'product' | 'mesh'>): string {
   if (item.product) return item.product.name;
-  if (item.mesh?.kind === 'parametric') return GENERATORS.get(item.mesh.generator)?.label ?? item.mesh.generator;
-  if (item.mesh?.kind === 'lookalike') return item.mesh.assetId.split(':').pop()!.replace(/[_-]+/g, ' ');
+  if (item.mesh?.kind === 'parametric') {
+    const title = generatorTitleById(item.mesh.generator);
+    // A hand-written id (a fixture's "kitchen-cooktop-cui") says more than the generic title; generated ULIDs say nothing.
+    return isGeneratedId(item.id) ? title : `${title} · ${item.id}`;
+  }
+  if (item.mesh?.kind === 'lookalike') return libraryNames.get(item.mesh.assetId) ?? item.mesh.assetId.split(':').pop()!.replace(/[_-]+/g, ' ');
   return Object.hasOwn(BUILTIN_ASSETS, item.assetId) ? BUILTIN_ASSETS[item.assetId]!.name : item.id;
 }
 

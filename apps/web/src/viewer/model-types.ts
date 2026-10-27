@@ -22,6 +22,10 @@ export interface ModelStats {
   failed: number;
   /** Final source per item (`placeholder` while loading). */
   sources: Record<string, ModelSource>;
+  /** Items whose model is still loading (their `sources` entry is `placeholder` too, but that one is final only when the id is not here). */
+  loading: string[];
+  /** Why each controller-managed item has the source it has (the resolver's reason, or the failure that moved it down the chain). */
+  reasons: Record<string, string>;
   /** Items that want a provider / local-only model but there is no server. */
   offline: string[];
   warnings: { itemId: string; warning: DimsWarning }[];
