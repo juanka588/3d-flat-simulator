@@ -171,7 +171,7 @@ describe('placard of Chambre 2: a closet in the wall, doors onto the Entrée', (
 });
 
 describe('kitchen (CUISINE), transcribed from the plan', () => {
-  it('is one run along the south wall: cooktop CUI, sink with the TRI unit, dishwasher LV, edge to edge up to the niche wall', () => {
+  it('is one run along the south wall: cooktop CUI, sink with the TRI unit, dishwasher LV, edge to edge up to the column by the niche wall', () => {
     const run = ['kitchen-cooktop-cui', 'kitchen-sink-tri', 'kitchen-dishwasher-lv'].map(rect);
     for (const r of run) {
       near(r.maxY, 8.28); // against the inner face of the south wall
@@ -179,7 +179,7 @@ describe('kitchen (CUISINE), transcribed from the plan', () => {
     }
     near(run[0]!.maxX, run[1]!.minX);
     near(run[1]!.maxX, run[2]!.minX);
-    near(run[2]!.maxX, 3.71); // the niche wall's face (séjour polygon edge)
+    near(run[2]!.maxX, 3.36); // the face of the 35 cm column in the corner by the niche wall (user)
     near(run[1]!.maxX - run[1]!.minX, 1.22);
     for (const id of ['kitchen-cooktop-cui', 'kitchen-sink-tri', 'kitchen-dishwasher-lv']) expect(item(id).dims!.h).toBe(0.9); // one continuous worktop level
     for (const id of ['kitchen-cooktop-cui', 'kitchen-sink-tri', 'kitchen-dishwasher-lv']) expect(frontOf(item(id).rotation)[1]).toBeCloseTo(-1, 9); // fronts face north into the room

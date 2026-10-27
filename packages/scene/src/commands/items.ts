@@ -196,6 +196,9 @@ function move(scene: Scene, cmd: Extract<ItemLeaf, { type: 'item.move' }>, ctx: 
     else next.roomId = cmd.roomId;
     inverse.roomId = item.roomId ?? null;
   } else if (item.roomId !== undefined) {
+    // The undo restores the room explicitly: an item may sit outside its declared room (the hall-facing
+    // placard inside Chambre 2), and moving it back would otherwise "follow" it into the containing room.
+    inverse.roomId = item.roomId;
     // dragged into another room: follow it, unless the new spot is still in the old room
     const current = scene.rooms.find((r) => r.id === item.roomId);
     if (current && !pointInPolygon(cmd.position, current.polygon, ROOM_TOLERANCE)) {
