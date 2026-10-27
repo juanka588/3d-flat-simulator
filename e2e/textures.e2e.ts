@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
-import { charmeFlat, flat, loadScene, openApp, rendered, savePng } from './helpers';
+import { charmeFlat, flat, loadScene, openApp, openAppPaintOnly, paintOnlyCharme, rendered, savePng, usedTextureSlugs } from './helpers';
 
 const MAX_DRAW_CALLS = 70;
 const catalog = JSON.parse(readFileSync('apps/web/public/materials/catalog.json', 'utf8')) as { id: string; tileSizeM: number; meanColor: string; roughness: number }[];
@@ -26,11 +26,13 @@ interface SceneJson {
   rooms: { id: string; polygon: [number, number][]; floorMaterial?: string }[];
 }
 
-/** The Charme JSON with library materials added (`lib-<slug>`) and optionally assigned to the séjour floor / walls. */
+/** The paint-only Charme JSON with library materials added (`lib-<slug>`) and optionally assigned to the séjour floor / walls. */
 function withTextures(opts: { floor?: string; walls?: string; extra?: string[]; paintFloor?: string }): unknown {
-  const json = structuredClone(charmeFlat) as unknown as SceneJson;
+  const json = structuredClone(paintOnlyCharme()) as unknown as SceneJson;
   const add = (slug: string) => {
     const e = catalog.find((c) => c.id === slug);
+    // The paint-only Charme keeps `lib-<slug>` as a paint (the fixture's own oak/turf); the texture replaces it.
+    json.materials = json.materials.filter((m) => m.id !== `lib-${slug}`);
     json.materials.push({
       id: `lib-${slug}`,
       name: slug,
@@ -94,12 +96,17 @@ function lumaStd(page: Page, point: [number, number, number], half = 40): Promis
 }
 
 const webpRequests: string[] = [];
+const libRequests: string[] = [];
 test.beforeEach(async ({ page }) => {
   webpRequests.length = 0;
+  libRequests.length = 0;
   page.on('request', (r) => {
+    if (/^\/materials\//.test(new URL(r.url()).pathname)) libRequests.push(new URL(r.url()).pathname);
     if (/\/materials\/.*\.webp/.test(r.url())) webpRequests.push(new URL(r.url()).pathname);
   });
-  await openApp(page);
+  // The default Charme load uses library textures; every other test starts from the paint-only flat.
+  if (test.info().title.startsWith('the default Charme load')) await openApp(page);
+  else await openAppPaintOnly(page);
 });
 
 const FLOOR_POINT: [number, number, number] = [2, 0, 5];
@@ -108,7 +115,21 @@ const steadyCalls = async (page: Page) => {
   return flat(page, (h) => h.stats().calls);
 };
 
-test('the default Charme load makes zero texture requests', async ({ page }) => {
+test('the default Charme load fetches exactly the texture sets the flat uses, once, and nothing else from the library', async ({ page }) => {
+  await idle(page);
+  const slugsInUse = usedTextureSlugs(charmeFlat);
+  expect(slugsInUse).toEqual(['parquet-light-oak', 'tile-grey-large', 'turf-artificial-green']);
+  expect(webpRequests.map((p) => p.split('/materials/')[1]).sort()).toEqual(slugsInUse.flatMap((s) => ['color', 'normal', 'roughness'].map((m) => `${s}/${m}.webp`)).sort());
+  expect(await texStats(page)).toMatchObject({ loaded: slugsInUse.length, pending: 0, slugs: slugsInUse });
+  expect(libRequests.filter((p) => !p.endsWith('.webp'))).toEqual(['/materials/catalog.json']);
+});
+
+test('the paint-only Charme load makes zero texture requests', async ({ page }) => {
+  await idle(page);
+  expect(webpRequests).toEqual([]);
+  expect(libRequests).toEqual([]);
+  expect((await texStats(page)).loaded).toBe(0);
+  expect(await loadScene(page, paintOnlyCharme())).toBe(true);
   await idle(page);
   expect(webpRequests).toEqual([]);
   expect((await texStats(page)).loaded).toBe(0);

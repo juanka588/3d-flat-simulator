@@ -46,8 +46,9 @@ test('Library thumbnails (generated and CC0) load under the base path, and placi
   await page.getByRole('tab', { name: 'Library' }).click();
   const imgs = page.locator('[data-testid=generator-card] img, [data-testid=model-card] img');
   await expect(imgs.first()).toBeVisible();
+  // The CC0 models load after the generator cards (async catalog), so wait for them instead of counting at once.
+  await expect.poll(() => imgs.count()).toBeGreaterThanOrEqual(60);
   const n = await imgs.count();
-  expect(n).toBeGreaterThanOrEqual(60);
   for (let i = n - 1; i >= 0; i -= 5) await imgs.nth(i).scrollIntoViewIfNeeded();
   await expect.poll(() => unloaded(page, '[data-testid=generator-card] img, [data-testid=model-card] img')).toBe(0);
   expect(traffic.requests.filter((p) => p.includes('/thumbs/param-')).length).toBeGreaterThanOrEqual(20);

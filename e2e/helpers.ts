@@ -48,6 +48,49 @@ function readFixture(name: string): FlatJson {
 export const sampleFlat = readFixture('sample');
 export const charmeFlat = readFixture('charme-3205');
 
+/**
+ * The Charme JSON with every texture material turned into an equivalent paint (same id, `kind: 'paint'`, its
+ * `color`, no `textureUrl`/`textureScale`). Floor zones and everything else stay. The shipped fixture uses
+ * library textures by default; specs that need a texture-free baseline load this instead.
+ */
+export function paintOnlyCharme(): FlatJson {
+  const json = structuredClone(charmeFlat);
+  json.materials = (json.materials as Record<string, unknown>[]).map((m) => {
+    if (m.kind !== 'texture') return m;
+    const rest: Record<string, unknown> = { ...m, kind: 'paint' };
+    delete rest.textureUrl;
+    delete rest.textureScale;
+    return rest;
+  });
+  return json;
+}
+
+/** Slugs of the library texture sets a scene JSON actually uses (texture materials referenced outside `materials`). */
+export function usedTextureSlugs(json: FlatJson): string[] {
+  const rest = JSON.stringify({ ...json, materials: [] });
+  const slugs = new Set<string>();
+  for (const m of json.materials as { id: string; kind: string; textureUrl?: string }[]) {
+    if (m.kind === 'texture' && m.textureUrl?.startsWith('lib:') && rest.includes(`"${m.id}"`)) slugs.add(m.textureUrl.slice(4));
+  }
+  return [...slugs].sort();
+}
+
+/**
+ * Seeds the autosave so the next page load boots on the paint-only Charme (seeded as the autosaved document), so no texture
+ * set is ever requested or cached before the test starts. (`loadScene(page, paintOnlyCharme())` also works, but the
+ * default load's sets then stay cached as idle.)
+ */
+export async function seedPaintOnly(page: Page): Promise<void> {
+  const doc = { schemaVersion: 1, scene: paintOnlyCharme(), historyTail: [], savedAt: new Date().toISOString(), source: 'charme-3205' };
+  await page.addInitScript((d) => localStorage.setItem('flat.autosave.v1', JSON.stringify(d)), doc);
+}
+
+/** `seedPaintOnly` + `openApp`. */
+export async function openAppPaintOnly(page: Page): Promise<void> {
+  await seedPaintOnly(page);
+  await openApp(page);
+}
+
 /** Shoelace area of a plan polygon. */
 export function polygonArea(polygon: [number, number][]): number {
   let sum = 0;
