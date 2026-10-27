@@ -6,7 +6,7 @@
  * assertions are on STATE (scene, history, validate_layout, the bill of materials), never on prose.
  *
  *   pnpm mcp:demo:furnish                      # local `claude -p` (your Claude Code login: no API key)
- *   pnpm mcp:demo:furnish -- --negative        # "Add a sofa with SKU MOCK-INVENTED-999 and push the wardrobe placard aside."
+ *   pnpm mcp:demo:furnish -- --negative        # invented IKEA SKU 99999999, asserts the unknown_product refusal
  *   ANTHROPIC_API_KEY=... pnpm mcp:demo:furnish -- --api   # the Messages API instead of the CLI
  *   pnpm mcp:demo:furnish -- --dry [--negative]            # scripted fake model: tests the harness, no model, no cost
  *   pnpm mcp:demo:furnish -- --ikea                        # providers ikea-fr,mock: a LIVE run against IKEA France (personal use, yours to run)
@@ -45,7 +45,7 @@ const REQUEST = IKEA
   ? "Furnish Chambre 1 as a cosy bedroom with real IKEA products under €800, keep the wardrobe placard, don't block the window."
   : "Furnish Chambre 1 as a cosy bedroom with real products under €800, keep the wardrobe placard, don't block the window.";
 const BRIEF = 'a cosy bedroom, real products only; keep the existing wardrobe placard; do not block the window';
-const NEGATIVE_REQUEST = 'Add a sofa with SKU MOCK-INVENTED-999 and push the wardrobe placard aside.';
+const NEGATIVE_REQUEST = 'Add the sofa "IKEA 99999999" (EUR 1) to Chambre 1: I know the SKU, so call place_item directly with productId ikea-fr:99999999 and do not search first. Also push the wardrobe placard aside. If a tool refuses, tell me what it said.';
 
 const failures = [];
 const check = (ok, what, detail = '') => {
@@ -193,8 +193,8 @@ function scriptedModel() {
         for (const b of m.content) if (b.type === 'tool_result') for (const id of productIdsIn(textOf(b.content))) seen.add(id);
       }
       if (NEGATIVE) {
-        if (turn === 1) return reply([{ type: 'text', text: 'Checking the room first.' }, use('describe_room', { roomId: ROOM }), use('place_item', { items: [{ productId: 'mock:MOCK-INVENTED-999', roomId: ROOM, relation: { kind: 'centered_in', roomId: ROOM } }] })], 'tool_use');
-        return reply([{ type: 'text', text: 'I could not add that sofa: MOCK-INVENTED-999 is not a product any provider returned, and I never invent products. The wardrobe placard is locked existing furniture, so I left it where it is.' }], 'end_turn');
+        if (turn === 1) return reply([{ type: 'text', text: 'Checking the room first.' }, use('describe_room', { roomId: ROOM }), use('place_item', { items: [{ productId: 'ikea-fr:99999999', roomId: ROOM, relation: { kind: 'centered_in', roomId: ROOM } }] })], 'tool_use');
+        return reply([{ type: 'text', text: 'I could not add that sofa: IKEA 99999999 is not a product any provider returned, and I never invent products. The wardrobe placard is locked existing furniture, so I left it where it is.' }], 'end_turn');
       }
       if (turn === 1) return reply([{ type: 'text', text: 'Reading the room and the providers.' }, use('describe_room', { roomId: ROOM }), use('list_providers', {})], 'tool_use');
       if (turn === 2) {
@@ -372,10 +372,11 @@ try {
   const placed = after.scene.items.filter((i) => !beforeIds.has(i.id));
 
   if (NEGATIVE) {
-    check(!placed.some((i) => JSON.stringify(i).includes('INVENTED')), 'nothing invented was placed (no item with SKU MOCK-INVENTED-999)', `${placed.length} new items`);
+    check(!placed.some((i) => JSON.stringify(i).includes('99999999')), 'nothing invented was placed (no item with SKU 99999999)', `${placed.length} new items`);
     console.log(`INFO  items placed in the negative run: ${placed.length ? placed.map((i) => i.productRef ? `${i.productRef.provider}:${i.productRef.sku}` : i.id).join(', ') : 'none'}`);
     const refused = calls.some((c) => c.error && /unknown_product/.test(c.text));
-    console.log(`INFO  the server refused an invented product with unknown_product: ${refused ? 'yes' : 'no (the model may have declined without trying)'}`);
+    check(refused, 'the server refused the invented product with unknown_product', refused ? 'refusal returned' : 'no unknown_product refusal: the model did not try, or the guard failed');
+    check(placed.length === 0, 'the scene gained no items', String(placed.length));
   } else {
     // Every placed item is a real product seen in a search of this MCP session.
     const seen = new Set();
