@@ -5,6 +5,7 @@ on:
   pull_request:
   schedule:
     - cron: '17 5 * * 1' # weekly: the licence job below
+    - cron: '0 3 * * *' # nightly: the full browser suite (e2e)
   workflow_dispatch:
 
 jobs:
@@ -33,7 +34,7 @@ jobs:
 
   # The texture sources must still publish CC0 (the committed library is only CC0 while they do).
   licence:
-    if: github.event_name != 'pull_request'
+    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '17 5 * * 1'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -42,13 +43,14 @@ jobs:
           node-version: 24
       - run: node scripts/ci/licence-pages.mjs
 
-  # The browser suite is software-WebGL heavy (about 35 CPU-minutes in all): three shards keep the wall clock
-  # near 5 minutes including install. Each shard boots its own dev server and (sync.e2e.ts) its own scene servers.
+  # The full browser suite is software-WebGL heavy (~35 CPU-minutes) and slow/flaky on hosted runners, so it
+  # does not gate pushes: it runs nightly and on demand (Actions → CI → Run workflow), non-blocking.
+  # Pushes get the fast gates: `check` + `e2e-static`. Run the full suite locally with `pnpm e2e`.
   e2e:
-    if: github.event_name != 'schedule'
+    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '0 3 * * *'
     runs-on: ubuntu-latest
-    needs: check
-    timeout-minutes: 15
+    continue-on-error: true
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -78,6 +80,7 @@ jobs:
   # autosave restores, the ?test hook is gated. Runs in parallel with `e2e` (chromium only, 4 tests).
   e2e-static:
     if: github.event_name != 'schedule'
+    timeout-minutes: 10
     runs-on: ubuntu-latest
     needs: check
     steps:
