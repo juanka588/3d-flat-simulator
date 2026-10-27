@@ -27,7 +27,8 @@
     "models:build": "node scripts/models/build.mjs",
     "models:credits": "node scripts/models/credits.mjs",
     "models:contact-sheet": "node scripts/models/contact-sheet.mjs",
-    "models:local": "node scripts/models/local.mjs"
+    "models:local": "node scripts/models/local.mjs",
+    "mcp:demo:design": "node scripts/mcp-demo/design-flat.mjs"
   },
   "devDependencies": {
     "@anthropic-ai/sdk": "^1.3.0",
