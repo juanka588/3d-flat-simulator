@@ -2,18 +2,26 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   anchorOrigin,
   dominantBearing,
+  envelopeSamples,
+  fitFlatToFootprint,
   extractRings,
   fromEnu,
   getJson,
   hostBands,
+  hostRings,
+  overhang,
   planBasis,
+  refitContext,
   subtractRect,
   toEnu,
   validateContext,
   type ContextBuildingLike,
+  type FlatLike,
   type Pt,
 } from '../../../tools/site-context/lib.mjs';
 import { SiteContext } from './context/schema';
+import charmeContext from '../fixtures/charme-3205.context.json';
+import charmeFlat from '../fixtures/charme-3205.flat.json';
 
 const area = (p: Pt[]) => Math.abs(p.reduce((a, q, i) => a + q[0] * p[(i + 1) % p.length]![1] - p[(i + 1) % p.length]![0] * q[1], 0) / 2);
 const sq = (x0: number, y0: number, x1: number, y1: number): Pt[] => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
@@ -209,5 +217,75 @@ describe('getJson retries', () => {
     const fetchImpl = vi.fn(async () => response(500, 'boom'));
     await expect(getJson('u', 'x', { fetchImpl, attempts: 2, sleep: async () => {} })).rejects.toThrow(/x failed: HTTP 500/);
     expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('auto-fit to the host footprint', () => {
+  const box = { id: 'h', footprint: sq(0, 0, 20, 12), base: -3, height: 9, host: true };
+  const tinyFlat: FlatLike = {
+    rooms: [{ type: 'living', polygon: sq(0, 0, 4, 3) }, { type: 'balcony', polygon: sq(-1.2, 0, 0, 3) }],
+    walls: [
+      { id: 'w-north', start: [-1.2, -0.1], end: [4.1, -0.1], thickness: 0.2 },
+      { id: 'w-west', start: [-0.1, 3.1], end: [-0.1, -0.1], thickness: 0.2 },
+      { id: 'w-south', start: [-0.1, 3.1], end: [4.1, 3.1], thickness: 0.2 },
+      { id: 'w-east', start: [4.1, -0.1], end: [4.1, 3.1], thickness: 0.2 },
+    ],
+  };
+
+  it('samples the envelope without the balcony', () => {
+    const { points, cell } = envelopeSamples(tinyFlat, 0.05);
+    expect(points.length * cell * cell).toBeCloseTo(4.4 * 3.4, 0);
+    expect(Math.min(...points.map((p) => p[0]))).toBeGreaterThan(-0.2);
+  });
+
+  it('pulls a flat that sticks out of the footprint back in, ignoring the balcony', () => {
+    // The flat's NW corner sticks out by (-0.8, -0.5) metres; the balcony may project.
+    const rings = [box.footprint];
+    const moved = (p: Pt): Pt => [p[0] - 0.8, p[1] - 0.5];
+    const before = overhang(envelopeSamples(tinyFlat, 0.05), rings, moved).area;
+    expect(before).toBeGreaterThan(1.5);
+    const fit = fitFlatToFootprint(
+      {
+        rooms: tinyFlat.rooms!.map((r) => ({ ...r, polygon: r.polygon.map(moved) })),
+        walls: tinyFlat.walls!.map((w) => ({ ...w, start: moved(w.start), end: moved(w.end) })),
+      },
+      rings,
+      {},
+    );
+    expect(fit.before.area).toBeGreaterThan(1.5);
+    expect(fit.after.area).toBeLessThan(0.05);
+    expect(Math.abs(fit.thetaDeg)).toBeLessThanOrEqual(3 + 1e-6);
+    expect(fit.after.north!.mid).toBeLessThan(0.3);
+  }, 60_000);
+
+  it('refitContext applies the inverse transform and keeps the context valid', () => {
+    const ctx = { version: 1 as const, source: 's', origin: { latitude: 48.8, longitude: 2.3 }, northAngle: 358.5, buildings: [{ ...box, host: false }, { ...box, id: 'x', host: false, footprint: sq(30, 0, 40, 5) }] };
+    const out = refitContext(ctx, { dx: 2, dy: 1, thetaDeg: 2 }, { flatCut: { minX: -1, maxX: 5, minY: -1, maxY: 4 }, storeyTop: 2.8 });
+    expect(out.northAngle).toBeCloseTo(356.5, 6);
+    // The flat's old origin (0,0) moved to (2,1); a context point q is now R(-2deg)(q - t).
+    const t = (2 * Math.PI) / 180;
+    const q = ctx.buildings[1]!.footprint[0]!;
+    const e = out.buildings[1]!.footprint[0]!;
+    expect(e[0]).toBeCloseTo((q[0] - 2) * Math.cos(t) + (q[1] - 1) * Math.sin(t), 2);
+    expect(e[1]).toBeCloseTo(-(q[0] - 2) * Math.sin(t) + (q[1] - 1) * Math.cos(t), 2);
+    expect(out.origin.latitude).not.toBe(ctx.origin.latitude);
+    expect(SiteContext.safeParse(out).success).toBe(true);
+  });
+
+  describe('committed Charme 3205 fixtures', () => {
+    const flat = charmeFlat as unknown as Parameters<typeof envelopeSamples>[0];
+    it('keep the non-balcony envelope inside the host footprint', () => {
+      const result = overhang(envelopeSamples(flat, 0.025), hostRings(charmeContext as never), (p) => p, true);
+      // Before the fit this was 17.5 m2 (max 3.2 m) because of the chamfered NW corner; the rest is sampling noise.
+      expect(result.area).toBeLessThanOrEqual(0.2);
+      expect(result.maxDistance).toBeLessThanOrEqual(0.5);
+    });
+    it('stay within 3 degrees of the original northAngle and consistent with each other', () => {
+      expect(Math.abs(charmeFlat.site.northAngle - 358.5)).toBeLessThanOrEqual(3 + 1e-3);
+      expect(charmeContext.northAngle).toBe(charmeFlat.site.northAngle);
+      expect(SiteContext.safeParse(charmeContext).success).toBe(true);
+      expect(validateContext(charmeContext)).toEqual([]);
+      expect(Math.hypot(charmeContext.origin.latitude - charmeFlat.site.latitude, charmeContext.origin.longitude - charmeFlat.site.longitude)).toBeLessThan(1e-6);
+    });
   });
 });

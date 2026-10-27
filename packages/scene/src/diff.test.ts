@@ -63,7 +63,7 @@ describe('diffScenes', () => {
     expect(pick('wall', 'w-alcove').fields).toEqual([{ field: 'structural', after: true }]);
     expect(pick('wall', 'w-balcony-screen').change).toBe('removed');
     expect(pick('light', 'l-sejour').fields.map((f) => f.field)).toEqual(['lumens', 'on']);
-    expect(pick('site', 'site').fields).toEqual([{ field: 'northAngle', before: 358.5, after: 10 }]);
+    expect(pick('site', 'site').fields).toEqual([{ field: 'northAngle', before: 355.5, after: 10 }]);
     expect(pick('defaults', 'defaults').fields).toEqual([{ field: 'floor', before: 'floor-tile' }]);
     // deterministic order: kind order then id
     const kinds = d.changes.map((c) => c.kind);

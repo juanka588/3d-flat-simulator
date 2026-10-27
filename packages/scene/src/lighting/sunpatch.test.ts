@@ -164,7 +164,7 @@ describe('sunlightHours', () => {
   });
 });
 
-describe('Charme 3205 sunlight hours (northAngle 358.5)', () => {
+describe('Charme 3205 sunlight hours (northAngle 355.5)', () => {
   const scene = Scene.parse(charme);
   const hours = (d: string) => sunlightHours(scene, d);
   const dec = hours('2026-12-21');
@@ -277,12 +277,12 @@ describe('Charme 3205 sunlight hours with the neighbouring buildings', () => {
   const round = (h: Record<string, number>) => Object.fromEntries(Object.entries(h).map(([k, v]) => [k, Math.round(v * 100) / 100]));
 
   it('matches the reference table in docs/photometry.md', () => {
-    expect(round(without('2026-03-21'))).toMatchObject({ sejour: 5.67, alcove: 0, ch1: 0, ch2: 0 });
-    expect(round(without('2026-06-21'))).toMatchObject({ sejour: 7.5, alcove: 3.33, ch2: 1.83, ch1: 2.17 });
-    expect(round(without('2026-12-21'))).toMatchObject({ sejour: 3.67, alcove: 0, ch1: 0, ch2: 0 });
-    expect(round(withCtx('2026-03-21'))).toMatchObject({ sejour: 4.83, alcove: 0, ch1: 0, ch2: 0 });
-    expect(round(withCtx('2026-06-21'))).toMatchObject({ sejour: 7.5, alcove: 3.33, ch2: 1.83, ch1: 2.17 });
-    expect(round(withCtx('2026-12-21'))).toMatchObject({ sejour: 1.33, alcove: 0, ch1: 0, ch2: 0 });
+    expect(round(without('2026-03-21'))).toMatchObject({ sejour: 5.5, alcove: 0, ch1: 0, ch2: 0 });
+    expect(round(without('2026-06-21'))).toMatchObject({ sejour: 7.5, alcove: 3.33, ch2: 2.17, ch1: 2.5 });
+    expect(round(without('2026-12-21'))).toMatchObject({ sejour: 3.33, alcove: 0, ch1: 0, ch2: 0 });
+    expect(round(withCtx('2026-03-21'))).toMatchObject({ sejour: 3.5, alcove: 0, ch1: 0, ch2: 0 });
+    expect(round(withCtx('2026-06-21'))).toMatchObject({ sejour: 6.17, alcove: 3.33, ch2: 2, ch1: 2 });
+    expect(round(withCtx('2026-12-21'))).toMatchObject({ sejour: 0.5, alcove: 0, ch1: 0, ch2: 0 });
   });
   it('context never adds sun, and the host cut-away does not block the flat itself', () => {
     for (const d of ['2026-03-21', '2026-06-21', '2026-12-21']) {

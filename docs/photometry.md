@@ -276,21 +276,22 @@ the flat's wall height (the roof band above the flat, which overhangs balconies 
 under it). The host's below band cannot lie above a ray, and the flat-storey bands surround the
 flat's own cut-away, so they never block its windows.
 
-Reference results for the Charme 3205 flat (Bagneux, `northAngle` 358.5; hours of direct sun,
+Reference results for the Charme 3205 flat (Bagneux, `northAngle` 355.5, after the footprint fit; hours of direct sun,
 10 minute steps). "Free" ignores neighbouring buildings; "context" uses
 `packages/scene/fixtures/charme-3205.context.json` (IGN BD TOPO). Neither includes the balcony
 slab or railing.
 
 | Room | 21 Mar free | 21 Mar context | 21 Jun free | 21 Jun context | 21 Dec free | 21 Dec context |
 | --- | --- | --- | --- | --- | --- | --- |
-| Sejour / cuisine (west French doors) | 5.7 h | 4.8 h | 7.5 h | 7.5 h | 3.7 h | 1.3 h |
+| Sejour / cuisine (west French doors) | 5.5 h | 3.5 h | 7.5 h | 6.2 h | 3.3 h | 0.5 h |
 | Alcove (north window) | 0 | 0 | 3.3 h | 3.3 h | 0 | 0 |
-| Chambre 2 (north window) | 0 | 0 | 1.8 h | 1.8 h | 0 | 0 |
-| Chambre 1 (north window) | 0 | 0 | 2.2 h | 2.2 h | 0 | 0 |
+| Chambre 2 (north window) | 0 | 0 | 2.2 h | 2.0 h | 0 | 0 |
+| Chambre 1 (north window) | 0 | 0 | 2.5 h | 2.0 h | 0 | 0 |
 | Entree, WC, SDB, balcon | 0 | 0 | 0 | 0 | 0 | 0 |
 
 The values are asserted in `sunpatch.test.ts`. The neighbours mostly cost the living room its
-low winter and equinox afternoon sun; the summer sun is high enough to clear them.
+low winter and equinox afternoon sun, and over an hour of summer afternoon sun now that the flat sits
+3 m deeper inside the host footprint (see `tools/site-context`, `--fit`).
 
 ## Room daylight factors
 

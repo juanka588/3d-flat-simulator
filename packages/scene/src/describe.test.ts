@@ -81,7 +81,7 @@ describe('describeRoom', () => {
   });
 
   it('windows of ch1/ch2/alcove face north, the sejour French doors face west', () => {
-    expect(charme.site.northAngle).toBe(358.5);
+    expect(charme.site.northAngle).toBe(355.5);
     for (const id of ['ch1', 'ch2', 'alcove']) {
       const windows = desc(id).openings.filter((o) => o.type === 'window');
       expect(windows.length).toBe(1);

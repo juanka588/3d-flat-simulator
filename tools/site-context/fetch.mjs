@@ -27,10 +27,13 @@ import {
   compass,
   dominantBearing,
   extractRings,
+  fitFlatToFootprint,
   fromEnu,
   getJson as getJsonWith,
   hostBands,
+  hostRings,
   planBasis,
+  refitContext,
   pointInRing,
   round,
   signedArea,
@@ -66,6 +69,15 @@ const HELP = `Usage: node tools/site-context/fetch.mjs --flat <flat.json> [optio
   --from-geojson <file>  Read the WFS response from a file instead of the network
   --save-geojson <file>  Save the raw WFS response
   --out <file>           Output (default: next to the flat, <name>.context.json)
+  --fit                  After building (or with --refit), rigidly fit the flat to the host footprint:
+                         minimise the non-balcony envelope outside the footprint while keeping the
+                         north (w-north) and west (w-west) façades near the footprint's matching edges.
+                         Moves the context footprints by the inverse transform, rewrites the context's
+                         origin/northAngle and updates site.latitude/longitude/northAngle of the flat file
+  --refit <context.json> Apply --fit to an existing context without any network access (writes it in place,
+                         or to --out)
+  --max-rotation <deg>   Fit rotation limit (default 3)
+  --edge-weight <w>      Soft penalty (m2 per m2) on the north/west façade-to-edge distance (default 0.5)
   --help`;
 
 function parseArgs(argv) {
@@ -74,8 +86,8 @@ function parseArgs(argv) {
     const a = argv[i];
     if (!a.startsWith('--')) throw new Error(`Unexpected argument ${a}\n${HELP}`);
     const key = a.slice(2);
-    if (key === 'help') {
-      out.help = true;
+    if (key === 'help' || key === 'fit') {
+      out[key] = true;
       continue;
     }
     const value = argv[++i];
@@ -152,6 +164,47 @@ function readFlat(file) {
   return { flat, bounds, envelope, maxT, wallHeight };
 }
 
+// ---------------------------------------------------------------- fit
+
+/** Rewrites the `site` latitude/longitude/northAngle values of a flat file in place, keeping its formatting. */
+function updateFlatSite(file, { latitude, longitude, northAngle }) {
+  let text = readFileSync(file, 'utf8');
+  const start = text.indexOf('"site"');
+  if (start < 0) throw new Error('flat has no site block to update');
+  const end = text.indexOf('}', start);
+  let block = text.slice(start, end);
+  for (const [key, value] of Object.entries({ latitude, longitude, northAngle })) {
+    const re = new RegExp(`("${key}"\\s*:\\s*)-?[0-9.eE+-]+`);
+    if (!re.test(block)) throw new Error(`site.${key} not found in ${file}`);
+    block = block.replace(re, `$1${value}`);
+  }
+  text = text.slice(0, start) + block + text.slice(end);
+  writeFileSync(file, text);
+}
+
+const fmt = (e) => (e ? `mid ${e.mid.toFixed(2)} m, worst end ${e.ends.toFixed(2)} m, angle ${e.angle.toFixed(1)} deg` : 'n/a');
+
+/** Fits the flat to the host footprint of `context`; returns the re-expressed context and the fit. */
+function fitContext(context, flat, geometry, opts) {
+  const fit = fitFlatToFootprint(flat, hostRings(context), {
+    maxRotationDeg: num(opts, 'max-rotation', 3),
+    edgeWeight: num(opts, 'edge-weight', 0.5),
+  });
+  const out = refitContext(context, fit, { flatCut: geometry.flatCut, storeyTop: geometry.storeyTop });
+  const problems = validateContext(out);
+  if (problems.length > 0) throw new Error(`Fitted context is invalid, nothing written:\n  ${problems.slice(0, 10).join('\n  ')}`);
+  console.log('\nFit to the host footprint (non-balcony envelope, soft north/west edge penalty):');
+  console.log(`  move of the flat in the old plan frame: dx ${fit.dx.toFixed(3)} m, dy ${fit.dy.toFixed(3)} m, rotation ${fit.thetaDeg.toFixed(3)} deg clockwise`);
+  console.log(`  northAngle ${context.northAngle} -> ${out.northAngle}; origin ${context.origin.latitude}, ${context.origin.longitude} -> ${out.origin.latitude}, ${out.origin.longitude}`);
+  for (const k of ['before', 'after']) {
+    const r = fit[k];
+    console.log(`  ${k}: overhang ${r.area.toFixed(3)} m2, max overhang distance ${r.maxDistance.toFixed(2)} m`);
+    console.log(`          north edge ${fmt(r.north)}`);
+    console.log(`          west edge  ${fmt(r.west)}`);
+  }
+  return { context: out, fit };
+}
+
 // ---------------------------------------------------------------- main
 
 async function main() {
@@ -162,6 +215,23 @@ async function main() {
   }
   const flatFile = resolve(opts.flat);
   const { flat, bounds, envelope, maxT, wallHeight } = readFlat(flatFile);
+  const geometry = {
+    flatCut: {
+      minX: bounds.minX - num(opts, 'cut-margin', 0.05),
+      maxX: bounds.maxX + num(opts, 'cut-margin', 0.05),
+      minY: bounds.minY - num(opts, 'cut-margin', 0.05),
+      maxY: bounds.maxY + num(opts, 'cut-margin', 0.05),
+    },
+    storeyTop: wallHeight + num(opts, 'slab', 0.3),
+  };
+  if (opts.refit) {
+    const file = resolve(opts.refit);
+    const { context, fit } = fitContext(JSON.parse(readFileSync(file, 'utf8')), flat, geometry, opts);
+    writeFileSync(resolve(opts.out ?? file), `${JSON.stringify(context, null, 2)}\n`);
+    updateFlatSite(flatFile, { latitude: context.origin.latitude, longitude: context.origin.longitude, northAngle: context.northAngle });
+    console.log(`\nWrote ${resolve(opts.out ?? file)} and updated site of ${flatFile} (overhang ${fit.before.area.toFixed(2)} -> ${fit.after.area.toFixed(2)} m2)`);
+    return;
+  }
   const site = flat.site ?? {};
   const floorElevation = site.floorElevation ?? 0;
   const radius = num(opts, 'radius', 150);
@@ -331,7 +401,13 @@ async function main() {
   if (problems.length > 0) {
     throw new Error(`Generated context is invalid, nothing written:\n  ${problems.slice(0, 10).join('\n  ')}`);
   }
-  writeFileSync(out, `${JSON.stringify(context, null, 2)}\n`);
+  let finalContext = context;
+  if (opts.fit) {
+    finalContext = fitContext(context, flat, geometry, opts).context;
+    updateFlatSite(flatFile, { latitude: finalContext.origin.latitude, longitude: finalContext.origin.longitude, northAngle: finalContext.northAngle });
+    console.log(`Updated site of ${flatFile}`);
+  }
+  writeFileSync(out, `${JSON.stringify(finalContext, null, 2)}\n`);
 
   // 6. Report.
   const neighbours = buildings.filter((b) => !b.host);

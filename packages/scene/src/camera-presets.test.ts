@@ -79,9 +79,9 @@ describe('camera presets', () => {
 
   it('facingToHeadingDeg honours northAngle', () => {
     const charme = FIXTURES.charme!;
-    expect(facingToHeadingDeg(charme, 'N')).toBeCloseTo(358.5, 9);
-    expect(facingToHeadingDeg(charme, 'E')).toBeCloseTo(88.5, 9);
-    expect(facingToHeadingDeg(charme, 'S')).toBeCloseTo(178.5, 9);
+    expect(facingToHeadingDeg(charme, 'N')).toBeCloseTo(355.5, 9);
+    expect(facingToHeadingDeg(charme, 'E')).toBeCloseTo(85.5, 9);
+    expect(facingToHeadingDeg(charme, 'S')).toBeCloseTo(175.5, 9);
     expect(facingToHeadingDeg(charme, 90)).toBe(90);
     expect(facingToHeadingDeg(charme, -90)).toBe(270);
     expect(facingToHeadingDeg(FIXTURES.sample!, 'N')).toBeCloseTo(FIXTURES.sample!.site.northAngle, 9);
@@ -185,7 +185,7 @@ describe('camera presets', () => {
     expect(angleDiff(pose.headingDeg, 0)).toBeLessThan(40);
     expect(walkPoseInRoom(charme, 'ch1', { facing: 'win-ch1' })).toEqual(pose);
     const n = walkPoseInRoom(charme, 'ch1', { facing: 'N' });
-    expect(angleDiff(n.headingDeg, 358.5)).toBeLessThan(1e-9);
+    expect(angleDiff(n.headingDeg, 355.5)).toBeLessThan(1e-9);
     expect(n.position[1]).toBeGreaterThan(2.5);
   });
 });

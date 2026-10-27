@@ -58,3 +58,35 @@ export function getJson(
     log?: (message: string) => void;
   },
 ): Promise<unknown>;
+export interface FitReport {
+  area: number;
+  maxDistance: number;
+  north: { mid: number; ends: number; angle: number } | null;
+  west: { mid: number; ends: number; angle: number } | null;
+}
+export interface FlatLike {
+  rooms?: { type?: string; polygon: Pt[] }[];
+  walls?: { id: string; start: Pt; end: Pt; thickness?: number }[];
+}
+export interface FitResult {
+  dx: number;
+  dy: number;
+  thetaDeg: number;
+  edgeWeight: number;
+  before: FitReport;
+  after: FitReport;
+}
+export function envelopeSamples(flat: FlatLike, cell?: number): { points: Pt[]; cell: number };
+export function overhang(samples: { points: Pt[]; cell: number }, rings: readonly (readonly Pt[])[], map: (p: Pt) => Pt, withDistance?: boolean): { area: number; maxDistance: number };
+export function rigid(theta: number, tx: number, ty: number): (p: Pt) => Pt;
+export function fitFlatToFootprint(
+  flat: FlatLike,
+  rings: readonly (readonly Pt[])[],
+  options?: { maxRotationDeg?: number; maxShift?: number; edgeWeight?: number; northWall?: string; westWall?: string },
+): FitResult;
+export function refitContext<C extends { origin: { latitude: number; longitude: number }; northAngle: number; buildings: ContextBuildingLike[] }>(
+  context: C,
+  fit: Pick<FitResult, 'dx' | 'dy' | 'thetaDeg'>,
+  options: { flatCut: Rect; storeyBase?: number; storeyTop: number },
+): C;
+export function hostRings(context: { buildings: ContextBuildingLike[] }): Pt[][];
