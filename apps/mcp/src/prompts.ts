@@ -1,5 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
+import { registerStylePrompts, styleBriefMessage } from './stylesMcp';
 
 /**
  * Prompt templates (M4.12). Each returns a message sequence the client shows or sends. Every tool
@@ -27,12 +28,13 @@ export function applyStyleMessages(args: { style: string; roomId?: string | unde
 
 const money = (n: number) => `${Math.round(n * 100) / 100} EUR`;
 
-export function furnishRoomMessages(args: { roomId: string; brief: string; budgetEur?: number | undefined }) {
+export function furnishRoomMessages(args: { roomId: string; brief: string; budgetEur?: number | undefined; styleId?: string | undefined }) {
   const room = clean(args.roomId);
   const budget = args.budgetEur;
   const budgetText = budget !== undefined ? `Budget: ${money(budget)} in total, TTC (tax included) prices of the items you place; existing locked furniture counts 0.` : 'No budget was given: ask the user for one before you buy anything, or keep the total modest and say what it is.';
   const cap = budget !== undefined ? ` with \`budgetEur\` ${budget}` : '';
   return [
+    ...(args.styleId ? [styleBriefMessage(args.styleId)] : []),
     text(`The user wants to furnish the room "${room}". Brief: ${clean(args.brief)}. ${budgetText} Follow these steps in order and keep the user informed. Only real products can be placed: you never invent furniture, prices or sizes.`),
     text(`1. Read. Call \`describe_room\` for "${room}": size, ceiling, doors and windows (their swings and sills), daylight, and the items already there (locked ones are existing furniture: plan around them, never move or remove them). Call \`list_providers\` and use only enabled providers whose circuit is not open. Note the free wall lengths.`),
     text('2. Search. Use `search_products` per piece of furniture the brief needs (category, `maxPrice`, and maxWidth / maxDepth / maxHeight taken from the room size, so every result fits). Keep the queries few: searches are limited to 20 per minute. Only products these searches (or `get_product`) returned in this session can be placed.'),
@@ -74,8 +76,10 @@ export function registerPrompts(server: McpServer): void {
           .regex(/^\d{1,7}(\.\d{1,2})?$/, 'a number of euros, e.g. 1500')
           .optional()
           .describe('Total budget in EUR, TTC prices (e.g. "1500"). Locked existing furniture counts 0.'),
+        styleId: z.string().max(40).optional().describe('Optional design style id (see list_styles), e.g. "scandinavian": the room follows that style.'),
       }),
     },
-    (args) => ({ messages: furnishRoomMessages({ roomId: args.roomId, brief: args.brief, budgetEur: args.budgetEur === undefined ? undefined : Number(args.budgetEur) }) }),
+    (args) => ({ messages: furnishRoomMessages({ roomId: args.roomId, brief: args.brief, budgetEur: args.budgetEur === undefined ? undefined : Number(args.budgetEur), styleId: args.styleId }) }),
   );
+  registerStylePrompts(server);
 }

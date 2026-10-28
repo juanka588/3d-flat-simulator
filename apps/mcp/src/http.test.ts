@@ -58,8 +58,8 @@ describe('streamable HTTP (M4.2)', () => {
     const strip = (tools: { name: string; description?: string; annotations?: unknown; inputSchema: unknown }[]) => tools.map((t) => ({ name: t.name, description: t.description, annotations: t.annotations, inputSchema: t.inputSchema }));
     expect(strip((await over.listTools()).tools)).toEqual(strip((await inproc.client.listTools()).tools));
     expect((await over.listTools()).tools.length).toBe(38);
-    expect((await over.listPrompts()).prompts.map((p) => p.name)).toEqual(['apply_style', 'furnish_room']);
-    expect((await over.listResources()).resources).toHaveLength(5);
+    expect((await over.listPrompts()).prompts.map((p) => p.name)).toEqual(['apply_style', 'furnish_room', 'design_flat_in_style', 'design_flat_team', 'room_specialist', 'list_styles']);
+    expect((await over.listResources()).resources.filter((r) => !r.uri.startsWith('styles://'))).toHaveLength(5);
     await over.close();
   });
 

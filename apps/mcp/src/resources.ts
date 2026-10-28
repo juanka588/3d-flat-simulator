@@ -3,6 +3,7 @@ import { CONVENTIONS_MD } from './conventions';
 import type { FlatApi } from './flatApi';
 import { apiFailure } from './errors';
 import { buildMaterialListing, buildSummary } from './readModel';
+import { registerStyleResources } from './stylesMcp';
 import type { McpSession } from './tools';
 import { authorText } from './tools/common';
 
@@ -61,4 +62,5 @@ export function registerResources(server: McpServer, deps: Deps): void {
   server.registerResource('conventions', 'docs://conventions', { title: 'Plan conventions', description: 'Units, orientation, left/right, finish precedence, structural rules.', mimeType: 'text/markdown' }, async (uri) => ({
     contents: [{ uri: uri.href, mimeType: 'text/markdown', text: CONVENTIONS_MD }],
   }));
+  registerStyleResources(server);
 }

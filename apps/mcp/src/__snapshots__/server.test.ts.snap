@@ -44,11 +44,106 @@ exports[`snapshots (the contract) > prompts/list 1`] = `
         "name": "budgetEur",
         "required": false,
       },
+      {
+        "description": "Optional design style id (see list_styles), e.g. "scandinavian": the room follows that style.",
+        "name": "styleId",
+        "required": false,
+      },
     ],
     "description": "Furnish a room with real products within a budget: read, search, pick, position, preview, apply, validate, render, price table, offer undo.",
     "icons": undefined,
     "name": "furnish_room",
     "title": "Furnish a room",
+  },
+  {
+    "_meta": undefined,
+    "arguments": [
+      {
+        "description": "Style id, e.g. "french-parisian". Run list_styles or read styles://list for the ids.",
+        "name": "styleId",
+        "required": true,
+      },
+      {
+        "description": "Comma-separated room ids to limit the work to (default: the whole flat).",
+        "name": "rooms",
+        "required": false,
+      },
+      {
+        "description": "Total furniture budget in EUR, TTC prices (e.g. "6000"). Default: the style's budgetHint.",
+        "name": "budgetEur",
+        "required": false,
+      },
+      {
+        "description": "Extra wishes from the owner.",
+        "name": "notes",
+        "required": false,
+      },
+    ],
+    "description": "Redesign the whole flat (or some rooms) as a style's artist: the shared MCP workflow, the style brief and your request. Styles: list_styles.",
+    "icons": undefined,
+    "name": "design_flat_in_style",
+    "title": "Design the flat in a style",
+  },
+  {
+    "_meta": undefined,
+    "arguments": [
+      {
+        "description": "Style id, e.g. "french-parisian". Run list_styles or read styles://list for the ids.",
+        "name": "styleId",
+        "required": true,
+      },
+      {
+        "description": "Total furniture budget in EUR, TTC prices (e.g. "6000"). Default: the style's budgetHint.",
+        "name": "budgetEur",
+        "required": false,
+      },
+    ],
+    "description": "The lead artist's prompt: sets the concept for a style, delegates room by room to specialists (room_specialist), reviews cohesion and finishes.",
+    "icons": undefined,
+    "name": "design_flat_team",
+    "title": "Design the flat with a team of room specialists",
+  },
+  {
+    "_meta": undefined,
+    "arguments": [
+      {
+        "description": "Role id: living-kitchen, bedroom, bathroom-wc, office-gaming, entry, outdoor-balcony or lighting.",
+        "name": "role",
+        "required": true,
+      },
+      {
+        "description": "Room id (default: given in the task).",
+        "name": "roomId",
+        "required": false,
+      },
+      {
+        "description": "Style id, e.g. "french-parisian". Run list_styles or read styles://list for the ids.",
+        "name": "styleId",
+        "required": true,
+      },
+      {
+        "description": "The lead artist's brief for this room.",
+        "name": "brief",
+        "required": false,
+      },
+      {
+        "description": "Total furniture budget in EUR, TTC prices (e.g. "6000"). Default: the style's budgetHint.",
+        "name": "budgetEur",
+        "required": false,
+      },
+    ],
+    "description": "One specialist (living-kitchen, bedroom, bathroom-wc, office-gaming, entry, outdoor-balcony, lighting) designs one room in a style and reports back. For subagents of design_flat_team.",
+    "icons": undefined,
+    "name": "room_specialist",
+    "title": "Room specialist",
+  },
+  {
+    "_meta": undefined,
+    "arguments": undefined,
+    "description": "The available styles (id, name, summary) and roles, to choose from for design_flat_in_style.",
+    "icons": undefined,
+    "name": "list_styles",
+    "title": "List the design styles",
   },
 ]
 `;

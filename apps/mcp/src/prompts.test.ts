@@ -64,7 +64,7 @@ describe('prompts (M4.12)', () => {
     expect(textOf(none.messages as never)).toContain('No budget was given');
     await expect(client.getPrompt({ name: 'furnish_room', arguments: { roomId: 'sejour', brief: 'b', budgetEur: 'lots' } })).rejects.toThrow();
     const prompts = (await client.listPrompts()).prompts.find((x) => x.name === 'furnish_room')!;
-    expect(prompts.arguments?.map((a) => [a.name, a.required ?? false])).toEqual([['roomId', true], ['brief', true], ['budgetEur', false]]);
+    expect(prompts.arguments?.map((a) => [a.name, a.required ?? false])).toEqual([['roomId', true], ['brief', true], ['budgetEur', false], ['styleId', false]]);
   });
 
   it('every tool a prompt mentions exists in the registry', () => {

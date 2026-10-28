@@ -178,9 +178,9 @@ describe('read tools (M4.4)', () => {
 });
 
 describe('resources (M4.4)', () => {
-  it('lists the five resources', async () => {
+  it('lists the five resources (and the styles:// ones)', async () => {
     const { client } = await connect();
-    const uris = (await client.listResources()).resources.map((r) => r.uri).sort();
+    const uris = (await client.listResources()).resources.map((r) => r.uri).filter((u) => !u.startsWith('styles://')).sort();
     expect(uris).toEqual(['docs://conventions', 'materials://list', 'scene://current', 'scene://history', 'scene://summary']);
   });
 

@@ -43,7 +43,13 @@ Provider calls take longer than scene calls (a live IKEA search reads product pa
 ### Prompts
 
 - `apply_style {style, roomId?, palette?}`: restyle in one reviewed batch.
-- `furnish_room {roomId, brief, budgetEur?}`: read, search, pick, position, preview, validate, apply, render, price table, offer undo. In Claude Code it appears as `/mcp__flat__furnish_room`; `claude -p` does not run MCP prompts, so the demo below fetches the prompt text with `prompts/get` and sends it inline.
+- `furnish_room {roomId, brief, budgetEur?, styleId?}`: read, search, pick, position, preview, validate, apply, render, price table, offer undo. In Claude Code it appears as `/mcp__flat__furnish_room`; `claude -p` does not run MCP prompts, so the demo below fetches the prompt text with `prompts/get` and sends it inline. With `styleId` the room follows that design style.
+- `design_flat_in_style {styleId, rooms?, budgetEur?, notes?}`: the shared "how to work with this server" base + one design style's brief + your request. `list_styles`: ids, names and summaries.
+- `design_flat_team {styleId, budgetEur?}` and `room_specialist {role, roomId?, styleId, brief?, budgetEur?}`: a lead artist that delegates room by room to specialists (living-kitchen, bedroom, bathroom-wc, office-gaming, entry, outdoor-balcony, lighting).
+
+### Style library (prompts as data)
+
+The styles are Markdown files in `apps/mcp/styles/` (frontmatter + brief), the shared base is `_base.md` and the roles are in `styles/roles/`. They are validated by a zod schema (`src/styles.ts`, tests in `src/styles.test.ts`) and exposed as the resources `styles://list`, `styles://<id>`, `styles://roles` and `styles://roles/<id>`; they add no tools. `pnpm mcp:demo:design -- --style <id>`, `--team` and `--variants a,b,c` run them. How to add a style and run variants: [docs/styles.md](../../docs/styles.md).
 
 ## SDK decision (M4.1 spike): GO on `@modelcontextprotocol/server` v2
 
