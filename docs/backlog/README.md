@@ -9,8 +9,8 @@ Milestones, user stories and acceptance criteria. The overall roadmap (M0–M9) 
 | M2 | Sun (suncalc + site context from IGN), sky, lamps, presets | ✅ done (pending user check-in) |
 | M3 | Command layer, undo/redo, finishes + CC0 materials, structural walls, scene server, live sync | ✅ done [m3.md](m3.md) |
 | M4 | MCP server v1: read scene, finishes, lighting, `render_view` | ✅ done (approved 2026-10-27) [m4.md](m4.md) |
-| M5 | Product-grounded assets (parametric, CC0, 3D-FUTURE local, retailer spike) + placement solver | 🚧 stories done, pending QA fixes + user check-in [m5.md](m5.md) |
-| M5R | Rendering realism: PBR furniture finishes, environment light, contact shadows and wall creases, bevelled generators, AWB, then the hero `models-hd/` tier | 🚧 step 1 (rendering) done, pending user check-in [m5r.md](m5r.md) |
+| M5 | Product-grounded assets (parametric, CC0, 3D-FUTURE local, retailer spike) + placement solver | ✅ accepted 2026-10-28 (QA fixes, fixtures, floor zones, lighting grids, LLM whole-flat design demo) [m5.md](m5.md) |
+| M5R | Rendering realism: PBR furniture finishes, environment light, contact shadows and wall creases, bevelled generators, AWB, then the hero `models-hd/` tier | 🚧 steps 1 (rendering) and 2 (43 HD models) done; soft-item generators, model memory, real-GPU CI pending [m5r.md](m5r.md) |
 | M6 | Blueprint image → Scene JSON (vision LLM + trace tool) | ⏳ |
 | M7 | Inspiration image → design descriptors → MCP instruction plan | ⏳ |
 | M8 | Autonomous furnishing under constraints, variants | ⏳ |
