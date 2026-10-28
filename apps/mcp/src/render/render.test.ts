@@ -281,7 +281,7 @@ describe.runIf(process.env.MCP_RENDER)('render service (slow: real browser, real
       const r = await tool.handler(c, { view: 'top' });
       expect(r.isError).toBe(true);
       expect(data(r).code).toBe('render_timeout');
-      expect(data(r).message).toMatch(/start the browser/);
+      expect(data(r).message).toMatch(/browser start took longer/);
       // The abandoned cold start finishes in the background and must tear itself down (no orphan Chromium).
       await new Promise((ok) => setTimeout(ok, 6000));
       expect(slow.session.isWarm).toBe(false);
@@ -291,13 +291,17 @@ describe.runIf(process.env.MCP_RENDER)('render service (slow: real browser, real
     }
   }, 30_000);
 
-  it('a cold start gets the longer cold budget: a 1 ms warm timeout does not fail the first render', async () => {
+  it('a cold start gets the longer cold budget: a 1 ms render timeout does not fail the browser start', async () => {
+    // The browser start (launch, viewer load, shader compile) has the cold budget; the render's own budget only starts
+    // once the page is up. So with a 1 ms render budget the start still completes and only the render itself times
+    // out (and discards the page), with the render message, never the "browser start" one.
     const cold = new BrowserRenderer({ timeoutMs: 1 });
     const c = toolContext(srv.flat, { renderer: new McpRenderer(srv.flat, cold) });
     try {
       const r = await tool.handler(c, { view: 'top', size: { width: 320, height: 240 } });
-      expect(r.isError, JSON.stringify(r.content[0])).toBeFalsy();
-      expect(images(r)).toHaveLength(1);
+      expect(r.isError).toBe(true);
+      expect(data(r).code).toBe('render_timeout');
+      expect(data(r).message).toMatch(/the render took longer/);
     } finally {
       await cold.close();
     }

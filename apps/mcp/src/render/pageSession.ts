@@ -119,6 +119,9 @@ const INIT_SCRIPT = `
 const RENDER_SCRIPT = `async (a) => {
   const f = window.__flat;
   if (!f) return { error: 'the viewer test hook is missing' };
+  const timings = {};
+  let tick = performance.now();
+  const lap = (k) => { const n = performance.now(); timings[k] = Math.round(n - tick); tick = n; };
   if (a.viewport) await f.setViewport({ width: a.viewport.width, height: a.viewport.height, dpr: 1 });
   let sceneError = null;
   if (a.modelOrigin && f.setModelOrigin) f.setModelOrigin(a.modelOrigin);
@@ -127,12 +130,17 @@ const RENDER_SCRIPT = `async (a) => {
     const r = await f.loadScene(a.scene);
     if (!r.ok) sceneError = (r.errors || []).join('; ') || 'the viewer rejected the scene';
   }
+  lap('scene');
   if (sceneError) return { error: sceneError };
   if (f.setComfort) await f.setComfort({ translucentDoors: false, buildingMode: 'ghost' });
   await f.setLighting(a.lighting);
+  lap('lighting');
   await f.setCamera(a.pose);
+  lap('camera');
   await f.whenRendered();
+  lap('settle');
   let dataUrl = f.capture();
+  lap('capture');
   const pngUrl = dataUrl;
   let mimeType = 'image/png';
   if (a.format === 'jpeg') {
@@ -160,8 +168,9 @@ const RENDER_SCRIPT = `async (a) => {
     ctx.drawImage(bmp, 0, 0, tw, th);
     thumb = { w: tw, h: th, rgba: Array.from(ctx.getImageData(0, 0, tw, th).data) };
   } catch (e) { thumb = { error: String(e) }; }
+  lap('encode');
   return {
-    dataUrl, mimeType, thumb, triangles: s.triangles, meshes: s.meshes, canvasSize: s.canvasSize, lampsLit: s.lights.lampsLit, pose: s.pose,
+    timings, dataUrl, mimeType, thumb, triangles: s.triangles, meshes: s.meshes, canvasSize: s.canvasSize, lampsLit: s.lights.lampsLit, pose: s.pose,
     sun: sun.available ? { available: true, isUp: sun.isUp, altitudeDeg: sun.altitudeDeg, azimuthDeg: sun.azimuthDeg } : { available: false },
     contextLost: !!window.__renderCtxLost,
     models: { loading: ms.loading, sources: ms.sources, reasons: ms.reasons },
@@ -304,7 +313,10 @@ export class PageSession {
       });
       handle.page = page;
       const url = new URL(base);
-      url.search = `?test&w=${size.width}&h=${size.height}&dpr=1`;
+      // FLAT_RENDER_QUALITY=low draws with the viewer's low-end profile (no environment map, contact shadows or most lamp
+      // shadows): about 40% less shader compile time under SwiftShader, for CI and other slow hosts. Unset: the full profile.
+      const quality = ['low', 'high'].includes(process.env.FLAT_RENDER_QUALITY ?? '') ? `&quality=${process.env.FLAT_RENDER_QUALITY}` : '';
+      url.search = `?test&w=${size.width}&h=${size.height}&dpr=1${quality}`;
       await page.goto(url.toString(), { waitUntil: 'load' });
       lap('page loaded');
       superseded();
@@ -354,7 +366,7 @@ export class PageSession {
       if (mustLoad) h.sceneKey = null;
       type Raw =
         | { error: string }
-        | { dataUrl: string; mimeType: 'image/png' | 'image/jpeg'; thumb: { w: number; h: number; rgba: number[] } | { error: string } | null; triangles: number; meshes: string[]; canvasSize: [number, number]; lampsLit: string[]; pose: CameraPose | null; sun: PageOutput['sun']; contextLost: boolean; models: ModelReport };
+        | { timings: Record<string, number>; dataUrl: string; mimeType: 'image/png' | 'image/jpeg'; thumb: { w: number; h: number; rgba: number[] } | { error: string } | null; triangles: number; meshes: string[]; canvasSize: [number, number]; lampsLit: string[]; pose: CameraPose | null; sun: PageOutput['sun']; contextLost: boolean; models: ModelReport };
       let r: Raw;
       let pixels: PixelStats | undefined;
       let blank: string | undefined;
@@ -370,6 +382,8 @@ export class PageSession {
       }
       r = r!;
       if ('error' in r) throw new SessionError('unavailable', 'unreachable');
+      // Where a render's time goes (page-side phases, ms): the first thing to read when a CI render times out.
+      this.opts.log('info', `render: phases ${Object.entries(r.timings ?? {}).map(([k, v]) => `${k} ${v}`).join(', ')} (${mustLoad ? 'scene loaded' : 'scene cached'})`);
       if (viewport) h.viewport = viewport;
       if (mustLoad) {
         this.stats.sceneLoads += 1;

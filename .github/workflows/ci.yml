@@ -62,12 +62,12 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: true
     # The first nightly (run 40661365790) cancelled all three 1/3 shards at the old 20 min limit with ~78 tests each: on a
-    # 2-vCPU runner with software WebGL a test costs 25-45 s (the Pages gate does 9 tests in 3.2 min), so 6 smaller shards.
+    # 2-vCPU runner with software WebGL a test costs 25-45 s (the Pages gate does 9 tests in 3.2 min), so smaller shards. The dispatch run 40664419136 with 6 shards (~39 tests each) took 12-19 min per shard, most of it in tests that hit the 60 s timeout twice, hence 8.
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        shard: [1/6, 2/6, 3/6, 4/6, 5/6, 6/6]
+        shard: [1/8, 2/8, 3/8, 4/8, 5/8, 6/8, 7/8, 8/8]
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -112,8 +112,16 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - name: Build the web app the renderer serves
         run: BASE_PATH=/ pnpm --filter @flat/web build
+      # SwiftShader on the runner compiles the viewer's ~30 shader programs slowly (measured: the big lit-material
+      # programs take 3-5 s each on a loaded 16-core Mac, more on 4 vCPUs). The low profile skips the environment map
+      # and most lamp shadows (about 40% less time), the factor widens the default render/cold budgets 3x, and the
+      # phase timings of every render go to the log.
       - name: MCP render tests
         id: render
+        env:
+          FLAT_RENDER_QUALITY: low
+          FLAT_RENDER_TIMEOUT_FACTOR: '3'
+          FLAT_RENDER_VERBOSE: '1'
         run: pnpm test:render
       # M4.14 automated LLM demo (positive and negative). Spends real tokens (capped at $2 by default), so it only
       # runs where the repository has the secret, and a failed render step does not skip it.

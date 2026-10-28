@@ -60,6 +60,20 @@ export const IDLE_MS = 10 * 60_000;
 /** Default budget of a cold render. */
 export const COLD_TIMEOUT_MS = 60_000;
 
+/** Silent unless `FLAT_RENDER_VERBOSE=1` (CI nightly): then the render phases go to stderr, never stdout (JSON-RPC). */
+function defaultLog(level: 'info' | 'warn' | 'error', message: string): void {
+  if (process.env.FLAT_RENDER_VERBOSE === '1') process.stderr.write(`[flat-render] ${level}: ${message}\n`);
+}
+
+/**
+ * `FLAT_RENDER_TIMEOUT_FACTOR` (default 1) scales the default render and cold-start budgets for slow hosts, e.g. the
+ * 4-vCPU CI runners where SwiftShader needs several times a developer machine's time. Explicit `timeoutMs` options win.
+ */
+function timeoutFactor(): number {
+  const n = Number(process.env.FLAT_RENDER_TIMEOUT_FACTOR);
+  return Number.isFinite(n) && n >= 1 ? n : 1;
+}
+
 /** The long edge clamped to `RENDER_LIMITS.maxEdgePx`, aspect kept; `clamped` tells whether it changed. */
 export function clampSize(size: { width: number; height: number }): { width: number; height: number; clamped: boolean } {
   const long = Math.max(size.width, size.height);
@@ -81,11 +95,12 @@ export class BrowserRenderer {
   constructor(opts: RendererOptions = {}) {
     this.distDir = opts.distDir ?? DEFAULT_DIST;
     this.webUrl = opts.webUrl;
-    this.timeoutMs = opts.timeoutMs ?? RENDER_LIMITS.timeoutMs;
-    this.coldTimeoutMs = Math.max(this.timeoutMs, opts.coldTimeoutMs ?? COLD_TIMEOUT_MS);
+    const factor = timeoutFactor();
+    this.timeoutMs = opts.timeoutMs ?? RENDER_LIMITS.timeoutMs * factor;
+    this.coldTimeoutMs = Math.max(this.timeoutMs, opts.coldTimeoutMs ?? COLD_TIMEOUT_MS * factor);
     this.idleMs = opts.idleMs ?? IDLE_MS;
     this.queue = new SerialQueue(opts.maxQueue ?? 3);
-    this.session = new PageSession({ distDir: this.distDir, webUrl: this.webUrl, channel: opts.channel, log: opts.log ?? (() => undefined) });
+    this.session = new PageSession({ distDir: this.distDir, webUrl: this.webUrl, channel: opts.channel, log: opts.log ?? defaultLog });
   }
 
   get stats() {
