@@ -56,7 +56,10 @@ let cached: PerfProfile | null = null;
 export function getPerfProfile(): PerfProfile {
   if (cached) return cached;
   const coarse = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
-  const override = typeof location !== 'undefined' ? new URLSearchParams(location.search).get('quality') : null;
+  // The URL wins; then the build/dev-server default (`VITE_FLAT_QUALITY=low`, used by the nightly CI whose software GL
+  // compiles the full profile's shaders 40% slower); then the device heuristics.
+  const urlQuality = typeof location !== 'undefined' ? new URLSearchParams(location.search).get('quality') : null;
+  const override = urlQuality ?? (import.meta.env?.VITE_FLAT_QUALITY as string | undefined) ?? null;
   const base = perfProfileFor({ coarsePointer: coarse, cores: typeof navigator !== 'undefined' ? navigator.hardwareConcurrency : undefined, override });
   // `?ao=off` leaves out the contact shadows and wall creases (measurements of flat lighting, debugging).
   const aoOff = typeof location !== 'undefined' && ['0', 'off'].includes(new URLSearchParams(location.search).get('ao') ?? '');

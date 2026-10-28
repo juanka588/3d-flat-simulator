@@ -49,7 +49,7 @@ test('mode switching updates the view and Esc leaves walk mode', async ({ page }
   await rendered(page);
   expect(await mode()).toBe('top');
 
-  await page.getByRole('button', { name: 'Walk' }).click();
+  await page.getByRole('button', { name: 'Walk', exact: true }).click();
   await rendered(page);
   expect(await mode()).toBe('walk');
   await expect(page.getByText(/Esc to leave/)).toBeVisible();
@@ -62,7 +62,7 @@ test('mode switching updates the view and Esc leaves walk mode', async ({ page }
   expect(y).toBeCloseTo(1.55, 2); // eyes of a 166 cm person
 
   await page.keyboard.press('Escape');
-  await expect(page.getByRole('button', { name: 'Orbit' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('button', { name: 'Orbit', exact: true })).toHaveAttribute('aria-pressed', 'true');
   expect(await mode()).toBe('orbit');
 });
 

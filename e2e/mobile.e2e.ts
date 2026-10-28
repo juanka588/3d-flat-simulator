@@ -121,7 +121,7 @@ test('the menu button opens and closes the drawer; Esc and a backdrop tap close 
   await expect(sidebar(page)).toBeVisible();
   await expect(sidebar(page)).toHaveAttribute('role', 'dialog');
   await expect(sidebar(page)).toBeFocused(); // focus moved into the drawer
-  await expect(page.getByRole('button', { name: 'Orbit' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Orbit', exact: true })).toBeVisible();
   // The canvas is still full-screen underneath (the drawer is an overlay, nothing is resized).
   const vp = await page.evaluate(() => window.innerWidth);
   expect((await page.locator('canvas').boundingBox())!.width).toBeCloseTo(vp, 0);
@@ -148,7 +148,7 @@ test('the menu button opens and closes the drawer; Esc and a backdrop tap close 
 
 test('choosing a camera mode closes the drawer', async ({ page }) => {
   await menuButton(page).tap();
-  await page.getByRole('button', { name: 'Top' }).tap();
+  await page.getByRole('button', { name: 'Top', exact: true }).tap();
   await expect(sidebar(page)).toBeHidden();
   await rendered(page);
   expect((await stats(page)).mode).toBe('top');
@@ -166,7 +166,7 @@ test('inputs are at least 16 px and controls at least 44 px, so iOS does not zoo
   expect(small).toEqual([]);
   expect(await page.getByLabel('Date').evaluate((el) => (el as HTMLInputElement).type)).toBe('date');
   expect(await page.getByLabel('Exact time').evaluate((el) => (el as HTMLInputElement).type)).toBe('time');
-  for (const l of [menuButton(page), page.getByRole('button', { name: 'Orbit' }), page.getByRole('button', { name: 'Walk' }), page.getByRole('button', { name: 'Now' })]) {
+  for (const l of [menuButton(page), page.getByRole('button', { name: 'Orbit', exact: true }), page.getByRole('button', { name: 'Walk', exact: true }), page.getByRole('button', { name: 'Now' })]) {
     const box = (await l.boundingBox())!;
     expect(box.height).toBeGreaterThanOrEqual(43.5);
     expect(box.width).toBeGreaterThanOrEqual(43.5);

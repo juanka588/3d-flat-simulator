@@ -22,6 +22,8 @@ export default defineConfig({
   // autosave test already needs ~27 s with 2 workers on a 16-core laptop, and page loads take longer under load.
   timeout: process.env.CI ? 60_000 : 30_000,
   fullyParallel: true,
+  // CI default is 2 (half the 4 vCPUs); the nightly sets E2E_WORKERS=1 because software GL is multi-threaded itself.
+  ...(process.env.E2E_WORKERS ? { workers: Number(process.env.E2E_WORKERS) } : {}),
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : 'list',
@@ -86,6 +88,8 @@ export default defineConfig({
             url: `http://127.0.0.1:${PORT}`,
             reuseExistingServer: !process.env.CI,
             timeout: 120_000,
+            // E2E_QUALITY=low (nightly CI): the viewer's low profile, whose shaders compile ~40% faster under software GL.
+            env: process.env.E2E_QUALITY ? { VITE_FLAT_QUALITY: process.env.E2E_QUALITY } : {},
           },
         ]),
     ...(STATIC !== 'skip'

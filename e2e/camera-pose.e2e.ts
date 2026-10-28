@@ -221,7 +221,7 @@ test.describe('camera pose', () => {
 
   test('choosing a mode in the toolbar drops the pose', async ({ page }) => {
     await setCamera(page, TOP);
-    await page.getByRole('button', { name: 'Orbit' }).click();
+    await page.getByRole('button', { name: 'Orbit', exact: true }).click();
     await page.evaluate(() => window.__flat!.whenRendered());
     const s = await stats(page);
     expect(s.pose).toBeNull();

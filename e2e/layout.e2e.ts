@@ -55,13 +55,13 @@ test.describe('walk view', () => {
     await page.evaluate((p) => window.__flat!.setWalkPose(p), pose);
   }
 
-  test('defaults to a 166 cm person: eyes at 1.55 m and a 50 degree vertical fov on landscape', async ({ page }) => {
+  test('defaults to a 166 cm person: eyes at 1.55 m and a 60 degree vertical fov on landscape', async ({ page }) => {
     await expect(page.getByLabel('Person height')).toHaveValue('166');
     await expect(page.getByTestId('eye-height')).toContainText('1.55 m');
     await walkAt(page, { x: 2.45, z: 5.3, yawDeg: 0 });
     const s = await flat(page, (f) => f.stats());
     expect(s.camera[1]).toBeCloseTo(1.55, 3);
-    expect(s.fov).toBe(50);
+    expect(s.fov).toBe(60); // the walk fov was widened from 50 to 60 degrees
   });
 
   test('the person height setting moves the eyes live and is remembered', async ({ page }) => {

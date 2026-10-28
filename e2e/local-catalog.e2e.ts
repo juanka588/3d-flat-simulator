@@ -142,7 +142,7 @@ test('a normalised local GLB (Meshopt, WebP textures) loads in the viewer from t
   const local = await startServer({ providers: '', localCatalogDir: dir });
   try {
     const glbRequests: { url: string; status: number }[] = [];
-    page.on('response', (res) => res.url().endsWith('.glb') && glbRequests.push({ url: res.url(), status: res.status() }));
+    page.on('response', (res) => res.url().endsWith('.glb') && res.url().includes('/api/assets/products/') && glbRequests.push({ url: res.url(), status: res.status() }));
     await openConnected(page, local);
     const item = {
       id: 'ilot',

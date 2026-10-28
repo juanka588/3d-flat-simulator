@@ -77,9 +77,16 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: npx playwright install --with-deps chromium
+      # mcp-live.e2e.ts renders through the MCP render service, which serves apps/web/dist.
+      - run: BASE_PATH=/ pnpm --filter @flat/web build
+      # Low viewer profile (no environment map, fewer lamp shadows): the full profile's shaders compile ~40% slower and
+      # the nightly measured 5-12 min per shard with it versus timeouts without. One worker: two Chromiums, each with 4 SwiftShader threads, plus the Vite dev server fight over 4 vCPUs, and a
+      # test then takes several times as long (60 s timeouts at 2 workers; see the perf probe in the run history).
       - run: pnpm e2e --shard=${{ matrix.shard }}
         env:
           E2E_STATIC: skip
+          E2E_WORKERS: '1'
+          E2E_QUALITY: low
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

@@ -998,7 +998,8 @@ legend {
   position: absolute;
   left: 0.75rem;
   bottom: 0.75rem;
-  z-index: 5;
+  /* Above the camera-keys help (z 5), which sits at the same corner and used to cover the banner's buttons. */
+  z-index: 6;
   max-width: 28rem;
   display: flex;
   gap: 0.5rem;

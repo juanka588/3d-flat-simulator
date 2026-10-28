@@ -28,16 +28,20 @@ describe.runIf(process.env.MCP_RENDER)('render latency (Charme, 1024x768)', () =
     };
     try {
       const cold: number[] = [];
-      for (let i = 0; i < 5; i++) {
+      // Informational numbers only: fewer samples on CI, where every software-GL render costs seconds.
+      const COLD = process.env.CI ? 2 : 5;
+      const WARM = process.env.CI ? 10 : 20;
+      const RELOAD = process.env.CI ? 6 : 12;
+      for (let i = 0; i < COLD; i++) {
         const b = new BrowserRenderer();
         const ctx = toolContext(srv.flat, { renderer: new McpRenderer(srv.flat, b) });
         cold.push(await time(ctx, { view: 'room', roomId: 'sejour' }));
-        if (i === 4) {
+        if (i === COLD - 1) {
           const warm: number[] = [];
           const views = [{ view: 'room', roomId: 'sejour' }, { view: 'walk', roomId: 'sejour', facing: 'N' }, { view: 'top' }, { view: 'orbit' }, { view: 'walk', roomId: 'ch1', preset: 'evening' }];
-          for (let k = 0; k < 20; k++) warm.push(await time(ctx, views[k % views.length]!));
+          for (let k = 0; k < WARM; k++) warm.push(await time(ctx, views[k % views.length]!));
           const reload: number[] = [];
-          for (let k = 0; k < 12; k++) {
+          for (let k = 0; k < RELOAD; k++) {
             await apply(srv.flat, { type: 'light.update', id: 'l-ch2', patch: { lumens: 500 + k } });
             reload.push(await time(ctx, views[k % views.length]!));
           }
