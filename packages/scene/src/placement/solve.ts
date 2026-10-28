@@ -27,8 +27,11 @@ export const SAMPLE_STEP_M = 0.05;
 export const MAX_SAMPLES = 2000;
 /** Alternatives closer than this to each other are the same idea; keep the first. */
 const MIN_CANDIDATE_SPACING_M = 0.25;
-/** Wall-clock budget of the search for alternatives; when it runs out the candidates found so far are returned. */
-export const SOLVE_BUDGET_MS = 50;
+/**
+ * Deterministic work budget of the search for alternatives: poses examined (cheap checks) per solve at most.
+ * No clock is involved, so equal inputs give equal outputs on any machine under any load.
+ */
+export const SOLVE_MAX_EVALUATIONS = MAX_SAMPLES;
 /** Walkway rasters computed per solve at most (each is a few ms). */
 const MAX_WALKWAY_CHECKS = 24;
 /** After a pose failed the walkway test, poses this close to it are not tried (they would fail the same way). */
@@ -157,14 +160,19 @@ function dimsMismatch(scene: Scene, req: PlacementRequest): Violation | undefine
   return violation('dims_mismatch', `requested dims ${req.dims.w} x ${req.dims.d} x ${req.dims.h} m differ by more than 2% from item "${item.id}" (${known.w} x ${known.d} x ${known.h} m)`, [item.id]);
 }
 
+/** Optional out-parameter that reports the (deterministic) work a solve did; for tests and tuning. */
+export interface SolveStats {
+  poses: number;
+  walkwayChecks: number;
+}
+
 const fail = (v: Violation[], candidates: Placement[] = []): PlacementResult => ({ ok: false, violations: v, candidates });
 
 /**
  * Resolves a placement request against the scene. See the file header. Never throws for bad input: an
  * unparseable request, an unknown room or an impossible relation come back as `invalid_relation`.
  */
-export function solvePlacement(scene: Scene, request: PlacementRequestInput): PlacementResult {
-  const started = performance.now();
+export function solvePlacement(scene: Scene, request: PlacementRequestInput, stats?: SolveStats): PlacementResult {
   const parsed = PlacementRequest.safeParse(request);
   if (!parsed.success) {
     const issue = parsed.error.issues[0]!;
@@ -238,21 +246,20 @@ export function solvePlacement(scene: Scene, request: PlacementRequestInput): Pl
   const failedWalkway: Vec2[] = [];
   const scored: { placement: Placement; penalty: number }[] = [];
   const wanted = req.maxCandidates;
-  const deadline = started + SOLVE_BUDGET_MS;
   if (wanted > 0) {
     const poses = sample(scene, room, req, target, rotation);
     let looked = 0;
     for (const pose of poses) {
       if (scored.length >= wanted * 3) break;
       // poses come nearest first, so stopping early keeps the best ones and the order stays stable
-      if ((++looked & 15) === 0 && performance.now() > deadline) break;
+      if (looked >= SOLVE_MAX_EVALUATIONS) break;
+      looked++;
       if (kept.some((k) => Math.hypot(k[0] - pose.position[0], k[1] - pose.position[1]) < MIN_CANDIDATE_SPACING_M)) continue;
       const subject = subjectAt(pose.position, pose.rotation);
       const cheap = checkSubject(ctx, subject);
       if (cheap.violations.length > 0) continue;
       if (walkwayChecks >= MAX_WALKWAY_CHECKS) break;
       if (failedWalkway.some((f) => Math.hypot(f[0] - pose.position[0], f[1] - pose.position[1]) < WALKWAY_FAIL_RADIUS_M)) continue;
-      if (performance.now() > deadline) break;
       walkwayChecks++;
       const v = fullCheck(ctx, info, subject, req.itemId);
       if (v.violations.length > 0) {
@@ -264,6 +271,10 @@ export function solvePlacement(scene: Scene, request: PlacementRequestInput): Pl
         placement: { roomId: room.id, position: pose.position, rotation: pose.rotation, elevation, relation: withElevation(pose.relation, elevation) },
         penalty: clearancePenalty(ctx, subject, req.clearance),
       });
+    }
+    if (stats) {
+      stats.poses = looked;
+      stats.walkwayChecks = walkwayChecks;
     }
     // soft preference: pick the alternatives with the most free space around them; stable on the distance order
     const ranked = scored.map((s, i) => ({ s, i })).sort((a, b) => a.s.penalty - b.s.penalty || a.i - b.i);
