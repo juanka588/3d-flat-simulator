@@ -37,3 +37,6 @@ apps/server/local-assets/
 
 # Scratch space for agents and tools (TMPDIR points here; see CLAUDE.md)
 .tmp/
+
+# Home photos/videos/scans are personal data (see packages/capture/README.md)
+captures/

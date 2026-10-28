@@ -45,6 +45,10 @@
     "**/*.glb",
     "**/*.gltf",
     "**/*.usdz",
+    "**/*.heic",
+    "**/*.mov",
+    "**/*.HEIC",
+    "**/*.MOV",
     "**/.env",
     "**/.env.*",
     "**/.envrc",
@@ -62,7 +66,8 @@
     "3D-FUTURE",
     "apps/server/data",
     "apps/server/local-assets",
-    "local-assets"
+    "local-assets",
+    "captures"
   ],
   "denyContent": [
     "flat-local-catalog"

@@ -143,6 +143,16 @@ describe('tracked files scan (synthetic leaks)', () => {
     const p = scanTracked(['tools/sofa.glb', 'apps/web/src/room.gltf', 'apps/server/.env', 'apps/server/.env.local', 'apps/server/local-assets/3d-future/catalog.json', 'models/local/a.txt', 'data/3D-FUTURE-model/x.obj'], cfg, () => undefined);
     expect(p.map((x) => x.split(':')[0]).sort()).toEqual(['apps/server/.env', 'apps/server/.env.local', 'apps/server/local-assets/3d-future/catalog.json', 'apps/web/src/room.gltf', 'data/3D-FUTURE-model/x.obj', 'models/local/a.txt', 'tools/sofa.glb'].sort());
   });
+  it('flags captures (personal data): captures/ directories and .heic / .mov files', () => {
+    const p = scanTracked(['captures/room.jpg', 'apps/server/captures/a.txt', 'docs/photos/IMG_1.HEIC', 'docs/clip.mov', 'docs/clip.MOV', 'apps/web/src/IMG_2.heic', 'docs/captures.md'], cfg, () => undefined);
+    expect(p.map((x) => x.split(':')[0]).sort()).toEqual(['apps/server/captures/a.txt', 'apps/web/src/IMG_2.heic', 'captures/room.jpg', 'docs/clip.mov', 'docs/clip.MOV', 'docs/photos/IMG_1.HEIC'].sort());
+  });
+  it('flags a captures/ directory in the build output', () => {
+    const d = mkdtempSync(join(tmpdir(), 'dist-'));
+    mkdirSync(join(d, 'captures'));
+    writeFileSync(join(d, 'captures', 'a.jpg'), 'x');
+    expect(scanDist(d, cfg).map((x) => x.split(':')[0]).sort()).toEqual(['captures/a.jpg']);
+  });
   it('flags a retailer host outside allowPaths only', () => {
     const files = ['apps/web/src/leak.ts', 'apps/server/src/providers/ok.ts', 'README.md'];
     const text = { 'apps/web/src/leak.ts': 'const u = "https://www.castorama.fr/x"', 'apps/server/src/providers/ok.ts': 'castorama.fr', 'README.md': 'castorama.fr' };
