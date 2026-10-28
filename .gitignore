@@ -34,3 +34,6 @@ apps/server/local-assets/
 # Claude Code agent worktrees
 .claude/worktrees/
 .claude/settings.local.json
+
+# Scratch space for agents and tools (TMPDIR points here; see CLAUDE.md)
+.tmp/
