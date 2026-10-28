@@ -1,5 +1,9 @@
-import { SiteContext } from '@flat/scene';
+import { SiteContext, contextGround } from '@flat/scene';
 import type { Site } from '@flat/scene';
+import { CONTEXT_MAX_DRIFT_M, originDriftMeters } from '@flat/site';
+
+// The drift helpers moved to @flat/site (geo/drift) and contextGround to @flat/scene; re-exported for existing importers.
+export { CONTEXT_MAX_DRIFT_M, originDriftMeters };
 
 // Context files are generated offline (tools/site-context) next to the fixtures. They may be
 // absent, so they are discovered with a glob rather than imported by name.
@@ -19,23 +23,6 @@ export function contextFor(fixtureId: string): SiteContext | null {
   if (parsed && !parsed.success) console.warn(`invalid site context for ${fixtureId}`, parsed.error.issues.slice(0, 3));
   cache.set(fixtureId, context);
   return context;
-}
-
-/** Site edits that move the flat by more than this (metres) make the generated context unusable. */
-export const CONTEXT_MAX_DRIFT_M = 50;
-
-const M_PER_DEG = 111_320;
-
-/** Horizontal distance in metres between the context's origin and the site (small-distance approximation). */
-export function originDriftMeters(context: Pick<SiteContext, 'origin'>, site: Pick<Site, 'latitude' | 'longitude'>): number {
-  const dLat = (site.latitude - context.origin.latitude) * M_PER_DEG;
-  const dLon = (site.longitude - context.origin.longitude) * M_PER_DEG * Math.cos((site.latitude * Math.PI) / 180);
-  return Math.hypot(dLat, dLon);
-}
-
-/** Ground level of a context in flat coordinates: its lowest building base. */
-export function contextGround(context: Pick<SiteContext, 'buildings'>): number {
-  return context.buildings.reduce((m, b) => Math.min(m, b.base), Infinity);
 }
 
 /**

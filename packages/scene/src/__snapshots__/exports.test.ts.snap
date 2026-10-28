@@ -277,6 +277,7 @@ exports[`@flat/scene export snapshot > exposes the same runtime names 1`] = `
   "commandJsonSchema",
   "commandToolSchemas",
   "compassWord",
+  "contextGround",
   "createCommandSchema",
   "createGeneratorRegistry",
   "createHistory",

@@ -53,6 +53,9 @@ importers:
       sharp:
         specifier: ^0.35.5
         version: 0.35.5(@types/node@26.6.5)
+      tsx:
+        specifier: ^4.20.0
+        version: 4.23.15
       typescript:
         specifier: ~6.0.3
         version: 6.0.3
@@ -133,6 +136,9 @@ importers:
       '@flat/scene':
         specifier: workspace:*
         version: link:../../packages/scene
+      '@flat/site':
+        specifier: workspace:*
+        version: link:../../packages/site
       '@react-three/drei':
         specifier: ^10.7.9
         version: 10.7.9(@react-three/fiber@9.8.2(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(three@0.186.1))(@types/react@19.3.0)(@types/three@0.186.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(three@0.186.1)
@@ -201,6 +207,12 @@ importers:
       fast-check:
         specifier: ^4.10.2
         version: 4.10.2
+
+  packages/site:
+    dependencies:
+      '@flat/scene':
+        specifier: workspace:*
+        version: link:../scene
 
 packages:
 

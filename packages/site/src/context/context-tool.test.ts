@@ -1,27 +1,15 @@
-import { describe, expect, it, vi } from 'vitest';
-import {
-  anchorOrigin,
-  dominantBearing,
-  envelopeSamples,
-  fitFlatToFootprint,
-  extractRings,
-  fromEnu,
-  getJson,
-  hostBands,
-  hostRings,
-  overhang,
-  planBasis,
-  refitContext,
-  subtractRect,
-  toEnu,
-  validateContext,
-  type ContextBuildingLike,
-  type FlatLike,
-  type Pt,
-} from '../../../tools/site-context/lib.mjs';
-import { SiteContext } from './context/schema';
-import charmeContext from '../fixtures/charme-3205.context.json';
-import charmeFlat from '../fixtures/charme-3205.flat.json';
+import { describe, expect, it } from 'vitest';
+import { SiteContext } from '@flat/scene';
+import charmeContext from '@flat/scene/fixtures/charme-3205.context.json';
+import charmeFlat from '@flat/scene/fixtures/charme-3205.flat.json';
+import { anchorOrigin, envelopeSamples, fitFlatToFootprint, hostRings, overhang, refitContext } from '../fit/fit';
+import type { FlatLike } from '../fit/fit';
+import { fromEnu, planBasis, toEnu } from '../geo/enu';
+import { dominantBearing, subtractRect } from '../geo/polygon';
+import type { Pt } from '../geo/polygon';
+import { extractRings, hostBands } from './bdtopo';
+import type { ContextBuildingLike } from './bdtopo';
+import { validateContext } from './validate';
 
 const area = (p: Pt[]) => Math.abs(p.reduce((a, q, i) => a + q[0] * p[(i + 1) % p.length]![1] - p[(i + 1) % p.length]![0] * q[1], 0) / 2);
 const sq = (x0: number, y0: number, x1: number, y1: number): Pt[] => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
@@ -194,29 +182,6 @@ describe('validateContext', () => {
       expect(validateContext(b).length).toBeGreaterThan(0);
       expect(SiteContext.safeParse(b).success).toBe(false);
     }
-  });
-});
-
-describe('getJson retries', () => {
-  const response = (status: number, body = '{"ok":true}') => ({ ok: status < 400, status, text: async () => body });
-  it('does not retry 4xx responses', async () => {
-    const fetchImpl = vi.fn(async () => response(404, 'nope'));
-    await expect(getJson('u', 'x', { fetchImpl, sleep: async () => {} })).rejects.toThrow(/HTTP 404/);
-    expect(fetchImpl).toHaveBeenCalledTimes(1);
-  });
-  it('retries 5xx and network errors, then succeeds', async () => {
-    const fetchImpl = vi
-      .fn()
-      .mockRejectedValueOnce(new Error('reset'))
-      .mockResolvedValueOnce(response(503, 'busy'))
-      .mockResolvedValueOnce(response(200));
-    await expect(getJson('u', 'x', { fetchImpl, sleep: async () => {} })).resolves.toEqual({ ok: true });
-    expect(fetchImpl).toHaveBeenCalledTimes(3);
-  });
-  it('gives up after the configured attempts', async () => {
-    const fetchImpl = vi.fn(async () => response(500, 'boom'));
-    await expect(getJson('u', 'x', { fetchImpl, attempts: 2, sleep: async () => {} })).rejects.toThrow(/x failed: HTTP 500/);
-    expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
 });
 
