@@ -1,4 +1,4 @@
-import { WALK_CLEARANCE_M } from '../assets/builtin';
+import { WALK_CLEARANCE_M } from '../items/item-helpers';
 import type { Opening, Vec2 } from '../schema';
 import { distanceToSegment, pointInPolygon } from '../validate';
 import { violation, type LayoutContext, type RoomInfo } from './constraints';

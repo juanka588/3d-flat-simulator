@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { MeshAsset } from './catalog';
+import { MeshAsset } from './mesh-catalog';
 
 // Validation of the committed CC0 / CC-BY model library (apps/web/public/models, built by `pnpm models:build`).
 const repo = resolve(__dirname, '../../../..');

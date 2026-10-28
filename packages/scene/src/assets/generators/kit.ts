@@ -3,7 +3,7 @@ import { MeshBuilder } from '../../geometry/builder';
 import type { Vec3 } from '../../geometry/builder';
 import type { MeshData } from '../../geometry/types';
 import { ITEM_MATERIALS } from '../item-materials';
-import type { GeneratorAnchor } from '../catalog';
+import type { GeneratorAnchor } from '../../items/mesh-source';
 
 /**
  * Shared building blocks of the parametric generators. Everything is in the ITEM-LOCAL frame of

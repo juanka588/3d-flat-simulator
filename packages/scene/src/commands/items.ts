@@ -1,4 +1,5 @@
-import { checkParametricMesh, defaultParametricFor, meshAssetId } from '../assets/catalog';
+import { checkParametricMesh, meshAssetId } from '../items/mesh-source';
+import { defaultParametricFor } from '../items/parametric-defaults';
 import { CHEAP_RULES, checkSubject, layoutContext, ROOM_TOLERANCE, type Subject } from '../placement/constraints';
 import { itemDims, itemMountOf } from '../placement/footprint';
 import { linkedLightFor, linkedLightPose } from '../lighting/lamps';

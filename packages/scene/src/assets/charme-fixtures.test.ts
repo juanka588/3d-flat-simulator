@@ -10,7 +10,7 @@ import { wallLength } from '../schema';
 import { DEFAULT_LIGHTING } from '../view';
 import { pointInPolygon } from '../validate';
 import { ownerAt } from '../geometry/builder';
-import { GENERATORS } from './catalog';
+import { GENERATORS } from '../items/mesh-source';
 import './generators';
 
 /**

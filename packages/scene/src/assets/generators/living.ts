@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { Generator } from '../catalog';
+import type { Generator } from '../../items/mesh-source';
 import { ITEM_MATERIALS } from '../item-materials';
 import { FRONT, HANDLE, Kit, addFronts, boxAnchors, count, finish, finishMaterial, metres } from './kit';
 

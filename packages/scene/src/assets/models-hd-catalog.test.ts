@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { MeshAsset } from './catalog';
+import { MeshAsset } from './mesh-catalog';
 
 // Validation of the committed HD (hero) model tier (apps/web/public/models-hd, built by `pnpm models:hd`).
 const repo = resolve(__dirname, '../../../..');

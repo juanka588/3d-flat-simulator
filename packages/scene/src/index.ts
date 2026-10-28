@@ -10,6 +10,7 @@ export * from './camera';
 export * from './view';
 export * from './lighting';
 export * from './context';
+export * from './items';
 export * from './assets';
 export * from './commands';
 export * from './structural';
