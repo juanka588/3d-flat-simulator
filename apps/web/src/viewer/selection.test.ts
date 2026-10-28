@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { loadSceneText, wallSideRooms } from '@flat/scene';
 import type { Scene } from '@flat/scene';
-import { DEFAULT_FIXTURE } from '../state/fixtures';
+import charme from '@flat/scene/fixtures/charme-3205.flat.json';
 import { selectionForId, selectionForWallFace, withHitContext, zoneSelectionId } from './selection';
 
-const loaded = loadSceneText(DEFAULT_FIXTURE.text);
+const loaded = loadSceneText(JSON.stringify(charme));
 if (!loaded.ok) throw new Error('fixture');
 const scene: Scene = loaded.scene;
 

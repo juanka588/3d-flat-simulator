@@ -30,19 +30,27 @@ describe('catalog loader with the HD tier', () => {
       '/models/catalog.json': [entry('polyhaven:a', 'a.glb')],
       '/models-hd/catalog.json': [entry('sketchfab:b', 'b.glb')],
     });
-    const catalog = await createCatalogLoader(fetcher, () => '/models/catalog.json', () => '/models-hd/catalog.json')();
+    const catalog = await createCatalogLoader({ fetcher, url: () => '/models/catalog.json', hdUrl: () => '/models-hd/catalog.json' })();
     expect(catalog.list().map((a) => [a.id, a.tier])).toEqual([['polyhaven:a', undefined], ['sketchfab:b', 'hd']]);
   });
   it('falls back to the light tier when the HD catalog is missing or broken', async () => {
     const missing = respond({ '/models/catalog.json': [entry('polyhaven:a', 'a.glb')] });
-    expect((await createCatalogLoader(missing, () => '/models/catalog.json', () => '/models-hd/catalog.json')()).list().map((a) => a.id)).toEqual(['polyhaven:a']);
+    expect((await createCatalogLoader({ fetcher: missing, url: () => '/models/catalog.json', hdUrl: () => '/models-hd/catalog.json' })()).list().map((a) => a.id)).toEqual(['polyhaven:a']);
     const broken = vi.fn(async (url: string | URL | Request) =>
       String(url).includes('-hd') ? new Response('{not json', { status: 200 }) : new Response(JSON.stringify([entry('polyhaven:a', 'a.glb')]), { status: 200 })) as unknown as typeof fetch;
-    expect((await createCatalogLoader(broken, () => '/models/catalog.json', () => '/models-hd/catalog.json')()).list()).toHaveLength(1);
+    expect((await createCatalogLoader({ fetcher: broken, url: () => '/models/catalog.json', hdUrl: () => '/models-hd/catalog.json' })()).list()).toHaveLength(1);
+  });
+  it('tells onLoaded about the fetched assets once', async () => {
+    const onLoaded = vi.fn();
+    const load = createCatalogLoader({ fetcher: respond({ '/models/catalog.json': [entry('polyhaven:a', 'a.glb')], '/models-hd/catalog.json': [entry('sketchfab:b', 'b.glb')] }), url: () => '/models/catalog.json', hdUrl: () => '/models-hd/catalog.json', onLoaded });
+    await load();
+    await load();
+    expect(onLoaded).toHaveBeenCalledTimes(1);
+    expect(onLoaded.mock.calls[0]![0].map((a: { id: string }) => a.id)).toEqual(['polyhaven:a', 'sketchfab:b']);
   });
   it('fetches the catalogs once', async () => {
     const fetcher = respond({ '/models/catalog.json': [], '/models-hd/catalog.json': [] });
-    const load = createCatalogLoader(fetcher, () => '/models/catalog.json', () => '/models-hd/catalog.json');
+    const load = createCatalogLoader({ fetcher, url: () => '/models/catalog.json', hdUrl: () => '/models-hd/catalog.json' });
     await load();
     await load();
     expect(fetcher).toHaveBeenCalledTimes(2);

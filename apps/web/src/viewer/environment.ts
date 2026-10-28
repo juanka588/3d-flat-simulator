@@ -1,9 +1,10 @@
 import { EquirectangularReflectionMapping, FloatType, PMREMGenerator } from 'three';
+import { viewerConfig } from './config';
 import type { DataTexture, Texture, WebGLRenderer } from 'three';
 
-/** Where the environment map lives: `${BASE_URL}env/` (BASE_URL ends with a slash), built by `pnpm env:build`. */
+/** Where the environment map lives: `${assetsBase}env/` (assetsBase ends with a slash), built by `pnpm env:build`. */
 export const ENV_FILE = 'small-empty-room.hdr';
-export const envUrl = (): string => `${import.meta.env.BASE_URL}env/${ENV_FILE}`;
+export const envUrl = (): string => `${viewerConfig.assetsBase}env/${ENV_FILE}`;
 
 export interface EnvironmentMap {
   /** The prefiltered (PMREM) environment: assign to `scene.environment`. */

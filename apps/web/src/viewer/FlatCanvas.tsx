@@ -1,19 +1,18 @@
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import type { RootState } from '@react-three/fiber';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
-import type { PointerEvent as ReactPointerEvent } from 'react';
+import type { PointerEvent as ReactPointerEvent, ReactNode } from 'react';
 import { BUILTIN_MATERIALS, buildItems } from '@flat/scene';
 import type { ShellMeshes } from '@flat/scene';
 import type { Scene, SiteContext } from '@flat/scene';
 import { CameraRig } from './CameraRig';
+import { arrowsBelongToItem } from './camera-input';
 import { buildingFraming } from './building-framing';
 import { CompassDriver, CompassOverlay } from './Compass';
 import { SelectionHighlight } from './SelectionHighlight';
 import { StructuralOverlay } from './StructuralOverlay';
 import { ShellMesh, CLICK_DRAG_TOLERANCE_PX } from './ShellMesh';
 import { ItemsMesh, useItemModels } from './ItemsMesh';
-import { PlacementLayer } from './PlacementLayer';
-import { ZoneEditor } from './ZoneEditor';
 import { VIEWER_ELEMENT_ID, WalkControls } from './WalkControls';
 import { WalkOverlay } from './WalkOverlay';
 import { CameraHelp } from './ControlsHelp';
@@ -36,9 +35,37 @@ import type { Selection, ViewState } from './view-types';
 import { ViewerGuard } from './ViewerGuard';
 import { shouldInjectFault, useViewerHealth } from './viewer-health';
 
+/**
+ * Props of the 3D viewer. Everything the host app and the viewer say to each other goes through them: the viewer reads no
+ * app store and imports no editor or UI code.
+ *
+ * Inputs
+ * - `scene`, `view`: what is drawn (`view.mode`, `view.selection`, lighting, camera pose, person). The viewer is a pure function of them.
+ * - `context`: neighbouring buildings and ground, shown when `view.lighting.showContext`.
+ * - `showStructural`: draw the structural/removable wall overlay in the top view (default true).
+ * - `overlays`: React children rendered inside the `<Canvas>` (editor layers, markers); they may use r3f hooks.
+ * - `viewport`: a forced render surface (CSS px + dpr) instead of filling the stage.
+ * - `isManualClock`: the host steps time by hand (tests); camera and walker then move only when stepped.
+ * - `acceptsKey`: whether a key aimed at an element drives the camera or the walker (default: always).
+ *
+ * Events
+ * - Selection: `view.selection` is the current selection; `onSelect(selection | null)` is the pick event (a click on a
+ *   wall, floor zone, opening or item, with the hit point folded into the selection; `null` for a click on empty space).
+ *   Picking is off in walk mode. There is no hover event yet.
+ * - Camera: `onUserCamera` (the user moved it by hand: drop `view.camera`), `onExitWalk`, `onWalkEnd(placement)`, `onPersonChange(placement)`.
+ * - Host plumbing: `onCreated` (r3f state), `onFrame` (per frame, used by the test hook).
+ */
 export interface FlatCanvasProps {
   scene: Scene;
   view: ViewState;
+  /** Show the structural/removable wall overlay in the top view. Default true. */
+  showStructural?: boolean;
+  /** Extra scene content rendered inside the `<Canvas>` (editor layers such as placement or zone handles). */
+  overlays?: ReactNode;
+  /** The host steps time by hand (tests): camera and walker move only when stepped. */
+  isManualClock?: boolean;
+  /** Whether a key aimed at this element drives the camera / walker (false for form fields and the like). Default: always. */
+  acceptsKey?: (target: EventTarget | null) => boolean;
   /** Neighbouring buildings and ground (optional); shown when `view.lighting.showContext`. */
   context?: SiteContext | null;
   onSelect: (selection: Selection | null) => void;
@@ -59,7 +86,7 @@ export interface FlatCanvasProps {
 }
 
 /** The 3D viewer: a pure function of `Scene` + `ViewState`. All UI chrome lives outside it. */
-export function FlatCanvas({ scene, view, context = null, onSelect, onExitWalk, onPersonChange, onWalkEnd, onCreated, onFrame, onUserCamera, viewport = null }: FlatCanvasProps) {
+export function FlatCanvas({ scene, view, showStructural = true, overlays, isManualClock = false, acceptsKey, context = null, onSelect, onExitWalk, onPersonChange, onWalkEnd, onCreated, onFrame, onUserCamera, viewport = null }: FlatCanvasProps) {
   const needle = useRef<HTMLDivElement>(null);
   const downAt = useRef<[number, number]>([0, 0]);
 
@@ -106,13 +133,12 @@ export function FlatCanvas({ scene, view, context = null, onSelect, onExitWalk, 
         <ViewerGuard value={scene} source="shell">
           {(sc) => <Shell scene={sc} view={view} onSelect={onSelect} />}
         </ViewerGuard>
-        {view.mode === 'top' && <StructuralOverlay scene={scene} />}
-        {view.mode !== 'walk' && <PlacementLayer scene={scene} selectedId={view.selection?.kind === 'item' ? view.selection.entityId : undefined} />}
-        {view.mode !== 'walk' && <ZoneEditor scene={scene} selection={view.selection} />}
+        {view.mode === 'top' && showStructural && <StructuralOverlay scene={scene} />}
+        {overlays}
         {view.mode === 'walk' ? (
-          <WalkControls key={`walk:${sceneKey(scene)}`} scene={scene} start={placement} onEnd={onWalkEnd} personHeightCm={view.personHeightCm} onExit={onExitWalk ?? noop} pose={view.camera?.mode === 'walk' ? view.camera : undefined} onUserCamera={onUserCamera} />
+          <WalkControls key={`walk:${sceneKey(scene)}`} scene={scene} start={placement} onEnd={onWalkEnd} personHeightCm={view.personHeightCm} onExit={onExitWalk ?? noop} pose={view.camera?.mode === 'walk' ? view.camera : undefined} onUserCamera={onUserCamera} isManualClock={isManualClock} acceptsKey={acceptsKey} />
         ) : (
-          <CameraRig key={`${view.mode}:${sceneKey(scene)}`} scene={scene} mode={view.mode} extraReach={contextReach(scene, view.lighting.showContext ? context : null)} framing={framing} pose={view.camera} onUserCamera={onUserCamera} />
+          <CameraRig key={`${view.mode}:${sceneKey(scene)}`} scene={scene} mode={view.mode} extraReach={contextReach(scene, view.lighting.showContext ? context : null)} framing={framing} pose={view.camera} onUserCamera={onUserCamera} isManualClock={isManualClock} acceptsKey={acceptsKey} itemOwnsArrows={arrowsBelongToItem(view.mode, view.selection)} />
         )}
         {view.showPerson === true && view.mode !== 'walk' && (
           <PersonGhost scene={scene} heightCm={view.personHeightCm} placement={placement} onMove={onPersonChange ? (x, z) => onPersonChange({ x, z, yawDeg: placement.yawDeg }) : undefined} />

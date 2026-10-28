@@ -8,10 +8,7 @@ import { fitCamera, fitOrbit, sceneBounds3 } from '@flat/scene';
 import type { CameraPose, Scene } from '@flat/scene';
 import { noteAppliedPose, orbitPosition, topUp, topZoomFor } from './camera-pose';
 import type { BuildingFraming } from './building-framing';
-import { useClockStore } from '../state/dayClock';
-import { useViewStore } from '../state/viewStore';
-import { itemKeysApply } from '../ui/useItemKeys';
-import { LOOK_REST, arrowsBelongToItem, attachCameraKeys, firstGamepad, lookIdle, readSticks, stepLook, watchGamepad } from './camera-input';
+import { LOOK_REST, attachCameraKeys, firstGamepad, lookIdle, readSticks, stepLook, watchGamepad } from './camera-input';
 import type { LookState } from './camera-input';
 import { onWalkStep } from './walk-input';
 import type { ViewMode } from './view-types';
@@ -56,6 +53,8 @@ type RootStateLike = Pick<RootState, 'controls' | 'camera' | 'size'>;
 const ORBIT_TOUCHES = { ONE: TOUCH.ROTATE, TWO: TOUCH.DOLLY_PAN };
 const TOP_TOUCHES = { ONE: TOUCH.PAN, TWO: TOUCH.DOLLY_PAN };
 
+const alwaysAccepts = () => true;
+
 /**
  * Orbit and top-down cameras. Remount (via `key`) when the scene or mode changes to re-frame.
  * Walk mode has its own rig, see WalkControls.
@@ -67,6 +66,9 @@ export function CameraRig({
   framing = null,
   pose,
   onUserCamera,
+  isManualClock = false,
+  acceptsKey = alwaysAccepts,
+  itemOwnsArrows: itemOwnsArrowsProp = false,
 }: {
   scene: Scene;
   mode: Exclude<ViewMode, 'walk'>;
@@ -78,6 +80,12 @@ export function CameraRig({
   pose?: CameraPose;
   /** The user started moving the camera (drag, wheel, pinch): the pose, if any, no longer applies. */
   onUserCamera?: () => void;
+  /** The host steps time by hand (tests): the camera then moves only when stepped, never with the frame time. */
+  isManualClock?: boolean;
+  /** Whether a key aimed at this element drives the camera (false for form fields and the like). */
+  acceptsKey?: (target: EventTarget | null) => boolean;
+  /** An item is selected in an editable view: it keeps the arrow keys (for nudging) and the camera does not pan. */
+  itemOwnsArrows?: boolean;
 }) {
   const size = useThree((s) => s.size);
   const { fit, far, reach, maxDistance, topZoom } = useMemo(
@@ -192,12 +200,17 @@ export function CameraRig({
     userCamera.current = onUserCamera;
   });
   const bounds = useMemo(() => sceneBounds3(scene), [scene]);
-  const itemOwnsArrows = () => {
-    const v = useViewStore.getState();
-    return arrowsBelongToItem(v.mode, v.selection);
-  };
+  const manualClock = useRef(isManualClock);
+  const keyFilter = useRef(acceptsKey);
+  const arrowsOwned = useRef(itemOwnsArrowsProp);
+  useLayoutEffect(() => {
+    manualClock.current = isManualClock;
+    keyFilter.current = acceptsKey;
+    arrowsOwned.current = itemOwnsArrowsProp;
+  });
+  const itemOwnsArrows = () => arrowsOwned.current;
   useEffect(() => {
-    const detach = attachCameraKeys(held.current, { accepts: itemKeysApply, arrowsFree: () => !itemOwnsArrows(), wake: invalidate });
+    const detach = attachCameraKeys(held.current, { accepts: (t) => keyFilter.current(t), arrowsFree: () => !itemOwnsArrows(), wake: invalidate });
     const stopPad = watchGamepad(invalidate);
     return () => {
       detach();
@@ -268,7 +281,7 @@ export function CameraRig({
     return () => onWalkStep(null);
   }, [get, advance]);
   useFrame((state, delta) => {
-    if (useClockStore.getState().source === 'manual') return;
+    if (manualClock.current) return;
     advance(state, delta);
   }, -1.5);
 

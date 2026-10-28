@@ -15,7 +15,7 @@ import { appliedPose, yawToHeadingDeg } from './viewer/camera-pose';
 import type { FlatStats, FlatTestHook, HistoryInfo } from './test-hook-types';
 import { textureStats, texturesSettled } from './viewer/texture-cache';
 import { modelStats, modelsSettled, setMeshResolverOverride, setProviderFrontOverride } from './viewer/model-runtime';
-import { setModelOriginOverride } from './viewer/model-env';
+import { setModelOriginOverride } from './viewer/config';
 import { dragState } from './catalog/placement';
 import { transformBox } from './viewer/model-math';
 import type { Box } from './viewer/model-math';

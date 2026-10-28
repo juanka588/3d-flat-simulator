@@ -9,6 +9,10 @@ import { alignContext, contextFor } from './state/siteContext';
 import { readPref, writePref } from './state/prefs';
 import { useViewStore } from './state/viewStore';
 import { useViewportStore } from './state/viewport';
+import { useClockStore } from './state/dayClock';
+import { useStructuralOverlay } from './state/structuralOverlay';
+import { PlacementLayer } from './editor/PlacementLayer';
+import { ZoneEditor } from './editor/ZoneEditor';
 import { noteFrame, registerCanvas, testHookEnabled } from './testHook';
 import { BootBanner } from './ui/BootBanner';
 import { DocumentMenu } from './ui/DocumentMenu';
@@ -25,7 +29,7 @@ import { SyncNotices } from './ui/SyncNotices';
 import { SyncStatus } from './ui/SyncStatus';
 import { useSyncStore } from './sync/sync-store';
 import { useMobileLayout } from './ui/useMobileLayout';
-import { useItemKeys } from './ui/useItemKeys';
+import { itemKeysApply, useItemKeys } from './ui/useItemKeys';
 import { useUndoRedoKeys } from './ui/useUndoRedoKeys';
 import { ViewSettings } from './ui/ViewSettings';
 import { ViewerErrorBanner } from './ui/ViewerErrorBanner';
@@ -68,6 +72,8 @@ export function App() {
   // A different flat: the person stands at its default walk start again.
   useEffect(() => setPerson(null), [source, setPerson]);
   const viewport = useViewportStore((s) => s.forced);
+  const isManualClock = useClockStore((s) => s.source === 'manual');
+  const showStructural = useStructuralOverlay((s) => s.visible);
   const clearCamera = useCallback(() => useViewStore.getState().setCamera(undefined), []);
   const [dragging, setDragging] = useState(false);
   const mobile = useMobileLayout();
@@ -241,6 +247,17 @@ export function App() {
               scene={scene}
               view={{ mode, selection, lighting: effectiveLighting(lighting, mode, walkLightsOn, scene.lights), personHeightCm, camera, translucentDoors, buildingMode, showPerson, person }}
               context={context}
+              showStructural={showStructural}
+              isManualClock={isManualClock}
+              acceptsKey={itemKeysApply}
+              overlays={
+                mode !== 'walk' && (
+                  <>
+                    <PlacementLayer scene={scene} selectedId={selection?.kind === 'item' ? selection.entityId : undefined} />
+                    <ZoneEditor scene={scene} selection={selection} />
+                  </>
+                )
+              }
               onSelect={select}
               onExitWalk={exitWalk}
               onPersonChange={setPerson}

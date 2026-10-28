@@ -3,6 +3,7 @@ import type { Item } from '@flat/scene';
 import { ModelController } from './model-controller';
 import type { ControllerDeps, ModelStats } from './model-controller';
 import { createModelCache } from './model-cache';
+import { viewerConfig } from './config';
 import { createCatalogLoader, modelOrigin, modelsBase } from './model-env';
 import type { ModelTemplate } from './model-loader';
 import type { Front } from './model-math';
@@ -13,7 +14,7 @@ export const modelCache = createModelCache<ModelTemplate>({
   restore: (t) => t.restore(),
 });
 
-const catalog = createCatalogLoader();
+const catalog = createCatalogLoader({ onLoaded: (assets) => viewerConfig.onLibraryLoaded(assets) });
 
 let resolverOverride: ControllerDeps<ModelTemplate>['resolve'] | null = null;
 let providerFront: ((item: Item) => Front | undefined) | undefined;

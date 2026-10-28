@@ -1,7 +1,6 @@
 import { useEffect, useMemo } from 'react';
 import { BufferGeometry, CanvasTexture, DoubleSide, Float32BufferAttribute, RepeatWrapping } from 'three';
 import type { Scene } from '@flat/scene';
-import { useStructuralOverlay } from './structural-overlay-store';
 import { wallFootprints } from './structural-footprints';
 
 export const STRUCTURAL_COLOR = '#2a2f3a';
@@ -57,14 +56,12 @@ function footprintGeometry(scene: Scene, structural: boolean): BufferGeometry {
  * partition: light amber). The legend and the show/hide toggle live in the toolbar.
  */
 export function StructuralOverlay({ scene }: { scene: Scene }) {
-  const visible = useStructuralOverlay((s) => s.visible);
   const structural = useMemo(() => footprintGeometry(scene, true), [scene]);
   const removable = useMemo(() => footprintGeometry(scene, false), [scene]);
   const hatch = useMemo(() => hatchTexture(), []);
   useEffect(() => () => structural.dispose(), [structural]);
   useEffect(() => () => removable.dispose(), [removable]);
   useEffect(() => () => hatch.dispose(), [hatch]);
-  if (!visible) return null;
   return (
     <group name="structural-overlay">
       <mesh name="structural-walls" geometry={structural} renderOrder={10} raycast={() => null}>
