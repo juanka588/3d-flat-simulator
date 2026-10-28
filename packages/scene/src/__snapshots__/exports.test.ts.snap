@@ -202,7 +202,7 @@ exports[`@flat/scene export snapshot > exposes the same runtime names 1`] = `
   "SHEEN_ROUGHNESS",
   "SIDE_TOLERANCE",
   "SKU_MAX",
-  "SOLVE_BUDGET_MS",
+  "SOLVE_MAX_EVALUATIONS",
   "STALE_PRICE_DAYS",
   "STRUCTURAL_MIN_THICKNESS",
   "SUN_PATCH_MIN_AREA",

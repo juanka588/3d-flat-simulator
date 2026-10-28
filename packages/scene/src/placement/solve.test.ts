@@ -5,7 +5,7 @@ import { HEAVY_MOUNT_KG } from '../products';
 import type { Item, Scene } from '../schema';
 import { footprintOf, penetration } from './footprint';
 import { independentViolations } from './independentCheck';
-import { SOLVE_BUDGET_MS, solvePlacement } from './solve';
+import { SOLVE_MAX_EVALUATIONS, solvePlacement, type SolveStats } from './solve';
 import { doorSwingPolygon, openingFrame } from './swing';
 import { BARE_CHARME, corridorScene, mkItem, withItems } from './testUtil';
 import { VIOLATION_CODES, type Placement, type PlacementRequestInput, type PlacementResult } from './types';
@@ -301,7 +301,7 @@ describe('performance', () => {
     expect(time(() => solvePlacement(fresh(), { roomId: 'sejour', dims: dims(2, 1, 0.9), relation: { kind: 'at', position: [-5, -5] } }))).toBeLessThan(50);
   });
 
-  it('the all-candidates-fail path in a furnished room stays bounded (SOLVE_BUDGET_MS)', () => {
+  it('the all-candidates-fail path in a furnished room stays bounded (deterministic work budget)', () => {
     const furnished = withItems(charme, [
       mkItem('sofa', { position: [1.5, 3.3], roomId: 'sejour', dims: dims(2.2, 0.9, 0.85) }),
       mkItem('table', { position: [2.5, 5], roomId: 'sejour', dims: dims(1.4, 0.8, 0.75) }),
@@ -312,11 +312,15 @@ describe('performance', () => {
     // a 3.2 m barrier fails the walkway rule wherever it is tried: every sample costs a raster
     const worst = (): PlacementResult => solvePlacement({ ...furnished }, { roomId: 'sejour', maxCandidates: 10, dims: dims(3.2, 0.5, 1.2), relation: { kind: 'at', position: [2, 4] } });
     expect(worst().ok).toBe(false);
-    expect(time(() => worst())).toBeLessThan(SOLVE_BUDGET_MS + 15);
+    // the work done is deterministic (no clock decides when the search stops), so assert it exactly
+    const stats: SolveStats = { poses: 0, walkwayChecks: 0 };
+    solvePlacement({ ...furnished }, { roomId: 'sejour', maxCandidates: 10, dims: dims(3.2, 0.5, 1.2), relation: { kind: 'at', position: [2, 4] } }, stats);
+    expect(stats).toEqual({ poses: SOLVE_MAX_EVALUATIONS, walkwayChecks: 13 });
+    expect(time(() => worst())).toBeLessThan(50); // measured about 18 ms
     const blocked = (): PlacementResult => solvePlacement({ ...furnished }, { roomId: 'sejour', dims: dims(2, 1, 0.9), relation: { kind: 'at', position: [1.5, 3.3] } });
-    expect(time(() => blocked())).toBeLessThan(SOLVE_BUDGET_MS);
+    expect(time(() => blocked())).toBeLessThan(50);
     const hopeless = (): PlacementResult => solvePlacement({ ...furnished }, { roomId: 'sejour', maxCandidates: 10, dims: dims(3.9, 5, 0.9), relation: { kind: 'at', position: [2, 5] } });
-    expect(time(() => hopeless())).toBeLessThan(SOLVE_BUDGET_MS);
+    expect(time(() => hopeless())).toBeLessThan(50);
   });
 
   it('validateLayout with 40 items takes under 100 ms', () => {
