@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
+import { lookKeyLabel } from './camera-input';
+import { useKeyboardLayout } from './ControlsHelp';
 import { clearVirtualKeys, setVirtualKey } from './walk-input';
 import type { VirtualKey } from './walk-input';
 
@@ -68,6 +70,7 @@ function PadButton({ action, label, glyph, className }: PadButtonProps) {
  */
 export function WalkOverlay({ onExit }: { onExit?: () => void }) {
   const [hidden, setHidden] = useState(readHidden);
+  const layout = useKeyboardLayout();
 
   useEffect(() => clearVirtualKeys, []);
 
@@ -88,10 +91,10 @@ export function WalkOverlay({ onExit }: { onExit?: () => void }) {
           <div className="walk-help">
             <ul>
               <li>
-                <strong>Move:</strong> arrow keys or WASD (ZQSD on AZERTY)
+                <strong>Move:</strong> arrow keys (left stick)
               </li>
               <li>
-                <strong>Look:</strong> drag or click the view
+                <strong>Look:</strong> <span data-testid="walk-help-look">{lookKeyLabel(layout)}</span> (right stick), or drag the view
               </li>
               <li>
                 <strong>Run:</strong> hold Shift

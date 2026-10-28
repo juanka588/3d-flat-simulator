@@ -16,6 +16,10 @@ import { PlacementLayer } from './PlacementLayer';
 import { ZoneEditor } from './ZoneEditor';
 import { VIEWER_ELEMENT_ID, WalkControls } from './WalkControls';
 import { WalkOverlay } from './WalkOverlay';
+import { CameraHelp } from './ControlsHelp';
+import { PersonGhost } from './PersonGhost';
+import { personPlacement } from './walk-start';
+import type { PersonPlacement } from './walk-start';
 import { DOOR_WALK_MATERIAL, createMaterialLibrary } from './materials';
 import { getPerfProfile } from './perf';
 import { createRoomAmbient, withRoomAmbient } from './room-ambient';
@@ -44,6 +48,10 @@ export interface FlatCanvasProps {
   onCreated?: (state: RootState) => void;
   /** Called every frame with the scene/view the frame is drawn from (used by the test hook). */
   onFrame?: (frame: { scene: Scene; view: ViewState }) => void;
+  /** The user dragged the person ghost: where it stands now (the walk starts there). */
+  onPersonChange?: (placement: PersonPlacement) => void;
+  /** Walk mode ended: where the walker stood and looked (the person ghost goes there). */
+  onWalkEnd?: (placement: PersonPlacement) => void;
   /** The user started moving the camera by hand: `view.camera`, if set, should be dropped. */
   onUserCamera?: () => void;
   /** A forced render surface (CSS px + dpr) instead of filling the stage; used by the test hook and the headless renderer. */
@@ -51,7 +59,7 @@ export interface FlatCanvasProps {
 }
 
 /** The 3D viewer: a pure function of `Scene` + `ViewState`. All UI chrome lives outside it. */
-export function FlatCanvas({ scene, view, context = null, onSelect, onExitWalk, onCreated, onFrame, onUserCamera, viewport = null }: FlatCanvasProps) {
+export function FlatCanvas({ scene, view, context = null, onSelect, onExitWalk, onPersonChange, onWalkEnd, onCreated, onFrame, onUserCamera, viewport = null }: FlatCanvasProps) {
   const needle = useRef<HTMLDivElement>(null);
   const downAt = useRef<[number, number]>([0, 0]);
 
@@ -66,6 +74,8 @@ export function FlatCanvas({ scene, view, context = null, onSelect, onExitWalk, 
   const buildingMode = view.buildingMode ?? 'ghost';
   const framing = useMemo(() => buildingFraming(scene, view.lighting.showContext ? context : null), [scene, context, view.lighting.showContext]);
   const lightingInput = useMemo(() => ({ scene, lighting: view.lighting, context, viewMode: view.mode, buildingMode }), [scene, view.lighting, context, view.mode, buildingMode]);
+
+  const placement = useMemo(() => personPlacement(scene, view.person), [scene, view.person]);
 
   const rememberPointerDown = (e: ReactPointerEvent) => {
     downAt.current = [e.clientX, e.clientY];
@@ -100,9 +110,12 @@ export function FlatCanvas({ scene, view, context = null, onSelect, onExitWalk, 
         {view.mode !== 'walk' && <PlacementLayer scene={scene} selectedId={view.selection?.kind === 'item' ? view.selection.entityId : undefined} />}
         {view.mode !== 'walk' && <ZoneEditor scene={scene} selection={view.selection} />}
         {view.mode === 'walk' ? (
-          <WalkControls key={`walk:${sceneKey(scene)}`} scene={scene} personHeightCm={view.personHeightCm} onExit={onExitWalk ?? noop} pose={view.camera?.mode === 'walk' ? view.camera : undefined} onUserCamera={onUserCamera} />
+          <WalkControls key={`walk:${sceneKey(scene)}`} scene={scene} start={placement} onEnd={onWalkEnd} personHeightCm={view.personHeightCm} onExit={onExitWalk ?? noop} pose={view.camera?.mode === 'walk' ? view.camera : undefined} onUserCamera={onUserCamera} />
         ) : (
           <CameraRig key={`${view.mode}:${sceneKey(scene)}`} scene={scene} mode={view.mode} extraReach={contextReach(scene, view.lighting.showContext ? context : null)} framing={framing} pose={view.camera} onUserCamera={onUserCamera} />
+        )}
+        {view.showPerson === true && view.mode !== 'walk' && (
+          <PersonGhost scene={scene} heightCm={view.personHeightCm} placement={placement} onMove={onPersonChange ? (x, z) => onPersonChange({ x, z, yawDeg: placement.yawDeg }) : undefined} />
         )}
         {onFrame && <FrameReporter scene={scene} view={view} onFrame={onFrame} />}
         <CompassDriver onAngle={setNeedle} northAngle={scene.site.northAngle} />
@@ -111,6 +124,7 @@ export function FlatCanvas({ scene, view, context = null, onSelect, onExitWalk, 
     </div>
       {/* A sibling of the viewer: clicks on it must not engage pointer lock. */}
       {view.mode === 'walk' && <WalkOverlay onExit={onExitWalk} />}
+      {view.mode !== 'walk' && <CameraHelp mode={view.mode} />}
     </>
   );
 }

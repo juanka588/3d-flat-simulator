@@ -208,7 +208,7 @@
     },
     {
       "slug": "sofa_curved",
-      "name": "Curved boucl\u00e9 sofa",
+      "name": "Curved bouclé sofa",
       "category": "sofa",
       "sourceId": "5c123f31ae894d5db5b82a546998b92a",
       "maxDimM": [
@@ -1092,6 +1092,29 @@
       ],
       "status": "rejected",
       "reason": "floral shade on a turned-wood base, not modern"
+    },
+    {
+      "slug": "person_standing",
+      "name": "Standing person (scale figure)",
+      "category": "other",
+      "sourceId": "55ffd432506d4f58a6a79eb7e5c666a5",
+      "keepNode": "46_person",
+      "maxDimM": [
+        1.3,
+        2.1
+      ],
+      "fitMaxM": 1.75,
+      "styleTags": [
+        "person",
+        "human",
+        "scale figure",
+        "mannequin"
+      ],
+      "status": "accepted",
+      "front": "+z",
+      "sourceSha256": {
+        "archive": "36cd58bc4564a1a505f0a22c2b351440d1cf860ac95d6d4aac0d34b4d2e05b1f"
+      }
     }
   ]
 }

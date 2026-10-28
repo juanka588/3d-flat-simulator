@@ -156,6 +156,11 @@ describe('pickLookalike', () => {
     expect(pickLookalike(product, parametricMeshAssets())).toBeUndefined();
     expect(pickLookalike(product, [])).toBeUndefined();
   });
+  it('never picks the person scale figure (tag "person") as furniture', () => {
+    const person = lib('sketchfab:person_standing', 'sofa', product.dims, ['person']);
+    expect(pickLookalike(product, [person])).toBeUndefined();
+    expect(pickLookalike(product, [person, lib('s:ok', 'sofa', product.dims)])?.asset.id).toBe('s:ok');
+  });
   it('ranks category, then style tags, then proportions, then id; order of the input does not matter', () => {
     const exact = lib('z:exact', 'sofa', { w: 2, d: 0.9, h: 0.85 });
     const close = lib('y:close', 'sofa', { w: 2.2, d: 0.9, h: 0.85 });

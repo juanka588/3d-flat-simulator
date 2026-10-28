@@ -3,6 +3,7 @@ import type { CameraPose, LightingView } from '@flat/scene';
 import { create } from 'zustand';
 import { BUILDING_MODES } from '../viewer/view-types';
 import type { BuildingMode, Selection, ViewMode, ViewState } from '../viewer/view-types';
+import type { PersonPlacement } from '../viewer/walk-start';
 import { DEFAULT_PERSON_HEIGHT_CM, clampPersonHeightCm } from '../viewer/walk-camera';
 import { todayIso } from './localTime';
 import { WALK_LIGHTS_KEY } from './effectiveLighting';
@@ -19,6 +20,9 @@ function initialBuildingMode(): BuildingMode {
   return BUILDING_MODES.find((m) => m === stored) ?? 'ghost';
 }
 
+/** Preference: show the translucent person in orbit and top views. Default on. */
+export const SHOW_PERSON_KEY = 'flat.showPerson';
+
 export const PERSON_HEIGHT_STORAGE_KEY = 'flat.personHeightCm';
 
 function initialPersonHeight(): number {
@@ -27,6 +31,12 @@ function initialPersonHeight(): number {
 }
 
 interface ViewStore extends ViewState {
+  /** Preference (persisted, default on): the person ghost in orbit and top views. */
+  showPerson: boolean;
+  setShowPerson: (on: boolean) => void;
+  /** Where the person stands: the last walk pose or a drag of the ghost; null = the default walk start. Not persisted. */
+  person: PersonPlacement | null;
+  setPerson: (p: PersonPlacement | null) => void;
   /** Preference: in walk mode all lamps are on and the exposure is raised (a derived overlay, see effectiveLighting). Default on. */
   walkLightsOn: boolean;
   setWalkLightsOn: (on: boolean) => void;
@@ -55,6 +65,13 @@ export const useViewStore = create<ViewStore>((set) => ({
   selection: null,
   lighting: { ...DEFAULT_LIGHTING, date: todayIso(), time: '12:00' },
   personHeightCm: initialPersonHeight(),
+  showPerson: readPref(SHOW_PERSON_KEY) !== '0',
+  setShowPerson: (on) => {
+    writePref(SHOW_PERSON_KEY, on ? '1' : '0');
+    set({ showPerson: on });
+  },
+  person: null,
+  setPerson: (p) => set({ person: p }),
   walkLightsOn: readPref(WALK_LIGHTS_KEY) !== '0',
   translucentDoors: true,
   buildingMode: initialBuildingMode(),

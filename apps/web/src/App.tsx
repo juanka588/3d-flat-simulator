@@ -63,7 +63,10 @@ export function App() {
   useUndoRedoKeys();
   useItemKeys();
   const { scene, source, warnings, errors, loadText } = useSceneStore();
-  const { mode, selection, lighting, personHeightCm, walkLightsOn, translucentDoors, buildingMode, camera, setMode, select } = useViewStore();
+  const { mode, selection, lighting, personHeightCm, walkLightsOn, translucentDoors, buildingMode, camera, showPerson, person, setMode, select } = useViewStore();
+  const setPerson = useViewStore((s) => s.setPerson);
+  // A different flat: the person stands at its default walk start again.
+  useEffect(() => setPerson(null), [source, setPerson]);
   const viewport = useViewportStore((s) => s.forced);
   const clearCamera = useCallback(() => useViewStore.getState().setCamera(undefined), []);
   const [dragging, setDragging] = useState(false);
@@ -207,7 +210,7 @@ export function App() {
         <SyncStatus />
         <ModeToolbar mode={mode} onChange={changeMode} />
         {mode === 'walk' && (
-          <p className="hint">Click the view to look around, WASD or arrows to move, Esc to leave.</p>
+          <p className="hint">Click the view to look around, arrows to move, W/A/S/D (ZQSD on AZERTY) to look, Esc to leave.</p>
         )}
         <ViewSettings />
         <SceneLoader fixtureId={fixtureId} onPickFixture={pickFixture} onFile={(f) => void loadFile(f)} />
@@ -236,10 +239,12 @@ export function App() {
           <>
             <FlatCanvas
               scene={scene}
-              view={{ mode, selection, lighting: effectiveLighting(lighting, mode, walkLightsOn, scene.lights), personHeightCm, camera, translucentDoors, buildingMode }}
+              view={{ mode, selection, lighting: effectiveLighting(lighting, mode, walkLightsOn, scene.lights), personHeightCm, camera, translucentDoors, buildingMode, showPerson, person }}
               context={context}
               onSelect={select}
               onExitWalk={exitWalk}
+              onPersonChange={setPerson}
+              onWalkEnd={setPerson}
               onUserCamera={clearCamera}
               viewport={viewport}
               onCreated={registerCanvas}

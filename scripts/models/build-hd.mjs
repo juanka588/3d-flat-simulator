@@ -9,7 +9,7 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { getBounds } from '@gltf-transform/functions';
+import { getBounds, prune } from '@gltf-transform/functions';
 import sharp from 'sharp';
 import { HD_BUDGETS, documentFromFile, normalise } from './normalise.mjs';
 import { renderThumb } from './render.mjs';
@@ -48,8 +48,25 @@ export function detectUnitScale(rawMax, [lo, hi], explicit, fitMaxM) {
   throw new Error(`raw largest extent ${rawMax} fits ${lo}-${hi} m at no common unit scale (1, 0.01, 0.001, 0.0254, 0.1, 100); set unitScale in the manifest`);
 }
 
-async function rawMaxExtent(path) {
+/**
+ * Loads the source document; with `keepNode` (a node name in the manifest) every mesh outside that node's subtree is removed,
+ * so one model can be taken out of a source that bundles several (e.g. a sheet of standing people).
+ */
+export async function loadDocument(path, keepNode) {
   const doc = await documentFromFile(path);
+  if (!keepNode) return doc;
+  const inside = (node) => { for (let n = node; n; n = n.getParentNode()) if (n.getName() === keepNode) return true; return false; };
+  let kept = 0;
+  const drop = [];
+  for (const scene of doc.getRoot().listScenes()) scene.traverse((n) => { if (n.getMesh()) { if (inside(n)) kept++; else drop.push(n); } });
+  if (kept === 0) throw new Error(`keepNode "${keepNode}" matches no mesh in the source`);
+  for (const n of drop) n.dispose();
+  await doc.transform(prune());
+  return doc;
+}
+
+async function rawMaxExtent(path, keepNode) {
+  const doc = await loadDocument(path, keepNode);
   const b = getBounds(doc.getRoot().listScenes()[0]);
   return Math.max(b.max[0] - b.min[0], b.max[1] - b.min[1], b.max[2] - b.min[2]);
 }
@@ -126,7 +143,7 @@ async function main() {
     const pinned = checkPins(entry.slug, entry.sourceSha256, { archive: dl.archiveSha256 }, { update: pins.update });
     if (pinned.changed) { entry.sourceSha256 = pinned.pins; pins.changed = true; }
 
-    const raw = await rawMaxExtent(dl.path);
+    const raw = await rawMaxExtent(dl.path, entry.keepNode);
     let unitScale;
     try {
       unitScale = detectUnitScale(raw, entry.maxDimM, entry.unitScale, entry.fitMaxM);
@@ -138,7 +155,7 @@ async function main() {
     let thumb;
     let views;
     let hint;
-    const res = await normalise(() => documentFromFile(dl.path), {
+    const res = await normalise(() => loadDocument(dl.path, entry.keepNode), {
       front: entry.front ?? '+z',
       unitScale,
       texMax: entry.texMax ?? HD_BUDGETS.textureSize,

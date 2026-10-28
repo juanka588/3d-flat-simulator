@@ -3,31 +3,26 @@ import { useFrame, useThree } from '@react-three/fiber';
 import type { RootState } from '@react-three/fiber';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { PerspectiveCamera as ThreePerspectiveCamera } from 'three';
-import { findSpawn, insideFlat, resolveWalk, sceneBounds3, walkObstacles } from '@flat/scene';
+import { insideFlat, resolveWalk, walkObstacles } from '@flat/scene';
 import type { Scene, WalkPose } from '@flat/scene';
 import { useClockStore } from '../state/dayClock';
+import { itemKeysApply } from '../ui/useItemKeys';
+import { LOOK_REST, MAX_PITCH_RAD, attachCameraKeys, clampDisc, clampPitch, firstGamepad, lookIdle, readSticks, stepLook, watchGamepad } from './camera-input';
+import type { LookState } from './camera-input';
+import { BODY_RADIUS } from './walk-start';
+import type { PersonPlacement } from './walk-start';
 import { clearVirtualKeys, onVirtualWake, onWalkStep, virtualKeysHeld } from './walk-input';
 import { eyeHeightM, walkFovDeg } from './walk-camera';
 import { headingToYaw, noteAppliedPose } from './camera-pose';
 
-const BODY_RADIUS = 0.25;
 const WALK_SPEED = 1.4; // m/s
 const RUN_SPEED = 2.8;
 const TURN_SPEED = 1.6; // rad/s for the on-screen turn buttons
 const LOOK_SPEED = 0.003; // rad per px for mouse drag-to-look
 const TOUCH_LOOK_SPEED = 0.005; // rad per px for finger drag-to-look (a thumb covers less screen)
+/** Soft near plane: close enough that a wall 25 cm away is never sliced, far enough for depth precision. */
+const NEAR = 0.03;
 export const VIEWER_ELEMENT_ID = 'flat-viewer';
-
-const KEY_DIRECTIONS: Record<string, [number, number]> = {
-  KeyW: [0, 1],
-  ArrowUp: [0, 1],
-  KeyS: [0, -1],
-  ArrowDown: [0, -1],
-  KeyA: [-1, 0],
-  ArrowLeft: [-1, 0],
-  KeyD: [1, 0],
-  ArrowRight: [1, 0],
-};
 
 /** Keystrokes aimed at form controls or editable text belong to them, not to the walker. */
 export function isTypingTarget(target: EventTarget | null): boolean {
@@ -35,21 +30,12 @@ export function isTypingTarget(target: EventTarget | null): boolean {
   return target.isContentEditable || /^(INPUT|SELECT|TEXTAREA|BUTTON)$/.test(target.tagName);
 }
 
-/** Standing point and look direction (degrees, three.js `rotation.y`); looks towards the flat's centre. */
-function spawnPose(scene: Scene): { position: [number, number]; yaw: number } {
-  const b = sceneBounds3(scene);
-  const centre: [number, number] = [(b.min[0] + b.max[0]) / 2, (b.min[2] + b.max[2]) / 2];
-  const spawn = findSpawn(scene, BODY_RADIUS);
-  const position = spawn?.position ?? centre;
-  const dx = centre[0] - position[0];
-  const dz = centre[1] - position[1];
-  // forward = (-sin yaw, -cos yaw) in (x, z)
-  const yaw = Math.hypot(dx, dz) > 0.5 ? (Math.atan2(-dx, -dz) * 180) / Math.PI : 0;
-  return { position, yaw };
-}
-
 interface WalkControlsProps {
   scene: Scene;
+  /** Where the walk starts (see `personPlacement`): the position and the yaw (three.js `rotation.y`, degrees). */
+  start: PersonPlacement;
+  /** Called when the walk view unmounts, with where the walker stood and looked: the person ghost goes there. */
+  onEnd?: (end: PersonPlacement) => void;
   /** Person height in cm; the camera sits `eyeHeightM(personHeightCm)` above the floor. */
   personHeightCm: number;
   onExit: () => void;
@@ -65,11 +51,11 @@ function pointerLockUsable(): boolean {
 }
 
 /**
- * First-person walk: pointer lock look on desktop, drag-to-look (mouse, touch, pen) otherwise, WASD/arrows
- * and on-screen buttons, wall collision, Esc to leave.
+ * First-person walk: pointer lock look on desktop, drag-to-look (mouse, touch, pen) otherwise. Arrow keys / the
+ * left stick move, W/A/S/D (ZQSD on AZERTY, by key position) / the right stick look, plus on-screen buttons, wall collision, Esc to leave.
  */
-export function WalkControls({ scene, personHeightCm, onExit, pose, onUserCamera }: WalkControlsProps) {
-  const spawn = useMemo(() => spawnPose(scene), [scene]);
+export function WalkControls({ scene, start, onEnd, personHeightCm, onExit, pose, onUserCamera }: WalkControlsProps) {
+  const [spawn] = useState(() => ({ position: [start.x, start.z] as [number, number], yaw: start.yawDeg }));
   const obstacles = useMemo(() => walkObstacles(scene), [scene]);
   const inside = useMemo(() => insideFlat(scene), [scene]);
   const eyeHeight = eyeHeightM(personHeightCm);
@@ -89,6 +75,17 @@ export function WalkControls({ scene, personHeightCm, onExit, pose, onUserCamera
   const invalidate = useThree((s) => s.invalidate);
   const pressed = useRef(new Set<string>());
   const exit = useRef(onExit);
+  const look = useRef<LookState>(LOOK_REST);
+  const end = useRef(onEnd);
+  const last = useRef<PersonPlacement>(start);
+  useEffect(() => {
+    end.current = onEnd;
+  }, [onEnd]);
+  // Remember where the walker stands and looks, so that leaving walk mode puts the person ghost there.
+  useFrame((state) => {
+    last.current = { x: state.camera.position.x, z: state.camera.position.z, yawDeg: (state.camera.rotation.y * 180) / Math.PI };
+  });
+  useEffect(() => () => end.current?.(last.current), []);
   useEffect(() => {
     onVirtualWake(invalidate);
     return () => {
@@ -136,38 +133,16 @@ export function WalkControls({ scene, personHeightCm, onExit, pose, onUserCamera
         exit.current();
         return;
       }
-      if (e.metaKey || e.code.startsWith('Meta')) {
-        pressed.current.clear(); // e.g. Cmd+Z while walking: the held key's keyup will never arrive
-        return;
-      }
-      if (isTypingTarget(e.target) || e.ctrlKey || e.altKey) return;
-      if (e.code in KEY_DIRECTIONS || e.code.startsWith('Shift')) {
-        if (e.code in KEY_DIRECTIONS) e.preventDefault();
-        pressed.current.add(e.code);
-        invalidate();
-      }
+      if (e.code.startsWith('Shift') && !e.ctrlKey && !e.altKey && !isTypingTarget(e.target)) pressed.current.add(e.code);
     };
-    // Releases are never filtered, so a key can not stay stuck if focus moved while it was held.
-    // On macOS a key held while Cmd is down never gets its keyup, so any meta-key event clears everything.
-    const up = (e: KeyboardEvent) => {
-      if (e.metaKey || e.code.startsWith('Meta')) pressed.current.clear();
-      else pressed.current.delete(e.code);
-    };
-    const blur = () => pressed.current.clear();
-    const hidden = () => {
-      if (document.visibilityState === 'hidden') pressed.current.clear();
-    };
+    // The camera keys (arrows move, W/A/S/D look: layout independent `code`s) and their releases, focus rules, blur.
+    const detach = attachCameraKeys(pressed.current, { accepts: (t) => !isTypingTarget(t) && itemKeysApply(t), arrowsFree: () => true, wake: invalidate });
+    const stopPad = watchGamepad(invalidate);
     window.addEventListener('keydown', down);
-    window.addEventListener('keyup', up);
-    window.addEventListener('blur', blur);
-    document.addEventListener('visibilitychange', hidden);
-    const keys = pressed.current;
     return () => {
       window.removeEventListener('keydown', down);
-      window.removeEventListener('keyup', up);
-      window.removeEventListener('blur', blur);
-      document.removeEventListener('visibilitychange', hidden);
-      keys.clear();
+      detach();
+      stopPad();
     };
   }, [invalidate]);
 
@@ -205,7 +180,7 @@ export function WalkControls({ scene, personHeightCm, onExit, pose, onUserCamera
       userCamera.current?.();
       camera.rotation.order = 'YXZ';
       camera.rotation.y -= dx * speed;
-      camera.rotation.x = Math.max(-1.4, Math.min(1.4, camera.rotation.x - dy * speed));
+      camera.rotation.x = Math.max(-MAX_PITCH_RAD, Math.min(MAX_PITCH_RAD, camera.rotation.x - dy * speed));
       invalidate();
     };
     // A drag must not end in a click that engages pointer lock.
@@ -235,16 +210,9 @@ export function WalkControls({ scene, personHeightCm, onExit, pose, onUserCamera
   const advance = useCallback(
     (state: RootState, delta: number) => {
       const keys = pressed.current;
-      let strafe = 0;
-      let ahead = 0;
-      keys.forEach((code) => {
-        const dir = KEY_DIRECTIONS[code];
-        if (dir) {
-          strafe += dir[0];
-          ahead += dir[1];
-        }
-      });
+      const sticks = readSticks(keys, firstGamepad());
       const virtual = virtualKeysHeld();
+      let [strafe, ahead] = sticks.move;
       if (virtual.size > 0) {
         ahead += (virtual.has('forward') ? 1 : 0) - (virtual.has('back') ? 1 : 0);
         strafe += (virtual.has('right') ? 1 : 0) - (virtual.has('left') ? 1 : 0);
@@ -256,14 +224,26 @@ export function WalkControls({ scene, personHeightCm, onExit, pose, onUserCamera
           invalidate();
         }
       }
-      if (strafe === 0 && ahead === 0) return;
+      // Right stick: smooth yaw / pitch (about 90 deg/s with acceleration); right turns clockwise (three's yaw goes down).
+      const turned = stepLook(look.current, sticks.look, delta);
+      look.current = turned.state;
+      if (turned.dYaw !== 0 || turned.dPitch !== 0) {
+        userCamera.current?.();
+        state.camera.rotation.order = 'YXZ';
+        state.camera.rotation.y -= turned.dYaw;
+        state.camera.rotation.x = clampPitch(state.camera.rotation.x + turned.dPitch);
+        invalidate();
+      }
+      if (!lookIdle(look.current) || sticks.look[0] !== 0 || sticks.look[1] !== 0) invalidate();
+      [strafe, ahead] = clampDisc([strafe, ahead]);
+      const magnitude = Math.hypot(strafe, ahead);
+      if (magnitude < 1e-6) return;
       userCamera.current?.();
       const speed = keys.has('ShiftLeft') || keys.has('ShiftRight') ? RUN_SPEED : WALK_SPEED;
       const yaw = state.camera.rotation.y;
       // three: forward = (-sin yaw, -cos yaw) in (x, z); right = (cos yaw, -sin yaw)
-      const len = Math.hypot(strafe, ahead);
-      const dx = (-Math.sin(yaw) * ahead + Math.cos(yaw) * strafe) / len;
-      const dz = (-Math.cos(yaw) * ahead - Math.sin(yaw) * strafe) / len;
+      const dx = -Math.sin(yaw) * ahead + Math.cos(yaw) * strafe;
+      const dz = -Math.cos(yaw) * ahead - Math.sin(yaw) * strafe;
       const step = Math.min(delta, 0.1) * speed;
       const from: [number, number] = [state.camera.position.x, state.camera.position.z];
       const {
@@ -290,7 +270,7 @@ export function WalkControls({ scene, personHeightCm, onExit, pose, onUserCamera
 
   return (
     <>
-      <PerspectiveCamera ref={rig} makeDefault fov={pose?.fovDeg ?? fov} near={0.05} far={200} position={position} rotation={rotation} />
+      <PerspectiveCamera ref={rig} makeDefault fov={pose?.fovDeg ?? fov} near={NEAR} far={200} position={position} rotation={rotation} />
       {lockable && <PointerLockControls makeDefault selector={`#${VIEWER_ELEMENT_ID}`} onUnlock={onExit} onChange={() => userCamera.current?.()} />}
     </>
   );

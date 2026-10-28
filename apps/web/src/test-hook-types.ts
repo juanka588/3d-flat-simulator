@@ -27,6 +27,8 @@ export interface FlatStats {
    * plan's clockwise rotation on screen. A `WalkPose` with `headingDeg` h reports `yawDeg === -h`.
    */
   yawDeg: number;
+  /** Degrees the camera looks above (+) or below (-) the horizon. */
+  pitchDeg: number;
   /** The same direction as `WalkPose.headingDeg`: degrees CLOCKWISE from plan-up (-y), in [0, 360). `headingDeg === (-yawDeg) mod 360`. */
   headingDeg: number;
   /** The pose being followed (set by `setCamera` or the follow-assistant channel), or null while the camera is user-driven. */
@@ -84,6 +86,8 @@ export interface FlatTestHook {
   stats: () => FlatStats;
   /** The materials the fittings mesh currently draws door leaves with (translucent in walk mode, opaque otherwise). */
   doorLeaves: () => { id: string; transparent: boolean; opacity: number; depthWrite: boolean }[];
+  /** The person ghost (orbit/top) as drawn: world height of its mesh, the plan position of its feet and its yaw (three.js `rotation.y`, degrees); null when it is not in the scene. */
+  personGhost: () => { heightM: number; x: number; z: number; yawDeg: number; castShadow: boolean; receiveShadow: boolean; opacity: number; source: 'glb' | 'parametric' } | null;
   /** Draw calls of every frame rendered by the render loop since the last `clearFrameCalls()` (frames right after a change include the shadow passes). */
   frameCalls: () => number[];
   clearFrameCalls: () => void;
@@ -154,7 +158,7 @@ export interface FlatTestHook {
    * M4: walk-mode comfort switches, for renders that must show reality. `translucentDoors: false` draws door
    * leaves opaque in walk mode too; `buildingMode` sets the orbit-view host-building envelope (default `ghost`). Not persisted; the user's tab never sets it. Resolves after a frame reflecting it.
    */
-  setComfort: (partial: { translucentDoors?: boolean; buildingMode?: 'hidden' | 'ghost' | 'solid' }) => Promise<void>;
+  setComfort: (partial: { showPerson?: boolean; translucentDoors?: boolean; buildingMode?: 'hidden' | 'ghost' | 'solid' }) => Promise<void>;
   /** The host-building meshes currently in the scene (façade, ghost envelope or solid), with how they are drawn. */
   hostBuilding: () => { name: string; visible: boolean; castShadow: boolean; pickable: boolean; opacity: number; transparent: boolean; depthWrite: boolean }[];
   /** Sun position and daylight times for the current lighting view (or why they are unavailable). */

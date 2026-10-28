@@ -33,15 +33,15 @@ describe('clampPersonHeightCm', () => {
 });
 
 describe('walkFovDeg', () => {
-  it('is 50 degrees vertical on landscape and square screens', () => {
-    expect(walkFovDeg(16 / 10)).toBe(50);
-    expect(walkFovDeg(1)).toBe(50);
-    expect(walkFovDeg(21 / 9)).toBe(50);
+  it('is 60 degrees vertical on landscape and square screens', () => {
+    expect(walkFovDeg(16 / 10)).toBe(60);
+    expect(walkFovDeg(1)).toBe(60);
+    expect(walkFovDeg(21 / 9)).toBe(60);
   });
   it('falls back to the landscape fov for nonsense aspects', () => {
-    expect(walkFovDeg(0)).toBe(50);
-    expect(walkFovDeg(Number.NaN)).toBe(50);
-    expect(walkFovDeg(-2)).toBe(50);
+    expect(walkFovDeg(0)).toBe(60);
+    expect(walkFovDeg(Number.NaN)).toBe(60);
+    expect(walkFovDeg(-2)).toBe(60);
   });
   it('gives about 75 degrees horizontal on a moderately tall portrait screen', () => {
     const aspect = 0.75; // a tablet
