@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ProductRecord } from '@flat/scene';
+import { ProductRecord } from '@flat/assets';
 import { readFileSync } from 'node:fs';
 import { RECORD_TTL_MS, RecordCache } from './record-cache';
 import { snapshotOf } from './place';

@@ -1,13 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import products from '../fixtures/products.json';
 import { makeScene } from './geometry/testUtil';
 import { BOM_NO_ROOM, STALE_PRICE_DAYS, billOfMaterials } from './bill-of-materials';
-import { ProductRecord, productSnapshot } from './assets/products/records';
+import { bed, productSnapshot, wardrobe } from '../test/product-fixtures';
 import type { SceneInput } from './schema';
 
 const DAY = 86_400_000;
-const bed = ProductRecord.parse(products[1]);
-const wardrobe = ProductRecord.parse(products[0]);
 const T0 = '2026-10-27T10:00:00.000Z';
 const t0 = Date.parse(T0);
 

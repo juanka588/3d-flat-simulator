@@ -1,5 +1,5 @@
-import { summarizeProduct } from '@flat/scene';
-import type { ProductRecord, ProductSummary, ProviderInfo } from '@flat/scene';
+import { summarizeProduct } from '@flat/assets';
+import type { ProductRecord, ProductSummary, ProviderInfo } from '@flat/assets';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { ApiError, draftFromDimsError, fetchProvidersFull, getProduct, recordWithUserDims, resolveUrl, searchProducts, serverRef } from '../catalog/api';

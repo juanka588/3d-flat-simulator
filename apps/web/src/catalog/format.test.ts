@@ -3,6 +3,7 @@ import { billOfMaterials, parseScene } from '@flat/scene';
 import { readFileSync } from 'node:fs';
 import { bomView, formatDate, formatDims, formatPrice, isBuiltIn, isStale, itemName, registerLibraryNames } from './format';
 import { defaultParams, paramFields, resolveParams } from './param-fields';
+import '@flat/assets'; // registers the generators in GENERATORS
 import { GENERATORS } from '@flat/scene';
 
 const base = parseScene(JSON.parse(readFileSync(new URL('../../../../packages/scene/fixtures/charme-3205.flat.json', import.meta.url), 'utf8')));

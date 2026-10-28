@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { CatalogEntry } from '@flat/scene';
+import type { CatalogEntry } from '@flat/assets';
 import { buildFinishCommand, colourName, materialLabel } from './finish-commands';
 import type { FinishScope } from './finish-commands';
 

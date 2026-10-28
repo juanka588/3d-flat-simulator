@@ -1,3 +1,4 @@
+import { buildItems } from '@flat/assets';
 import { buildShell } from '@flat/scene';
 import type { Scene, ShellMeshes } from '@flat/scene';
 
@@ -7,7 +8,7 @@ const cache = new WeakMap<Scene, ShellMeshes>();
 export function shellFor(scene: Scene): ShellMeshes {
   let shell = cache.get(scene);
   if (!shell) {
-    shell = buildShell(scene);
+    shell = buildShell(scene, { items: buildItems });
     cache.set(scene, shell);
   }
   return shell;

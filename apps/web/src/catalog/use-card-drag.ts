@@ -1,6 +1,6 @@
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { useCallback, useEffect, useRef } from 'react';
-import type { ProductRecord } from '@flat/scene';
+import type { ProductRecord } from '@flat/assets';
 import { isDragging, startDrag } from './placement';
 import type { PlaceSource } from './place';
 

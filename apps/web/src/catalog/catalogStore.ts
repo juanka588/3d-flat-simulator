@@ -1,4 +1,4 @@
-import type { LocalCatalogInfo, ProductSummary, ProviderInfo, ProviderStatus } from '@flat/scene';
+import type { LocalCatalogInfo, ProductSummary, ProviderInfo, ProviderStatus } from '@flat/assets';
 import { create } from 'zustand';
 import type { GhostVerdict } from './ghost';
 

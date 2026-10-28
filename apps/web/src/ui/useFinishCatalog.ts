@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { libraryCatalog, thumbUrl } from '../viewer/catalog';
-import type { CatalogEntry } from '@flat/scene';
+import type { CatalogEntry } from '@flat/assets';
 
 export { thumbUrl };
 

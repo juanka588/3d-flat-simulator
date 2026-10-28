@@ -1,5 +1,7 @@
-import { ALL_SWATCHES, materialFromCatalog, normalizeHex, paintMaterial } from '@flat/scene';
-import type { BatchCommand, CatalogEntry, LeafCommand, Material, Sheen } from '@flat/scene';
+import { ALL_SWATCHES, normalizeHex, paintMaterial } from '@flat/scene';
+import { materialFromCatalog } from '@flat/assets';
+import type { BatchCommand, LeafCommand, Material, Sheen } from '@flat/scene';
+import type { CatalogEntry } from '@flat/assets';
 
 /** What a finish applies to. */
 export type FinishScope =

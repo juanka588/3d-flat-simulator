@@ -1,5 +1,6 @@
 import { itemDims, itemMountOf, validateLayout } from '@flat/scene';
-import type { Item, ProductRecord, ProductSnapshot, Scene } from '@flat/scene';
+import type { Item, ProductSnapshot, Scene } from '@flat/scene';
+import type { ProductRecord } from '@flat/assets';
 import { useEffect, useId, useMemo, useState } from 'react';
 import { ApiError, getProduct, serverRef } from '../catalog/api';
 import { useProductPhoto } from '../catalog/use-product-photo';

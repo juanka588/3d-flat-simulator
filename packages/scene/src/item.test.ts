@@ -6,13 +6,11 @@ import sample from '../fixtures/sample.flat.json';
 import { GENERATORS, type Generator } from './items/mesh-source';
 import { loadSceneText } from './load';
 import { parseScene } from './parse';
-import { productSnapshot, ProductRecord } from './assets/products/records';
-import products from '../fixtures/products.json';
+import { bed, productSnapshot } from '../test/product-fixtures';
 import { Item, NAME_MAX, type Scene } from './schema';
 import { serializeScene } from './serialize';
 import { validateScene } from './validate';
 
-const bed = ProductRecord.parse(products[1]);
 const snap = productSnapshot(bed, '2026-10-27T10:00:00.000Z');
 
 function scene(items: unknown[]): unknown {

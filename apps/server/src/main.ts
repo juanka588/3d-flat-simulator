@@ -1,6 +1,10 @@
+import { assertGeneratorsRegistered } from '@flat/assets';
 import { loadConfig } from './config';
 import { readEnvFile } from './providers/secrets';
 import { startServer } from './server';
+
+// Importing @flat/assets registers the generators in scene's registry; fail at start-up if that ever stops being true.
+assertGeneratorsRegistered();
 
 // apps/server/.env.local (gitignored) may set FLAT_PROVIDERS and provider credentials; the process environment wins.
 const config = loadConfig({ ...readEnvFile(loadConfig().envLocalFile), ...process.env });

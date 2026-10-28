@@ -1,23 +1,26 @@
-import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import * as scene from '@flat/scene';
+import { describe, expect, it } from 'vitest';
 import * as assets from './index';
 import * as assetsNode from './node';
 
-// Step A2: the facade re-exports the very same values as @flat/scene (A4 moves the implementations without changing this).
-describe('@flat/assets facade', () => {
-  it('re-exports scene values by identity', () => {
-    const names = Object.keys(assets);
-    expect(names.length).toBeGreaterThan(40);
-    for (const name of names) {
-      expect(assets[name as keyof typeof assets], name).toBe(scene[name as keyof typeof scene]);
-    }
+describe('@flat/assets public API', () => {
+  it('registers the generators on import and asserts it', () => {
+    expect(scene.GENERATORS.list().length).toBe(assets.ALL_GENERATORS.length);
+    expect(() => assets.assertGeneratorsRegistered()).not.toThrow();
   });
 
-  it('registers the generators on import', () => {
-    expect(scene.GENERATORS.list().length).toBe(assets.ALL_GENERATORS.length);
+  it('owns its names: none of them is exported by @flat/scene any more', () => {
+    for (const name of Object.keys(assets)) expect(name in scene, name).toBe(false);
   });
 
   it('has an empty node entry', () => {
     expect(Object.keys(assetsNode)).toEqual([]);
+  });
+
+  it('is not marked side-effect free: the index registers the generators', () => {
+    const json = JSON.parse(readFileSync(resolve(__dirname, '../package.json'), 'utf8')) as { sideEffects?: unknown };
+    expect(json.sideEffects).toBeUndefined();
   });
 });

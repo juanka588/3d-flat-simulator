@@ -1,5 +1,5 @@
-import { GetProductResponse, ProductRecord, ProductSearchResponse, ProvidersResponse } from '@flat/scene';
-import type { LocalCatalogInfo, ProviderInfo } from '@flat/scene';
+import { GetProductResponse, ProductRecord, ProductSearchResponse, ProvidersResponse } from '@flat/assets';
+import type { LocalCatalogInfo, ProviderInfo } from '@flat/assets';
 import { serverToken } from '../sync/client';
 import { useSyncStore } from '../sync/sync-store';
 

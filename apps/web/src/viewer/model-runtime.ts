@@ -1,4 +1,4 @@
-import { resolveMesh } from '@flat/scene';
+import { resolveMesh } from '@flat/assets';
 import type { Item } from '@flat/scene';
 import { ModelController } from './model-controller';
 import type { ControllerDeps, ModelStats } from './model-controller';

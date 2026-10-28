@@ -1,5 +1,6 @@
 import { DEFAULT_CEILING_HEIGHT, itemCoalesceKey, itemDims, itemMountOf } from '@flat/scene';
-import type { Item, ProductRecord, Relation, Scene, Vec2 } from '@flat/scene';
+import type { Item, Relation, Scene, Vec2 } from '@flat/scene';
+import type { ProductRecord } from '@flat/assets';
 import { committedScene, useSceneStore } from '../state/sceneStore';
 import { useViewStore } from '../state/viewStore';
 import { ceilingAt, checkGhost, fullGhostCheck } from './ghost';

@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { buildItems } from '@flat/assets';
 import { buildShell, loadSceneText, SiteContext, sunAt } from '@flat/scene';
 import { describe, expect, it } from 'vitest';
 import { shadowCasterGeometry } from './derived-geometry';
@@ -44,7 +45,7 @@ describe('sun shadow fit with the Charme context', () => {
 });
 
 describe('sun shadow fit keeps the flat shell inside the shadow camera depth range', () => {
-  const positions = shadowCasterGeometry(buildShell(scene)).getAttribute('position').array as Float32Array;
+  const positions = shadowCasterGeometry(buildShell(scene, { items: buildItems })).getAttribute('position').array as Float32Array;
   const altitudes = [2, 6, 12, 18, 28.7, 45, 64, 80, 89];
   for (const withContext of [true, false]) {
     it(`every shell caster vertex lies within [near, far] for a sweep of sun directions (context: ${withContext})`, () => {

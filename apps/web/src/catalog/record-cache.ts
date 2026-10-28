@@ -1,4 +1,4 @@
-import type { ProductRecord } from '@flat/scene';
+import type { ProductRecord } from '@flat/assets';
 
 /** A cached record is read again after this long, so a price placed from it is never much older than its `fetchedAt` says. */
 export const RECORD_TTL_MS = 60 * 60 * 1000;

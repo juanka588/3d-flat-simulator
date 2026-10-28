@@ -1,5 +1,6 @@
-import { EMPTY_MESH_CATALOG, MeshAsset, createMeshCatalog, parseProductId } from '@flat/scene';
-import type { MeshCatalog } from '@flat/scene';
+import { parseProductId } from '@flat/scene';
+import { EMPTY_MESH_CATALOG, MeshAsset, createMeshCatalog } from '@flat/assets';
+import type { MeshCatalog } from '@flat/assets';
 import { viewerConfig } from './config';
 
 /**

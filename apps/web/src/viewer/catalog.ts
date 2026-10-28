@@ -1,5 +1,5 @@
-import { Catalog } from '@flat/scene';
-import type { CatalogEntry } from '@flat/scene';
+import { Catalog } from '@flat/assets';
+import type { CatalogEntry } from '@flat/assets';
 import { viewerConfig } from './config';
 
 export type LibraryCatalog = ReadonlyMap<string, CatalogEntry>;
