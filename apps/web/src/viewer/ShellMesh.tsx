@@ -19,12 +19,14 @@ interface ShellMeshProps {
   swap?: Readonly<Record<string, string>>;
   /** Draw order among transparent objects (higher draws later). */
   renderOrder?: number;
+  /** Drawn (default) or kept in the scene without being drawn. */
+  visible?: boolean;
   /** Omit to make the mesh non-interactive (e.g. in walk mode). */
   onSelect?: (selection: Selection, planPoint: [number, number]) => void;
 }
 
 /** One MeshData drawn with a material array aligned to its groups. Renders nothing when empty. */
-export function ShellMesh({ name, data, materials, castShadow = false, receiveShadow = false, swap, renderOrder = 0, onSelect }: ShellMeshProps) {
+export function ShellMesh({ name, data, materials, castShadow = false, receiveShadow = false, swap, renderOrder = 0, visible = true, onSelect }: ShellMeshProps) {
   const geometry = useMemo(() => toBufferGeometry(data), [data]);
   useEffect(() => () => geometry.dispose(), [geometry]);
   const materialArray = useMemo(() => data.groups.map((g) => materials.get(swap?.[g.materialId] ?? g.materialId)), [data, materials, swap]);
@@ -45,6 +47,7 @@ export function ShellMesh({ name, data, materials, castShadow = false, receiveSh
       name={name}
       geometry={geometry}
       renderOrder={renderOrder}
+      visible={visible}
       material={materialArray}
       castShadow={castShadow}
       receiveShadow={receiveShadow}

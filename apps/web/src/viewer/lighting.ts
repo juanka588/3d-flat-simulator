@@ -22,6 +22,8 @@ import type { Light, LightingView, Scene, SunState } from '@flat/scene';
  *   lamps -> Point/SpotLight.intensity  = candela (decay 2, distance 0); an area panel is a shadow-casting
  *            point light just below the panel at lm / (2pi) (RectAreaLight cannot cast shadows)
  *   sky   -> HemisphereLight.intensity  = AMBIENT_FRACTION * sky illuminance on a horizontal plane
+ *            (with the baked light probes, the default, the hemisphere is only a small fill and the sky comes through the
+ *            windows: see probe-light.ts and docs/photometry.md "Indirect light: baked light probes")
  * Lamps are never fudged. Sun and sky are "exact geometry, tuned brightness for screen" (see
  * docs/photometry.md, "Screen tuning of daylight"): a clear noon (~1e5 lux) and a 150 lx lamp-lit
  * room differ by ~3 orders of magnitude, and a physical sun at 5x the (unoccluded) hemisphere
@@ -142,6 +144,9 @@ export type LightingModel =
       zenith: RGB;
       horizon: RGB;
       exposure: number;
+      /** Mean illuminance the lamps add over the habitable area (lux) and the open-air total the exposure above is keyed on (rendered sun + sky + lamps). */
+      lampLux: number;
+      keyLux: number;
       /** Lamp share of the light (see `awbWeight`): how far lamp colours are white-balanced. */
       awb: number;
       lamps: LampSpec[];
@@ -399,6 +404,8 @@ export function computeLighting(scene: Scene, lighting: LightingView): LightingM
       zenith: sky.zenithColor,
       horizon: sky.horizonColor,
       exposure,
+      lampLux,
+      keyLux: sunIntensity + ambientIntensity + lampLux,
       awb,
       lamps: lit,
     };

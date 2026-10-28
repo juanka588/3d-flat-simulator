@@ -3,7 +3,10 @@ import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { Color } from 'three';
 import type { LightingView, Scene, SiteContext } from '@flat/scene';
 import { ContextMesh } from './ContextMesh';
+import { ExposureAdapt, adaptiveExposure } from './ExposureAdapt';
 import { Lamps } from './Lamps';
+import { ProbeGI, useProbesActive } from './ProbeGI';
+import { probeAmbientSplit } from './probe-light';
 import { SkyDome } from './SkyDome';
 import { SunLight } from './SunLight';
 import type { BuildingMode, ViewMode } from './view-types';
@@ -40,17 +43,26 @@ export function LightingRig({
 
   const exposure = model.ok ? model.exposure : 1;
   const tone = toneMappingSetting();
+  const probes = useProbesActive();
+  const adaptive = probes && adaptiveExposure();
   useLayoutEffect(() => {
+    // `?exposure=adapt`: the exposure adapts to the light the camera sees (ExposureAdapt owns it).
+    if (adaptive && model.ok) return;
     const { gl, invalidate } = get();
     gl.toneMapping = tone.mapping;
     gl.toneMappingExposure = exposure * tone.exposureScale;
     invalidate();
-  }, [get, exposure, tone]);
+  }, [get, exposure, tone, adaptive, model.ok]);
 
   // Image-based light: a share of the sky's diffuse light comes from the environment map (so glossy surfaces reflect a
   // room), the hemisphere light keeps the rest; at night there is no sky and so no environment either (lamps dominate).
   const ambient = model.ok ? model.ambientIntensity : 0;
-  const split = useMemo(() => (env ? environmentLight(ambient, env.meanRadiance) : { hemisphere: ambient, environment: 0 }), [env, ambient]);
+  // With baked probes the sky arrives through the windows and bounces (the probes), so the hemisphere is off and the
+  // environment map is kept only for reflections; without them it is the old unoccluded hemisphere + environment split.
+  const split = useMemo(
+    () => (probes ? probeAmbientSplit(ambient, env?.meanRadiance ?? null) : env ? environmentLight(ambient, env.meanRadiance) : { hemisphere: ambient, environment: 0 }),
+    [env, ambient, probes],
+  );
   useLayoutEffect(() => {
     const { scene: three, invalidate } = get();
     if (!env) return;
@@ -101,6 +113,8 @@ export function LightingRig({
       {showSky && <SkyDome direction={model.sun.direction} zenith={model.zenith} horizon={model.horizon} ground={sky!.floor} sunVisibility={model.sunActive ? 1 : 0} />}
       <hemisphereLight name="ambient" color={sky!.zenith} groundColor={sky!.ground} intensity={split.hemisphere} />
       <SunLight model={model} scene={scene} context={shownContext} />
+      {probes && <ProbeGI scene={scene} model={model} context={shownContext} />}
+      {adaptive && <ExposureAdapt model={model} exposureEV={lighting.exposureEV} viewMode={viewMode} tone={tone} />}
       <Lamps lamps={model.lamps} geometryKey={geometryKey} exposure={model.exposure} />
     </>
   );

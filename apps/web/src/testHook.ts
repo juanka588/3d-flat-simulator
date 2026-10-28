@@ -14,6 +14,7 @@ import { activeViewRelay } from './sync/view-relay';
 import { appliedPose, yawToHeadingDeg } from './viewer/camera-pose';
 import type { FlatStats, FlatTestHook, HistoryInfo } from './test-hook-types';
 import { textureStats, texturesSettled } from './viewer/texture-cache';
+import { probeControls, probeStats, probesSettled } from './viewer/probe-runtime';
 import { modelStats, modelsSettled, setMeshResolverOverride, setProviderFrontOverride } from './viewer/model-runtime';
 import { setModelOriginOverride } from './viewer/config';
 import { dragState } from './catalog/placement';
@@ -34,6 +35,8 @@ interface FrameInfo {
 }
 
 const FRAME_TIMEOUT_MS = 15_000;
+/** Longest wait for a light-probe bake (a software renderer needs several seconds per bake, more on a loaded CI runner). */
+const PROBE_TIMEOUT_MS = 120_000;
 /** How long a frame waits for model downloads before drawing the placeholders instead; null = the frame timeout, as an error. */
 let modelWaitMs: number | null = null;
 const WALK_STEP_MS = 16;
@@ -135,9 +138,14 @@ async function whenRendered(): Promise<void> {
         setTimeout(() => (modelWaitMs === null ? reject(new Error('timed out waiting for models')) : resolve(true)), Math.max(0, modelsDeadline - performance.now())),
       ),
     ]);
+    // Baked light probes: the bake is debounced and time-sliced (seconds on a software renderer), the frame must show its result.
+    await Promise.race([
+      probesSettled(),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timed out waiting for the light-probe bake')), PROBE_TIMEOUT_MS)),
+    ]);
     await nextRenderedFrame();
     if (gaveUp) return;
-    if (textureStats().pending === 0 && modelStats().pending === 0) return;
+    if (textureStats().pending === 0 && modelStats().pending === 0 && !probeStats().pending) return;
   }
 }
 
@@ -550,6 +558,13 @@ export function installTestHook(): void {
     },
     flushAutosave: () => flushAutosave(),
     modelStats: () => modelStats(),
+    probes: () => probeStats(),
+    async rebakeProbes() {
+      await canvasReady;
+      await probeControls()?.rebake();
+      await whenRendered();
+    },
+    probeHash: () => probeControls()?.hash() ?? '',
     placement: () => dragState(),
     itemBounds: (id) => {
       if (!canvas) throw new Error('canvas not ready');

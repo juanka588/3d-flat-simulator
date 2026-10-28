@@ -1,4 +1,5 @@
 import type { ApplyResult, CameraPose, Command, LightingView, LoadResult, Scene } from '@flat/scene';
+import type { ProbeStats } from './viewer/probe-runtime';
 import type { SunInfo } from './state/sunInfo';
 import type { ModelStats } from './viewer/model-types';
 import type { Front } from './viewer/model-math';
@@ -102,6 +103,12 @@ export interface FlatTestHook {
    * `whenRendered` waits for pending models.
    */
   modelStats: () => ModelStats;
+  /** The baked light probes (the indirect light): mode, whether a bake is wanted/running, keys, bake time and grid size. `whenRendered` waits for the bake. */
+  probes: () => ProbeStats;
+  /** Bakes the probes for the current state again at once and resolves when the new grid is displayed (determinism checks). */
+  rebakeProbes: () => Promise<void>;
+  /** FNV-1a hex of the displayed probe atlas read back from the GPU ('' without probes): equal for equal scene + lighting on one GPU. */
+  probeHash: () => string;
   /** M5.13: the drag in progress (`drag` null when none), the ghost it shows (`valid`, the violation `message`) and the last refusal `notice`. */
   placement: () => {
     drag: { kind: 'new' | 'move' | 'rotate' | 'elevate'; label: string; itemId?: string } | null;

@@ -21,6 +21,8 @@ export default defineConfig({
   base: process.env.BASE_PATH ?? '/',
   // One copy of each of these in the bundle even when linked workspace packages (viewer, assets) resolve them separately.
   resolve: { dedupe: ['three', 'react', 'react-dom', '@react-three/fiber', 'zustand'] },
+  // The light-probe grid is imported statically by the viewer: pre-bundle it so a cold dev server never reloads the page mid-test.
+  optimizeDeps: { include: ['three/examples/jsm/lighting/LightProbeGridWebGL.js'] },
   server: { host: '127.0.0.1', port: 5173, strictPort: true },
   test: { name: 'web', environment: 'node', include: ['src/**/*.test.{ts,tsx}'] },
 });

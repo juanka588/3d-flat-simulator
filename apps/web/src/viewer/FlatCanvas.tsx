@@ -23,6 +23,7 @@ import type { PersonPlacement } from './walk-start';
 import { DOOR_WALK_MATERIAL, createMaterialLibrary } from './materials';
 import { getPerfProfile } from './perf';
 import { createRoomAmbient, withRoomAmbient } from './room-ambient';
+import { useProbesActive } from './ProbeGI';
 import { shellFor } from './shell-cache';
 import { withHitContext } from './selection';
 import { MAX_ANISOTROPY, textureCache } from './texture-cache';
@@ -190,8 +191,10 @@ function Shell({ scene, view, onSelect }: { scene: Scene; view: ViewState; onSel
     [baseShell, scene.items, models.version, models.claimed.size, models.fallbacks.size],
   );
   // Per-room sky ambient (windowless rooms get less): an aoMap on the shell materials, see room-ambient.ts.
-  const ambient = useMemo(() => createRoomAmbient(scene), [scene]);
-  useEffect(() => () => ambient.dispose(), [ambient]);
+  // With the baked light probes (the default) neither this nor the lamp bounce below exists: the probes carry both.
+  const probes = useProbesActive();
+  const ambient = useMemo(() => (probes ? null : createRoomAmbient(scene)), [scene, probes]);
+  useEffect(() => () => ambient?.dispose(), [ambient]);
   // Per-room lamp bounce (approximate indirect light of the lamps that are on, local to their room): data in a texture,
   // so switching a lamp changes texels and never the shaders.
   const lamps = useMemo(() => resolveLamps(scene, view.lighting), [scene, view.lighting]);
@@ -201,6 +204,7 @@ function Shell({ scene, view, onSelect }: { scene: Scene; view: ViewState; onSel
     return m.ok ? m.awb : 0;
   }, [scene, view.lighting]);
   useLayoutEffect(() => {
+    if (!ambient) return;
     ambient.bounce.set(roomLampBounce(scene, lamps, awb));
     invalidate();
   }, [ambient, scene, lamps, awb, invalidate]);
@@ -216,7 +220,7 @@ function Shell({ scene, view, onSelect }: { scene: Scene; view: ViewState; onSel
   );
   // Updated while rendering (idempotent) so that meshes rendered below already see the new materials.
   const materials = useMemo(() => {
-    library.update(scene.materials, ambient.texture, ambient.bounce.texture);
+    library.update(scene.materials, ambient?.texture, ambient?.bounce.texture);
     return library.snapshot();
   }, [library, scene.materials, ambient]);
   // Materials the update removed are disposed once the render that stopped using them is committed.
@@ -243,13 +247,16 @@ function Shell({ scene, view, onSelect }: { scene: Scene; view: ViewState; onSel
     };
   }, [gl, models.controller, invalidate]);
   const roomMeshes = useMemo(
-    () => ({
-      walls: withRoomAmbient(shell.walls, scene, ambient),
-      floors: withRoomAmbient(shell.floors, scene, ambient),
-      ceilings: withRoomAmbient(shell.ceilings, scene, ambient),
-      fittings: withRoomAmbient(shell.fittings, scene, ambient),
-      items: withRoomAmbient(shell.items, scene, ambient),
-    }),
+    () =>
+      ambient
+        ? {
+            walls: withRoomAmbient(shell.walls, scene, ambient),
+            floors: withRoomAmbient(shell.floors, scene, ambient),
+            ceilings: withRoomAmbient(shell.ceilings, scene, ambient),
+            fittings: withRoomAmbient(shell.fittings, scene, ambient),
+            items: withRoomAmbient(shell.items, scene, ambient),
+          }
+        : { walls: shell.walls, floors: shell.floors, ceilings: shell.ceilings, fittings: shell.fittings, items: shell.items },
     [shell, scene, ambient],
   );
 
@@ -269,7 +276,8 @@ function Shell({ scene, view, onSelect }: { scene: Scene; view: ViewState; onSel
       <ShellMesh name="walls" data={roomMeshes.walls} materials={materials} receiveShadow onSelect={pick} />
       <ShellMesh name="floors" data={roomMeshes.floors} materials={materials} receiveShadow onSelect={pick} />
       {/* Ceilings are hidden in orbit/top so the interior stays visible from above. */}
-      {walk && <ShellMesh name="ceilings" data={roomMeshes.ceilings} materials={materials} onSelect={pick} />}
+      {/* With probes the ceilings stay in the scene (hidden outside walk mode): the bake must see the roof in every view. */}
+      {(walk || probes) && <ShellMesh name="ceilings" data={roomMeshes.ceilings} materials={materials} visible={walk} onSelect={pick} />}
       <ShellMesh name="fittings" data={roomMeshes.fittings} materials={materials} receiveShadow swap={walk && view.translucentDoors !== false ? WALK_SWAP : undefined} renderOrder={1} onSelect={pick} />
       <ShellMesh name="items" data={roomMeshes.items} materials={materials} receiveShadow onSelect={pick} />
       <ItemsMesh scene={scene} models={models} selectedId={selectedId} onSelect={pick} />
