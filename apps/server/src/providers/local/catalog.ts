@@ -1,6 +1,6 @@
 import { readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
-import { LOCAL_STALE_DAYS, type LocalCatalogInfo, type ProductRecord } from '@flat/scene';
+import { LOCAL_STALE_DAYS, type LocalCatalogInfo, type ProductRecord } from '@flat/assets';
 import { indexEntry, rank } from './search';
 import { LOCAL_PROVIDER_ID, LOCAL_SKU, LocalCatalogFile, type LocalEntry } from './schema';
 import type { LocalCatalogSource, ModelBytes } from '../types';

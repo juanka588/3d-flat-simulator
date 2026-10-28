@@ -1,5 +1,4 @@
 import {
-  MAX_LOOKALIKE_DISTORTION,
   MeshSource,
   ProductId,
   Relation,
@@ -13,21 +12,24 @@ import {
   meshAssetId,
   nearestIds,
   parseProductId,
-  pickLookalike,
-  productSnapshot,
-  scaleToDims,
   solvePlacement,
   validateLayout,
   type Command,
   type Dims,
   type Placement,
   type PlacementRequestInput,
-  type ProductRecord,
-  type ProviderInfo,
   type Scene,
   type SceneResponse,
   type Violation,
 } from '@flat/scene';
+import {
+  MAX_LOOKALIKE_DISTORTION,
+  pickLookalike,
+  productSnapshot,
+  scaleToDims,
+  type ProductRecord,
+  type ProviderInfo,
+} from '@flat/assets';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import { cc0Assets } from '../assetCatalog';

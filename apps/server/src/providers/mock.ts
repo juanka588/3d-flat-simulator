@@ -1,4 +1,4 @@
-import { matchProducts, ProductRecord, type ProviderCapabilities } from '@flat/scene';
+import { matchProducts, ProductRecord, type ProviderCapabilities } from '@flat/assets';
 import productsFixture from '@flat/scene/fixtures/products.json';
 import { ProviderError, type ProductProvider, type ProviderContext, type SearchOptions } from './types';
 

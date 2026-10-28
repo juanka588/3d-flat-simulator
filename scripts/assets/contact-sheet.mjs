@@ -4,8 +4,7 @@
 // A tiny software renderer (orthographic 3/4 view, painter's algorithm, flat shading) draws the real generator output as SVG
 // polygons, so no browser or GPU is needed. Run through `tsx` because the generators are TypeScript.
 import sharp from 'sharp';
-import { ALL_GENERATORS } from '../../packages/scene/src/assets/generators/index.ts';
-import { ITEM_MATERIAL_SPECS } from '../../packages/scene/src/assets/item-materials.ts';
+import { ALL_GENERATORS, ITEM_MATERIAL_SPECS } from '../../packages/assets/src/index.ts';
 
 const out = process.argv[2] ?? '/tmp/assets-contact-sheet.png';
 const cols = 5;

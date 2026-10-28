@@ -1,4 +1,4 @@
-import type { CircuitState } from '@flat/scene';
+import type { CircuitState } from '@flat/assets';
 import { robotsAllows } from './robots';
 import { ProviderError } from './types';
 

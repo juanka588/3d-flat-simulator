@@ -1,7 +1,8 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
-import { ITEM_MATERIAL_SPECS, orbitPose } from '../packages/scene/src/index';
+import { orbitPose } from '../packages/scene/src/index';
+import { ITEM_MATERIAL_SPECS } from '../packages/assets/src/index';
 import type { Scene } from '../packages/scene/src/index';
 import type { FlatTestHook } from '../apps/web/src/test-hook-types';
 

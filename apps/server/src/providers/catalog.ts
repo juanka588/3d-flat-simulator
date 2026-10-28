@@ -1,4 +1,4 @@
-import type { ProviderCapabilities } from '@flat/scene';
+import type { ProviderCapabilities } from '@flat/assets';
 
 /**
  * Static facts about the providers this server knows. Kept free of provider code, so `GET /api/providers`

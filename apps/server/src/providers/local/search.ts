@@ -1,4 +1,5 @@
-import type { ProductCategory, ProductRecord } from '@flat/scene';
+import type { ProductCategory } from '@flat/scene';
+import type { ProductRecord } from '@flat/assets';
 import type { LocalEntry } from './schema';
 
 /**

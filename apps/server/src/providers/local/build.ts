@@ -1,6 +1,6 @@
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { LOCAL_STALE_DAYS, ProductRecord } from '@flat/scene';
+import { LOCAL_STALE_DAYS, ProductRecord } from '@flat/assets';
 import sharp from 'sharp';
 import { categoryOf } from '../category';
 import { availabilityOf, fetchProductPage, fetchSearchHits, parseProductPage, safePageUrl, type IkeaHit } from '../ikea-fr';

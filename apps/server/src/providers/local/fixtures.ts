@@ -2,7 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { Document } from '@gltf-transform/core';
 import { draco } from '@gltf-transform/functions';
-import { ProductRecord } from '@flat/scene';
+import { ProductRecord } from '@flat/assets';
 import sharp from 'sharp';
 import { getIO } from './normalise';
 import { LocalEntry, emptyCatalog, type LocalCatalogFile } from './schema';

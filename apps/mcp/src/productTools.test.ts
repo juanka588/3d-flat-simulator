@@ -1,4 +1,5 @@
-import { diffScenes, ProductRecord, type Scene } from '@flat/scene';
+import { diffScenes, type Scene } from '@flat/scene';
+import { ProductRecord } from '@flat/assets';
 import { describe, expect, it } from 'vitest';
 import { cc0Assets } from './assetCatalog';
 import { MockFlatApi, mockProductRecords } from './testing/mockFlatApi';

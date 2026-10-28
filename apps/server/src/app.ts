@@ -6,17 +6,19 @@ import { bodyLimit } from 'hono/body-limit';
 import { cors } from 'hono/cors';
 import {
   MAX_SCENE_BYTES,
-  MarkSeenBody,
   PostCheckpointBody,
   PostViewBody,
   ProductId,
-  ProductSearchParams,
   UndoToBody,
   loadSceneText,
-  summarizeProduct,
   type ErrorResponse,
   type ProviderErrorCode,
 } from '@flat/scene';
+import {
+  MarkSeenBody,
+  ProductSearchParams,
+  summarizeProduct,
+} from '@flat/assets';
 import type { ServerConfig } from './config';
 import { localModelId, readLocalCatalog, readLocalModel } from './local-assets';
 import { createDisabledRegistry } from './providers/registry';

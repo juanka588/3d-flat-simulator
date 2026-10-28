@@ -1,4 +1,4 @@
-import { ProductRecord } from '@flat/scene';
+import { ProductRecord } from '@flat/assets';
 import { describe, expect, it } from 'vitest';
 import { categoryOf, mountOf } from './category';
 import { deriveDims, parseMeasurementMap } from './ikea-dims';

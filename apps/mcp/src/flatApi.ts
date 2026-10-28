@@ -3,22 +3,24 @@ import {
   type Author,
   type CheckpointsResponse,
   type CommandEnvelope,
-  type GetProductResponse,
   type HistoryResponse,
-  type IsSeenResponse,
-  type MarkSeenResponse,
   type PostCheckpointBody,
   type PostCheckpointResponse,
   type PostCommandResponse,
   type PostViewBody,
   type PostViewResponse,
-  type ProductSearchParamsInput,
-  type ProductSearchResponse,
-  type ProvidersResponse,
   type SceneResponse,
   type UndoToBody,
   type UndoToResponse,
 } from '@flat/scene';
+import {
+  type GetProductResponse,
+  type IsSeenResponse,
+  type MarkSeenResponse,
+  type ProductSearchParamsInput,
+  type ProductSearchResponse,
+  type ProvidersResponse,
+} from '@flat/assets';
 import type { McpConfig } from './config';
 import { ulid } from './ulid';
 

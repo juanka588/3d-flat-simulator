@@ -1,4 +1,5 @@
-import { PROVIDER_ERROR_HINTS, ProductRecord, ProviderInfo } from '@flat/scene';
+import { PROVIDER_ERROR_HINTS } from '@flat/scene';
+import { ProductRecord, ProviderInfo } from '@flat/assets';
 import { describe, expect, it } from 'vitest';
 import { MOCK_PROVIDER_ID, createMockProvider, mockProducts } from './mock';
 import { ProviderError, type ProviderContext } from './types';

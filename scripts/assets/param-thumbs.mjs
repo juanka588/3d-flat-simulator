@@ -8,8 +8,7 @@ import sharp from 'sharp';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ALL_GENERATORS } from '../../packages/scene/src/assets/generators/index.ts';
-import { ITEM_MATERIAL_SPECS } from '../../packages/scene/src/assets/item-materials.ts';
+import { ALL_GENERATORS, ITEM_MATERIAL_SPECS } from '../../packages/assets/src/index.ts';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const outDir = resolve(process.argv[2] ?? join(root, 'apps/web/public/models/thumbs'));

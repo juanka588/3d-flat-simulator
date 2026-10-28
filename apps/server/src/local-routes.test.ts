@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { GetProductResponse, ProductSearchResponse, ProvidersResponse } from '@flat/scene';
+import { GetProductResponse, ProductSearchResponse, ProvidersResponse } from '@flat/assets';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from './app';
 import { loadConfig } from './config';

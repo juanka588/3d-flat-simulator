@@ -1,6 +1,6 @@
 import { lstat, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { MeshAsset } from '@flat/scene';
+import { MeshAsset } from '@flat/assets';
 
 /**
  * The local 3D-FUTURE pack (`pnpm models:local`): `catalog.json` plus `<model_id>.glb` in a gitignored folder

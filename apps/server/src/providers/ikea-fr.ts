@@ -1,4 +1,4 @@
-import { ProductRecord, type ProductVariant } from '@flat/scene';
+import { ProductRecord, type ProductVariant } from '@flat/assets';
 import { IKEA_FR_META } from './catalog';
 import { readTextCapped } from './http';
 import { categoryOf, fold, mountOf } from './category';

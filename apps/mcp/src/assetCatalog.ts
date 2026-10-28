@@ -1,4 +1,4 @@
-import { MeshAsset } from '@flat/scene';
+import { MeshAsset } from '@flat/assets';
 import catalogJson from '../../web/public/models/catalog.json';
 import hdCatalogJson from '../../web/public/models-hd/catalog.json';
 

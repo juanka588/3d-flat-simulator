@@ -1,4 +1,4 @@
-import { ProductRecord } from '@flat/scene';
+import { ProductRecord } from '@flat/assets';
 import { describe, expect, it } from 'vitest';
 import { PASTED_URL_META } from './catalog';
 import { BLOCKED_MESSAGE, createPastedUrlProvider, quantityToMetres, urlHash, validatePastedUrl } from './pasted-url';

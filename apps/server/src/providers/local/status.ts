@@ -1,4 +1,4 @@
-import { LOCAL_STALE_DAYS } from '@flat/scene';
+import { LOCAL_STALE_DAYS } from '@flat/assets';
 import { loadCatalogFile } from './build';
 
 const DAY = 86_400_000;

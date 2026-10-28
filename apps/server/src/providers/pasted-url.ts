@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { ProductRecord } from '@flat/scene';
+import { ProductRecord } from '@flat/assets';
 import { PASTED_URL_META } from './catalog';
 import { categoryOf, mountOf } from './category';
 import { readTextCapped } from './http';

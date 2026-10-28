@@ -10,6 +10,7 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@flat/assets": "workspace:*",
     "@flat/scene": "workspace:*",
     "@flat/site": "workspace:*",
     "@react-three/drei": "^10.7.9",

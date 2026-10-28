@@ -1,12 +1,14 @@
 import {
   formatProductId,
   parseProductId,
+  type ProviderErrorCode,
+} from '@flat/scene';
+import {
   productIdOf,
   type ProductRecord,
   type ProductSource,
-  type ProviderErrorCode,
   type ProviderInfo,
-} from '@flat/scene';
+} from '@flat/assets';
 import { MemoryCache, TTL_MODEL_MS, TTL_PRODUCT_MS, TTL_SEARCH_MS } from './cache';
 import { IKEA_FR_LOCAL_META, PROVIDER_CATALOG, type ProviderMeta } from './catalog';
 import { createNetwork, readBytesCapped, type NetworkOptions, type ProviderNetwork } from './http';

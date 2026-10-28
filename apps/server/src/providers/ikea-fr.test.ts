@@ -1,4 +1,4 @@
-import { ProductRecord } from '@flat/scene';
+import { ProductRecord } from '@flat/assets';
 import { describe, expect, it } from 'vitest';
 import { IKEA_FR_META } from './catalog';
 import { categoryOf } from './category';

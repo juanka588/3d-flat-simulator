@@ -1,4 +1,5 @@
-import { IsoDateTime, ProductRecord } from '@flat/scene';
+import { IsoDateTime } from '@flat/scene';
+import { ProductRecord } from '@flat/assets';
 import { z } from 'zod';
 
 /**

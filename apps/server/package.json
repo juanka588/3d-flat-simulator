@@ -11,6 +11,7 @@
     "catalog:status": "tsx src/providers/local/cli.ts status"
   },
   "dependencies": {
+    "@flat/assets": "workspace:*",
     "@flat/scene": "workspace:*",
     "@hono/node-server": "^1.19.0",
     "hono": "^4.9.0",

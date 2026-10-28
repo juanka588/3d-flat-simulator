@@ -1,4 +1,5 @@
-import type { CircuitState, LocalCatalogInfo, ProductRecord, ProductSource, ProviderCapabilities, ProviderErrorCode, ProviderInfo } from '@flat/scene';
+import type { ProviderErrorCode } from '@flat/scene';
+import type { CircuitState, LocalCatalogInfo, ProductRecord, ProductSource, ProviderCapabilities, ProviderInfo } from '@flat/assets';
 import { PROVIDER_ERROR_HINTS } from '@flat/scene';
 
 /**

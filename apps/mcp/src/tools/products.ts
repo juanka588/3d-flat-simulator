@@ -1,4 +1,5 @@
-import { GENERATORS, PRODUCT_CATEGORIES, ProductCategory, ProductId, type ProductRecord, type ProductSummary } from '@flat/scene';
+import { GENERATORS, PRODUCT_CATEGORIES, ProductCategory, ProductId } from '@flat/scene';
+import { type ProductRecord, type ProductSummary } from '@flat/assets';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import { cc0Assets } from '../assetCatalog';

@@ -1,4 +1,4 @@
-import { ProductRecord } from '@flat/scene';
+import { ProductRecord } from '@flat/assets';
 import { describe, expect, it } from 'vitest';
 import { connect, json } from './testing/inproc';
 import { MockFlatApi, mockProductRecords } from './testing/mockFlatApi';

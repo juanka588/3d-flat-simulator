@@ -1,4 +1,4 @@
-import { ProductRecord, productSnapshot } from '@flat/scene';
+import { ProductRecord, productSnapshot } from '@flat/assets';
 import { describe, expect, it } from 'vitest';
 import { parseProductPage } from './ikea-fr';
 import { htmlToText, parseLumens } from './lumens';

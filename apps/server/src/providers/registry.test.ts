@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { ProviderInfo, type ProductRecord } from '@flat/scene';
+import { ProviderInfo, type ProductRecord } from '@flat/assets';
 import { describe, expect, it } from 'vitest';
 import { PROVIDER_CATALOG } from './catalog';
 import { createIkeaFrProvider } from './ikea-fr';
