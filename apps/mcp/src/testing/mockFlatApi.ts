@@ -98,6 +98,10 @@ export class MockFlatApi implements FlatApi {
   providers: ProviderInfo[];
   /** Per MCP session: ids returned by searches (or marked with `markProductsSeen`). */
   readonly seenProducts = new Map<string, Set<string>>();
+  /** Every `searchProducts` call's params (tests check what the tool passed on). */
+  readonly searches: ProductSearchParamsInput[] = [];
+  /** SKUs reported as served by the local catalogue (`source: 'local'`); the others are `live`. */
+  readonly localSkus = new Set<string>();
 
   constructor(options: MockOptions = {}) {
     this.scene = options.scene ?? charmeScene();
@@ -285,8 +289,9 @@ export class MockFlatApi implements FlatApi {
     if (params.provider !== undefined && !this.providers.some((p) => p.id === params.provider)) {
       return this.http(404, 'unknown_provider', `no provider "${params.provider}"`, 'provider');
     }
+    this.searches.push(params);
     const { matches, truncated } = matchProducts(this.products, params);
-    return { ok: true, data: { results: matches.map(summarizeProduct), providers: [{ provider: 'mock', ok: true }], truncated } };
+    return { ok: true, data: { results: matches.map((m) => summarizeProduct(m, this.localSkus.has(m.sku) ? { source: 'local' as const } : { source: 'live' as const })), providers: [{ provider: 'mock', ok: true }], truncated } };
   }
 
   async getProduct(productId: string): Promise<FlatResult<GetProductResponse>> {

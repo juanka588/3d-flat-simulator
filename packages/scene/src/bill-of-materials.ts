@@ -26,7 +26,7 @@ export function isExistingFurniture(item: Pick<Item, 'locked' | 'product' | 'pro
 }
 
 /** A price snapshot older than this many days is reported as stale. */
-export const STALE_PRICE_DAYS = 7;
+export const STALE_PRICE_DAYS = 30;
 
 export interface BomLine {
   itemId: string;

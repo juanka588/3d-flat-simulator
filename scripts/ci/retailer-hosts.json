@@ -1,5 +1,5 @@
 {
-  "$comment": "D4 local-only guards (M5). Data for scripts/ci/check-no-retailer.mjs (story M5.15). The check fails when any of these hosts appears in the Pages build output (apps/web/dist) or in a git-tracked file outside allowPaths, when a tracked file matches denyFiles, or when a tracked file is under denyDirs. Hosts match case-insensitively as a hostname suffix (www.ikea.com matches ikea.com) and as a plain substring of text files. Retailer data and models are streamed through the local server only, never committed or served from Pages.",
+  "$comment": "D4 local-only guards (M5). Data for scripts/ci/check-no-retailer.mjs (story M5.15). The check fails when any of these hosts appears in the Pages build output (apps/web/dist) or in a git-tracked file outside allowPaths, when a tracked file matches denyFiles, or when a tracked file is under denyDirs. Hosts match case-insensitively as a hostname suffix (www.ikea.com matches ikea.com) and as a plain substring of text files. Retailer data and models are streamed through the local server only (or read from the gitignored local catalogue under apps/server/local-assets, built by pnpm catalog:build), never committed or served from Pages. denyDirs also apply to the built dist; denyContent is a marker string (the local catalogue file format) that must appear in no dist file and no tracked file outside allowPaths.",
   "version": 1,
   "hosts": [
     "ikea.com",
@@ -60,6 +60,11 @@
     "models/local",
     "3d-future",
     "3D-FUTURE",
-    "apps/server/data"
+    "apps/server/data",
+    "apps/server/local-assets",
+    "local-assets"
+  ],
+  "denyContent": [
+    "flat-local-catalog"
   ]
 }

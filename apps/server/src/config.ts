@@ -11,6 +11,8 @@ export interface ServerConfig {
   materialsFile: string;
   /** The local 3D-FUTURE pack served at `/api/assets/meshes/*` (gitignored; `pnpm models:local`). */
   localAssetsDir: string;
+  /** The local product catalogue built by `pnpm catalog:build` (gitignored, personal use): searched before any live provider. `FLAT_LOCAL_CATALOG=off` ignores it. */
+  localCatalogDir: string | null;
   allowedOrigins: string[];
   /** Extra `Host` names accepted besides loopback (needed for `HOST=0.0.0.0` LAN mode). */
   allowedHosts: string[];
@@ -45,6 +47,8 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     sceneFile: env.SCENE_FILE || here('../../../packages/scene/fixtures/charme-3205.flat.json'),
     materialsFile: env.MATERIALS_FILE || here('../../web/public/materials/catalog.json'),
     localAssetsDir: env.LOCAL_ASSETS_DIR || here('../local-assets/3d-future'),
+    // Unit tests never pick up the catalogue you built (they would see your products); pass LOCAL_CATALOG_DIR to test with one.
+    localCatalogDir: /^(off|0|false|none)$/i.test(env.FLAT_LOCAL_CATALOG ?? '') || (process.env.VITEST && !env.LOCAL_CATALOG_DIR) ? null : env.LOCAL_CATALOG_DIR || here('../local-assets/ikea-fr'),
     allowedOrigins: (env.ALLOWED_ORIGINS ?? DEFAULT_ORIGINS.join(','))
       .split(',')
       .map((s) => s.trim())

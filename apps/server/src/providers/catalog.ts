@@ -29,6 +29,18 @@ export const IKEA_FR_META: ProviderMeta = {
   note: 'Personal use only: IKEA data and 3D models are shown privately on this machine, never shared or committed. Unofficial endpoints, may break.',
 };
 
+/**
+ * The local tier: the catalogue built by `pnpm catalog:build` (not a provider module, nothing to load). It serves search, get,
+ * model and photo for `ikea-fr:<sku>` products from disk; listed by `GET /api/providers` only when a catalogue is loaded.
+ */
+export const IKEA_FR_LOCAL_META: ProviderMeta = {
+  id: 'ikea-fr-local',
+  label: 'IKEA local catalogue',
+  capabilities: { search: true, model3d: true, dims: 'structured', resolveUrl: false },
+  personalUseOnly: true,
+  note: 'Personal use only: a catalogue you built on this machine from IKEA FR pages (instant, offline, checked 3D models). Never shared or committed.',
+};
+
 export const PASTED_URL_META: ProviderMeta = {
   id: 'pasted-url',
   label: 'Pasted product URL',

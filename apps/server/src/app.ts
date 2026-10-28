@@ -289,7 +289,10 @@ export function createApp(store: SceneStore, config: ServerConfig, providers: Pr
     );
   };
 
-  app.get('/api/providers', (c) => c.json({ providers: providers.info() }));
+  app.get('/api/providers', async (c) => {
+    const local = providers.localInfo?.();
+    return c.json({ providers: providers.info(), ...(local ? { localCatalog: local } : {}) });
+  });
 
   app.get('/api/products/search', async (c) => {
     const parsed = ProductSearchParams.safeParse(c.req.query());
@@ -303,10 +306,15 @@ export function createApp(store: SceneStore, config: ServerConfig, providers: Pr
         ...(q.category !== undefined ? { category: q.category } : {}),
         ...(q.minPrice !== undefined ? { minPrice: q.minPrice } : {}),
         ...(q.maxPrice !== undefined ? { maxPrice: q.maxPrice } : {}),
+        ...(q.live !== undefined ? { live: q.live } : {}),
         ...(Object.keys(maxDims).length > 0 ? { maxDims } : {}),
       });
       return c.json({
-        results: r.records.map(summarizeProduct),
+        results: r.records.map((rec) => {
+          const id = `${rec.provider}:${rec.sku}`;
+          const source = r.sources?.get(id);
+          return summarizeProduct(rec, { ...(source ? { source } : {}), stale: r.stale?.has(id) ?? false });
+        }),
         providers: r.statuses.map((s) => ({ provider: s.provider, ok: s.ok, ...(s.code ? { code: s.code } : {}), ...(s.message ? { message: s.message } : {}) })),
         truncated: r.truncated,
       });
@@ -344,7 +352,10 @@ export function createApp(store: SceneStore, config: ServerConfig, providers: Pr
 
   app.get('/api/products/:id', async (c) => {
     try {
-      return c.json({ product: await providers.getProduct(c.req.param('id')) });
+      const id = c.req.param('id');
+      const product = await providers.getProduct(id);
+      const where = providers.productSource?.(id);
+      return c.json({ product, ...(where ? { source: where.source, ...(where.stale ? { stale: true as const } : {}) } : {}) });
     } catch (e) {
       return providerFailure(c, e);
     }

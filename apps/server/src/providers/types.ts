@@ -1,4 +1,4 @@
-import type { CircuitState, ProductRecord, ProviderCapabilities, ProviderErrorCode, ProviderInfo } from '@flat/scene';
+import type { CircuitState, LocalCatalogInfo, ProductRecord, ProductSource, ProviderCapabilities, ProviderErrorCode, ProviderInfo } from '@flat/scene';
 import { PROVIDER_ERROR_HINTS } from '@flat/scene';
 
 /**
@@ -117,6 +117,30 @@ export class ProviderError extends Error {
   }
 }
 
+/** A model read from the local catalogue: the bytes, or the reason the catalogue deliberately has none (never a 404 at run time). */
+export type ModelBytes = { state: 'ready'; bytes: Uint8Array } | { state: 'none'; reason: string };
+
+/**
+ * The local product catalogue (`providers/local/`), built offline by `pnpm catalog:build` and served instantly: no network, no
+ * politeness wait. Records keep their provider id (`ikea-fr:<sku>`), so scenes and the seen registry work unchanged.
+ */
+export interface LocalCatalogSource {
+  /** Provider id of the local tier, `ikea-fr-local`. */
+  readonly id: string;
+  /** Reloads `catalog.json` when the build rewrote it (cheap; at most once per second). */
+  refresh(): Promise<void>;
+  /** Undefined when there is no (valid) catalogue. */
+  info(): LocalCatalogInfo | undefined;
+  /** Ranked records for a text query (French or English words), filters applied. */
+  search(query: string, opts: SearchOptions): ProductRecord[];
+  get(sku: string): ProductRecord | undefined;
+  /** The record is older than `LOCAL_STALE_DAYS`. */
+  isStale(sku: string): boolean;
+  /** `undefined` = unknown sku. */
+  readModel(sku: string): Promise<ModelBytes | undefined>;
+  readPhoto(sku: string): Promise<Uint8Array | undefined>;
+}
+
 /** Live state of one registered provider. */
 export interface ProviderState {
   provider: ProductProvider;
@@ -138,7 +162,14 @@ export interface ProviderRegistry {
   /** The provider, or undefined when unknown. Does not check `enabled`. */
   get(id: string): ProductProvider | undefined;
   /** Search one provider (`providerId`) or every enabled one; a failing provider is reported, not thrown. */
-  search(query: string, opts: SearchOptions & { providerId?: string }): Promise<{ records: ProductRecord[]; statuses: { provider: string; ok: boolean; code?: ProviderErrorCode; message?: string }[]; truncated: boolean }>;
+  search(
+    query: string,
+    opts: SearchOptions & { providerId?: string; live?: boolean },
+  ): Promise<{ records: ProductRecord[]; statuses: { provider: string; ok: boolean; code?: ProviderErrorCode; message?: string }[]; truncated: boolean; sources?: ReadonlyMap<string, ProductSource>; stale?: ReadonlySet<string> }>;
+  /** The local catalogue's summary, when one is loaded. */
+  localInfo?(): LocalCatalogInfo | undefined;
+  /** Where `getProduct(id)` reads from (`local` = the catalogue, `live` = the shop), and whether a local record is stale. */
+  productSource?(productId: string): { source: ProductSource; stale: boolean };
   /** `"provider:sku"` -> record (cached). Throws `unknown_provider`, `provider_disabled`, `product_not_found`, ... */
   getProduct(productId: string): Promise<ProductRecord>;
   /** Pasted URL -> record, through the first enabled provider that `resolveUrl`s it. */

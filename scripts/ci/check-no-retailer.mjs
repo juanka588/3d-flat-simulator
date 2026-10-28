@@ -4,6 +4,8 @@
 //  2. no .glb / .gltf / .usdz in dist outside the committed model library (dist/models and the lazy HD tier dist/models-hd, each listed in its catalog.json),
 //     and no file of ANY name (.bin, .dat, no extension...) that is a glTF by content: binary `glTF` magic, or JSON with
 //     asset.version; no .env* file; `.wasm` modules are scanned for hosts too;
+//     The gitignored local product catalogue (apps/server/local-assets/..., `pnpm catalog:build`) must not be in dist either: no path under a
+//     `denyDirs` folder and no text file carrying a `denyContent` marker.
 //  3. `git ls-files` holds no model file outside apps/web/public/models and models-hd, no .env / .envrc file (except .env.example), nothing
 //     under the 3D-FUTURE folders, and no deny-list host outside `allowPaths`.
 // Flags: --dist <dir>, --worktree (also scan untracked, non-ignored files: for local runs before committing).
@@ -103,12 +105,19 @@ export function scanDist(dist, cfg) {
   for (const rel of walk(dist)) {
     const ext = extname(rel).toLowerCase();
     const base = rel.split('/').pop();
+    const segs = rel.split('/');
+    for (const d of cfg.denyDirs ?? []) {
+      const parts = d.split('/');
+      if (segs.some((_, i) => parts.every((p, k) => segs[i + k] === p))) { problems.push(`${rel}: inside forbidden folder ${d} (local-only data in the build)`); break; }
+    }
     if (/^\.env/i.test(base) && base !== '.env.example') problems.push(`${rel}: environment file in the build`);
     if (MODEL_EXT.test(rel) && !listed.has(rel)) problems.push(`${rel}: model file in the build that is not in the models catalog`);
     const buf = readFileSync(join(dist, rel));
     if (!MODEL_EXT.test(rel) && isGltfContent(buf)) problems.push(`${rel}: glTF content under a non-model name (not in the models catalog)`);
     if (TEXT_EXT.has(ext)) {
-      for (const h of findHosts(buf.toString('utf8'), cfg.hosts)) problems.push(`${rel}: mentions retailer host ${h}`);
+      const text = buf.toString('utf8');
+      for (const h of findHosts(text, cfg.hosts)) problems.push(`${rel}: mentions retailer host ${h}`);
+      for (const m of cfg.denyContent ?? []) if (text.includes(m)) problems.push(`${rel}: carries the local-only marker "${m}"`);
     } else if (BINARY_SCAN_EXT.has(ext)) {
       for (const h of findHosts(buf.toString('latin1'), cfg.hosts)) problems.push(`${rel}: mentions retailer host ${h}`);
     }
@@ -139,6 +148,7 @@ export function scanTracked(files, cfg, read) {
     const text = read(f);
     if (text === undefined) continue;
     for (const h of findHosts(text, cfg.hosts)) problems.push(`${f}: mentions retailer host ${h}`);
+    for (const m of cfg.denyContent ?? []) if (text.includes(m)) problems.push(`${f}: carries the local-only marker "${m}"`);
   }
   return problems;
 }

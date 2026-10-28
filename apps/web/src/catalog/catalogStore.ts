@@ -1,4 +1,4 @@
-import type { ProductSummary, ProviderInfo, ProviderStatus } from '@flat/scene';
+import type { LocalCatalogInfo, ProductSummary, ProviderInfo, ProviderStatus } from '@flat/scene';
 import { create } from 'zustand';
 import type { GhostVerdict } from './ghost';
 
@@ -34,7 +34,12 @@ interface CatalogStore {
   setTab: (tab: CatalogTab) => void;
   providers: ProviderInfo[];
   providersLoaded: boolean;
-  setProviders: (providers: ProviderInfo[]) => void;
+  setProviders: (providers: ProviderInfo[], localCatalog?: LocalCatalogInfo | null) => void;
+  /** The server's local product catalogue (instant, offline), when it has one. */
+  localCatalog: LocalCatalogInfo | null;
+  /** "Search IKEA live" toggle: ask the live shop even when the local catalogue has enough results. */
+  live: boolean;
+  setLive: (live: boolean) => void;
   query: string;
   setQuery: (q: string) => void;
   /** Provider chip filter; null = every enabled provider. */
@@ -59,7 +64,10 @@ export const useCatalogStore = create<CatalogStore>((set) => ({
   setTab: (tab) => set({ tab }),
   providers: [],
   providersLoaded: false,
-  setProviders: (providers) => set({ providers, providersLoaded: true }),
+  setProviders: (providers, localCatalog = null) => set({ providers, providersLoaded: true, localCatalog }),
+  localCatalog: null,
+  live: false,
+  setLive: (live) => set({ live }),
   query: '',
   setQuery: (query) => set({ query }),
   providerFilter: null,

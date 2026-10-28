@@ -19,6 +19,10 @@ blueprints/
 # scene server runtime data
 apps/server/data/
 
+# local product catalogue (pnpm catalog:build): personal-use shop data, photos and models. Also denied in scripts/ci/retailer-hosts.json.
+apps/server/local-assets/
+**/local-assets/
+
 # model pipeline caches and local-only packs (M5)
 .cache/models/
 .cache/models-staging/

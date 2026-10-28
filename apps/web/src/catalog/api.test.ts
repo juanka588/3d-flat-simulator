@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ApiError, draftFromDimsError, fetchProviders, getProduct, recordWithUserDims, resolveUrl, searchProducts, fetchProductPhoto } from './api';
+import { ApiError, draftFromDimsError, fetchProviders, fetchProvidersFull, getProduct, recordWithUserDims, resolveUrl, searchProducts, fetchProductPhoto } from './api';
 
 const ref = { origin: 'http://127.0.0.1:8787', token: 'tok' };
 const reply = (status: number, body: unknown, log: { url: string; init: RequestInit }[] = []): typeof fetch =>
@@ -16,6 +16,19 @@ describe('product api', () => {
     await searchProducts(ref, { q: 'bed', provider: 'mock' }, reply(200, { results: [], providers: [], truncated: false }, log));
     expect(log[1]!.url).toBe('http://127.0.0.1:8787/api/products/search?q=bed&limit=12&provider=mock');
     expect((log[1]!.init.headers as Record<string, string>).authorization).toBe('Bearer tok');
+  });
+  it('asks for the live shop only when the toggle is on, and reads the local catalogue summary', async () => {
+    const log: { url: string; init: RequestInit }[] = [];
+    await searchProducts(ref, { q: 'canape' }, reply(200, { results: [], providers: [], truncated: false }, log));
+    await searchProducts(ref, { q: 'canape', live: true }, reply(200, { results: [], providers: [], truncated: false }, log));
+    expect(log[0]!.url).not.toContain('live');
+    expect(log[1]!.url).toBe('http://127.0.0.1:8787/api/products/search?q=canape&limit=12&live=true');
+    const local = { id: 'ikea-fr-local', count: 321, withModels: 250, builtAt: '2026-10-27T12:00:00.000Z', stale: false };
+    const full = await fetchProvidersFull(ref, reply(200, { providers: [], localCatalog: local }));
+    expect(full.localCatalog).toEqual(local);
+    expect((await fetchProvidersFull(ref, reply(200, { providers: [] }))).localCatalog).toBeUndefined();
+    const res = await searchProducts(ref, { q: 'x' }, reply(200, { results: [{ productId: 'ikea-fr:80275887', provider: 'ikea-fr', name: 'KALLAX', price: 59.99, currency: 'EUR', priceTtc: true, dims: { w: 0.77, d: 0.39, h: 1.47 }, dimsSource: 'structured', category: 'shelf', mount: 'floor', colours: [], has3d: true, personalUseOnly: true, source: 'local', fetchedAt: '2026-10-27T10:00:00.000Z', stale: true }], providers: [], truncated: false }));
+    expect(res.results[0]).toMatchObject({ source: 'local', stale: true });
   });
   it('turns a server error into an ApiError with code, hint and details', async () => {
     const f = reply(422, { ok: false, errors: [{ code: 'product_dims_missing', message: 'no depth', hint: 'type it', details: { draft: { provider: 'pasted-url' } } }] });

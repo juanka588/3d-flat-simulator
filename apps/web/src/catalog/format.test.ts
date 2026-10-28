@@ -41,10 +41,10 @@ describe('formatting', () => {
     expect(formatDims({ w: 1.6, d: 2, h: 0.9 })).toBe('160 × 200 × 90 cm');
     expect(formatDate('2026-10-27T10:00:00Z')).toBe('27 Oct 2026');
   });
-  it('a snapshot is stale after 7 days', () => {
+  it('a snapshot is stale after 30 days', () => {
     const now = Date.parse('2026-10-28T00:00:00Z');
-    expect(isStale('2026-10-21T00:00:00Z', now)).toBe(false);
-    expect(isStale('2026-10-20T00:00:00Z', now)).toBe(true);
+    expect(isStale('2026-09-28T00:00:00Z', now)).toBe(false);
+    expect(isStale('2026-09-27T00:00:00Z', now)).toBe(true);
     expect(isStale('garbage', now)).toBe(true);
   });
   it('names items and spots built-ins', () => {

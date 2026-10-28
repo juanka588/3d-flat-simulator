@@ -1,5 +1,5 @@
 import { GetProductResponse, ProductRecord, ProductSearchResponse, ProvidersResponse } from '@flat/scene';
-import type { ProviderInfo } from '@flat/scene';
+import type { LocalCatalogInfo, ProviderInfo } from '@flat/scene';
 import { serverToken } from '../sync/client';
 import { useSyncStore } from '../sync/sync-store';
 
@@ -53,18 +53,27 @@ async function call(ref: ServerRef, method: 'GET' | 'POST', path: string, body?:
 }
 
 export async function fetchProviders(ref: ServerRef, f?: Fetch): Promise<ProviderInfo[]> {
-  return ProvidersResponse.parse(await call(ref, 'GET', '/api/providers', undefined, f)).providers;
+  return (await fetchProvidersFull(ref, f)).providers;
+}
+
+/** The provider list plus the local catalogue's summary (`localCatalog`, when the server loaded one). */
+export async function fetchProvidersFull(ref: ServerRef, f?: Fetch): Promise<{ providers: ProviderInfo[]; localCatalog?: LocalCatalogInfo }> {
+  const r = ProvidersResponse.parse(await call(ref, 'GET', '/api/providers', undefined, f));
+  return { providers: r.providers, ...(r.localCatalog ? { localCatalog: r.localCatalog } : {}) };
 }
 
 export interface SearchQuery {
   q: string;
   provider?: string;
   limit?: number;
+  /** Also ask the live shop (slow) although the local catalogue may have enough results. */
+  live?: boolean;
 }
 
 export async function searchProducts(ref: ServerRef, query: SearchQuery, f?: Fetch): Promise<ProductSearchResponse> {
   const p = new URLSearchParams({ q: query.q, limit: String(query.limit ?? 12) });
   if (query.provider) p.set('provider', query.provider);
+  if (query.live) p.set('live', 'true');
   return ProductSearchResponse.parse(await call(ref, 'GET', `/api/products/search?${p}`, undefined, f));
 }
 
