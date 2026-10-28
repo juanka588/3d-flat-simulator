@@ -92,7 +92,7 @@ function viewportReady(): boolean {
 
 function reflectsStores(): boolean {
   const { scene, rev } = useSceneStore.getState();
-  const { mode, selection, lighting, walkLightsOn, translucentDoors, buildingMode, camera } = useViewStore.getState();
+  const { mode, selection, lighting, walkLightsOn, translucentDoors, buildingMode, camera, showPerson, person } = useViewStore.getState();
   return (
     renderedFrame !== null &&
     (camera === undefined || renderedFrame.pose === camera) &&
@@ -101,6 +101,8 @@ function reflectsStores(): boolean {
     renderedFrame.view.mode === mode &&
     renderedFrame.view.translucentDoors === translucentDoors &&
     renderedFrame.view.buildingMode === buildingMode &&
+    renderedFrame.view.showPerson === showPerson &&
+    renderedFrame.view.person === person &&
     renderedFrame.view.selection === selection &&
     renderedFrame.view.lighting === effectiveLighting(lighting, mode, walkLightsOn, scene?.lights)
   );
@@ -255,6 +257,12 @@ function cameraYawDeg(camera: Camera): number {
   return (Math.atan2(-heading.x, -heading.z) * 180) / Math.PI;
 }
 
+/** Degrees above (+) or below (-) the horizon the camera looks. */
+function cameraPitchDeg(camera: Camera): number {
+  camera.getWorldDirection(heading);
+  return (Math.asin(Math.max(-1, Math.min(1, heading.y))) * 180) / Math.PI;
+}
+
 async function stepAndRender(kind: 'undo' | 'redo'): Promise<{ ok: boolean; canUndo: boolean; canRedo: boolean }> {
   const transport = getTransport();
   // Server mode: the step is a server call; wait until its `applied` entry is shown.
@@ -301,6 +309,30 @@ export function installTestHook(): void {
         }
       });
       return out;
+    },
+    personGhost() {
+      const root = canvas?.().scene;
+      if (!root) return null;
+      let found: Mesh | null = null;
+      root.traverse((o) => {
+        if (o.name === 'person-ghost' && (o as Mesh).isMesh) found = o as Mesh;
+      });
+      const mesh = found as Mesh | null;
+      if (!mesh) return null;
+      mesh.updateWorldMatrix(true, false);
+      const box = new Box3().setFromObject(mesh);
+      const group = mesh.parent!;
+      const material = mesh.material as { opacity: number };
+      return {
+        heightM: box.max.y - box.min.y,
+        x: group.position.x,
+        z: group.position.z,
+        yawDeg: (group.rotation.y * 180) / Math.PI - 180,
+        castShadow: mesh.castShadow,
+        receiveShadow: mesh.receiveShadow,
+        opacity: material.opacity,
+        source: mesh.userData['source'] === 'glb' ? 'glb' : 'parametric',
+      };
     },
     hostBuilding() {
       const out: ReturnType<FlatTestHook['hostBuilding']> = [];
@@ -349,6 +381,7 @@ export function installTestHook(): void {
         sceneName: useSceneStore.getState().scene?.name ?? '',
         camera: [camera.position.x, camera.position.y, camera.position.z],
         yawDeg: cameraYawDeg(camera),
+        pitchDeg: cameraPitchDeg(camera),
         headingDeg: yawToHeadingDeg(cameraYawDeg(camera)),
         pose: useViewStore.getState().camera ?? null,
         canvasSize: [gl.domElement.width, gl.domElement.height],
@@ -446,6 +479,7 @@ export function installTestHook(): void {
     async setComfort(partial) {
       await canvasReady;
       if (partial.translucentDoors !== undefined) useViewStore.getState().setTranslucentDoors(partial.translucentDoors);
+      if (partial.showPerson !== undefined) useViewStore.getState().setShowPerson(partial.showPerson);
       if (partial.buildingMode !== undefined) useViewStore.getState().setBuildingMode(partial.buildingMode);
       await whenRendered();
     },

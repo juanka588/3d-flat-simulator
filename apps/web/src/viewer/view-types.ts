@@ -1,3 +1,4 @@
+import type { PersonPlacement } from './walk-start';
 import type { CameraPose, LightingView, OwnerKind, WallFace } from '@flat/scene';
 
 export type ViewMode = 'orbit' | 'top' | 'walk';
@@ -39,4 +40,8 @@ export interface ViewState {
   translucentDoors?: boolean;
   /** Host-building envelope in orbit view (default `ghost`). */
   buildingMode?: BuildingMode;
+  /** Draw the translucent person (at the person height) in orbit and top views. Off unless `true` (renders for the assistant stay clean). */
+  showPerson?: boolean;
+  /** Where the person stands (the last walk pose, or where the user dragged the ghost); null = the default walk start. */
+  person?: PersonPlacement | null;
 }

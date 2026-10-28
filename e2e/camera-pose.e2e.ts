@@ -210,9 +210,9 @@ test.describe('camera pose', () => {
 
     await setCamera(page, WALK);
     await page.evaluate(() => window.__flat!.setClock('manual'));
-    await page.keyboard.down('KeyW');
+    await page.keyboard.down('ArrowUp');
     await page.evaluate(() => window.__flat!.stepWalk(500));
-    await page.keyboard.up('KeyW');
+    await page.keyboard.up('ArrowUp');
     const walked = await stats(page);
     expect(walked.pose).toBeNull();
     expect(walked.mode).toBe('walk');

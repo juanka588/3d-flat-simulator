@@ -5,9 +5,10 @@
  * - Eye height. The eyes sit about 11 cm below the top of the head, so a 166 cm person looks from
  *   1.55 m (the old fixed 1.60 m suited a 171 cm person). The height is a user setting.
  * - Field of view. The old 70 degree vertical fov on a 16:10 window is a ~100 degree horizontal fov:
- *   a fisheye look that makes rooms and furniture seem far away and small. 50 degrees vertical is
- *   close to a normal lens (~78 degrees horizontal at 16:10) and objects keep the size the eye expects.
- *   A portrait phone is the opposite problem: 50 degrees vertical would be only ~25 degrees across,
+ *   a fisheye look that makes rooms and furniture seem far away and small. 50 degrees was then found a little
+ *   tight indoors (the corner of a room did not fit); 60 degrees vertical (~85 degrees horizontal at 16:10) is the
+ *   natural compromise: a room reads at human scale and walls do not feel claustrophobic.
+ *   A portrait phone is the opposite problem: 60 degrees vertical would be only ~30 degrees across,
  *   a keyhole. There the fov is derived from a target horizontal fov of 75 degrees instead, and the
  *   resulting vertical fov is capped so the image does not stretch too much at the edges.
  */
@@ -18,7 +19,7 @@ export const MAX_PERSON_HEIGHT_CM = 210;
 export const EYE_BELOW_HEAD_M = 0.11;
 
 /** Vertical fov on landscape (aspect >= 1) screens, degrees. */
-export const LANDSCAPE_VERTICAL_FOV_DEG = 50;
+export const LANDSCAPE_VERTICAL_FOV_DEG = 60;
 /** Target horizontal fov on portrait (aspect < 1) screens, degrees. */
 export const PORTRAIT_HORIZONTAL_FOV_DEG = 75;
 /** Upper bound of the vertical fov on very tall screens, degrees. */

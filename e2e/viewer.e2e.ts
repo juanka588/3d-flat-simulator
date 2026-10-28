@@ -127,9 +127,9 @@ test('walking into a wall stops at the wall and stays inside the room', async ({
   const sejour = charmeFlat.rooms.find((r) => r.id === 'sejour')!;
   await startWalk(page, { x: 2, z: 7.3, yawDeg: 180 });
 
-  await page.keyboard.down('KeyW');
+  await page.keyboard.down('ArrowUp');
   await stepWalk(page, 3000); // 4.2 m of walking: far more than the 0.7 m to the wall
-  await page.keyboard.up('KeyW');
+  await page.keyboard.up('ArrowUp');
   await stepWalk(page, 500);
 
   const [x, z] = await cameraXZ(page);
@@ -145,15 +145,15 @@ test('walk keys are ignored while a form control has focus', async ({ page }) =>
   await startWalk(page, { x: 2, z: 7.3, yawDeg: 180 });
   const before = (await flat(page, (f) => f.stats())).camera;
   await page.getByLabel('Flat', { exact: true }).focus();
-  await page.keyboard.down('KeyW');
+  await page.keyboard.down('ArrowUp');
   await stepWalk(page, 700);
-  await page.keyboard.up('KeyW');
+  await page.keyboard.up('ArrowUp');
   expect((await flat(page, (f) => f.stats())).camera).toEqual(before);
   // Control: with focus back on the page the same key does move the camera.
   await page.evaluate(() => (document.activeElement as HTMLElement).blur());
-  await page.keyboard.down('KeyW');
+  await page.keyboard.down('ArrowUp');
   await stepWalk(page, 200);
-  await page.keyboard.up('KeyW');
+  await page.keyboard.up('ArrowUp');
   expect((await cameraXZ(page))[1]).toBeGreaterThan(before[2] + 0.1);
 });
 
@@ -206,15 +206,16 @@ test.describe('walk controls overlay', () => {
     await expect(overlay).toHaveCount(0);
     await page.evaluate(() => window.__flat!.setView({ mode: 'walk' }));
     await expect(overlay).toBeVisible();
-    await expect(overlay).toContainText('arrow keys or WASD (ZQSD on AZERTY)');
-    await expect(overlay).toContainText('drag or click');
+    await expect(overlay).toContainText('arrow keys (left stick)');
+    await expect(overlay.getByTestId('walk-help-look')).toContainText(/WASD|ZQSD/);
+    await expect(overlay).toContainText('drag the view');
     await expect(overlay).toContainText('Shift');
     await expect(overlay).toContainText('Esc');
     for (const name of ['Move forward', 'Move backward', 'Move left', 'Move right', 'Turn left', 'Turn right']) {
       await expect(overlay.getByRole('button', { name })).toBeVisible();
     }
     // The sidebar hint stays.
-    await expect(page.locator('.hint', { hasText: 'WASD' })).toContainText('WASD or arrows to move');
+    await expect(page.locator('.hint', { hasText: 'AZERTY' })).toContainText('arrows to move');
     await page.evaluate(() => window.__flat!.setView({ mode: 'top' }));
     await expect(overlay).toHaveCount(0);
     await page.evaluate(() => window.__flat!.setView({ mode: 'orbit' }));

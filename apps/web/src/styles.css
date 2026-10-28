@@ -1482,3 +1482,41 @@ legend {
     animation-duration: 3s;
   }
 }
+
+/* ---- Camera keys help (orbit / top) ---- */
+.cam-help {
+  position: absolute;
+  left: 0.75rem;
+  bottom: 0.75rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.5rem 0.7rem;
+  background: rgb(20 22 28 / 0.72);
+  color: #fff;
+  border-radius: 10px;
+  font-size: 0.8rem;
+  z-index: 5;
+}
+.cam-help ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  line-height: 1.5;
+}
+.cam-help-toggle {
+  position: absolute;
+  left: 0.75rem;
+  bottom: 0.75rem;
+  z-index: 5;
+  font-size: 0.75rem;
+  padding: 0.2rem 0.55rem;
+  background: rgb(20 22 28 / 0.72);
+  color: #fff;
+  border: 1px solid rgb(255 255 255 / 0.5);
+  border-radius: 6px;
+}
+.app.mobile .cam-help,
+.app.mobile .cam-help-toggle {
+  display: none;
+}

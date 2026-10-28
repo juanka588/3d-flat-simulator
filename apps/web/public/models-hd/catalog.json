@@ -1875,6 +1875,69 @@
     "retrievedAt": "2026-10-27T18:41:15.484Z"
   },
   {
+    "id": "sketchfab:person_standing",
+    "name": "Standing person (scale figure)",
+    "source": "cc0",
+    "tier": "hd",
+    "licence": "CC-BY-4.0",
+    "credit": "\"3d people standing smooth\" by dchant design, Sketchfab, CC-BY-4.0 (https://sketchfab.com/3d-models/3d-people-standing-smooth-55ffd432506d4f58a6a79eb7e5c666a5)",
+    "category": "other",
+    "styleTags": [
+      "person",
+      "human",
+      "scale figure",
+      "mannequin"
+    ],
+    "nativeDims": {
+      "w": 0.577,
+      "d": 0.337,
+      "h": 1.75
+    },
+    "anchor": [
+      0,
+      0,
+      0
+    ],
+    "front": "+z",
+    "file": "person_standing.glb",
+    "thumb": "thumbs/person_standing.webp",
+    "thumbSha256": "ee6101d7071629a5da2bf0326de63f800749af88d6c6550681e34815bcdc8506",
+    "provider": "sketchfab",
+    "sourceId": "55ffd432506d4f58a6a79eb7e5c666a5",
+    "sourceUrl": "https://sketchfab.com/3d-models/3d-people-standing-smooth-55ffd432506d4f58a6a79eb7e5c666a5",
+    "author": "dchant design",
+    "sha256": "2f69a475425b26d6c40ece2b305c99437bbafdb15d8adf5b92aa505dac8e1a77",
+    "bytes": 11280,
+    "triangles": 1830,
+    "materials": 1,
+    "textureMax": 1024,
+    "normalisation": {
+      "sourceFront": "+z",
+      "unitScale": 0.30898881158074915,
+      "sourcePivot": [
+        64.634,
+        -3.083,
+        -178.894
+      ],
+      "sourceTriangles": 1830
+    },
+    "licenseEvidence": {
+      "basis": "asset-field",
+      "assetApiUrl": "https://api.sketchfab.com/v3/models/55ffd432506d4f58a6a79eb7e5c666a5",
+      "needle": "license.slug=by",
+      "assetField": "by",
+      "licenceLabel": "CC Attribution",
+      "author": "dchant design",
+      "modelUrl": "https://sketchfab.com/3d-models/3d-people-standing-smooth-55ffd432506d4f58a6a79eb7e5c666a5",
+      "publishedAt": "2021-02-06T18:20:35.998470",
+      "checkedAt": "2026-10-28T07:04:03.255Z"
+    },
+    "sourceSha256": {
+      "archive": "36cd58bc4564a1a505f0a22c2b351440d1cf860ac95d6d4aac0d34b4d2e05b1f"
+    },
+    "retrievedAt": "2026-10-28T07:04:03.255Z"
+  },
+  {
     "id": "sketchfab:plant_fiddle_leaf",
     "name": "Fiddle leaf fig",
     "source": "cc0",

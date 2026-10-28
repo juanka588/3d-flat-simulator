@@ -327,6 +327,7 @@ export function pickLookalike(
   let best: LookalikeMatch | undefined;
   for (const asset of assets) {
     if (asset.source === 'parametric') continue;
+    if (asset.styleTags.includes('person')) continue; // the scale figure of the person ghost is never furniture
     const categoryScore = asset.category === product.category ? SCORE_CATEGORY : related.includes(asset.category) ? SCORE_RELATED_CATEGORY : 0;
     if (categoryScore === 0) continue;
     const { scale, distortion } = scaleToDims(asset.nativeDims, product.dims);

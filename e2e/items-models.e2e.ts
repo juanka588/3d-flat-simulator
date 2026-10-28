@@ -93,6 +93,8 @@ function expectBox(b: { min: number[]; max: number[] } | null, w: number, h: num
 }
 
 test('the default Charme load makes zero model requests', async ({ page }) => {
+  // The person ghost loads its own 11 KB figure (and the glTF decoder) on the first orbit frame; this test is about item models.
+  await page.addInitScript(() => localStorage.setItem('flat.showPerson', '0'));
   const requests: string[] = [];
   page.on('request', (r) => {
     if (/\/models\/|\/api\/assets\/|\.glb|draco|meshopt/i.test(r.url())) requests.push(r.url());
@@ -266,6 +268,7 @@ function hdSofa(id: string, position: [number, number]) {
 }
 
 test('an item whose product fits an HD hero model loads it lazily from models-hd, at the exact dims', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('flat.showPerson', '0')); // the ghost's own figure is also in models-hd
   const requests: string[] = [];
   page.on('request', (r) => {
     if (/\/models-hd\/.*\.glb/.test(r.url())) requests.push(new URL(r.url()).pathname);
