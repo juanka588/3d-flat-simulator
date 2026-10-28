@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { applyCommand, makeEnvelope, parseScene, ProductRecord } from '@flat/scene';
+import { applyCommand, makeEnvelope, parseScene } from '@flat/scene';
+import { ProductRecord } from '@flat/assets';
 import { readFileSync } from 'node:fs';
 import { commandForKey, generatorSource, itemKeyAction, libraryModelSource, moveCommand, nudged, placeCommand, productSource, snapshotOf } from './place';
 

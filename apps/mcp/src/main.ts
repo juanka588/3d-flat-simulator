@@ -1,5 +1,6 @@
 #!/usr/bin/env -S npx tsx
 import { serveStdio } from '@modelcontextprotocol/server/stdio';
+import { assertGeneratorsRegistered } from '@flat/assets';
 import { loadConfig } from './config';
 import { HttpFlatApi } from './flatApi';
 import { parseArgs } from './cli';
@@ -15,6 +16,7 @@ import { createFlatMcpServer } from './server';
  */
 
 async function main(): Promise<void> {
+  assertGeneratorsRegistered();
   const args = parseArgs(process.argv.slice(2));
   const config = loadConfig();
   const flat = new HttpFlatApi(config);

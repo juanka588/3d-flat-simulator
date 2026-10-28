@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { EMPTY_MESH_CATALOG } from '@flat/scene';
-import type { Item, MeshAsset, MeshCatalog, MeshResolveContext, ResolvedMesh } from '@flat/scene';
+import { EMPTY_MESH_CATALOG } from '@flat/assets';
+import type { Item } from '@flat/scene';
+import type { MeshAsset, MeshCatalog, MeshResolveContext, ResolvedMesh } from '@flat/assets';
 import { createModelCache } from './model-cache';
 import { ModelController, PROVIDER_RETRY_MS } from './model-controller';
 import type { ControllerDeps, ModelLike } from './model-controller';

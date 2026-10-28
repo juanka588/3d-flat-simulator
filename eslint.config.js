@@ -85,16 +85,16 @@ export default tseslint.config(
   // @flat/viewer/element (section 8.2): the custom element depends on the viewer alone, through relative imports.
   ...row('packages/viewer', [NO_SRC_ESCAPE, APPS_LEAF, pkg(['@flat/scene', '@flat/assets', '@flat/site', '@flat/capture', '@flat/site/node'], '@flat/viewer/element depends on the viewer only; React stays an implementation detail.')], { src: 'packages/viewer/src/element' }),
   // apps/web: the UI shell. The test internals are for testHook*.ts only; node entries and the server are never imported.
-  ...row('apps/web', [NO_SRC_ESCAPE, APPS_LEAF, pkg(['@flat/assets/node', '@flat/site/node', '@flat/viewer/testing', '@flat/viewer/internal'], 'apps/web imports the public entries only; @flat/viewer/testing belongs to testHook*.ts.')], { all: 'apps/web/src', src: 'apps/web/src', srcIgnores: ['apps/web/src/testHook*.ts'] }),
+  ...row('apps/web', [NO_SRC_ESCAPE, APPS_LEAF, pkg(['@flat/assets/node', '@flat/site/node', '@flat/viewer/testing', '@flat/viewer/internal'], 'apps/web imports the public entries only; @flat/viewer/testing belongs to testHook*.ts.')], { all: 'apps/web/src', src: 'apps/web/src', srcIgnores: ['apps/web/src/testHook*.ts'], paths: SCENE_ASSET_PATHS }),
   {
     files: ['apps/web/src/testHook*.ts'],
-    rules: restrict(NO_SRC_ESCAPE, APPS_LEAF, pkg(['@flat/assets/node', '@flat/site/node', '@flat/viewer/internal'], 'testHook may use @flat/viewer/testing but no node entry.')),
+    rules: restrictFor(false, [NO_SRC_ESCAPE, APPS_LEAF, pkg(['@flat/assets/node', '@flat/site/node', '@flat/viewer/internal'], 'testHook may use @flat/viewer/testing but no node entry.')], SCENE_ASSET_PATHS),
   },
   // Temporary (removed in step 11): the shims at apps/web/src/viewer re-export @flat/viewer/internal/*.
   {
     files: ['apps/web/src/viewer/**/*.{ts,tsx}'],
     ignores: ['**/*.test.{ts,tsx}'],
-    rules: restrict(NO_SRC_ESCAPE, APPS_LEAF, pkg(['@flat/assets/node', '@flat/site/node', '@flat/viewer/testing'], 'apps/web imports the public entries only.')),
+    rules: restrictFor(false, [NO_SRC_ESCAPE, APPS_LEAF, pkg(['@flat/assets/node', '@flat/site/node', '@flat/viewer/testing'], 'apps/web imports the public entries only.')], SCENE_ASSET_PATHS),
   },
   // apps/server: node is fine; no renderer, no viewer, no other app. It may be the target of apps/mcp/src/testing only.
   ...row('apps/server', [NO_RENDERER, NO_SRC_ESCAPE, pkg(['@flat/viewer', '@flat/web', '@flat/mcp'], 'The server never imports the viewer or another app.')], { node: true, server: true, paths: SCENE_ASSET_PATHS }),
@@ -110,7 +110,7 @@ export default tseslint.config(
     files: ['apps/server/src/providers/local/fit.test.ts'],
     rules: restrictFor(true, [NO_RENDERER, pkg(['@flat/viewer', '@flat/mcp'], 'The server never imports the viewer or another app.')], SCENE_ASSET_PATHS),
   },
-  // Root-level consumers (not packages: they reach scene and assets by relative path). apps/web gets the same rule in A3a.
+  // Root-level consumers (not packages: they reach scene and assets by relative path). apps/web has the same rule (A3a).
   {
     files: ['scripts/**/*.{ts,mjs}', 'e2e/**/*.ts'],
     rules: { 'no-restricted-imports': ['error', { paths: SCENE_ASSET_PATHS, patterns: [SCENE_ASSET_PATTERN] }] },

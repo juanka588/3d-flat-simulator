@@ -335,6 +335,20 @@ describe('place_item', () => {
     expect((await c('place_item', { ...bed, mesh: { kind: 'lookalike', assetId: wardrobeLook.id } })).j.code).toBe('dims_mismatch');
   });
 
+  // Scene no longer registers the generators (step A4): `createFlatMcpServer` (via `@flat/assets`) does. With an empty registry
+  // the parametric check would report an unknown generator, or the params would go unchecked.
+  it('place_item validates the params of an explicit parametric mesh (invalid_command at mesh/params), nothing is committed', async () => {
+    const { call: c, search, flat } = await setup();
+    await search('bed');
+    const bad = await c('place_item', { ...bed, mesh: { kind: 'parametric', generator: 'bed', params: { w: 'wide' } } });
+    expect(bad.j).toMatchObject({ ok: false, code: 'invalid_command', errors: [{ path: 'mesh/params' }] });
+    expect(bad.j.message).toContain('invalid parameters for generator "bed"');
+    expect(flat.rev).toBe(0);
+    const unknownParam = await c('place_item', { ...bed, mesh: { kind: 'parametric', generator: 'bed', params: { w: 1.6, l: 2, h: 0.9, bogus: 1 } } });
+    expect(unknownParam.j).toMatchObject({ ok: false, code: 'invalid_command' });
+    expect(flat.rev).toBe(0);
+  });
+
   it('variantSku uses the variant price and records the variant and colour', async () => {
     const { call: c, search, flat } = await setup();
     await search('bed');

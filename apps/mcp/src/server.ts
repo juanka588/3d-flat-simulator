@@ -1,4 +1,5 @@
 import { CLIENT_INFO_META_KEY, McpServer, fromJsonSchema, type CallToolResult, type JsonSchemaType, type jsonSchemaValidator, type ServerContext } from '@modelcontextprotocol/server';
+import { assertGeneratorsRegistered } from '@flat/assets';
 import type { Author } from '@flat/scene';
 import type { McpConfig } from './config';
 import { toolError } from './errors';
@@ -57,6 +58,8 @@ function clientNameOf(server: McpServer, ctx: ServerContext, previous: string, s
 
 /** Builds one MCP server (one per connection). Registers the visible tools, prompts and instructions. */
 export function createFlatMcpServer(deps: ServerDeps): McpServer {
+  // `place_item` params are checked against the generators; scene no longer registers them (importing @flat/assets does).
+  assertGeneratorsRegistered();
   const { config, flat } = deps;
   const clock = deps.clock ?? systemClock();
   const session = deps.session ?? newSession(config.limits, clock);

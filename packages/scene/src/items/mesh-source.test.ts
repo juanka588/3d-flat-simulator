@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import '../assets'; // fills GENERATORS
 import { ProductCategory } from '../products';
 import { GENERATORS, MeshSource, checkParametricMesh, createGeneratorRegistry, meshAssetId, type Generator } from './mesh-source';
 import { defaultParametricFor } from './parametric-defaults';

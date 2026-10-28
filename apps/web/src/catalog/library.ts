@@ -1,4 +1,4 @@
-import { MeshAsset } from '@flat/scene';
+import { MeshAsset } from '@flat/assets';
 import { registerLibraryNames } from './format';
 import { hdModelsBase, modelsBase, parseCatalogJson } from '../viewer/model-env';
 

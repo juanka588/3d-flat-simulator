@@ -1,7 +1,7 @@
 import { Matrix4 } from 'three';
 
 /**
- * Pure maths of placing a loaded model in the item frame (see `packages/scene/src/assets/builtin.ts`):
+ * Pure maths of placing a loaded model in the item frame (see `packages/assets/src/meshes/build-items.ts`):
  * origin = footprint centre at the lowest point, +x right, +y up, +z front, dims `w` (x), `h` (y), `d` (z).
  * A source model has its own axes (`front`) and an arbitrary pivot, so it is rotated until its front is +z,
  * moved so that the bottom centre of its bounding box is the origin, and scaled NON-uniformly to the item's dims.

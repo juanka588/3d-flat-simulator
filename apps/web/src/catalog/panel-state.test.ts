@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ProviderInfo } from '@flat/scene';
+import type { ProviderInfo } from '@flat/assets';
 import { DEV_OFFLINE_HINT, noResults, personalUseBanner, productsAvailability, providerView, SERVER_HINT, statusLine } from './panel-state';
 import { armDecision } from './use-card-drag';
 import { floorPoint, lineHeight } from './placement';

@@ -103,6 +103,26 @@ describe('REST', () => {
     expect(h.past.map((p: { label: string }) => p.label)).toEqual(['Set latitude to 48.79', 'Floor of Séjour → Light grey tile (satin)', 'Turn off Séjour ceiling']);
   });
 
+  // Scene no longer registers the generators (step A4): the app entry (`createApp`, via `@flat/assets`) does. With an empty
+  // registry the schema would skip the params check and accept this item.
+  it('rejects a parametric item with invalid params (422 scene_invalid), and accepts the same item with valid ones', async () => {
+    const { call } = await boot();
+    const place = (params: Record<string, string | number | boolean>) =>
+      env({
+        type: 'item.place',
+        item: { id: 'bed-t', assetId: 'param:bed', position: [7.71, 1], roomId: 'ch1', mesh: { kind: 'parametric', generator: 'bed', params } },
+      });
+    const bad = await call('POST', '/api/commands', place({ w: 'wide' }));
+    expect(bad.status).toBe(422);
+    const body = await bad.json();
+    expect(body.ok).toBe(false);
+    expect(body.errors[0]).toMatchObject({ code: 'scene_invalid', path: expect.stringContaining('mesh/params'), message: expect.stringContaining('generator "bed" rejects the params') });
+    expect((await (await call('GET', '/api/scene')).json()).scene.items.some((i: { id: string }) => i.id === 'bed-t')).toBe(false);
+
+    const good = await call('POST', '/api/commands', place({ w: 1.6, l: 2, h: 0.9, headboard: true }));
+    expect(good.status).toBe(200);
+  });
+
   it('stale ifRev -> precondition_failed with the current rev', async () => {
     const { call } = await boot();
     await call('POST', '/api/commands', env(north(1)));

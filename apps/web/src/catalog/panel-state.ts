@@ -1,4 +1,4 @@
-import type { ProviderInfo, ProviderStatus } from '@flat/scene';
+import type { ProviderInfo, ProviderStatus } from '@flat/assets';
 
 export const SERVER_HINT = 'Connect the local scene server (`pnpm dev:all`) to search real products.';
 /** Dev build, no server found yet: the page keeps probing, and says how to start one. */

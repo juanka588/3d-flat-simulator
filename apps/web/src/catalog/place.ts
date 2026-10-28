@@ -1,5 +1,7 @@
-import { DEFAULT_CEILING_HEIGHT, DEFAULT_WALL_MOUNT_ELEVATION_M, itemCoalesceKey, meshAssetId, productSnapshot } from '@flat/scene';
-import type { Command, Dims, Item, ItemMount, MeshSource, ProductRecord, ProductSnapshot, Relation, Vec2 } from '@flat/scene';
+import { DEFAULT_CEILING_HEIGHT, DEFAULT_WALL_MOUNT_ELEVATION_M, itemCoalesceKey, meshAssetId } from '@flat/scene';
+import { productSnapshot } from '@flat/assets';
+import type { Command, Dims, Item, ItemMount, MeshSource, ProductSnapshot, Relation, Vec2 } from '@flat/scene';
+import type { ProductRecord } from '@flat/assets';
 import { generatorTitle } from './generator-titles';
 import type { GhostPose, GhostSubject } from './ghost';
 

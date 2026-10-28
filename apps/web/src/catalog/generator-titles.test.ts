@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import '@flat/assets'; // registers the generators in GENERATORS
 import { GENERATORS } from '@flat/scene';
 import { describe, expect, it } from 'vitest';
 import { GENERATOR_TITLE_IDS, generatorTitle } from './generator-titles';

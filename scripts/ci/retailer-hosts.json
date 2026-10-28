@@ -35,6 +35,7 @@
     "apps/server/**/*.test.ts",
     "apps/mcp/**/*.test.ts",
     "packages/scene/**/*.test.ts",
+    "packages/assets/**/*.test.ts",
     "scripts/ci/**",
     "scripts/models/**",
     "README.md",

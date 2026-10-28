@@ -17,6 +17,7 @@ import {
 import {
   MarkSeenBody,
   ProductSearchParams,
+  assertGeneratorsRegistered,
   summarizeProduct,
 } from '@flat/assets';
 import type { ServerConfig } from './config';
@@ -103,6 +104,8 @@ export function foreignProductRequest(origin: string | undefined, fetchSite: str
 }
 
 export function createApp(store: SceneStore, config: ServerConfig, providers: ProviderRegistry = createDisabledRegistry(), options: AppOptions = {}) {
+  // Scene no longer registers the generators; without them the schema would accept invalid params of parametric items.
+  assertGeneratorsRegistered();
   const app = new Hono<Env>();
   const redact = options.redact ?? ((t: string) => t);
   const allow = rateLimiter(config.rateLimitPerSec);

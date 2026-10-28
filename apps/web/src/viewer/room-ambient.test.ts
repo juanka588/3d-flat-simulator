@@ -1,5 +1,6 @@
 import { DataUtils } from 'three';
 import { describe, expect, it } from 'vitest';
+import { buildItems } from '@flat/assets';
 import { buildShell, loadSceneText, roomDaylightFactors } from '@flat/scene';
 import charme from '@flat/scene/fixtures/charme-3205.flat.json';
 import { createRoomAmbient, withRoomAmbient } from './room-ambient';
@@ -7,7 +8,7 @@ import { createRoomAmbient, withRoomAmbient } from './room-ambient';
 const result = loadSceneText(JSON.stringify(charme));
 if (!result.ok) throw new Error('fixture does not load');
 const scene = result.scene;
-const shell = buildShell(scene);
+const shell = buildShell(scene, { items: buildItems });
 const ambient = createRoomAmbient(scene);
 const texelOf = (uv1: Float32Array, vertex: number) => Math.floor(uv1[vertex * 2]! * ambient.texels);
 const value = (roomId: string) => (ambient.texture.image.data as Uint8Array)[ambient.indexOf(roomId)]! / 255;
