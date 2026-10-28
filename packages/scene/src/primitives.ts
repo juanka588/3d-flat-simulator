@@ -90,3 +90,8 @@ export const HttpUrl = z
   .url()
   .max(2048)
   .refine((u) => /^https?:\/\//i.test(u), 'expected an http(s) URL');
+
+/** A shelf price: non-negative, at most 1 000 000 (currency is stored next to it). */
+export const Price = z.number().min(0).max(1_000_000);
+/** Luminous flux of a lamp product, in lumens. */
+export const Lumens = z.number().positive().max(100_000);

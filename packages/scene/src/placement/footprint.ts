@@ -1,4 +1,4 @@
-import { BUILTIN_ASSETS } from '../assets/builtin';
+import { BUILTIN_ASSETS } from '../items/builtin-assets';
 import type { Dims, ItemMount } from '../primitives';
 import type { Item, Vec2 } from '../schema';
 

@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { buildItems } from './builtin';
-import { bedDressingOf, buildBedDressing, isBedFrameName, sleepingSurfaceOf } from './dressing';
-import { defaultParametricFor, GENERATORS } from './catalog';
+import { bedDressingOf } from '../items/dressing';
+import { GENERATORS } from '../items/mesh-source';
+import { defaultParametricFor } from '../items/parametric-defaults';
 import type { Item } from '../schema';
+import { buildBedDressing } from './bed-dressing';
+import { buildItems } from './build-items';
 
 const frame = (over: Partial<Item> = {}, name = 'KLEPPSTAD Cadre de lit - blanc/Vissle beige 160x200 cm'): Item =>
   ({
@@ -18,21 +20,6 @@ const frame = (over: Partial<Item> = {}, name = 'KLEPPSTAD Cadre de lit - blanc/
   }) as Item;
 
 describe('bed frame dressing', () => {
-  it('knows a frame by its name, French and English, and never a mattress', () => {
-    for (const n of ['KLEPPSTAD Cadre de lit', 'MALM Cadre lit', 'bed frame 160x200', 'Structure de lit']) expect(isBedFrameName(n), n).toBe(true);
-    for (const n of ['MALFORS Matelas', 'mattress 90x200', 'KALLAX Étagère']) expect(isBedFrameName(n), n).toBe(false);
-  });
-  it('reads the sleeping surface from the name', () => {
-    expect(sleepingSurfaceOf('Cadre de lit 160x200 cm')).toEqual({ w: 1.6, d: 2 });
-    expect(sleepingSurfaceOf('Table 120x60 cm')).toBeUndefined();
-  });
-  it('fits the mattress to the frame and can be turned off or skipped', () => {
-    const spec = bedDressingOf(frame())!;
-    expect(spec.mattress).toEqual({ w: 1.6, d: 2 });
-    expect(bedDressingOf(frame({ dressing: false }))).toBeUndefined();
-    expect(bedDressingOf(frame({}, 'MALFORS Matelas à ressorts 160x200'))).toBeUndefined();
-    expect(bedDressingOf(frame({ mesh: { kind: 'parametric', generator: 'bed', params: {} } }))).toBeUndefined();
-  });
   it('is a few boxes inside the frame footprint, above the slats, and buildItems adds it next to the (claimed) item', () => {
     const spec = bedDressingOf(frame())!;
     const mesh = buildBedDressing(spec);

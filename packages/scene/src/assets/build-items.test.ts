@@ -8,7 +8,10 @@ import { parseScene } from '../parse';
 import type { Item, Scene, Vec2 } from '../schema';
 import { wallLength } from '../schema';
 import { validateScene } from '../validate';
-import { BUILTIN_ASSETS, ITEM_MATERIALS, TV_55_DIAGONAL_M, buildItems, itemBlocksWalking, itemFrontDirection } from './builtin';
+import { BUILTIN_ASSETS } from '../items/builtin-assets';
+import { itemFrontDirection } from '../items/item-helpers';
+import { buildItems } from './build-items';
+import { ITEM_MATERIALS } from './item-materials';
 
 const parsed = parseScene(charme);
 if (!parsed.ok) throw new Error(parsed.errors.join('\n'));
@@ -84,26 +87,6 @@ function wallFootprint(w: Scene['walls'][number]): Vec2[] {
 describe('builtin:tv-55', () => {
   const tv = BUILTIN_ASSETS['builtin:tv-55']!;
 
-  it('is a 55 inch 16:9 panel (diagonal 1.397 m within 1 cm) with a thin bezel', () => {
-    expect(TV_55_DIAGONAL_M).toBeCloseTo(1.397, 3);
-    expect(tv).toMatchObject({ category: 'electronics', mount: 'wall' });
-    expect(tv.dims.w).toBeCloseTo(1.23, 2);
-    expect(tv.dims.h).toBeCloseTo(0.71, 2);
-    expect(tv.dims.d).toBeCloseTo(0.05, 3);
-    const panelW = tv.dims.w - 0.012;
-    const panelH = tv.dims.h - 0.025;
-    expect(Math.abs(Math.hypot(panelW, panelH) - 1.397)).toBeLessThan(0.01);
-    expect(panelW / panelH).toBeCloseTo(16 / 9, 2);
-  });
-
-  it('front direction follows rotation CCW from above (rotation 0 faces plan +y)', () => {
-    const f = (rotation: number) => itemFrontDirection({ rotation }).map((v) => Math.round(v * 1e6) / 1e6 + 0);
-    expect(f(0)).toEqual([0, 1]);
-    expect(f(90)).toEqual([1, 0]);
-    expect(f(180)).toEqual([0, -1]);
-    expect(f(270)).toEqual([-1, 0]);
-  });
-
   it('builds screen, body and bracket meshes owned by the item, with outward normals', () => {
     const mesh = buildItems({ items: flat.items.filter((i) => i.id === 'tv-sejour') }); // the TV alone (the flat also has locked placards)
     expect(mesh.groups.map((g) => g.materialId).sort()).toEqual([ITEM_MATERIALS.tvBody, ITEM_MATERIALS.tvScreen]);
@@ -161,12 +144,6 @@ describe('builtin:tv-55', () => {
     expect(max[0]! - min[0]!).toBeCloseTo(tv.dims.d, 3);
     expect(max[2]! - min[2]!).toBeCloseTo(tv.dims.w, 3);
     expect(min[0]!).toBeCloseTo(2 - tv.dims.d / 2, 3);
-  });
-
-  it('wall-mounted items above 0.6 m do not block walking', () => {
-    expect(itemBlocksWalking({ assetId: 'builtin:tv-55', elevation: 0.745 })).toBe(false);
-    expect(itemBlocksWalking({ assetId: 'builtin:tv-55', elevation: 0.3 })).toBe(true);
-    expect(itemBlocksWalking({ assetId: 'nope', elevation: 1 })).toBe(true);
   });
 });
 

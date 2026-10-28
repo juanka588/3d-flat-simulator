@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { Relation } from '../placement/types';
-import { MeshSource } from '../assets/catalog';
+import { MeshSource } from '../items/mesh-source';
 import { Clearance, Dims, EntityId, ItemMount, Sku, Vec2 } from '../primitives';
 import { ProductRef, ProductSnapshot } from '../products';
 import { ItemBase, Light, checkItemRules } from '../schema';

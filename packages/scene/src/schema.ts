@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { checkParametricMesh, MeshSource } from './assets/catalog';
+import { checkParametricMesh, MeshSource } from './items/mesh-source';
 import { isSimplePolygon, polygonArea } from './measure';
 import { Clearance, Dims, EntityId, ItemMount, NAME_MAX, NameString, Sku, stripControlChars, Vec2 } from './primitives';
 import { ProductRef, ProductSnapshot } from './products';

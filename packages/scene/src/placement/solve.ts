@@ -1,6 +1,6 @@
 import type { Dims } from '../primitives';
 import type { Room, Scene, Vec2 } from '../schema';
-import { GENERATOR_DIMS_TOLERANCE } from '../assets/catalog';
+import { GENERATOR_DIMS_TOLERANCE } from '../items/mesh-source';
 import { checkSubject, layoutContext, subjectBox, violation, type LayoutContext, type RoomInfo, type Subject } from './constraints';
 import { round4 } from './footprint';
 import { edgeOnWall, poseAgainst, resolveRelation, roomWallEdges, type Resolved, type WallEdge } from './relations';

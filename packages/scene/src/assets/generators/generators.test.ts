@@ -4,8 +4,8 @@ import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { makeScene } from '../../geometry/testUtil';
 import type { MeshData } from '../../geometry/types';
-import { GENERATORS, createGeneratorRegistry, type AnyGenerator } from '../catalog';
-import { buildItems } from '../builtin';
+import { GENERATORS, createGeneratorRegistry, type AnyGenerator } from '../../items/mesh-source';
+import { buildItems } from '../build-items';
 import { ITEM_MATERIALS } from '../item-materials';
 import { ALL_GENERATORS, registerGenerators } from './index';
 

@@ -1,4 +1,4 @@
-import { BUILTIN_ASSETS } from '../assets/builtin-assets';
+import { BUILTIN_ASSETS } from '../items/builtin-assets';
 import { roomCeilingHeight } from '../geometry/floors';
 import { polygonArea } from '../measure';
 import type { Item, Light, LinkableLight, Room, RoomType, Scene, Vec2 } from '../schema';

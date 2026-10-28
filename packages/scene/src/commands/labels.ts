@@ -2,7 +2,7 @@ import type { CompassPoint } from '../mcp-types';
 import { planDirectionToCompass } from '../describe';
 import type { Light, Material, Room, Scene, Vec2, Wall } from '../schema';
 import { wallLeftNormal } from '../schema';
-import { BUILTIN_ASSETS } from '../assets/builtin';
+import { BUILTIN_ASSETS } from '../items/builtin-assets';
 import { pointInPolygon } from '../validate';
 import type { Command, LeafCommand } from './schema';
 

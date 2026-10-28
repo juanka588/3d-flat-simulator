@@ -1,6 +1,6 @@
-import { isBuiltinAsset } from './assets/builtin';
+import { isBuiltinAsset } from './items/builtin-assets';
 import { gridFixtures } from './lighting/grid';
-import { checkParametricMesh, GENERATOR_DIMS_TOLERANCE } from './assets/catalog';
+import { checkParametricMesh, GENERATOR_DIMS_TOLERANCE } from './items/mesh-source';
 import { edgeCoverage, roomCeilingHeight, triangulatePolygon } from './geometry/floors';
 import { polygonArea } from './measure';
 import { validateLayout } from './placement/validateLayout';

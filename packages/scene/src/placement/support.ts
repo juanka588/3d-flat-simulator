@@ -1,4 +1,4 @@
-import { MATTRESS_THICKNESS, bedDressingOf } from '../assets/dressing';
+import { MATTRESS_THICKNESS, bedDressingOf } from '../items/dressing';
 import type { Dims } from '../primitives';
 import type { Item, Vec2 } from '../schema';
 import { FLAT_MAX_H, footprintOf, itemDims, itemMountOf, localToPlan, round4 } from './footprint';
