@@ -405,7 +405,7 @@ const validateLayoutTool: ToolDef = {
 const getBillOfMaterials: ToolDef = {
   name: 'get_bill_of_materials',
   description:
-    'Shopping list of the placed items, grouped by product: productId, name, link, quantity, unit price, what is left to buy (toBuy) and the amount. totalEur counts the TTC prices of unlocked items only (locked existing furniture is listed at 0; delivery, assembly and discounts are not included), byRoom has the subtotals, stale lists price snapshots older than 7 days. Prices are indicative.',
+    'Shopping list of the placed items, grouped by product: productId, name, link, quantity, unit price, what is left to buy (toBuy) and the amount. totalEur counts the TTC prices of unlocked items only (locked existing furniture is listed at 0; delivery, assembly and discounts are not included), byRoom has the subtotals, stale lists price snapshots older than 30 days. Prices are indicative.',
   inputSchema: obj({ roomId: { type: 'string', description: 'Only the items of this room (list_rooms). Default: the whole flat.' } }),
   annotations: READ,
   group: 'read',

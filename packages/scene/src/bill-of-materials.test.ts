@@ -80,7 +80,7 @@ describe('billOfMaterials', () => {
     for (const g of bom.bySku) expect(g.amount).toBe(g.unitPrice * g.toBuy);
   });
 
-  it('flags snapshots older than 7 days relative to the injected now; pinned items too, existing ones never', () => {
+  it('flags snapshots older than 30 days relative to the injected now; pinned items too, existing ones never', () => {
     const old = productSnapshot(bed, new Date(t0 - (STALE_PRICE_DAYS + 1) * DAY).toISOString());
     const edge = productSnapshot(wardrobe, new Date(t0 - STALE_PRICE_DAYS * DAY).toISOString());
     const s = build([item('old', [1, 1], { product: old }), item('edge', [2, 2], { product: edge }), item('own', [3, 3], { product: { ...old, provider: 'existing' }, locked: true })]);

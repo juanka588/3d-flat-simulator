@@ -2,14 +2,14 @@ import { summarizeProduct } from '@flat/scene';
 import type { ProductRecord, ProductSummary, ProviderInfo } from '@flat/scene';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
-import { ApiError, draftFromDimsError, fetchProviders, getProduct, recordWithUserDims, resolveUrl, searchProducts, serverRef } from '../catalog/api';
+import { ApiError, draftFromDimsError, fetchProvidersFull, getProduct, recordWithUserDims, resolveUrl, searchProducts, serverRef } from '../catalog/api';
 import type { ServerRef } from '../catalog/api';
 import { addToRoom } from '../catalog/add-to-room';
 import { flashNotice, useCatalogStore } from '../catalog/catalogStore';
-import { formatDims, formatPrice } from '../catalog/format';
+import { formatDate, formatDims, formatPrice } from '../catalog/format';
 import { productSource } from '../catalog/place';
 import { RecordCache } from '../catalog/record-cache';
-import { providerView, personalUseBanner, productsAvailability, noResults, DEV_OFFLINE_HINT, NO_PROVIDER_HINT, SERVER_HINT, SEARCH_MIN_CHARS, SEARCH_DEBOUNCE_MS } from '../catalog/panel-state';
+import { providerView, personalUseBanner, productsAvailability, noResults, DEV_OFFLINE_HINT, LOCAL_ONLY_HINT, NO_PROVIDER_HINT, SERVER_HINT, SEARCH_MIN_CHARS, SEARCH_DEBOUNCE_MS } from '../catalog/panel-state';
 import { useCardDrag } from '../catalog/use-card-drag';
 import { useProductPhoto } from '../catalog/use-product-photo';
 import { retryServerNow } from '../sync/client';
@@ -53,7 +53,7 @@ function OfflineHint() {
 }
 
 function ServerProducts({ onDragStart }: { onDragStart?: (() => void) | undefined }) {
-  const { providers, providersLoaded, query, results, statuses, searching, searchError, providerFilter } = useCatalogStore();
+  const { providers, providersLoaded, query, results, statuses, searching, searchError, providerFilter, localCatalog, live } = useCatalogStore();
   const store = useCatalogStore.getState;
   const [pasted, setPasted] = useState<ProductSummary[]>([]);
 
@@ -66,16 +66,16 @@ function ServerProducts({ onDragStart }: { onDragStart?: (() => void) | undefine
     if (!connected) return;
     const ref = serverRef();
     if (!ref) return;
-    let live = true;
-    fetchProviders(ref)
+    let current = true;
+    fetchProvidersFull(ref)
       .then((p) => {
-        if (!live) return;
+        if (!current) return;
         setProvidersError(null);
-        store().setProviders(p);
+        store().setProviders(p.providers, p.localCatalog ?? null);
       })
-      .catch((e: unknown) => live && setProvidersError(e instanceof ApiError ? e.message : 'The scene server did not answer the provider list.'));
+      .catch((e: unknown) => current && setProvidersError(e instanceof ApiError ? e.message : 'The scene server did not answer the provider list.'));
     return () => {
-      live = false;
+      current = false;
     };
   }, [serverUrl, connected, store]);
 
@@ -92,7 +92,7 @@ function ServerProducts({ onDragStart }: { onDragStart?: (() => void) | undefine
     const mine = ++seq.current;
     store().setSearch({ searching: true, searchError: null });
     const timer = setTimeout(() => {
-      searchProducts(ref, { q, ...(providerFilter ? { provider: providerFilter } : {}) })
+      searchProducts(ref, { q, ...(providerFilter ? { provider: providerFilter } : {}), ...(live ? { live: true } : {}) })
         .then((r) => {
           if (mine !== seq.current) return;
           store().setSearch({ results: r.results, statuses: r.providers, searching: false });
@@ -103,7 +103,7 @@ function ServerProducts({ onDragStart }: { onDragStart?: (() => void) | undefine
         });
     }, SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(timer);
-  }, [query, providerFilter, serverUrl, store]);
+  }, [query, providerFilter, live, serverUrl, store]);
 
   const banner = personalUseBanner(providers);
   const failing = statuses.filter((s) => !s.ok);
@@ -125,6 +125,7 @@ function ServerProducts({ onDragStart }: { onDragStart?: (() => void) | undefine
         </p>
       )}
       <ProviderChips providers={providers} loaded={providersLoaded && connected} />
+      <LocalCatalogStatus />
       <label className="catalog-search">
         <span className="visually-hidden">Search products</span>
         <input type="search" placeholder="Search products (bed, sofa, desk…)" value={query} onChange={(e) => store().setQuery(e.target.value)} data-testid="catalog-search" />
@@ -132,7 +133,7 @@ function ServerProducts({ onDragStart }: { onDragStart?: (() => void) | undefine
       <PasteUrl onResolved={(r) => setPasted((p) => [summarizeProduct(r), ...p.filter((x) => x.productId !== summarizeProduct(r).productId)])} />
       {searching && (
         <p className="hint searching" role="status" data-testid="catalog-searching">
-          <span className="spinner" aria-hidden="true" /> Searching… (the retailer can take about 10 s)
+          <span className="spinner" aria-hidden="true" /> {localCatalog && !live ? 'Searching…' : 'Searching… (the retailer can take about 10 s)'}
         </p>
       )}
       {searchError && <p className="catalog-error" role="alert">{searchError}</p>}
@@ -156,10 +157,32 @@ function ServerProducts({ onDragStart }: { onDragStart?: (() => void) | undefine
             {noResults(query, statuses, providers).details.map((d) => (
               <li key={d}>{d}</li>
             ))}
+            {localCatalog && !live && <li data-testid="catalog-local-hint">{LOCAL_ONLY_HINT}</li>}
           </ul>
         </div>
       )}
       {query.trim().length < SEARCH_MIN_CHARS && results.length === 0 && pasted.length === 0 && <p className="hint">Type at least {SEARCH_MIN_CHARS} letters, then drag a card onto the view.</p>}
+    </div>
+  );
+}
+
+/** "local catalogue (N products, built <date>)" and the "search IKEA live" switch. Nothing when the server has no local catalogue. */
+function LocalCatalogStatus() {
+  const info = useCatalogStore((s) => s.localCatalog);
+  const live = useCatalogStore((s) => s.live);
+  const setLive = useCatalogStore((s) => s.setLive);
+  const liveProvider = useCatalogStore((s) => s.providers.find((p) => p.id === 'ikea-fr'));
+  if (!info) return null;
+  const canGoLive = liveProvider?.enabled === true;
+  return (
+    <div className="local-catalog" data-testid="local-catalog">
+      <p className="hint" data-testid="local-catalog-status">
+        local catalogue ({info.count} products, built {formatDate(info.builtAt)})
+        {info.stale ? <span className="badge badge-warn" title="The newest price in the catalogue is more than 30 days old. Update with: pnpm catalog:build --refresh-prices"> prices may be old</span> : null}
+      </p>
+      <label className="live-toggle" title={canGoLive ? 'Also ask IKEA itself (slow: the shop is read politely, about 10-20 s).' : 'Live IKEA search is not enabled on the server (FLAT_PROVIDERS=ikea-fr in apps/server/.env.local).'}>
+        <input type="checkbox" checked={live && canGoLive} disabled={!canGoLive} onChange={(e) => setLive(e.target.checked)} data-testid="catalog-live-toggle" /> Search IKEA live
+      </label>
     </div>
   );
 }
@@ -329,6 +352,16 @@ export function ProductCard({ product, pasted = false, onDragStart }: { product:
             </span>
           )}
           {pasted && <span className="badge">pasted</span>}
+          {product.source === 'local' && (
+            <span className="badge badge-local" data-testid="badge-local" title={`From your local catalogue${product.fetchedAt ? `, price read ${formatDate(product.fetchedAt)}` : ''}`}>
+              local
+            </span>
+          )}
+          {product.stale && (
+            <span className="badge badge-warn" data-testid="badge-stale" title="This price was read more than 30 days ago.">
+              old price
+            </span>
+          )}
           <button type="button" className="add-to-room" data-testid="add-to-room" disabled={!product.priceTtc} aria-label={`Add ${product.name} to the room`} title="Place it in the selected room (or the first room) at a spot the solver finds" onClick={addToRoomNow}>
             Add to room
           </button>

@@ -116,7 +116,8 @@ with a warning and cut. When the log reaches 1000 entries the snapshot is writte
   (`providers/pinned.ts`), so DNS rebinding between check and connect is refused.
 - IKEA URLs taken from responses must be `https://www.ikea.com/fr/fr/p/...` (pages) or on `www.ikea.com` /
   `web-api.ikea.com` (photos, models); anything else is replaced by a URL rebuilt from the SKU or dropped.
-- `GET /api/products/:id/photo`: product photo proxy (memory-cached 1 h, 2 MB, raster images sniffed from the bytes).
+- `GET /api/products/:id/photo`: product photo proxy (memory-cached 1 h, 2 MB, raster images sniffed from the bytes). With a local catalogue it answers from `photos/<sku>.webp` first.
+- The local product catalogue (`apps/server/local-assets/ikea-fr`, `LOCAL_CATALOG_DIR`, `FLAT_LOCAL_CATALOG=off` to ignore it; gitignored, denied in CI) is served through the same product routes, so the same Origin / `Sec-Fetch-Site` guards apply. See the README section "Local product catalogue".
 - `GET /api/assets/meshes/catalog.json` and `GET /api/assets/meshes/:assetId.glb`: the local 3D-FUTURE pack
   (`apps/server/local-assets/3d-future`, `LOCAL_ASSETS_DIR`; gitignored, research licence). `:assetId` is
   `local:3dfuture:<model_id>` or the bare `<model_id>` (`[A-Za-z0-9][A-Za-z0-9_-]*`); only ids listed in the catalog are served.

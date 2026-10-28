@@ -60,6 +60,9 @@ function searchLine(p: ProductSummary) {
     colours: p.colours.map((c) => clip(c, 40)),
     has3d: p.has3d,
     ...(p.personalUseOnly ? { personalUse: true } : {}),
+    ...(p.source ? { source: p.source } : {}),
+    ...(p.fetchedAt ? { fetchedAt: p.fetchedAt.slice(0, 10) } : {}),
+    ...(p.stale ? { stale: true } : {}),
   };
 }
 
@@ -70,7 +73,7 @@ function searchLine(p: ProductSummary) {
 const listProviders: ToolDef = {
   name: 'list_providers',
   description:
-    'List the product providers (shops) the server can search: id, label, whether it is enabled, what it can do (search, real 3D model, dimension quality, pasted URLs), its circuit state (open = paused after repeated blocks; retryAt) and whether its data may only be used personally. Call it before search_products to pick a provider id.',
+    'List the product providers (shops): id, label, enabled, capabilities (search, 3D model, dimension quality, pasted URLs), circuit state (open = paused after blocks; retryAt), personal-use flag. ikea-fr-local is the local catalogue (searched first; localCatalog = its size and date). Call it before search_products.',
   inputSchema: obj({}),
   annotations: READ,
   group: 'read',
@@ -92,6 +95,7 @@ const listProviders: ToolDef = {
         personalUseOnly: p.personalUseOnly,
         ...(p.note ? { note: p.note } : {}),
       })),
+      ...(r.data.localCatalog ? { localCatalog: { id: r.data.localCatalog.id, products: r.data.localCatalog.count, withModels: r.data.localCatalog.withModels, builtAt: r.data.localCatalog.builtAt.slice(0, 10), ...(r.data.localCatalog.stale ? { stale: true } : {}) } } : {}),
     });
   },
 };
@@ -110,17 +114,18 @@ const SearchArgs = z.strictObject({
   maxHeight: z.number().positive().max(20).optional(),
   colour: z.string().min(1).max(40).optional(),
   limit: z.number().int().min(1).max(MAX_SEARCH_RESULTS).optional(),
+  live: z.boolean().optional(),
 });
 
 const searchProducts: ToolDef = {
   name: 'search_products',
   description:
-    `Search real, purchasable furniture at the enabled providers. Returns at most ${MAX_SEARCH_RESULTS} compact results (productId, name, TTC price, assembled dims w x d x h in metres, colours, has3d = a real 3D model exists). ` +
-    'The returned productIds are the only ones place_item accepts in this session. Filter by category, maxPrice and the maximum width/depth/height that fits the room (use describe_room for its size) so results fit. Prices are indicative shelf prices. Limited to 20 searches per minute.',
+    `Search real, purchasable furniture: the local catalogue first (instant, offline), the live shop only if it has fewer than limit results or live:true. Returns at most ${MAX_SEARCH_RESULTS} compact results (productId, name, TTC price, assembled dims w x d x h in metres, colours, has3d = real 3D model, source local|live, fetchedAt, stale = price over 30 days old). ` +
+    'The returned productIds are the only ones place_item accepts in this session. Filter by category, maxPrice and max width/depth/height (describe_room gives the room size) so results fit. Limited to 20 searches per minute.',
   inputSchema: obj(
     {
       query: { type: 'string', maxLength: 200, description: 'Words to look for, e.g. "bed 160", "oak desk". May be empty with a category.' },
-      provider: { type: 'string', description: 'Restrict to one provider id (list_providers). Default: every enabled provider.' },
+      provider: { type: 'string', description: 'One provider id (list_providers); default all.' },
       category: { type: 'string', enum: [...PRODUCT_CATEGORIES], description: 'Furniture category.' },
       maxPrice: { type: 'number', minimum: 0, description: 'Highest TTC price, in the product currency (EUR for the shops here).' },
       maxWidth: { type: 'number', exclusiveMinimum: 0, description: 'Widest acceptable product, metres (item x).' },
@@ -128,6 +133,7 @@ const searchProducts: ToolDef = {
       maxHeight: { type: 'number', exclusiveMinimum: 0, description: 'Tallest acceptable product, metres.' },
       colour: { type: 'string', maxLength: 40, description: 'Keep products that come in this colour (case-insensitive text match on the colour names).' },
       limit: { type: 'integer', minimum: 1, maximum: MAX_SEARCH_RESULTS, description: `Results wanted, default ${DEFAULT_SEARCH_RESULTS}.` },
+      live: { type: 'boolean', description: 'Also ask the live shop (10-20 s).' },
     },
     ['query'],
   ),
@@ -150,6 +156,7 @@ const searchProducts: ToolDef = {
       ...(q.maxWidth !== undefined ? { maxW: q.maxWidth } : {}),
       ...(q.maxDepth !== undefined ? { maxD: q.maxDepth } : {}),
       ...(q.maxHeight !== undefined ? { maxH: q.maxHeight } : {}),
+      ...(q.live !== undefined ? { live: q.live } : {}),
       // The server has no colour filter: ask for more and filter here.
       limit: colour ? Math.min(50, limit * 4) : limit,
     });
@@ -211,6 +218,11 @@ export function productFacts(p: ProductRecord) {
   };
 }
 
+/** `productFacts` plus where the record came from (`local` catalogue snapshot or `live`) and whether a local price is stale (> 30 days). */
+function factsWithSource(p: ProductRecord, source: string | undefined, stale: boolean | undefined) {
+  return { ...productFacts(p), ...(source ? { source } : {}), ...(stale ? { stale: true } : {}) };
+}
+
 const getProduct: ToolDef = {
   name: 'get_product',
   description:
@@ -228,7 +240,7 @@ const getProduct: ToolDef = {
     if (!r.ok) return apiFailure(r);
     const failed = await markSeen(ctx, [a.data.productId]);
     if (failed) return failed;
-    return toolOk({ ok: true, ...productFacts(r.data.product) });
+    return toolOk({ ok: true, ...factsWithSource(r.data.product, r.data.source, r.data.stale) });
   },
 };
 

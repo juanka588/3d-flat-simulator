@@ -284,6 +284,11 @@ export interface ParsePageOptions {
   fetchedAt: string;
   /** The search hit of this article, when known: fallback price, URL, photo, variants and the 2-dim measure text. */
   hit?: IkeaHit;
+  /**
+   * Sizes to use when the page does not give all of width, depth and height (sofas often lack the total height). Used by the
+   * local catalogue build, which derives the missing one from the product's 3D model (`dimsSource: 'model'`). The live provider never sets it.
+   */
+  forceDims?: { w: number; d: number; h: number };
 }
 
 const round3 = (n: number) => Math.round(n * 1000) / 1000;
@@ -331,13 +336,17 @@ export function parseProductPage(html: string, o: ParsePageOptions): ProductReco
   let w = ld.w ?? rows.w;
   let d = ld.d ?? rows.d ?? rows.length;
   let h = ld.h ?? rows.h;
-  let dimsSource: 'structured' | 'text' = 'structured';
+  let dimsSource: 'structured' | 'text' | 'model' = 'structured';
   if (w === undefined || d === undefined || h === undefined) {
     const derived = deriveDims(finalCategory, parseMeasurementMap(html), o.hit?.measureText ?? '');
     if (derived) {
       ({ w, d, h } = derived.dims);
       dimsSource = derived.source;
     }
+  }
+  if ((w === undefined || d === undefined || h === undefined) && o.forceDims) {
+    ({ w, d, h } = o.forceDims);
+    dimsSource = 'model';
   }
   if (w === undefined || d === undefined || h === undefined) {
     const known: Record<string, number> = {};
@@ -411,6 +420,55 @@ export interface IkeaFrOptions {
   foregroundMs?: number;
 }
 
+/** The product page of an article: HTML and its final URL. Throws `product_not_found` (404/410) or `provider_unavailable`. */
+export async function fetchProductPage(sku: string, ctx: ProviderContext): Promise<{ html: string; pageUrl: string }> {
+  if (!/^\d{8}$/.test(sku)) throw new ProviderError('product_not_found', `IKEA article numbers have 8 digits (got "${sku}")`);
+  const hit = ctx.cache.get<IkeaHit>(`hit:${sku}`);
+  // `/p/-<sku>/` redirects to the canonical slug page.
+  const pageUrl = pageUrlOf(sku, hit?.url); // never a URL taken as-is from a response
+  const res = await ctx.fetch(pageUrl, { headers: { accept: 'text/html', 'accept-language': 'fr-FR,fr;q=0.9' }, ...(ctx.signal ? { signal: ctx.signal } : {}) });
+  if (res.status === 404 || res.status === 410) {
+    await res.body?.cancel().catch(() => undefined);
+    throw new ProviderError('product_not_found', `IKEA FR has no article ${sku}`);
+  }
+  if (!res.ok) {
+    await res.body?.cancel().catch(() => undefined);
+    throw new ProviderError('provider_unavailable', `IKEA product page answered ${res.status}`);
+  }
+  return { html: await readTextCapped(res, PAGE_MAX_BYTES), pageUrl: res.url || pageUrl };
+}
+
+/** One search request: `size` hits for `q`, parsed (shared by the live provider and the local catalogue build). Throws `provider_unavailable` / `provider_parse_failed`. */
+export async function fetchSearchHits(q: string, size: number, ctx: ProviderContext): Promise<{ hits: IkeaHit[]; skipped: string[] }> {
+  const url = `${SEARCH_URL}?${new URLSearchParams({ q, size: String(size), types: 'PRODUCT' })}`;
+  const res = await ctx.fetch(url, { headers: { accept: 'application/json' }, ...(ctx.signal ? { signal: ctx.signal } : {}) });
+  if (!res.ok) {
+    await res.body?.cancel().catch(() => undefined);
+    throw new ProviderError('provider_unavailable', `IKEA search answered ${res.status}`);
+  }
+  let json: unknown;
+  try {
+    json = JSON.parse(await readTextCapped(res, SEARCH_MAX_BYTES));
+  } catch (e) {
+    if (e instanceof ProviderError) throw e;
+    throw fail('search response', 'is not JSON');
+  }
+  return parseSearchResponseDetailed(json);
+}
+
+/** `offers.availability` of a product page (schema.org `InStock` / `OutOfStock` / `Discontinued`...), or undefined when the page does not say. */
+export function availabilityOf(html: string): 'in_stock' | 'out_of_stock' | 'discontinued' | undefined {
+  const product = extractJsonLd(html).nodes.find((n) => hasType(n, 'Product'));
+  for (const offer of asArray(product?.['offers'] as unknown[])) {
+    const a = isObj(offer) ? str(offer['availability']) : undefined;
+    if (!a) continue;
+    if (/discontinued/i.test(a)) return 'discontinued';
+    if (/outofstock|soldout/i.test(a)) return 'out_of_stock';
+    if (/instock|limitedavailability|onlineonly|instoreonly|presale/i.test(a)) return 'in_stock';
+  }
+  return undefined;
+}
+
 export function createIkeaFrProvider(options: IkeaFrOptions = {}): ProductProvider {
   const enrichMax = options.enrichMax ?? ENRICH_MAX;
   const foregroundPages = options.foregroundPages ?? FOREGROUND_PAGES;
@@ -418,28 +476,16 @@ export function createIkeaFrProvider(options: IkeaFrOptions = {}): ProductProvid
   const inflight = new Map<string, Promise<ProductRecord>>();
 
   async function getRecord(sku: string, ctx: ProviderContext): Promise<ProductRecord> {
-    if (!/^\d{8}$/.test(sku)) throw new ProviderError('product_not_found', `IKEA article numbers have 8 digits (got "${sku}")`);
     const cached = ctx.cache.get<ProductRecord>(`product:${sku}`);
     if (cached) return cached;
     const running = inflight.get(sku);
     if (running) return running;
     const p = (async () => {
       const hit = ctx.cache.get<IkeaHit>(`hit:${sku}`);
-      // `/p/-<sku>/` redirects to the canonical slug page.
-      const pageUrl = pageUrlOf(sku, hit?.url); // never a URL taken as-is from a response
-      const res = await ctx.fetch(pageUrl, { headers: { accept: 'text/html', 'accept-language': 'fr-FR,fr;q=0.9' }, ...(ctx.signal ? { signal: ctx.signal } : {}) });
-      if (res.status === 404 || res.status === 410) {
-        await res.body?.cancel().catch(() => undefined);
-        throw new ProviderError('product_not_found', `IKEA FR has no article ${sku}`);
-      }
-      if (!res.ok) {
-        await res.body?.cancel().catch(() => undefined);
-        throw new ProviderError('provider_unavailable', `IKEA product page answered ${res.status}`);
-      }
-      const html = await readTextCapped(res, PAGE_MAX_BYTES);
+      const { html, pageUrl } = await fetchProductPage(sku, ctx);
       const record = parseProductPage(html, {
         sku,
-        pageUrl: res.url || pageUrl,
+        pageUrl,
         fetchedAt: new Date(ctx.clock.now()).toISOString(),
         ...(hit ? { hit } : {}),
       });
@@ -466,20 +512,7 @@ export function createIkeaFrProvider(options: IkeaFrOptions = {}): ProductProvid
       let hits = ctx.cache.get<IkeaHit[]>(key);
       let skippedHits = 0;
       if (!hits) {
-        const url = `${SEARCH_URL}?${new URLSearchParams({ q, size: String(size), types: 'PRODUCT' })}`;
-        const res = await ctx.fetch(url, { headers: { accept: 'application/json' }, ...(ctx.signal ? { signal: ctx.signal } : {}) });
-        if (!res.ok) {
-          await res.body?.cancel().catch(() => undefined);
-          throw new ProviderError('provider_unavailable', `IKEA search answered ${res.status}`);
-        }
-        let json: unknown;
-        try {
-          json = JSON.parse(await readTextCapped(res, SEARCH_MAX_BYTES));
-        } catch (e) {
-          if (e instanceof ProviderError) throw e;
-          throw fail('search response', 'is not JSON');
-        }
-        const parsed = parseSearchResponseDetailed(json);
+        const parsed = await fetchSearchHits(q, size, ctx);
         hits = parsed.hits;
         if (parsed.skipped.length) ctx.log('warn', `ikea-fr: skipped ${parsed.skipped.length} malformed search hit(s): ${parsed.skipped.slice(0, 3).join('; ')}`);
         skippedHits = parsed.skipped.length;

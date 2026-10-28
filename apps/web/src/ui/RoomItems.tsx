@@ -41,7 +41,7 @@ export function RoomItems({ scene }: { scene: Scene }) {
                 </button>
                 <span className="line-price">{l.price}</span>
                 {l.locked && <span className="badge badge-locked">locked</span>}
-                {l.stale && <span className="badge badge-warn" title="Price older than 7 days">stale</span>}
+                {l.stale && <span className="badge badge-warn" title="Price older than 30 days">stale</span>}
                 {l.noProduct && !l.existing && <span className="badge badge-warn">no product</span>}
                 {offline.has(l.itemId) && <span className="badge" title="Real model unavailable without the server">offline</span>}
               </li>

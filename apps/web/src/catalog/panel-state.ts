@@ -4,6 +4,7 @@ export const SERVER_HINT = 'Connect the local scene server (`pnpm dev:all`) to s
 /** Dev build, no server found yet: the page keeps probing, and says how to start one. */
 export const DEV_OFFLINE_HINT = 'Scene server not running: run `npx pnpm@10 dev:all`. The page connects by itself once it is up. IKEA search needs `FLAT_PROVIDERS=ikea-fr` in `apps/server/.env.local`.';
 export const NO_PROVIDER_HINT = 'Connected, but no product provider is enabled on the server. Set `FLAT_PROVIDERS=ikea-fr` in `apps/server/.env.local` and restart it.';
+export const LOCAL_ONLY_HINT = 'Nothing like that in the local catalogue. Add more with `pnpm catalog:build --queries <file>`, or tick "Search IKEA live".';
 export const SEARCH_MIN_CHARS = 2;
 export const SEARCH_DEBOUNCE_MS = 300;
 

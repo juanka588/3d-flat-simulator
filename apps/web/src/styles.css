@@ -1290,6 +1290,28 @@ legend {
 .badge-warn {
   background: #fff4d6;
 }
+.badge-local {
+  background: #e4f3e6;
+}
+.local-catalog {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.25rem 0.75rem;
+}
+.local-catalog .hint {
+  margin: 0;
+}
+.live-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+}
+.live-toggle input:disabled + * {
+  opacity: 0.5;
+}
 .badge-locked {
   background: #e3ecff;
 }

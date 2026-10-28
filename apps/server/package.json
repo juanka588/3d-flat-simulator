@@ -6,13 +6,16 @@
   "scripts": {
     "start": "tsx src/main.ts",
     "dev": "tsx watch src/main.ts",
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json",
+    "catalog:build": "tsx src/providers/local/cli.ts build",
+    "catalog:status": "tsx src/providers/local/cli.ts status"
   },
   "dependencies": {
     "@flat/scene": "workspace:*",
     "@hono/node-server": "^1.19.0",
     "hono": "^4.9.0",
-    "ws": "^8.18.0"
+    "ws": "^8.18.0",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/ws": "^8.18.0",

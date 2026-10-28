@@ -3,21 +3,24 @@ import {
   parseProductId,
   productIdOf,
   type ProductRecord,
+  type ProductSource,
   type ProviderErrorCode,
   type ProviderInfo,
 } from '@flat/scene';
 import { MemoryCache, TTL_MODEL_MS, TTL_PRODUCT_MS, TTL_SEARCH_MS } from './cache';
-import { PROVIDER_CATALOG, type ProviderMeta } from './catalog';
+import { IKEA_FR_LOCAL_META, PROVIDER_CATALOG, type ProviderMeta } from './catalog';
 import { createNetwork, readBytesCapped, type NetworkOptions, type ProviderNetwork } from './http';
 import { createPinnedFetch } from './pinned';
 import { createSecrets, type Secrets } from './secrets';
-import { ProviderError, isPartial, warningsOf, type ModelStream, type ProductProvider, type ProviderContext, type ProviderRegistry, type SearchOptions } from './types';
+import { ProviderError, isPartial, warningsOf, type LocalCatalogSource, type ModelStream, type ProductProvider, type ProviderContext, type ProviderRegistry, type SearchOptions } from './types';
 
 /** Seen-products registry TTL (D9): ids a search returned to an MCP session stay placeable for an hour after the last touch. */
 export const SEEN_TTL_MS = 60 * 60_000;
 export const SEEN_MAX_SESSIONS = 200;
 export const SEEN_MAX_IDS = 5000;
 const GLB_MAGIC = [0x67, 0x6c, 0x54, 0x46]; // "glTF"
+/** The live provider the local catalogue stands in for. */
+const LOCAL_FOR = 'ikea-fr';
 export const PHOTO_MAX_BYTES = 2 * 1024 * 1024;
 const TTL_PHOTO_MS = 24 * 60 * 60_000;
 
@@ -54,6 +57,11 @@ export interface RegistryOptions {
   /** Replace or add provider constructors (tests). */
   factories?: Record<string, Loader>;
   cache?: { maxTotalBytes?: number; maxEntryBytes?: number };
+  /**
+   * The local product catalogue (built by `pnpm catalog:build`): searched first, instantly and offline; the live `ikea-fr` provider
+   * is only a fallback (fewer local results than the limit, or `live: true`). Product ids stay `ikea-fr:<sku>`.
+   */
+  local?: LocalCatalogSource;
 }
 
 export interface LiveRegistry extends ProviderRegistry {
@@ -151,6 +159,7 @@ function assembleRegistry(opts: RegistryOptions, providers: ReadonlyMap<string, 
   }
 
   const enabledSlots = () => [...slots.values()].filter((s) => s.provider);
+  const local = opts.local;
 
   function slotFor(id: string): Required<Pick<Slot, 'provider' | 'ctx'>> & Slot {
     const slot = slots.get(id);
@@ -183,8 +192,19 @@ function assembleRegistry(opts: RegistryOptions, providers: ReadonlyMap<string, 
 
     enabledIds: () => enabledSlots().map((s) => s.meta.id),
 
+    localInfo: () => local?.info(),
+
+    productSource(productId) {
+      const ref = parseProductId(productId);
+      if (local && ref && ref.provider === LOCAL_FOR && local.get(ref.sku)) return { source: 'local' as const, stale: local.isStale(ref.sku) };
+      return { source: 'live' as const, stale: false };
+    },
+
     info(): ProviderInfo[] {
-      return [...slots.values()].map((s) => {
+      const localEntry: ProviderInfo[] = local?.info()
+        ? [{ id: IKEA_FR_LOCAL_META.id, label: IKEA_FR_LOCAL_META.label, capabilities: IKEA_FR_LOCAL_META.capabilities, enabled: true, circuit: 'closed', personalUseOnly: true, ...(IKEA_FR_LOCAL_META.note ? { note: IKEA_FR_LOCAL_META.note } : {}) }]
+        : [];
+      return [...localEntry, ...[...slots.values()].map((s) => {
         const c = s.provider && s.net ? s.net.circuit() : { state: 'closed' as const };
         return {
           id: s.meta.id,
@@ -196,21 +216,40 @@ function assembleRegistry(opts: RegistryOptions, providers: ReadonlyMap<string, 
           personalUseOnly: s.meta.personalUseOnly,
           ...(s.meta.note ? { note: s.meta.note } : {}),
         };
-      });
+      })];
     },
 
     get: (id) => slots.get(id)?.provider,
 
     async search(query, sopts) {
-      const { providerId, ...rest } = sopts;
-      let targets: Slot[];
-      if (providerId !== undefined) targets = [slotFor(providerId)];
-      else {
-        targets = enabledSlots().filter((s) => s.meta.capabilities.search);
-        if (enabledSlots().length === 0) throw new ProviderError('provider_disabled', 'no product provider is enabled (set FLAT_PROVIDERS, e.g. FLAT_PROVIDERS=ikea-fr)');
-      }
+      const { providerId, live, ...rest } = sopts;
+      // Local tier first: instant and offline. It answers for `ikea-fr` (and `ikea-fr-local`, which never goes live).
+      if (local) await local.refresh();
+      const localOn = local?.info() !== undefined && (providerId === undefined || providerId === LOCAL_FOR || providerId === IKEA_FR_LOCAL_META.id);
+      const localRecs = localOn ? local!.search(query, { ...rest, limit: rest.limit + 1 }) : [];
+      const localFull = localRecs.length >= rest.limit;
       const statuses: { provider: string; ok: boolean; code?: ProviderErrorCode; message?: string }[] = [];
-      const lists: { rank: number; recs: ProductRecord[] }[] = [];
+      let targets: Slot[];
+      if (providerId === IKEA_FR_LOCAL_META.id && localOn) targets = [];
+      else if (providerId !== undefined) {
+        // With a local catalogue, a disabled live `ikea-fr` is not an error: the catalogue answers.
+        targets = localOn && !slots.get(providerId)?.provider ? [] : [slotFor(providerId)];
+      } else {
+        targets = enabledSlots().filter((s) => s.meta.capabilities.search);
+        if (enabledSlots().length === 0 && !localOn) throw new ProviderError('provider_disabled', 'no product provider is enabled (set FLAT_PROVIDERS, e.g. FLAT_PROVIDERS=ikea-fr)');
+      }
+      // The live provider the catalogue stands in for is a FALLBACK: asked only when the local results fall short, or on request.
+      if (localOn) {
+        targets = targets.filter((s) => s.meta.id !== LOCAL_FOR || live === true || !localFull);
+        if (live === true && slots.get(LOCAL_FOR)?.provider === undefined && (providerId === undefined || providerId === LOCAL_FOR)) {
+          statuses.push({ provider: LOCAL_FOR, ok: false, code: 'provider_disabled', message: 'live IKEA search is not enabled on this server (FLAT_PROVIDERS=ikea-fr)' });
+        }
+      }
+      const lists: { rank: number; recs: ProductRecord[]; tier: 0 | 1 }[] = [];
+      if (localOn) {
+        lists.push({ rank: -1, recs: localRecs, tier: 0 });
+        statuses.push({ provider: IKEA_FR_LOCAL_META.id, ok: true });
+      }
       await Promise.all(
         targets.map(async (s, i) => {
           const p = s.provider!;
@@ -227,7 +266,7 @@ function assembleRegistry(opts: RegistryOptions, providers: ReadonlyMap<string, 
                 return found;
               }));
             for (const r of recs) rememberRecord(r);
-            lists[i] = { rank: i, recs };
+            lists.push({ rank: i, recs, tier: 1 });
             const warnings = warningsOf(recs);
             statuses.push({ provider: p.id, ok: true, ...(warnings.length ? { message: warnings.join('; ').slice(0, 300) } : {}) });
           } catch (e) {
@@ -239,11 +278,10 @@ function assembleRegistry(opts: RegistryOptions, providers: ReadonlyMap<string, 
       );
       statuses.sort((a, b) => (a.provider < b.provider ? -1 : 1));
       const tokens = query.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
-      // Uniform filters, then rank: query score, provider relevance order (round-robin across providers), cheaper, sku.
+      // Uniform filters, then rank: local records first (in the catalogue's own order), then query score, provider relevance order, cheaper, sku.
       const seenIds = new Set<string>();
-      const ranked: { rec: ProductRecord; s: number; pos: number }[] = [];
-      for (const l of lists) {
-        if (!l) continue;
+      const ranked: { rec: ProductRecord; s: number; pos: number; tier: 0 | 1 }[] = [];
+      for (const l of lists.sort((a, b) => a.tier - b.tier || a.rank - b.rank)) {
         l.recs.forEach((rec, idx) => {
           const id = productIdOf(rec);
           if (seenIds.has(id)) return;
@@ -254,19 +292,35 @@ function assembleRegistry(opts: RegistryOptions, providers: ReadonlyMap<string, 
           if (rest.maxDims?.d !== undefined && rec.dims.d > rest.maxDims.d) return;
           if (rest.maxDims?.h !== undefined && rec.dims.h > rest.maxDims.h) return;
           seenIds.add(id);
-          ranked.push({ rec, s: score(rec, tokens), pos: idx });
+          ranked.push({ rec, s: l.tier === 0 ? 0 : score(rec, tokens), pos: idx, tier: l.tier });
         });
       }
-      ranked.sort((a, b) => b.s - a.s || a.pos - b.pos || a.rec.price - b.rec.price || (a.rec.sku < b.rec.sku ? -1 : a.rec.sku > b.rec.sku ? 1 : 0));
-      const records = ranked.slice(0, rest.limit).map((r) => r.rec);
+      ranked.sort((a, b) => a.tier - b.tier || (a.tier === 0 ? a.pos - b.pos : b.s - a.s || a.pos - b.pos || a.rec.price - b.rec.price || (a.rec.sku < b.rec.sku ? -1 : a.rec.sku > b.rec.sku ? 1 : 0)));
+      const top = ranked.slice(0, rest.limit);
+      const records = top.map((r) => r.rec);
       // A provider is asked for `limit` records, so one that returned a full page may have had more.
-      const full = lists.some((l) => l && l.recs.length >= rest.limit);
-      return { records, statuses, truncated: ranked.length > rest.limit || full };
+      const full = lists.some((l) => l.tier === 1 && l.recs.length >= rest.limit);
+      const sources = new Map<string, ProductSource>();
+      const stale = new Set<string>();
+      for (const r of top) {
+        const id = productIdOf(r.rec);
+        sources.set(id, r.tier === 0 ? 'local' : 'live');
+        if (r.tier === 0 && local!.isStale(r.rec.sku)) stale.add(id);
+      }
+      return { records, statuses, truncated: ranked.length > rest.limit || full, sources, stale };
     },
 
     async getProduct(productId) {
       const ref = parseProductId(productId);
       if (!ref) throw new ProviderError('product_not_found', `"${productId}" is not a product id (expected provider:sku)`);
+      if (local && ref.provider === LOCAL_FOR) {
+        await local.refresh();
+        const hit = local.get(ref.sku);
+        if (hit) return hit;
+        if (!slots.get(ref.provider)?.provider && local.info()) {
+          throw new ProviderError('product_not_found', `${productId} is not in the local catalogue and live IKEA is not enabled`, { hint: 'Search again: only products of the local catalogue (or a live search) can be used.' });
+        }
+      }
       const s = slotFor(ref.provider);
       const key = `rec\0${formatProductId(ref)}`;
       return cache.flight(key, TTL_PRODUCT_MS, () => s.provider.get(ref.sku, s.ctx), () => 4096);
@@ -295,6 +349,13 @@ function assembleRegistry(opts: RegistryOptions, providers: ReadonlyMap<string, 
     async fetchModel(productId): Promise<ModelStream> {
       const ref = parseProductId(productId);
       if (!ref) throw new ProviderError('product_not_found', `"${productId}" is not a product id`);
+      if (local && ref.provider === LOCAL_FOR) {
+        await local.refresh();
+        // The local catalogue is the cleaned truth: a product it lists without a model never falls through to a live download.
+        const m = await local.readModel(ref.sku);
+        if (m?.state === 'ready') return streamOf(m.bytes, 'model/gltf-binary');
+        if (m) throw new ProviderError('model_unavailable', `${productId}: ${m.reason}`);
+      }
       const s = slotFor(ref.provider);
       const p = s.provider;
       if (!p.capabilities.model3d || !p.fetchModel) throw new ProviderError('model_unavailable', `${p.id} has no 3D models`);
@@ -305,21 +366,13 @@ function assembleRegistry(opts: RegistryOptions, providers: ReadonlyMap<string, 
         async () => readModel(await p.fetchModel!(ref.sku, s.ctx), cache.maxEntryBytes),
         (b) => b.byteLength,
       );
-      return {
-        stream: new ReadableStream<Uint8Array>({
-          start(c) {
-            c.enqueue(bytes);
-            c.close();
-          },
-        }),
-        contentType: 'model/gltf-binary',
-        size: bytes.byteLength,
-      };
+      return streamOf(bytes, 'model/gltf-binary');
     },
 
     prefetchModels(productIds) {
       for (const id of productIds.slice(0, 60)) {
         const ref = parseProductId(id);
+        if (ref && local && ref.provider === LOCAL_FOR && local.get(ref.sku)) continue; // already on disk
         const slot = ref ? slots.get(ref.provider) : undefined;
         const p = slot?.provider;
         if (!ref || !slot || !p || !slot.ctx || !p.capabilities.model3d || !p.fetchModel) continue;
@@ -370,6 +423,13 @@ function assembleRegistry(opts: RegistryOptions, providers: ReadonlyMap<string, 
     async fetchPhoto(productId) {
       const ref = parseProductId(productId);
       if (!ref) throw new ProviderError('product_not_found', `"${productId}" is not a product id`);
+      if (local && ref.provider === LOCAL_FOR) {
+        await local.refresh();
+        const data = await local.readPhoto(ref.sku);
+        const contentType = data ? sniffImage(data) : undefined;
+        if (data && contentType) return { data, contentType };
+        if (local.get(ref.sku) && !slots.get(ref.provider)?.provider) throw new ProviderError('product_not_found', `${productId} has no photo in the local catalogue`);
+      }
       const s = slotFor(ref.provider);
       const p = s.provider;
       if (!p.fetchPhoto) throw new ProviderError('product_not_found', `${p.id} has no product photos`);
@@ -386,6 +446,19 @@ function assembleRegistry(opts: RegistryOptions, providers: ReadonlyMap<string, 
     },
   };
   return reg;
+}
+
+function streamOf(bytes: Uint8Array, contentType: string): ModelStream {
+  return {
+    stream: new ReadableStream<Uint8Array>({
+      start(c) {
+        c.enqueue(bytes);
+        c.close();
+      },
+    }),
+    contentType,
+    size: bytes.byteLength,
+  };
 }
 
 /** MIME type from the magic bytes (the upstream header is not trusted); raster images only, never SVG. */

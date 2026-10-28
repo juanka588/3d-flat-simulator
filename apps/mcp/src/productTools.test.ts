@@ -549,10 +549,10 @@ describe('validate_layout and get_bill_of_materials', () => {
     expect(room.j.bySku.map((g: any) => g.productId).sort()).toEqual(['mock:MOCK-BED-160', 'mock:MOCK-DESK-120']);
   });
 
-  it('stale snapshots are flagged by the clock (more than 7 days)', async () => {
+  it('stale snapshots are flagged by the clock (more than 30 days)', async () => {
     const { call: c, clock } = await furnished();
     expect((await c('get_bill_of_materials')).j.stale).toBeUndefined();
-    clock.advance(1100 * 86_400_000); // the fake clock starts in 2023, the fixture snapshots are from 2026-10-27
+    clock.advance(1200 * 86_400_000); // the fake clock starts in 2023, the fixture snapshots are from 2026-10-27
     const late = (await c('get_bill_of_materials')).j;
     expect(late.stale).toHaveLength(2);
     expect(late.bySku.every((g: any) => g.stale)).toBe(true);

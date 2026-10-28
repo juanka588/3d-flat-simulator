@@ -3932,7 +3932,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "openWorldHint": false,
       "readOnlyHint": true,
     },
-    "description": "List the product providers (shops) the server can search: id, label, whether it is enabled, what it can do (search, real 3D model, dimension quality, pasted URLs), its circuit state (open = paused after repeated blocks; retryAt) and whether its data may only be used personally. Call it before search_products to pick a provider id.",
+    "description": "List the product providers (shops): id, label, enabled, capabilities (search, 3D model, dimension quality, pasted URLs), circuit state (open = paused after blocks; retryAt), personal-use flag. ikea-fr-local is the local catalogue (searched first; localCatalog = its size and date). Call it before search_products.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {},
@@ -3948,7 +3948,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "openWorldHint": false,
       "readOnlyHint": true,
     },
-    "description": "Search real, purchasable furniture at the enabled providers. Returns at most 12 compact results (productId, name, TTC price, assembled dims w x d x h in metres, colours, has3d = a real 3D model exists). The returned productIds are the only ones place_item accepts in this session. Filter by category, maxPrice and the maximum width/depth/height that fits the room (use describe_room for its size) so results fit. Prices are indicative shelf prices. Limited to 20 searches per minute.",
+    "description": "Search real, purchasable furniture: the local catalogue first (instant, offline), the live shop only if it has fewer than limit results or live:true. Returns at most 12 compact results (productId, name, TTC price, assembled dims w x d x h in metres, colours, has3d = real 3D model, source local|live, fetchedAt, stale = price over 30 days old). The returned productIds are the only ones place_item accepts in this session. Filter by category, maxPrice and max width/depth/height (describe_room gives the room size) so results fit. Limited to 20 searches per minute.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -3995,6 +3995,10 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "minimum": 1,
           "type": "integer",
         },
+        "live": {
+          "description": "Also ask the live shop (10-20 s).",
+          "type": "boolean",
+        },
         "maxDepth": {
           "description": "Deepest acceptable product, metres (item z).",
           "exclusiveMinimum": 0,
@@ -4016,7 +4020,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "type": "number",
         },
         "provider": {
-          "description": "Restrict to one provider id (list_providers). Default: every enabled provider.",
+          "description": "One provider id (list_providers); default all.",
           "type": "string",
         },
         "query": {
@@ -4501,7 +4505,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "openWorldHint": false,
       "readOnlyHint": true,
     },
-    "description": "Shopping list of the placed items, grouped by product: productId, name, link, quantity, unit price, what is left to buy (toBuy) and the amount. totalEur counts the TTC prices of unlocked items only (locked existing furniture is listed at 0; delivery, assembly and discounts are not included), byRoom has the subtotals, stale lists price snapshots older than 7 days. Prices are indicative.",
+    "description": "Shopping list of the placed items, grouped by product: productId, name, link, quantity, unit price, what is left to buy (toBuy) and the amount. totalEur counts the TTC prices of unlocked items only (locked existing furniture is listed at 0; delivery, assembly and discounts are not included), byRoom has the subtotals, stale lists price snapshots older than 30 days. Prices are indicative.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {

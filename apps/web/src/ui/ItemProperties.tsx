@@ -214,7 +214,7 @@ export function ItemProperties({ scene, item }: { scene: Scene; item: Item }) {
               <dd data-testid="item-date">
                 <time dateTime={p.snapshotAt}>{formatDate(p.snapshotAt)}</time>
                 {stale && (
-                  <span className="badge badge-warn" data-testid="stale-badge" title="This price is more than 7 days old.">
+                  <span className="badge badge-warn" data-testid="stale-badge" title="This price is more than 30 days old.">
                     stale
                   </span>
                 )}

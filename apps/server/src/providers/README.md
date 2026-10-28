@@ -4,6 +4,10 @@ A provider turns one source of real products (a retailer's site, a feed, a fixtu
 
 Why it is strict: the assistant may only place products that exist (D9 of `docs/backlog/m5.md`), the retailer must not be hammered, and retailer data and 3D models are for the user's private use (see "Products and personal-use providers" in the root README).
 
+## The local tier (`providers/local/`)
+
+The local catalogue is not a provider module: it is data on disk (`apps/server/local-assets/ikea-fr`, built by `pnpm catalog:build`, see the root README) that the registry consults before any live provider. `registry.search` asks it first and calls the live `ikea-fr` provider only when it returns fewer than `limit` records or the caller passes `live: true`; `getProduct`, `fetchModel` and `fetchPhoto` read local records first (a product the catalogue lists without a model answers `model_unavailable` and is never downloaded live). Product ids stay `ikea-fr:<sku>`. `build.ts` is the only code that talks to the shop for it, through the normal network layer. Guards: the folder is gitignored and in `denyDirs`, and the catalogue marker string is denied in `dist`.
+
 ## The interface (`types.ts`)
 
 ```ts

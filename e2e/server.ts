@@ -32,12 +32,12 @@ async function freePort(): Promise<number> {
   });
 }
 
-export async function startServer(opts: { providers?: string; dataDir?: string; port?: number } = {}): Promise<RunningServer> {
+export async function startServer(opts: { providers?: string; dataDir?: string; port?: number; localCatalogDir?: string } = {}): Promise<RunningServer> {
   const port = opts.port ?? (await freePort());
   const dataDir = opts.dataDir ?? mkdtempSync(join(tmpdir(), 'flat-catalog-'));
   const child: ChildProcess = spawn(process.execPath, ['--import', 'tsx', 'src/main.ts'], {
     cwd: SERVER_CWD,
-    env: { ...process.env, PORT: String(port), HOST: '127.0.0.1', DATA_DIR: dataDir, ALLOWED_ORIGINS: WEB_ORIGIN, FLAT_PROVIDERS: opts.providers ?? 'mock', FLAT_ENV_FILE: join(dataDir, 'none.env') },
+    env: { ...process.env, PORT: String(port), HOST: '127.0.0.1', DATA_DIR: dataDir, ALLOWED_ORIGINS: WEB_ORIGIN, FLAT_PROVIDERS: opts.providers ?? 'mock', FLAT_ENV_FILE: join(dataDir, 'none.env'), LOCAL_CATALOG_DIR: opts.localCatalogDir ?? join(dataDir, 'no-local-catalog') },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let log = '';

@@ -17,15 +17,15 @@ and the model never types them. All of these need the scene server; the product 
 
 | Tool | What it does |
 |---|---|
-| `list_providers` | Providers, whether each is enabled, its circuit state (`closed`/`open`), capabilities and the personal-use note. |
-| `search_products` | Search the enabled providers (query, category, `maxPrice`, `maxWidth/Depth/Height`, colour, limit). Compact results with `productId` (`"<provider>:<sku>"`), TTC price, assembled dims, `has3d`. Limited to 20 searches per minute. The ids it returns are the only ones `place_item` accepts in this session. |
+| `list_providers` | Providers, whether each is enabled, its circuit state (`closed`/`open`), capabilities and the personal-use note. `ikea-fr-local` is the local catalogue (`pnpm catalog:build`); `localCatalog` gives its size and build date. |
+| `search_products` | Search the **local catalogue first** (instant, offline, 3D models already checked), then the enabled live providers only when it returns fewer than `limit` results or with `live: true` (query in French or English, category, `maxPrice`, `maxWidth/Depth/Height`, colour, limit). Compact results with `productId` (`"<provider>:<sku>"`, the same `ikea-fr:<sku>` for local and live), TTC price, assembled dims, `has3d`, `source` (`local`/`live`), `fetchedAt`, `stale` (price over 30 days old). Limited to 20 searches per minute. The ids it returns are the only ones `place_item` accepts in this session. |
 | `get_product` | Full facts of one product: price, link, dims, colours, variants (each with its SKU, price and dims), `weightKg` (wall mounts over 15 kg need a structural wall), `has3d`, data date. 60 per minute. Also marks the product as seen. |
 | `search_assets` | The geometry library (parametric generators and CC0 models) with the parameters each accepts: for shapes, not for buying. |
 | `get_placement_options` | Dry run of the placement solver for one product and one relation (`against_wall`, `in_corner`, `centered_in`, `facing`, `next_to`, `under_window`): valid candidates with rationale, or the violations and alternatives. Nothing changes. |
 | `place_item` | Puts one or several products (`items[]`, up to 12, one undo step) into a room by relation or explicit position. Refuses with `unknown_product` (not returned by a search of this session), `placement_invalid` (with violations and candidates), or `rate_limited`. Supports `preview`, `render`, `ifRev`, `label` like every write tool. |
 | `item_move`, `item_rotate`, `item_remove` | Move, turn or delete a placed item; locked items (existing furniture such as the built-in wardrobes, called placards) are refused for the model. |
 | `validate_layout` | Checks the placed furniture of a room (or the flat): inside the room, no overlaps, door swings, window sills and glazing, walkways at least 0.8 m (0.9 m at the entry). Returns `violations`, `warnings`, `freeFloorM2`, `minWalkwayM`, `totalEur` and, with `budgetEur`, `overBudget`. Note that it reads the saved scene, not a preview. |
-| `get_bill_of_materials` | Shopping list grouped by product (quantity, TTC unit price, amount, link), `totalEur` (unlocked items only; locked furniture counts 0; no delivery or assembly), subtotals per room, `stale` price snapshots (older than 7 days). |
+| `get_bill_of_materials` | Shopping list grouped by product (quantity, TTC unit price, amount, link), `totalEur` (unlocked items only; locked furniture counts 0; no delivery or assembly), subtotals per room, `stale` price snapshots (older than 30 days). |
 
 ### Lighting (M5.19-M5.21)
 

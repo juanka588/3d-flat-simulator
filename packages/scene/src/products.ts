@@ -100,7 +100,7 @@ export const PRODUCT_CATEGORIES = [
 export const ProductCategory = z.enum(PRODUCT_CATEGORIES);
 export type ProductCategory = z.infer<typeof ProductCategory>;
 
-/** Where the dimensions came from: provider data fields, parsed from text, typed by the user, or guessed by a model. */
+/** Where the dimensions came from: provider data fields, parsed from text, typed by the user, or derived by a model (the local catalogue build takes a missing sofa height from the product's own 3D model). */
 export const DimsSource = z.enum(['structured', 'text', 'user', 'model']);
 export type DimsSource = z.infer<typeof DimsSource>;
 
@@ -171,6 +171,12 @@ export function productIdOf(p: Pick<ProductRecord, 'provider' | 'sku'>): Product
   return formatProductId(p);
 }
 
+/** `local` = served from the gitignored local catalogue built by `pnpm catalog:build`; `live` = read from the shop just now. */
+export const ProductSource = z.enum(['local', 'live']);
+export type ProductSource = z.infer<typeof ProductSource>;
+/** A local record older than this many days is flagged stale (the price may have changed). */
+export const LOCAL_STALE_DAYS = 30;
+
 // ---------------------------------------------------------------------------------------------
 // ProductSummary (search results)
 // ---------------------------------------------------------------------------------------------
@@ -197,10 +203,16 @@ export const ProductSummary = z.strictObject({
   has3d: z.boolean(),
   photoUrl: HttpUrl.optional(),
   personalUseOnly: z.boolean(),
+  /** Where the record came from: the local catalogue (instant, offline) or a live provider request. Absent in older answers. */
+  source: ProductSource.optional(),
+  /** When the record was read from the shop (set together with `source`). */
+  fetchedAt: IsoDateTime.optional(),
+  /** A local record older than `LOCAL_STALE_DAYS`: its price may have changed (update with `catalog:build --refresh-prices`). */
+  stale: z.literal(true).optional(),
 });
 export type ProductSummary = z.infer<typeof ProductSummary>;
 
-export function summarizeProduct(p: ProductRecord): ProductSummary {
+export function summarizeProduct(p: ProductRecord, extra: { source?: ProductSource; stale?: boolean } = {}): ProductSummary {
   return {
     productId: productIdOf(p),
     provider: p.provider,
@@ -218,6 +230,8 @@ export function summarizeProduct(p: ProductRecord): ProductSummary {
     has3d: p.modelRef !== undefined,
     ...(p.photoUrl !== undefined ? { photoUrl: p.photoUrl } : {}),
     personalUseOnly: p.personalUseOnly,
+    ...(extra.source !== undefined ? { source: extra.source, fetchedAt: p.fetchedAt } : {}),
+    ...(extra.stale ? { stale: true as const } : {}),
   };
 }
 
@@ -240,7 +254,7 @@ export const ProductSnapshot = z.strictObject({
   currency: Currency,
   dims: Dims,
   category: ProductCategory,
-  /** When these facts were read from the provider (staleness: the bill of materials flags > 7 days). */
+  /** When these facts were read from the provider (staleness: the bill of materials flags > 30 days). */
   snapshotAt: IsoDateTime,
   /** Chosen colour, when the product has several. */
   colour: z.string().min(1).max(40).optional(),
@@ -322,6 +336,8 @@ export const ProductSearchParams = z.strictObject({
   maxD: z.coerce.number().positive().optional(),
   maxH: z.coerce.number().positive().optional(),
   limit: z.coerce.number().int().min(1).max(50).default(10),
+  /** Also ask the live shop even when the local catalogue has enough results (default: live only as a fallback). */
+  live: z.union([z.boolean(), z.enum(['true', 'false', '1', '0']).transform((v) => v === 'true' || v === '1')]).optional(),
 });
 export type ProductSearchParams = z.infer<typeof ProductSearchParams>;
 export type ProductSearchParamsInput = z.input<typeof ProductSearchParams>;
@@ -344,10 +360,22 @@ export const ProductSearchResponse = z.strictObject({
 });
 export type ProductSearchResponse = z.infer<typeof ProductSearchResponse>;
 
-export const ProvidersResponse = z.strictObject({ providers: z.array(ProviderInfo) });
+/** The local catalogue, when one is loaded (`GET /api/providers`). */
+export const LocalCatalogInfo = z.strictObject({
+  /** Provider id of the local tier, `ikea-fr-local`. */
+  id: ProviderId,
+  count: z.number().int().nonnegative(),
+  withModels: z.number().int().nonnegative(),
+  builtAt: IsoDateTime,
+  /** The newest record is older than `LOCAL_STALE_DAYS`. */
+  stale: z.boolean(),
+});
+export type LocalCatalogInfo = z.infer<typeof LocalCatalogInfo>;
+
+export const ProvidersResponse = z.strictObject({ providers: z.array(ProviderInfo), localCatalog: LocalCatalogInfo.optional() });
 export type ProvidersResponse = z.infer<typeof ProvidersResponse>;
 
-export const GetProductResponse = z.strictObject({ product: ProductRecord });
+export const GetProductResponse = z.strictObject({ product: ProductRecord, source: ProductSource.optional(), stale: z.literal(true).optional() });
 export type GetProductResponse = z.infer<typeof GetProductResponse>;
 
 /** Body of `POST /api/products/resolve`. */

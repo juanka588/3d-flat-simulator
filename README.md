@@ -52,12 +52,30 @@ FLAT_PROVIDERS=mock npx pnpm@10 server                   # fictional offline cat
 **Personal-use rules.** The IKEA FR and pasted-URL providers use unofficial endpoints and public pages. Their data and 3D models are for your own private design work on your own machine:
 
 - they are shown in the UI under a "personal use" banner, and in `render_view` captions ("IKEA models, personal use");
-- they are streamed through your local server on demand and kept in memory only (search results 10 min, products 1 h, models 1 h; 200 MB in total, 20 MB per model), never written to disk, never committed, never served from Pages;
+- live results are streamed through your local server on demand and kept in memory only (search results 10 min, products 1 h, models 1 h; 200 MB in total, 20 MB per model). They are cached on disk only in the gitignored local catalogue that you build yourself (see "Local product catalogue" below), and never committed, never served from Pages;
 - the traffic is polite: an honest User-Agent, GET only, one request at a time per host with a 1.5 s gap, `robots.txt` honoured, and a circuit breaker that pauses the provider after a 403/429 (so a blocked provider is not hammered);
 - they may break without notice when the retailer changes its pages. A site with bot protection (Leroy Merlin, Maisons du Monde, La Redoute, Darty) cannot be read by "paste a product URL"; you then type the size by hand;
 - you decide per provider (see `docs/research/m5-retailer-spike.md` for the spike and `docs/MODELS-CREDITS.md` for the CC0 model library that ships with the app).
 
-**What is stored.** A saved or exported flat keeps, per product item, only the **reference and a snapshot**: provider, SKU, link, name, price (TTC), currency, dimensions, category and the snapshot date. No photos, no 3D models and no provider response are written into the file; models are re-streamed when you open the flat with the server running, and fall back to a CC0 lookalike or a parametric shape at the exact size otherwise. A price older than 7 days is flagged "stale" and can be refreshed from the server ("Update price/dims"). The bill of materials (`get_bill_of_materials`, the room item list) counts TTC prices of the items you placed; the existing built-in wardrobes (placards) are locked and count 0; delivery and assembly are not included.
+## Local product catalogue (personal use)
+
+Live IKEA requests are slow (10-20 s per search, 1.5 s per page) and IKEA's pages and models are sometimes unexpected. So you can build, once, a **local catalogue** of the products you actually use, and the simulator, the web Products tab and the MCP tools then answer from it instantly and offline:
+
+```sh
+pnpm catalog:build --limit 15           # a small sample first (about a minute)
+pnpm catalog:build                      # the full curated build: about 400 products, 1-2 hours of polite fetching; Ctrl-C and run again to resume
+pnpm catalog:build --refresh-prices     # later: update price and availability only (one page read per product)
+pnpm catalog:status                     # what is in it: counts, products without a 3D model and why, memory before/after
+```
+
+Options: `--queries file` (your own list: one query per line, `query | category`), `--from-scene file.flat.json` (also fetch the IKEA products a flat uses), `--per-query 12`, `--max-products 400`, `--no-photos`, `--texture-max 1024`, `--no-optimize`, `--out dir`. The default query list is the "modern French flat" kit of `docs/research/m5-modern-assets.md` in French ("canapé 3 places", "îlot cuisine", "tabouret de bar", "lit 160x200", "table de chevet", "rideaux", "plante artificielle", "salon de jardin", ...) plus the products already used in the design sessions. It is curated, not a crawl: at most 12 results per query and 400 products.
+
+- **Where.** `apps/server/local-assets/ikea-fr/` (`catalog.json`, `models/<sku>.glb`, `photos/<sku>.webp`), gitignored. CI fails if a file of that folder is tracked or appears in the Pages build (`retailer-hosts.json` `denyDirs` + a marker string; `check-no-retailer`). Personal use only, like the live provider.
+- **Polite.** The build uses the same network layer as the live provider (honest User-Agent, GET only, one request at a time per host, 1.5 s gap, robots.txt, circuit breaker; a 403/429 stops the build and keeps what it has). Entries younger than 30 days are skipped, so every run is incremental and resumable.
+- **Cleaned truth.** At build time every record is validated (schema, plausible dimensions, category, mount) and every GLB is parsed with glTF-Transform (Draco and Meshopt inputs), measured against the listed dimensions with the viewer's own rules, quarter-turned when the shop's width and depth are swapped, resized to textures of at most 1024 px and Meshopt-compressed. A missing height (sofas) is taken from the model. A product whose model is missing, unreadable or more than 25% out of proportion stays in the catalogue with `has3d: false` and the reason (`catalog:status`), so nothing 404s at run time.
+- **Serving.** The ids stay `ikea-fr:<sku>`, so saved flats and the seen registry work unchanged. `search_products` and the Products tab query the catalogue first (French or English words, "queen size bed" finds 160x200); live IKEA is only a fallback when fewer results than the limit are found, or when you tick "Search IKEA live" / pass `live: true`. Results say `source: local|live` and `fetchedAt`; a local price older than 30 days is flagged stale (the bill of materials flags 30 days too). Models and photos are served by the same guarded routes as live ones (`LOCAL_CATALOG_DIR` to move it, `FLAT_LOCAL_CATALOG=off` to ignore it).
+
+**What is stored.** A saved or exported flat keeps, per product item, only the **reference and a snapshot**: provider, SKU, link, name, price (TTC), currency, dimensions, category and the snapshot date. No photos, no 3D models and no provider response are written into the file; models are re-streamed when you open the flat with the server running, and fall back to a CC0 lookalike or a parametric shape at the exact size otherwise. A price older than 30 days is flagged "stale" and can be refreshed from the server ("Update price/dims"). The bill of materials (`get_bill_of_materials`, the room item list) counts TTC prices of the items you placed; the existing built-in wardrobes (placards) are locked and count 0; delivery and assembly are not included.
 
 **Guards that keep retailer data local** (D4 of `docs/backlog/m5.md`):
 
