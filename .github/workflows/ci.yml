@@ -61,11 +61,13 @@ jobs:
     if: github.event_name == 'workflow_dispatch' || github.event.schedule == '0 3 * * *'
     runs-on: ubuntu-latest
     continue-on-error: true
-    timeout-minutes: 20
+    # The first nightly (run 40661365790) cancelled all three 1/3 shards at the old 20 min limit with ~78 tests each: on a
+    # 2-vCPU runner with software WebGL a test costs 25-45 s (the Pages gate does 9 tests in 3.2 min), so 6 smaller shards.
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        shard: [1/3, 2/3, 3/3]
+        shard: [1/6, 2/6, 3/6, 4/6, 5/6, 6/6]
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4

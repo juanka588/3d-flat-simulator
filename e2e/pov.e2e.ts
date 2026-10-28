@@ -1,14 +1,11 @@
 /**
  * Camera POV and controls: the person ghost (orbit/top), the stick-like keys (arrows move, physical W/A/S/D look,
- * i.e. ZQSD on AZERTY) in walk, orbit and top, and the keyboard help. Screenshots go to /tmp/pov/.
+ * i.e. ZQSD on AZERTY) in walk, orbit and top, and the keyboard help. Screenshots go to the test output folder.
  */
-import { mkdirSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { flat, openApp, rendered, savePng } from './helpers';
 
-const SHOTS = '/tmp/pov';
-mkdirSync(SHOTS, { recursive: true });
 
 test.beforeEach(async ({ page }) => {
   await openApp(page);
@@ -46,17 +43,17 @@ test('orbit shows a translucent ghost at the person height (166 cm), unlit and s
   await page.getByTestId('person-height').fill('166');
   await page.getByTestId('person-height').blur();
   await rendered(page);
-  await savePng(page, `${SHOTS}/orbit-ghost.png`);
+  await savePng(page, test.info().outputPath('orbit-ghost.png'));
   const g0 = (await ghost(page))!;
   await page.evaluate(
     (p) => window.__flat!.setCamera({ mode: 'orbit', target: [p.x, 0.8, p.z], azimuthDeg: 135, elevationDeg: 30, distance: 6, fovDeg: 50 }),
     g0,
   );
-  await savePng(page, `${SHOTS}/orbit-ghost-close.png`);
+  await savePng(page, test.info().outputPath('orbit-ghost-close.png'));
   // Top view shows it too; walk mode does not.
   await page.evaluate(() => window.__flat!.setView({ mode: 'top' }));
   expect(await ghost(page)).not.toBeNull();
-  await savePng(page, `${SHOTS}/top-ghost.png`);
+  await savePng(page, test.info().outputPath('top-ghost.png'));
   await page.evaluate(() => window.__flat!.setView({ mode: 'walk' }));
   expect(await ghost(page)).toBeNull();
 });
@@ -69,7 +66,7 @@ test('the parametric mannequin stays when the HD figure is not available', async
   expect(g.source).toBe('parametric');
   expect(g.heightM).toBeGreaterThan(1.65);
   expect(g.heightM).toBeLessThan(1.67);
-  await savePng(page, `${SHOTS}/orbit-ghost-parametric.png`);
+  await savePng(page, test.info().outputPath('orbit-ghost-parametric.png'));
 });
 
 test('"Show person" toggles the ghost', async ({ page }) => {
@@ -134,7 +131,7 @@ test('dragging the ghost sets the walk start, clamped inside the flat; Walk star
 test('walk: ArrowUp moves forward, KeyA yaws left, KeyW/KeyS pitch (clamped at 80 degrees)', async ({ page }) => {
   await manualClock(page);
   await page.evaluate(() => window.__flat!.setView({ mode: 'walk' }));
-  await savePng(page, `${SHOTS}/walk-start.png`);
+  await savePng(page, test.info().outputPath('walk-start.png'));
   const start = await stats(page);
   await hold(page, 'ArrowUp', 600);
   const moved = await stats(page);
@@ -191,7 +188,7 @@ test('orbit: W/A/S/D orbit the camera round its target, arrows pan the target', 
   expect(Math.hypot(e.camera[0] - d.camera[0], e.camera[2] - d.camera[2])).toBeGreaterThan(0.3);
   expect(e.camera[1]).toBeCloseTo(d.camera[1], 2);
   expect(e.yawDeg).toBeCloseTo(d.yawDeg, 1);
-  await savePng(page, `${SHOTS}/orbit-panned.png`);
+  await savePng(page, test.info().outputPath('orbit-panned.png'));
 });
 
 test('a selected item keeps the arrows (nudge); without selection the arrows move the camera', async ({ page }) => {
@@ -247,10 +244,10 @@ test('the help shows ZQSD on an AZERTY layout and both labels when the layout is
   await expect(page.getByTestId('cam-help')).toBeVisible();
   const expectedBoth = /ZQSD \/ WASD/;
   await expect(page.getByTestId('cam-help-look')).toHaveText(expectedBoth);
-  await page.screenshot({ path: `${SHOTS}/help-overlay.png` });
+  await page.screenshot({ path: test.info().outputPath('help-overlay.png') });
   await page.evaluate(() => window.__flat!.setView({ mode: 'walk' }));
   await expect(page.getByTestId('walk-help-look')).toHaveText(expectedBoth);
-  await page.screenshot({ path: `${SHOTS}/help-overlay-walk.png` });
+  await page.screenshot({ path: test.info().outputPath('help-overlay-walk.png') });
   // A French keyboard.
   const context = await browser.newContext({ baseURL: test.info().project.use.baseURL, viewport: { width: 1280, height: 800 } });
   const fr = await context.newPage();
@@ -261,6 +258,6 @@ test('the help shows ZQSD on an AZERTY layout and both labels when the layout is
   await expect(fr.getByTestId('cam-help-look')).toHaveText('ZQSD');
   await fr.evaluate(() => window.__flat!.setView({ mode: 'walk' }));
   await expect(fr.getByTestId('walk-help-look')).toHaveText('ZQSD');
-  await fr.screenshot({ path: `${SHOTS}/help-overlay-azerty.png` });
+  await fr.screenshot({ path: test.info().outputPath('help-overlay-azerty.png') });
   await context.close();
 });

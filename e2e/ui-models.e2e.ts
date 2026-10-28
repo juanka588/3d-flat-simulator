@@ -2,7 +2,7 @@
  * An item whose model cannot be shown (a retailer product, no server, nothing in the library that resembles it)
  * is drawn as a neutral grey box at its exact size, and the item panel's badge says why. Never magenta triangles.
  *
- * Screenshot: /tmp/ui-fixes/placeholder-box.png
+ * Screenshots: in the test's output folder (test-results/)
  */
 import { expect, test } from '@playwright/test';
 import { charmeFlat, flat, loadScene, openApp, rendered } from './helpers';
@@ -31,5 +31,5 @@ test('an unresolvable product is a plain box with a badge that explains why', as
   const stats = await flat(page, (f) => f.modelStats());
   expect(stats.loading).not.toContain('mystery');
   expect(stats.reasons['mystery']).toBeTruthy();
-  await page.screenshot({ path: '/tmp/ui-fixes/placeholder-box.png' });
+  await page.screenshot({ path: test.info().outputPath('placeholder-box.png') });
 });

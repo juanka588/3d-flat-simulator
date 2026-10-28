@@ -101,7 +101,7 @@ test('a stale snapshot offers "Update price/dims", which refreshes it from the s
     // the snapshot carries the date the SERVER read the price (the record's fetchedAt), not the click time
     expect(Date.parse(p.snapshotAt)).toBeGreaterThan(Date.parse(old()));
     expect(Date.parse(p.snapshotAt)).toBeLessThanOrEqual(Date.now());
-    await page.screenshot({ path: '/tmp/catalog-stale.png' });
+    await page.screenshot({ path: test.info().outputPath('catalog-stale.png') });
   } finally {
     await server.stop();
   }

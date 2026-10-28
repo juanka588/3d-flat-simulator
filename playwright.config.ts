@@ -18,6 +18,9 @@ const SOFTWARE_GL = { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftsh
 export default defineConfig({
   testDir: 'e2e',
   testMatch: '**/*.e2e.ts',
+  // Software WebGL on the 2-vCPU hosted runners (2 workers) made single tests cross the 30 s default: the Pages
+  // autosave test already needs ~27 s with 2 workers on a 16-core laptop, and page loads take longer under load.
+  timeout: process.env.CI ? 60_000 : 30_000,
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,

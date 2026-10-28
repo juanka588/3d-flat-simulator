@@ -3,8 +3,8 @@
  * reset, undo/redo, the structural badge/toggle, the top-view overlay and the mobile bottom sheet.
  * The scene is asserted through `window.__flat.getScene()`, never through pixels.
  *
- * Screenshots (always written): /tmp/finish-panel-desktop.png, /tmp/finish-panel-mobile.png,
- * /tmp/structural-overlay.png.
+ * Screenshots (always written): finish-panel-desktop.png, finish-panel-mobile.png,
+ * structural-overlay.png.
  */
 import { expect, test } from '@playwright/test';
 import type { Locator, Page } from '@playwright/test';
@@ -98,7 +98,7 @@ test.describe('desktop', () => {
     expect(room.floorMaterial).toEqual(before.rooms.find((r) => r.id === ROOM)!.floorMaterial);
     for (const r of after.rooms.filter((x) => x.id !== ROOM)) expect(r.wallFinish).toEqual(before.rooms.find((x) => x.id === r.id)!.wallFinish);
     await expect(finish.locator('[data-testid^="finish-"]').filter({ hasText: 'Sage' }).first()).toBeVisible();
-    await page.screenshot({ path: '/tmp/finish-panel-desktop.png' });
+    await page.screenshot({ path: test.info().outputPath('finish-panel-desktop.png') });
 
     // Undo / redo through the buttons.
     const undo = page.getByRole('button', { name: 'Undo' });
@@ -364,7 +364,7 @@ test.describe('desktop', () => {
     await expect(legend).toContainText('Structural');
     await expect(legend).toContainText('Removable partition');
     expect((await page.evaluate(() => window.__flat!.stats())).meshes).toContain('structural-walls');
-    await page.screenshot({ path: '/tmp/structural-overlay.png' });
+    await page.screenshot({ path: test.info().outputPath('structural-overlay.png') });
 
     await legend.getByRole('checkbox', { name: 'Show structural walls' }).uncheck();
     await rendered(page);
@@ -435,6 +435,6 @@ test.describe('mobile bottom sheet', () => {
     await rendered(page);
     expect((await getScene(page)).rooms.find((r) => r.id === ROOM)!.floorMaterial ?? null).toBeNull();
     await finish.scrollIntoViewIfNeeded();
-    await page.screenshot({ path: '/tmp/finish-panel-mobile.png' });
+    await page.screenshot({ path: test.info().outputPath('finish-panel-mobile.png') });
   });
 });

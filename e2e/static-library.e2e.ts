@@ -3,7 +3,7 @@
  * (CC0 models and generated parametric ones) and placed library models all resolve under the base path, with
  * no 404 and nothing requested outside it, and every thumbnail shows after scrolling its container.
  *
- * Screenshots: /tmp/ui-fixes/pages-textures.png, /tmp/ui-fixes/pages-library.png
+ * Screenshots: in the test's output folder (test-results/)
  */
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
@@ -34,7 +34,7 @@ test('texture grid thumbnails all load, also after scrolling', async ({ page }) 
   expect(n).toBeGreaterThan(10);
   for (let i = n - 1; i >= 0; i -= 4) await cards.nth(i).scrollIntoViewIfNeeded();
   await expect.poll(() => unloaded(page, '.texture-card img')).toBe(0);
-  await page.screenshot({ path: '/tmp/ui-fixes/pages-textures.png' });
+  await page.screenshot({ path: test.info().outputPath('pages-textures.png') });
   expect(traffic.requests.filter((p) => !p.startsWith(BASE))).toEqual([]);
   expect(traffic.bad).toEqual([]);
 });
@@ -52,7 +52,7 @@ test('Library thumbnails (generated and CC0) load under the base path, and placi
   for (let i = n - 1; i >= 0; i -= 5) await imgs.nth(i).scrollIntoViewIfNeeded();
   await expect.poll(() => unloaded(page, '[data-testid=generator-card] img, [data-testid=model-card] img')).toBe(0);
   expect(traffic.requests.filter((p) => p.includes('/thumbs/param-')).length).toBeGreaterThanOrEqual(20);
-  await page.screenshot({ path: '/tmp/ui-fixes/pages-library.png' });
+  await page.screenshot({ path: test.info().outputPath('pages-library.png') });
 
   await page.evaluate(() => window.__flat!.select('sejour'));
   await page.getByTestId('model-card').first().getByTestId('add-to-room').click();
@@ -91,7 +91,7 @@ test('HD models: listed with thumbnails and credits, fetched lazily from models-
   const hrefs = await credits.locator('li a').evaluateAll((as) => as.map((a) => (a as HTMLAnchorElement).href));
   expect(hrefs.length).toBe(await lines.count());
   for (const h of hrefs) expect(h).toMatch(/^https:\/\/sketchfab\.com\/3d-models\//);
-  await page.screenshot({ path: '/tmp/m5r-hd/pages-library-hd.png' });
+  await page.screenshot({ path: test.info().outputPath('pages-library-hd.png') });
 
   // Lazy: a hero model nobody uses yet is not downloaded until it is placed.
   const glbs = () => traffic.requests.filter((p) => p.startsWith(`${BASE}models-hd/`) && p.endsWith('.glb'));

@@ -10,7 +10,7 @@ const SERVER_BOUNDARY = [
 ];
 
 export default tseslint.config(
-  { ignores: ['.claude/**', '**/dist/**', '**/node_modules/**', '**/coverage/**'] },
+  { ignores: ['.claude/**', '.tmp/**', 'test-results/**', 'playwright-report/**', '**/dist/**', '**/node_modules/**', '**/coverage/**'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

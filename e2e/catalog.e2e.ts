@@ -3,8 +3,8 @@
  * validity, drop refusal, undo, the item properties, keyboard editing, the locked placard, paste a URL, and the
  * mobile drawer with a long-press drag.
  *
- * Screenshots (always written): /tmp/catalog-search.png, /tmp/catalog-ghost-red.png, /tmp/catalog-placed.png,
- * /tmp/catalog-properties.png, /tmp/catalog-mobile.png.
+ * Screenshots (always written): catalog-search.png, catalog-ghost-red.png, catalog-placed.png,
+ * catalog-properties.png, catalog-mobile.png.
  */
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
@@ -69,7 +69,7 @@ test('search, red ghost over the door swing, refused drop, valid drop, undo', as
   // photos only ever come through the local server (never hotlinked from the retailer's host)
   expect(hotlinked).toEqual([]);
   await expect(page.getByTestId('product-card').filter({ hasText: 'Bedside' }).first()).toBeVisible();
-  await page.screenshot({ path: '/tmp/catalog-search.png' });
+  await page.screenshot({ path: test.info().outputPath('catalog-search.png') });
 
   const before = await items(page);
   const h0 = await entries(page);
@@ -80,7 +80,7 @@ test('search, red ghost over the door swing, refused drop, valid drop, undo', as
   expect((await ghost(page))!.message).toMatch(/swing|landing/);
   await expect(page.getByTestId('ghost-tip')).toHaveAttribute('data-valid', 'false');
   await expect(page.getByTestId('ghost-tip')).toContainText(/swing|landing/);
-  await page.screenshot({ path: '/tmp/catalog-ghost-red.png' });
+  await page.screenshot({ path: test.info().outputPath('catalog-ghost-red.png') });
   await page.mouse.up();
   await expect(page.getByTestId('placement-notice')).toContainText(/Can't place/);
   expect(await items(page)).toEqual(before);
@@ -99,7 +99,7 @@ test('search, red ghost over the door swing, refused drop, valid drop, undo', as
   expect(placed.dims).toEqual({ w: 1.6, d: 2, h: 0.9 });
   expect(placed.roomId).toBe('ch1');
   await flat(page, (f) => f.whenRendered());
-  await page.screenshot({ path: '/tmp/catalog-placed.png' });
+  await page.screenshot({ path: test.info().outputPath('catalog-placed.png') });
 
   // Ctrl+Z removes it
   await page.keyboard.press('Control+z');
@@ -122,7 +122,7 @@ test('item properties, nudge, rotate, delete and the locked placard', async ({ p
   await expect(props.getByTestId('badge-mesh')).toBeVisible();
   await expect(page.getByTestId('room-items')).toContainText('MOCK Double bed frame');
   await expect(page.getByTestId('flat-total')).toContainText('299,00');
-  await page.screenshot({ path: '/tmp/catalog-properties.png' });
+  await page.screenshot({ path: test.info().outputPath('catalog-properties.png') });
 
   const id = (await items(page)).at(-1)!;
   const get = () => flat(page, (f) => f.getScene().items.at(-1)!);
@@ -253,7 +253,7 @@ test.describe('mobile', () => {
     const to = await screenOf(page, 8.2, 2.0);
     await page.evaluate(([x, y]) => window.dispatchEvent(new PointerEvent('pointermove', { pointerId: 7, pointerType: 'touch', isPrimary: true, bubbles: true, clientX: x!, clientY: y! })), [to.x, to.y]);
     await expect.poll(async () => (await ghost(page))?.valid).toBe(true);
-    await page.screenshot({ path: '/tmp/catalog-mobile.png' });
+    await page.screenshot({ path: test.info().outputPath('catalog-mobile.png') });
     await page.evaluate(([x, y]) => window.dispatchEvent(new PointerEvent('pointerup', { pointerId: 7, pointerType: 'touch', isPrimary: true, bubbles: true, clientX: x!, clientY: y! })), [to.x, to.y]);
     await expect.poll(async () => (await items(page)).length).toBe(before + 1);
     // the bottom sheet opens compact with the price, and expands on tap

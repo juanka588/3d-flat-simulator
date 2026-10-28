@@ -503,7 +503,7 @@ test.describe('the flat stands in its building (orbit view)', () => {
     await rendered(page);
     expect((await flat(page, (f) => f.stats())).shadowCasterMeshes).toContain('context-canopy');
 
-    await savePng(page, '/tmp/floating-after.png');
+    await savePng(page, test.info().outputPath('floating-after.png'));
 
     // Top view keeps the envelope hidden, the facade stays.
     await top(page);

@@ -4,7 +4,7 @@
  * default address); the offline hint tells how to start one; an empty search names the query and the providers.
  * Library: short generator names and their generated thumbnails.
  *
- * Screenshots: /tmp/ui-fixes/products-offline.png, /tmp/ui-fixes/products-connected.png, /tmp/ui-fixes/library-thumbs.png
+ * Screenshots: in the test's output folder (test-results/)
  */
 import { createServer } from 'node:net';
 import { expect, test } from '@playwright/test';
@@ -32,7 +32,7 @@ test('a page opened before the server connects by itself when it starts', async 
   await expect(hint).toContainText('pnpm@10 dev:all');
   await expect(hint).toContainText('FLAT_PROVIDERS=ikea-fr');
   await expect(page.getByTestId('catalog-retry')).toBeVisible();
-  await page.screenshot({ path: '/tmp/ui-fixes/products-offline.png' });
+  await page.screenshot({ path: test.info().outputPath('products-offline.png') });
 
   const server = await startServer({ providers: 'mock', port });
   try {
@@ -48,7 +48,7 @@ test('a page opened before the server connects by itself when it starts', async 
 
     await page.getByTestId('catalog-search').fill('bed');
     await expect(page.getByTestId('product-card').first()).toBeVisible({ timeout: 15_000 });
-    await page.screenshot({ path: '/tmp/ui-fixes/products-connected.png' });
+    await page.screenshot({ path: test.info().outputPath('products-connected.png') });
   } finally {
     await server.stop();
   }
@@ -63,7 +63,8 @@ test('Retry in the offline hint connects right away', async ({ page }) => {
   await expect(page.getByTestId('catalog-server-hint')).toBeVisible(); // still nothing there
   const server = await startServer({ providers: 'mock', port });
   try {
-    await page.getByTestId('catalog-retry').click().catch(() => undefined); // the background probe may have won
+    // The background probe may have won and removed the button; without a short timeout the click would wait out the whole test.
+    await page.getByTestId('catalog-retry').click({ timeout: 2_000 }).catch(() => undefined);
     await expect(page.getByTestId('catalog-search')).toBeVisible({ timeout: 30_000 });
   } finally {
     await server.stop();
@@ -98,5 +99,5 @@ test('the Library shows short names and a thumbnail for every parametric generat
     .poll(() => cards.locator('img').evaluateAll((imgs) => imgs.filter((i) => !((i as HTMLImageElement).complete && (i as HTMLImageElement).naturalWidth > 0)).length))
     .toBe(0);
   expect(await cards.locator('img').count()).toBe(await cards.count());
-  await page.screenshot({ path: '/tmp/ui-fixes/library-thumbs.png' });
+  await page.screenshot({ path: test.info().outputPath('library-thumbs.png') });
 });

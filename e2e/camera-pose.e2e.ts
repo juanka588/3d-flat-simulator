@@ -263,7 +263,9 @@ test.describe('camera pose', () => {
 
 // ------------------------------------------------------------------------------ view channel
 
-const WEB_ORIGIN = 'http://127.0.0.1:5173';
+/** The Vite dev server under test (playwright.config.ts: E2E_PORT, default 5173). */
+const WEB_PORT = process.env.E2E_PORT ?? '5173';
+const WEB_ORIGIN = `http://127.0.0.1:${WEB_PORT}`;
 const SERVER_CWD = join(process.cwd(), 'apps', 'server');
 
 async function freePort(): Promise<number> {
@@ -405,7 +407,7 @@ test.describe('view channel', () => {
     await expect(page.getByTestId('follow-assistant')).toHaveCount(0);
     expect(await page.evaluate(() => window.__flat!.receiveView({ type: 'view', seq: 1, pose: { mode: 'top', center: [0, 0], halfHeight: 5, rotationDeg: 0 } }))).toBe('no-server');
     // Only the app's own origin (Vite's HMR socket aside): no probe, no scene server, no WebSocket of ours.
-    const foreign = requests.filter((u) => !u.startsWith(WEB_ORIGIN) && !u.startsWith('data:') && !u.startsWith('blob:') && !u.startsWith('ws://127.0.0.1:5173/?token='));
+    const foreign = requests.filter((u) => !u.startsWith(WEB_ORIGIN) && !u.startsWith('data:') && !u.startsWith('blob:') && !u.startsWith(`ws://127.0.0.1:${WEB_PORT}/?token=`));
     expect(foreign).toEqual([]);
     expect(requests.filter((u) => u.includes('/ws') || u.includes('/api/'))).toEqual([]);
   });

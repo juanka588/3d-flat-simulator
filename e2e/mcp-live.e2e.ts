@@ -16,7 +16,7 @@ import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import type { Scene } from '../packages/scene/src/index';
 
-const WEB_ORIGIN = 'http://127.0.0.1:5173';
+const WEB_ORIGIN = `http://127.0.0.1:${process.env.E2E_PORT ?? 5173}`;
 const SERVER_CWD = join(process.cwd(), 'apps', 'server');
 const MCP_CWD = join(process.cwd(), 'apps', 'mcp');
 
@@ -111,7 +111,7 @@ test('MCP write reaches the followed tab within 1 s (author llm); set_sun_time s
     await expect.poll(tabTime, { timeout: 2000 }).toBe('20:00');
     await page.evaluate(() => window.__flat!.whenRendered());
     expect(await lamps()).toEqual(lampsBefore);
-    await page.screenshot({ path: '/tmp/mcp-live-tab.png' });
+    await page.screenshot({ path: test.info().outputPath('mcp-live-tab.png') });
   } finally {
     await client.close().catch(() => undefined);
     await srv.stop();

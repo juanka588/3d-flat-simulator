@@ -3,16 +3,14 @@
  * drag its corner handles with the real mouse (5 cm grid) and check that the zone stops at the room walls; rename
  * and remove through the panel. The scene is asserted through `window.__flat.getScene()`, never through pixels.
  *
- * Screenshots (always written): /tmp/floor-zones/e2e-selected-zone.png, /tmp/floor-zones/e2e-clamped.png.
+ * Screenshots (always written): e2e-selected-zone.png, e2e-clamped.png.
  */
-import { mkdirSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 import type { Locator, Page } from '@playwright/test';
 import { zoneProblems } from '../packages/scene/src/index';
 import type { Scene } from '../packages/scene/src/index';
 import { openApp, rendered } from './helpers';
 
-mkdirSync('/tmp/floor-zones', { recursive: true });
 
 const getScene = (page: Page): Promise<Scene> => page.evaluate(() => window.__flat!.getScene());
 const properties = (page: Page): Locator => page.getByTestId('properties');
@@ -42,7 +40,7 @@ test.describe('floor zones (desktop)', () => {
     await expect(panel.locator('h2')).toHaveText('Cuisine (floor zone)');
     await expect(panel.getByTestId('finish-zone')).toContainText('Grey floor tiles');
     await expect(panel.getByRole('button', { name: /^This zone/ })).toHaveAttribute('aria-pressed', 'true');
-    await page.screenshot({ path: '/tmp/floor-zones/e2e-selected-zone.png' });
+    await page.screenshot({ path: test.info().outputPath('e2e-selected-zone.png') });
 
     const parquet = await page.evaluate((p) => window.__flat!.project(p), [2.0, 0, 5.2] as [number, number, number]);
     await page.mouse.click(parquet.x, parquet.y);
@@ -144,7 +142,7 @@ test.describe('floor zones (desktop)', () => {
     await page.mouse.down();
     await page.mouse.move((from.x + wall.x) / 2, (from.y + wall.y) / 2, { steps: 5 });
     await page.mouse.move(wall.x, wall.y, { steps: 5 });
-    await page.screenshot({ path: '/tmp/floor-zones/e2e-clamped.png' });
+    await page.screenshot({ path: test.info().outputPath('e2e-clamped.png') });
     await page.mouse.up();
     await rendered(page);
     scene = await getScene(page);

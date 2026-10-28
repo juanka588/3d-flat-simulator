@@ -4,7 +4,7 @@
  * working while the server is down and reconciles after a restart, an epoch change asks the user, and
  * foreign origins are refused. Pages mode (no `?server=`) is covered by the other specs.
  *
- * Screenshots (always written): /tmp/sync-tabA.png, /tmp/sync-tabB.png (after tab A painted).
+ * Screenshots (always written): sync-tabA.png, sync-tabB.png (after tab A painted).
  */
 import { spawn } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
@@ -17,7 +17,9 @@ import type { Browser, Page } from '@playwright/test';
 import type { Scene } from '../packages/scene/src/index';
 import { sampleFlat } from './helpers';
 
-const WEB_ORIGIN = 'http://127.0.0.1:5173';
+/** The Vite dev server under test (playwright.config.ts: E2E_PORT, default 5173). */
+const WEB_PORT = process.env.E2E_PORT ?? '5173';
+const WEB_ORIGIN = `http://127.0.0.1:${WEB_PORT}`;
 const SERVER_CWD = join(process.cwd(), 'apps', 'server'); // playwright runs from the repo root
 const SAGE = 'paint-a3ae93-matt';
 const PAINT_SEJOUR = {
@@ -153,8 +155,8 @@ test('an edit in tab A reaches tab B within a second, and undo in B reaches A', 
   await b.evaluate(() => window.__flat!.whenRendered());
   expect((await b.evaluate(() => window.__flat!.stats().camera))).toEqual(cameraB);
 
-  await a.screenshot({ path: '/tmp/sync-tabA.png' });
-  await b.screenshot({ path: '/tmp/sync-tabB.png' });
+  await a.screenshot({ path: test.info().outputPath('sync-tabA.png') });
+  await b.screenshot({ path: test.info().outputPath('sync-tabB.png') });
 
   // One shared history: B can undo what A did.
   await expect.poll(async () => (await history(b)).canUndo).toBe(true);
@@ -273,8 +275,8 @@ test('a disallowed Origin is refused', async ({ browser, request }) => {
   // A page on another origin cannot open the socket either.
   const context = await browser.newContext();
   const page = await context.newPage();
-  await page.route('http://localhost:5173/', (route) => route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>x</title>' }));
-  await page.goto('http://localhost:5173/');
+  await page.route(`http://localhost:${WEB_PORT}/`, (route) => route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>x</title>' }));
+  await page.goto(`http://localhost:${WEB_PORT}/`);
   const outcome = await page.evaluate(
     (url) =>
       new Promise<string>((resolve) => {

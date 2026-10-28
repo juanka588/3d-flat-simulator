@@ -256,11 +256,11 @@ test('captures: herringbone parquet floor and plaster walls', async ({ page }) =
   expect(await loadScene(page, withTextures({ floor: 'parquet-herringbone-glossy' }))).toBe(true);
   await page.evaluate(() => window.__flat!.setView({ mode: 'top' }));
   await settle(page);
-  await savePng(page, '/tmp/tex-floor-oak-top.png');
+  await savePng(page, test.info().outputPath('tex-floor-oak-top.png'));
   await page.evaluate(() => window.__flat!.setView({ mode: 'walk' }));
   await page.evaluate((p) => window.__flat!.setWalkPose(p), { x: 2, z: 7.6, yawDeg: 0 });
   await settle(page);
-  await savePng(page, '/tmp/tex-floor-oak.png');
+  await savePng(page, test.info().outputPath('tex-floor-oak.png'));
   const calls = await steadyCalls(page);
   console.log(`walk draw calls with parquet: ${calls}`);
   expect(calls).toBeLessThanOrEqual(MAX_DRAW_CALLS);
@@ -279,7 +279,7 @@ test('captures: herringbone parquet floor and plaster walls', async ({ page }) =
   const plasterStd = await lumaStd(page, WALL_POINT, 60);
   console.log(`wall luma std: paint ${paintStd.toFixed(2)}, plaster ${plasterStd.toFixed(2)}`);
   expect(plasterStd).toBeGreaterThan(paintStd + 0.5);
-  await savePng(page, '/tmp/tex-walls-plaster.png');
+  await savePng(page, test.info().outputPath('tex-walls-plaster.png'));
   expect(await steadyCalls(page)).toBeLessThanOrEqual(MAX_DRAW_CALLS);
   expect((await texStats(page)).slugs).toEqual(['plaster-rough-white']);
 });

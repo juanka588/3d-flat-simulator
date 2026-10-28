@@ -54,17 +54,29 @@ const logPath = () => join(dir, 'log.ndjson');
 const readLogEntries = async () =>
   (await readFile(logPath(), 'utf8')).split('\n').filter(Boolean).map((l) => JSON.parse(l) as LogEntry);
 
+/**
+ * Seeds `count` commands. `staleSnapshot` is the state.json as of the first command (a deterministic stand-in for "the
+ * snapshot is older than the log"). Reading state.json.prev instead depended on whether the 10 ms snapshot debounce
+ * happened to fire between commands, so it failed or passed with machine load.
+ */
 async function seeded(count = 5) {
-  const b = await boot();
   const ids: string[] = [];
+  let b = await boot();
+  let staleSnapshot = '';
   for (let i = 1; i <= count; i++) {
     const e = env(north(i * 3));
     ids.push(e.id);
     await b.call('POST', '/api/commands', e);
+    if (i === 1 && count > 1) {
+      await shutdown(b.store);
+      staleSnapshot = await readFile(join(dir, 'state.json'), 'utf8');
+      b = await boot();
+    }
   }
   const live = { rev: b.store.rev, epoch: b.store.epoch, scene: serializeScene(b.store.scene) };
   await shutdown(b.store);
-  return { live, ids };
+  if (!staleSnapshot) staleSnapshot = await readFile(join(dir, 'state.json'), 'utf8');
+  return { live, ids, staleSnapshot };
 }
 
 describe('S1: corrupt snapshot never wipes data', () => {
@@ -128,13 +140,13 @@ describe('S1: corrupt snapshot never wipes data', () => {
 
 describe('log corruption', () => {
   it('a corrupt line in the middle stops the boot and preserves the file', async () => {
-    const { live } = await seeded();
+    const { live, staleSnapshot } = await seeded();
     const lines = (await readFile(logPath(), 'utf8')).split('\n').filter(Boolean);
     lines[2] = '{"this is":"not a log entry"';
     const text = lines.join('\n') + '\n';
     await writeFile(logPath(), text);
     // stale snapshot so replay has to read the whole log
-    const snap = JSON.parse(await readFile(join(dir, 'state.json.prev'), 'utf8'));
+    const snap = JSON.parse(staleSnapshot);
     await writeFile(join(dir, 'state.json'), JSON.stringify(snap));
     expect(snap.rev).toBeLessThan(live.rev);
     await expect(boot()).rejects.toThrow(/line 3/);
@@ -142,13 +154,13 @@ describe('log corruption', () => {
   });
 
   it('a stopped replay keeps the unreplayed entries in an archive file', async () => {
-    await seeded(3);
+    const { staleSnapshot } = await seeded(3);
     const entries = await readLogEntries();
     const last = entries.at(-1)!;
     const bad = { ...last, seq: 4, rev: 4, envelope: { ...env({ type: 'room.setFloor', roomId: 'nope', materialId: null }) } };
     const good = { ...last, seq: 5, rev: 5, envelope: env(north(55)) };
     await appendFile(logPath(), `${JSON.stringify(bad)}\n${JSON.stringify(good)}\n`);
-    const snap = JSON.parse(await readFile(join(dir, 'state.json.prev'), 'utf8'));
+    const snap = JSON.parse(staleSnapshot);
     await writeFile(join(dir, 'state.json'), JSON.stringify(snap));
     const b = await boot();
     expect(b.store.rev).toBe(3);
@@ -243,11 +255,11 @@ describe('S3/S4: idempotency', () => {
 
 describe('S5: replay', () => {
   it('does not remember responses for log entries that were never applied', async () => {
-    await seeded(2);
+    const { staleSnapshot } = await seeded(2);
     const last = (await readLogEntries()).at(-1)!;
     const badEnv = env({ type: 'room.setFloor', roomId: 'nope', materialId: null });
     await appendFile(logPath(), `${JSON.stringify({ ...last, seq: 3, rev: 3, envelope: badEnv })}\n`);
-    const snap = JSON.parse(await readFile(join(dir, 'state.json.prev'), 'utf8'));
+    const snap = JSON.parse(staleSnapshot);
     await writeFile(join(dir, 'state.json'), JSON.stringify(snap));
     const b = await boot();
     expect(b.store.rev).toBe(2);

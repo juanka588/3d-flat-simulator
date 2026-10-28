@@ -3,7 +3,7 @@
  * small photos and the local badge) from a real scene server that has NO live provider enabled, instantly, and without
  * a single request to the shop from the browser. The "Search IKEA live" switch is off and explains why.
  *
- * Screenshot: /tmp/local-catalog.png
+ * Screenshots: in the test's output folder (test-results/)
  */
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -104,7 +104,7 @@ test('the Products tab shows local results without any live provider, and never 
   await expect(first.getByTestId('card-dims')).toContainText('228');
   // the small local photo comes through the local server (a blob), not from the shop
   await expect(first.locator('img')).toHaveAttribute('src', /^blob:/, { timeout: 10_000 });
-  await page.screenshot({ path: '/tmp/local-catalog.png' });
+  await page.screenshot({ path: test.info().outputPath('local-catalog.png') });
 
   // English works too
   await page.getByTestId('catalog-search').fill('coffee table');
