@@ -509,3 +509,47 @@ wave 6:  11
 - eslint.config.js
 
 Also central: `scripts/ci/lint-boundary.test.mjs`, `scripts/ci/retailer-hosts.json`, `tools/site-context/lib.mjs`, `apps/server/src/providers/cache.ts`, `apps/mcp/src/assetCatalog.ts`.
+
+---
+
+## 8. Reuse by a second project: home management / Home Assistant (added 2026-10-28)
+
+The user wants to reuse the modelled house, and the 3D visualisation and interaction, in a **separate project**: a home-assistance / 3D home-management app (e.g. a Home Assistant panel or card). Once the flat is modelled correctly, the user interacts with it there: lights, devices, sensors, rooms. This turns `@flat/scene` and `@flat/viewer` (and the universal part of `@flat/assets`) from internal workspace packages into **reusable libraries with a stable public API**. It changes four decisions above.
+
+### 8.1 What changes in the plan
+1. **Build output and publishing (replaces "no build output" in §7).** `@flat/scene`, `@flat/assets` (universal entry only) and `@flat/viewer` get a library build (tsup or `vite build --lib`): ESM, `.d.ts`, `exports` with `import`/`types` conditions, `sideEffects: ["./dist/register.js"]` for assets. They are versioned with changesets and published (npm public or GitHub Packages; the repo is public). Inside this monorepo they stay consumed as source (`development` export condition), so nothing slows down here. A CI job builds the packages and runs a **consumer smoke test**: a tiny external app installs the built tarballs (`pnpm pack`) and renders the Charme fixture. That proves the packages work outside the workspace.
+2. **The viewer is embeddable two ways.**
+   - A React component: `<FlatCanvas scene view overlays onPick … />`.
+   - A framework-free **custom element**, `<flat-viewer>` (`@flat/viewer/element`). Home Assistant panels and Lovelace cards are web components (Lit), so this is the natural entry. It mounts its own React root internally, keeping React an implementation detail. The attributes and properties are `scene` (JSON or URL), `view` (`orbit | top | walk`), `assets-base`, `quality`. It emits DOM events for picks and hovers.
+3. **A runtime state layer, separate from the design scene.** Device states (a light is on at 40 %, a door sensor is open, the temperature is 21 °C) are *not* written into the Scene file and are not commands. The viewer gets `liveState?: Record<entityId, LiveEntityState>` and a binding map:
+   - `scene light id → { on, brightness 0–1, kelvin | rgb }` drives the existing lamps through the same photometry, so a Home Assistant light dims the 3D lamp exactly;
+   - `opening id → open/closed` (door leaves can show the actual state);
+   - `room id → { temperature, humidity, occupancy, alerts }` as tinted floors, labels or heat colours (overlay styling, no geometry change);
+   - `item id → { state, highlight, badge }` for appliances and devices.
+   The mapping from Home Assistant entities and areas to scene ids is owned by the *consumer* (the other project), stored as a separate `bindings.json`. Our side provides the types (`@flat/scene/live`) and a validator, and never imports Home Assistant code.
+4. **Interaction API (stable, documented).**
+   - `onPick({ kind: 'room' | 'wall' | 'opening' | 'item' | 'light' | 'zone', id, point })`.
+   - `onHover`, with `selection` and `highlight` props.
+   - A camera API: `flyTo(roomId | itemId)`, `setView`, saved viewpoints.
+   - Overlay slots: HTML labels and markers anchored to scene points (`<Marker at={[x,y,h]}>`, via drei `Html`), plus room heat-map materials.
+   - All of this goes through props and events, never through app stores. This is exactly the decoupling of V6, which now gets a hard requirement: **no editor or UI code inside `@flat/viewer`**.
+
+### 8.2 New package and boundary rules
+- `@flat/scene/live` is new: pure types and zod for `LiveEntityState` and `Bindings`, plus `applyLiveState(sceneView, live)` as a pure function.
+- `@flat/viewer/element` is new: the custom element. It depends on `@flat/viewer` only.
+- The **public API is pinned**: each published package gets an `api-extractor` (or `tsd`) report committed under `packages/*/api/*.api.md`. CI fails when it changes without a changeset, so the home project can upgrade safely.
+- **The asset licence matters more now.** The home project may run on a Home Assistant box or a tablet, not only on this machine.
+  - CC0 and CC-BY models (with the credits panel) travel with `@flat/assets`.
+  - **Retailer (IKEA) models never ship in any package or build.** The home app uses them only by pointing `assets-base` / `modelOrigin` at the user's own local scene server, or at the local catalogue folder on the same LAN. Otherwise it falls back to the CC0/HD lookalikes and parametric shapes.
+  - `check-no-retailer` also runs on the package tarballs.
+- **Scene file stability.** The home project reads the same `*.flat.json`. Any breaking schema change from now on needs `version: 2` plus a migrator in `@flat/scene` (`migrateScene`). Additive optional fields are fine, as today.
+
+### 8.3 Extra migration steps (after V8)
+| # | Step | Size |
+|---|---|---|
+| P12 | Library builds for scene, assets and viewer; `development` export condition for the workspace; changesets; pack plus consumer smoke test in CI | M |
+| P13 | `@flat/scene/live` types plus `applyLiveState`; viewer `liveState`, `bindings` and the overlay and marker props; a demo route `/?live=demo` that animates fake entity states | M |
+| P14 | `<flat-viewer>` custom element plus a minimal example (an HTML file, and a Home Assistant-style Lit card) | S/M |
+| P15 | API reports and a docs page "Embedding the viewer" | S |
+
+The home-management app itself (the Home Assistant integration, entity discovery, auth, its own repo) is out of scope here. This repo only delivers the reusable model, viewer and contracts.
