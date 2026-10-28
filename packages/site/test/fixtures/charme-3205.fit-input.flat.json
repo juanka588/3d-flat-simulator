@@ -1,0 +1,35 @@
+{
+  "site": {"latitude":48.78590987,"longitude":2.30401085,"northAngle":355.5,"timezone":"Europe/Paris","floorElevation":5.8,"address":"Rue de la Fontaine, 92220 Bagneux"},
+  "walls": [
+    {"id":"w-north","start":[-1.6,-0.1],"end":[10.15,-0.1],"thickness":0.2,"height":2.5},
+    {"id":"w-east","start":[10.15,-0.1],"end":[10.15,6.03],"thickness":0.2,"height":2.5},
+    {"id":"w-wc-south","start":[10.15,6.115],"end":[8.735,6.115],"thickness":0.17,"height":2.5},
+    {"id":"w-landing","start":[8.735,6.115],"end":[6.49,6.115],"thickness":0.17,"height":2.5},
+    {"id":"w-sdb-east","start":[6.49,6.115],"end":[6.49,8.38],"thickness":0.2,"height":2.5},
+    {"id":"w-south","start":[6.49,8.38],"end":[-0.1,8.38],"thickness":0.2,"height":2.5},
+    {"id":"w-west","start":[-0.1,8.38],"end":[-0.1,-0.1],"thickness":0.2,"height":2.5},
+    {"id":"w-alcove","start":[0,2.235],"end":[4.105,2.235],"thickness":0.07,"height":2.5},
+    {"id":"w-sejour-ch2","start":[4.105,0],"end":[4.105,4.155],"thickness":0.07,"height":2.5},
+    {"id":"w-ch2-south","start":[4.105,4.155],"end":[6.875,4.155],"thickness":0.07,"height":2.5},
+    {"id":"w-ch2-ch1","start":[6.875,0],"end":[6.875,4.455],"thickness":0.07,"height":2.5},
+    {"id":"w-ch1-south","start":[6.875,4.455],"end":[10.05,4.455],"thickness":0.07,"height":2.5},
+    {"id":"w-wc-west","start":[8.735,6.115],"end":[8.735,4.455],"thickness":0.07,"height":2.5},
+    {"id":"w-sejour-entree","start":[4.505,4.155],"end":[4.505,6.065],"thickness":0.07,"height":2.5},
+    {"id":"w-sdb-north","start":[4.505,6.065],"end":[6.49,6.065],"thickness":0.07,"height":2.5},
+    {"id":"w-sdb-west","start":[4.505,6.065],"end":[4.505,6.615],"thickness":0.07,"height":2.5},
+    {"id":"w-niche-north","start":[4.505,6.615],"end":[3.745,6.615],"thickness":0.07,"height":2.5},
+    {"id":"w-niche-west","start":[3.745,6.615],"end":[3.745,8.28],"thickness":0.07,"height":2.5},
+    {"id":"w-balcony-rail","start":[-1.575,0],"end":[-1.575,8.28],"thickness":0.05,"height":1},
+    {"id":"w-balcony-screen","start":[-1.575,8.305],"end":[-0.2,8.305],"thickness":0.05,"height":1.8}
+  ],
+  "rooms": [
+    {"id":"alcove","type":"bedroom","polygon":[[0,0],[4.07,0],[4.07,2.2],[0,2.2]]},
+    {"id":"sejour","type":"living","polygon":[[0,2.27],[4.07,2.27],[4.07,4.19],[4.47,4.19],[4.47,6.58],[3.71,6.58],[3.71,8.28],[0,8.28]]},
+    {"id":"ch2","type":"bedroom","polygon":[[4.14,0],[6.84,0],[6.84,4.12],[4.14,4.12]]},
+    {"id":"ch1","type":"bedroom","polygon":[[6.91,0],[10.05,0],[10.05,4.42],[6.91,4.42]]},
+    {"id":"entree","type":"hallway","polygon":[[4.54,4.19],[6.91,4.19],[6.91,4.49],[8.7,4.49],[8.7,6.03],[4.54,6.03]]},
+    {"id":"wc","type":"bathroom","polygon":[[8.77,4.49],[10.05,4.49],[10.05,6.03],[8.77,6.03]]},
+    {"id":"sdb","type":"bathroom","polygon":[[4.54,6.1],[6.39,6.1],[6.39,8.28],[3.78,8.28],[3.78,6.65],[4.54,6.65]]},
+    {"id":"balcon","type":"balcony","polygon":[[-1.55,0],[-0.2,0],[-0.2,8.28],[-1.55,8.28]]}
+  ]
+}

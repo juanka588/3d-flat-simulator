@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@flat/scene": "workspace:*",
+    "@flat/site": "workspace:*",
     "@react-three/drei": "^10.7.9",
     "@react-three/fiber": "^9.8.2",
     "react": "^19.3.1",
