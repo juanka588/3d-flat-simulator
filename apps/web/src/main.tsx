@@ -1,5 +1,6 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import './viewer-config';
 import { App } from './App';
 import { RootGuard } from './ui/RootGuard';
 import { installDayClock } from './state/dayClock';

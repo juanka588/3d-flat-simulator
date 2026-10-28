@@ -1,12 +1,10 @@
 import { PerspectiveCamera, PointerLockControls } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
 import type { RootState } from '@react-three/fiber';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { PerspectiveCamera as ThreePerspectiveCamera } from 'three';
 import { insideFlat, resolveWalk, walkObstacles } from '@flat/scene';
 import type { Scene, WalkPose } from '@flat/scene';
-import { useClockStore } from '../state/dayClock';
-import { itemKeysApply } from '../ui/useItemKeys';
 import { LOOK_REST, MAX_PITCH_RAD, attachCameraKeys, clampDisc, clampPitch, firstGamepad, lookIdle, readSticks, stepLook, watchGamepad } from './camera-input';
 import type { LookState } from './camera-input';
 import { BODY_RADIUS } from './walk-start';
@@ -43,6 +41,10 @@ interface WalkControlsProps {
   pose?: WalkPose;
   /** The user turned or moved: the pose, if any, no longer applies. */
   onUserCamera?: () => void;
+  /** The host steps time by hand (tests): the walker then moves only when stepped with a fixed dt, never with the frame time. */
+  isManualClock?: boolean;
+  /** Whether a key aimed at this element drives the walker (false for form fields and the like). */
+  acceptsKey?: (target: EventTarget | null) => boolean;
 }
 
 /** Desktop browsers lock the pointer to look around; phones have no (usable) pointer lock. */
@@ -54,7 +56,13 @@ function pointerLockUsable(): boolean {
  * First-person walk: pointer lock look on desktop, drag-to-look (mouse, touch, pen) otherwise. Arrow keys / the
  * left stick move, W/A/S/D (ZQSD on AZERTY, by key position) / the right stick look, plus on-screen buttons, wall collision, Esc to leave.
  */
-export function WalkControls({ scene, start, onEnd, personHeightCm, onExit, pose, onUserCamera }: WalkControlsProps) {
+export function WalkControls({ scene, start, onEnd, personHeightCm, onExit, pose, onUserCamera, isManualClock = false, acceptsKey }: WalkControlsProps) {
+  const manualClock = useRef(isManualClock);
+  const keyFilter = useRef(acceptsKey);
+  useLayoutEffect(() => {
+    manualClock.current = isManualClock;
+    keyFilter.current = acceptsKey;
+  });
   const [spawn] = useState(() => ({ position: [start.x, start.z] as [number, number], yaw: start.yawDeg }));
   const obstacles = useMemo(() => walkObstacles(scene), [scene]);
   const inside = useMemo(() => insideFlat(scene), [scene]);
@@ -136,7 +144,7 @@ export function WalkControls({ scene, start, onEnd, personHeightCm, onExit, pose
       if (e.code.startsWith('Shift') && !e.ctrlKey && !e.altKey && !isTypingTarget(e.target)) pressed.current.add(e.code);
     };
     // The camera keys (arrows move, W/A/S/D look: layout independent `code`s) and their releases, focus rules, blur.
-    const detach = attachCameraKeys(pressed.current, { accepts: (t) => !isTypingTarget(t) && itemKeysApply(t), arrowsFree: () => true, wake: invalidate });
+    const detach = attachCameraKeys(pressed.current, { accepts: (t) => !isTypingTarget(t) && (keyFilter.current?.(t) ?? true), arrowsFree: () => true, wake: invalidate });
     const stopPad = watchGamepad(invalidate);
     window.addEventListener('keydown', down);
     return () => {
@@ -264,7 +272,7 @@ export function WalkControls({ scene, start, onEnd, personHeightCm, onExit, pose
   }, [get, advance]);
 
   useFrame((state, delta) => {
-    if (useClockStore.getState().source === 'manual') return;
+    if (manualClock.current) return;
     advance(state, delta);
   });
 

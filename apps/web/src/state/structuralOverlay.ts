@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { readPref, writePref } from '../state/prefs';
+import { readPref, writePref } from './prefs';
 
 export const STRUCTURAL_OVERLAY_KEY = 'flat.structuralOverlay';
 

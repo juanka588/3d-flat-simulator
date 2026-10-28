@@ -1,43 +1,24 @@
 import { EMPTY_MESH_CATALOG, MeshAsset, createMeshCatalog, parseProductId } from '@flat/scene';
 import type { MeshCatalog } from '@flat/scene';
-import { registerLibraryNames } from '../catalog/format';
-import { useSyncStore } from '../sync/sync-store';
+import { viewerConfig } from './config';
 
 /**
  * Where model files come from (M5.12, D2/D4):
- *  - CC0 / CC-BY library models are committed under `public/models/` and load from `${BASE_URL}models/` everywhere (Pages too);
- *  - the HD hero tier (M5R step 2) lives in `public/models-hd/` and loads from `${BASE_URL}models-hd/`, only when an
+ *  - CC0 / CC-BY library models are committed under `public/models/` and load from `${assetsBase}models/` everywhere (Pages too);
+ *  - the HD hero tier (M5R step 2) lives in `public/models-hd/` and loads from `${assetsBase}models-hd/`, only when an
  *    item that resolves to one is placed (its catalog is a small JSON; the GLBs are never preloaded);
  *  - provider models (and the local-only 3D-FUTURE pack) exist ONLY behind the local server, so their URLs are
  *    built only when the viewer is connected to a server. In Pages / Local mode nothing of the kind is ever requested.
  */
 
-export const modelsBase = (): string => `${import.meta.env.BASE_URL}models/`;
+export const modelsBase = (): string => `${viewerConfig.assetsBase}models/`;
 
 /** The HD tier folder next to a models base (`.../models/` -> `.../models-hd/`). */
 export const hdModelsBase = (base: string = modelsBase()): string => base.replace(/models\/$/, 'models-hd/');
 
-/** `undefined` = follow the sync state; a string/null = forced (tests / headless renders). */
-let originOverride: string | null | undefined;
-
-/** Test hook: pretend the server is at `origin` (or that there is none, with `null`). `undefined` restores the sync state. */
-export function setModelOriginOverride(origin: string | null | undefined): void {
-  originOverride = origin;
-  for (const l of [...originListeners]) l();
-}
-
-const originListeners = new Set<() => void>();
-/** Called when a forced origin changes (the sync state is observed through the store instead). */
-export function subscribeModelOriginOverride(listener: () => void): () => void {
-  originListeners.add(listener);
-  return () => void originListeners.delete(listener);
-}
-
-/** Origin of the connected scene server (no trailing slash), or null in Local / Pages mode. */
+/** Origin of the connected scene server (no trailing slash), or null in Local / Pages mode (see `ViewerAssetConfig`). */
 export function modelOrigin(): string | null {
-  if (originOverride !== undefined) return originOverride;
-  const s = useSyncStore.getState();
-  return s.mode === 'server' ? s.serverUrl : null;
+  return viewerConfig.modelOrigin();
 }
 
 /** Mirrors `HttpFlatApi.assetUrl` (apps/mcp): `GET /api/assets/products/:provider/:sku.glb`. Undefined for an invalid product id. */
@@ -107,22 +88,26 @@ export async function fetchCatalogAssets(fetcher: typeof fetch, url: string, tie
   }
 }
 
+export interface CatalogLoaderOptions {
+  fetcher?: typeof fetch;
+  url?: () => string;
+  hdUrl?: () => string;
+  /** Called once with the fetched library assets (not for an empty library). */
+  onLoaded?: (assets: readonly MeshAsset[]) => void;
+}
+
 /**
  * Fetches the committed library catalogs once: the light tier, then the HD tier's (a small JSON; its GLBs load
  * lazily, per placed item). A missing or broken file is an empty list, so the chain falls through to the light tier.
  */
-export function createCatalogLoader(
-  fetcher: typeof fetch = (...a) => fetch(...a),
-  url = () => `${modelsBase()}catalog.json`,
-  hdUrl = () => `${hdModelsBase()}catalog.json`,
-): () => Promise<MeshCatalog> {
+export function createCatalogLoader({ fetcher = (...a) => fetch(...a), url = () => `${modelsBase()}catalog.json`, hdUrl = () => `${hdModelsBase()}catalog.json`, onLoaded }: CatalogLoaderOptions = {}): () => Promise<MeshCatalog> {
   let loading: Promise<MeshCatalog> | undefined;
   return () =>
     (loading ??= (async () => {
       const [light, hd] = await Promise.all([fetchCatalogAssets(fetcher, url()), fetchCatalogAssets(fetcher, hdUrl(), 'hd')]);
       const assets = [...light, ...hd];
       if (assets.length === 0) return EMPTY_MESH_CATALOG;
-      registerLibraryNames(assets);
+      onLoaded?.(assets);
       return catalogFromAssets(assets);
     })());
 }

@@ -3,11 +3,10 @@ import type { ThreeEvent } from '@react-three/fiber';
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { BoxGeometry, Group, InstancedMesh, Matrix4, Mesh, MeshBasicMaterial, MeshStandardMaterial } from 'three';
 import type { ModelController } from './model-controller';
-import { modelOrigin, subscribeModelOriginOverride } from './model-env';
+import { viewerConfig } from './config';
 import { itemMatrix } from './model-math';
 import { activeModelController, createViewerModelController, setActiveModelController } from './model-runtime';
 import type { ModelTemplate } from './model-loader';
-import { useSyncStore } from '../sync/sync-store';
 import { CLICK_DRAG_TOLERANCE_PX } from './ShellMesh';
 import type { Selection } from './view-types';
 
@@ -31,8 +30,7 @@ export function useItemModels(scene: Scene, invalidate: () => void): ItemModels 
   const [controller] = useState(createViewerModelController);
   const version = useSyncExternalStore(controller.subscribe, controller.getVersion);
   // The server origin is part of what decides a model: re-render (and so re-resolve) when it appears, changes or goes.
-  useSyncStore((s) => (s.mode === 'server' ? s.serverUrl : null));
-  useSyncExternalStore(subscribeModelOriginOverride, modelOrigin);
+  useSyncExternalStore(viewerConfig.subscribe, viewerConfig.modelOrigin);
   // Idempotent and silent (listeners are only told from async work), so it is fine while rendering.
   controller.update(scene.items);
   const claimed = controller.claimed();

@@ -1,4 +1,4 @@
-import { useStructuralOverlay } from '../viewer/structural-overlay-store';
+import { useStructuralOverlay } from '../state/structuralOverlay';
 import type { ViewMode } from '../viewer/view-types';
 import { HistoryButtons } from './HistoryButtons';
 
