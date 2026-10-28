@@ -15,13 +15,14 @@ import {
   type ProviderErrorCode,
 } from '@flat/scene';
 import {
+  ASSET_ROUTES,
   MarkSeenBody,
   ProductSearchParams,
   assertGeneratorsRegistered,
   summarizeProduct,
 } from '@flat/assets';
+import { localModelId, readLocalCatalog, readLocalModel } from '@flat/assets/node';
 import type { ServerConfig } from './config';
-import { localModelId, readLocalCatalog, readLocalModel } from './local-assets';
 import { createDisabledRegistry } from './providers/registry';
 import { ProviderError, type ProviderRegistry } from './providers/types';
 import type { Outcome, SceneStore } from './store';
@@ -366,7 +367,7 @@ export function createApp(store: SceneStore, config: ServerConfig, providers: Pr
     }
   });
 
-  app.get('/api/assets/products/:provider/:file{[^/]+\\.glb}', async (c) => {
+  app.get(ASSET_ROUTES.productModel, async (c) => {
     const file = c.req.param('file');
     try {
       const model = await providers.fetchModel(`${c.req.param('provider')}:${file.slice(0, -'.glb'.length)}`);
@@ -400,8 +401,8 @@ export function createApp(store: SceneStore, config: ServerConfig, providers: Pr
   });
 
   // Local 3D-FUTURE pack (research licence, this machine only). Catalog first so `catalog.json` is never read as an asset id.
-  app.get('/api/assets/meshes/catalog.json', async (c) => c.json(await readLocalCatalog(config.localAssetsDir)));
-  app.get('/api/assets/meshes/:file{[^/]+\\.glb}', async (c) => {
+  app.get(ASSET_ROUTES.meshCatalog, async (c) => c.json(await readLocalCatalog(config.localAssetsDir)));
+  app.get(ASSET_ROUTES.meshModel, async (c) => {
     const assetId = c.req.param('file').slice(0, -'.glb'.length);
     if (localModelId(assetId) === undefined) return c.json(err('not_found', 'no such mesh'), 404);
     const bytes = await readLocalModel(config.localAssetsDir, assetId);

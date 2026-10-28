@@ -74,3 +74,11 @@ describe('keyboard actions', () => {
     expect(nudged([0.1, 0.2], 0.01, -0.05)).toEqual([0.11, 0.15]);
   });
 });
+
+describe('a placement from a cached record', () => {
+  it('carries the record date, so an old cached record can go stale', () => {
+    const old = { ...bedRecord, fetchedAt: '2026-01-01T00:00:00.000Z' };
+    expect(snapshotOf(old).snapshotAt).toBe('2026-01-01T00:00:00.000Z');
+    expect(snapshotOf(old, 'oak').snapshotAt).toBe('2026-01-01T00:00:00.000Z');
+  });
+});

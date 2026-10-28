@@ -1,22 +1,19 @@
+import { DIMS_MISMATCH_LIMIT as SHARED_MISMATCH_LIMITS, HARD_DIMS_LIMIT, scaleDistortion, scaleSizeToDims } from '@flat/assets';
+import type { Dims } from '@flat/scene';
+
 /**
  * How well a model's bounding box fits a product's listed size. These are the SAME rules the viewer applies at load time
- * (`apps/web/src/viewer/model-math.ts` + the quarter-turn retry in `model-controller.ts`), run here once at build time so the
- * catalogue only keeps models that will be drawn without a surprise. A parity test (`fit.test.ts`) pins the two together.
+ * (the distortion maths shared through `@flat/assets` + the quarter-turn retry in `apps/web/src/viewer/model-controller.ts`), run here once
+ * at build time so the catalogue only keeps models that will be drawn without a surprise. A parity test (`fit.test.ts`) pins the two together.
  *
  * Boxes are `[x, y, z]` sizes in metres; item dims are width (x), depth (z), height (y).
  */
 
-export interface Dims {
-  w: number;
-  d: number;
-  h: number;
-}
+export type { Dims };
 export type Size3 = readonly [number, number, number];
 
 /** Aspect distortion above which the viewer warns (`dims_mismatch`) for a provider model. */
-export const DIMS_MISMATCH_LIMIT = 0.1;
-/** Distortion above which the viewer refuses the model altogether. */
-export const HARD_DIMS_LIMIT = 0.5;
+export const DIMS_MISMATCH_LIMIT = SHARED_MISMATCH_LIMITS.provider;
 /**
  * The catalogue is stricter than the viewer: a model more than 25% out of proportion with the listed size (the viewer's limit for
  * a lookalike) is dropped at build time (`has3d: false`) instead of being drawn stretched. 10-25% is kept and flagged `dims_mismatch`.
@@ -25,18 +22,9 @@ export const CATALOG_REJECT_LIMIT = 0.25;
 /** The viewer keeps the quarter-turned model only when it is clearly better. */
 export const QUARTER_TURN_MARGIN = 0.05;
 
-/** Per-axis scale from a model of `size` (x, y, z) to `dims`; an axis the model has no extent on is left at 1. */
-export function scaleToDims(size: Size3, dims: Dims): [number, number, number] {
-  const pick = (target: number, native: number) => (native > 1e-9 ? target / native : 1);
-  return [pick(dims.w, size[0]), pick(dims.h, size[1]), pick(dims.d, size[2])];
-}
-
-/** Largest relative deviation of an axis scale from their geometric mean (0 = uniform scale). */
-export function scaleDistortion(scale: readonly number[]): number {
-  const g = Math.cbrt(scale[0]! * scale[1]! * scale[2]!);
-  if (!(g > 0)) return Infinity;
-  return Math.max(...scale.map((s) => Math.abs(s / g - 1)));
-}
+/** Per-axis scale and distortion: the shared maths of `@flat/assets` (the viewer uses the very same functions). */
+export const scaleToDims = scaleSizeToDims;
+export { HARD_DIMS_LIMIT, scaleDistortion };
 
 export const distortionOf = (size: Size3, dims: Dims): number => scaleDistortion(scaleToDims(size, dims));
 

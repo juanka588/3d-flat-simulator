@@ -41,7 +41,6 @@ const TESTING_FILES = /^src\/testHook[^/]*\.ts$/;
 /** Relative cross-package imports that exist today or are planned (paths relative to the repo root). Shrink this list, never grow it. */
 export const RELATIVE_ALLOW = [
   'packages/scene/test/generators.setup.ts', // temporary until step 11: scene tests run against the real generators
-  'apps/server/src/providers/local/fit.test.ts', // temporary until step A5: cross-checks the viewer's model-math checkDims
 ];
 
 const pkgOfEntry = (entry) => entry.split('/')[0];

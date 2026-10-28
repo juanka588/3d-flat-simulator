@@ -15,8 +15,12 @@ describe('@flat/assets public API', () => {
     for (const name of Object.keys(assets)) expect(name in scene, name).toBe(false);
   });
 
-  it('has an empty node entry', () => {
-    expect(Object.keys(assetsNode)).toEqual([]);
+  it('has a node entry with the local pack reader only', () => {
+    expect(Object.keys(assetsNode).sort()).toEqual(['LOCAL_MESH_MAX_BYTES', 'localModelId', 'readLocalCatalog', 'readLocalModel']);
+  });
+
+  it('keeps node built-ins out of the universal entry', () => {
+    for (const name of ['readLocalCatalog', 'readLocalModel', 'localModelId', 'LOCAL_MESH_MAX_BYTES']) expect(name in assets, name).toBe(false);
   });
 
   it('is not marked side-effect free: the index registers the generators', () => {

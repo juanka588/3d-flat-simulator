@@ -24,6 +24,36 @@ export type { LookalikeMatch, MeshCatalog } from './catalog/mesh-catalog';
 export { resolveMesh } from './catalog/resolve';
 export type { MeshResolveContext, ResolvedMesh, ResolvedMeshSource } from './catalog/resolve';
 
+// ---- library: catalog JSON parsing and loading, asset URLs and routes, the pure fit maths of a loaded model
+export {
+  catalogFromAssets,
+  catalogWithout,
+  createCatalogLoader,
+  fetchCatalogAssets,
+  hdModelsBase,
+  parseCatalogJson,
+} from './library/catalog-loader';
+export type { CatalogLoaderOptions, CatalogLoaderUrls } from './library/catalog-loader';
+export { ASSET_PATH_PREFIX, ASSET_ROUTES, libraryModelUrl, providerModelUrl, serverMeshUrl } from './library/urls';
+export {
+  DIMS_MISMATCH_LIMIT,
+  HARD_DIMS_LIMIT,
+  boxSize,
+  checkDims,
+  frontRotationY,
+  rotateBoxY,
+  scaleDistortion,
+  scaleSizeToDims,
+} from './library/fit-math';
+export type { Box, DimsCheck, Front, ModelKind, Vec3 } from './library/fit-math';
+
+// ---- cache: generic caches (no WebGL, no node)
+export { MEMORY_CACHE_ENTRY_BYTES, MEMORY_CACHE_TOTAL_BYTES, MemoryCache } from './cache/memory-cache';
+export type { MemoryCacheOptions, ScopedCache } from './cache/memory-cache';
+export { MAX_MODELS, MAX_MODEL_BYTES, createModelCache } from './cache/model-cache';
+export type { Loaded, ModelCache, ModelCacheOptions, ModelCacheStats, ModelHandle } from './cache/model-cache';
+export { RECORD_TTL_MS, RecordCache } from './cache/record-cache';
+
 // ---- generators and meshes
 export { ALL_GENERATORS, GENERATOR_OWNER_ID, MIRROR_DEPTH, RUG_THICKNESS } from './generators';
 export { assertGeneratorsRegistered, registerGenerators } from './register';
@@ -35,6 +65,8 @@ export { ITEM_MATERIALS, ITEM_MATERIAL_SPECS, ITEM_SLOTS } from './materials/ite
 export type { ItemMaterialId, ItemMaterialSpec } from './materials/item-materials';
 export { Catalog, CatalogEntry, LicenseEvidence, MaterialCategory, libraryTextureUrl, materialFromCatalog } from './materials/texture-catalog';
 export type { MaterialFromCatalogOptions } from './materials/texture-catalog';
+export { createCatalogSource } from './materials/texture-catalog-source';
+export type { CatalogSource, LibraryCatalog } from './materials/texture-catalog-source';
 
 // ---- products: wire types of the product API
 export {

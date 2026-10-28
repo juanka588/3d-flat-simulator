@@ -29,6 +29,8 @@ import {
 } from '@flat/scene';
 import {
   matchProducts,
+  providerModelUrl,
+  serverMeshUrl,
   ProductRecord,
   summarizeProduct,
   type GetProductResponse,
@@ -338,9 +340,9 @@ export class MockFlatApi implements FlatApi {
   }
 
   assetUrl(ref: AssetRef): string {
-    if (ref.kind === 'mesh') return `http://mock.flat/api/assets/meshes/${encodeURIComponent(ref.assetId)}.glb`;
-    const parsed = parseProductId(ref.productId);
-    if (!parsed) throw new RangeError(`invalid product id "${ref.productId}"`);
-    return `http://mock.flat/api/assets/products/${encodeURIComponent(parsed.provider)}/${encodeURIComponent(parsed.sku)}.glb`;
+    if (ref.kind === 'mesh') return serverMeshUrl('http://mock.flat', ref.assetId);
+    const url = providerModelUrl('http://mock.flat', ref.productId);
+    if (!url) throw new RangeError(`invalid product id "${ref.productId}"`);
+    return url;
   }
 }

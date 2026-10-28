@@ -1,5 +1,4 @@
 import {
-  parseProductId,
   type Author,
   type CheckpointsResponse,
   type CommandEnvelope,
@@ -14,6 +13,9 @@ import {
   type UndoToResponse,
 } from '@flat/scene';
 import {
+  ASSET_PATH_PREFIX,
+  providerModelUrl,
+  serverMeshUrl,
   type GetProductResponse,
   type IsSeenResponse,
   type MarkSeenResponse,
@@ -250,7 +252,7 @@ export class HttpFlatApi implements FlatApi {
     } catch {
       target = undefined;
     }
-    if (!target || target.origin !== new URL(this.config.serverUrl).origin || !target.pathname.startsWith('/api/assets/')) {
+    if (!target || target.origin !== new URL(this.config.serverUrl).origin || !target.pathname.startsWith(ASSET_PATH_PREFIX)) {
       return { ok: false, kind: 'http', status: 403, errors: [{ code: 'forbidden', path: '', message: "only the scene server's /api/assets/ can be fetched" }] };
     }
     try {
@@ -265,9 +267,10 @@ export class HttpFlatApi implements FlatApi {
     }
   }
   assetUrl(ref: AssetRef): string {
-    if (ref.kind === 'mesh') return `${this.config.serverUrl}/api/assets/meshes/${encodeURIComponent(ref.assetId)}.glb`;
-    const parsed = parseProductId(ref.productId);
-    if (!parsed) throw new RangeError(`invalid product id "${ref.productId}"`);
-    return `${this.config.serverUrl}/api/assets/products/${encodeURIComponent(parsed.provider)}/${encodeURIComponent(parsed.sku)}.glb`;
+    // The URL builders of @flat/assets (the same ones as the web viewer); the server declares these routes from ASSET_ROUTES.
+    if (ref.kind === 'mesh') return serverMeshUrl(this.config.serverUrl, ref.assetId);
+    const url = providerModelUrl(this.config.serverUrl, ref.productId);
+    if (!url) throw new RangeError(`invalid product id "${ref.productId}"`);
+    return url;
   }
 }

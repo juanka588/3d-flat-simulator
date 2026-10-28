@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { checkDims as viewerCheck } from '../../../../web/src/viewer/model-math';
+import { checkDims as viewerCheck } from '@flat/assets';
 import { CATALOG_REJECT_LIMIT, DIMS_MISMATCH_LIMIT, QUARTER_TURN_MARGIN, chooseFit, distortionOf } from './fit';
 
 const DIMS = { w: 0.77, d: 1.26, h: 0.9 };

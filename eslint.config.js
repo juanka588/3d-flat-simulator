@@ -105,11 +105,6 @@ export default tseslint.config(
     // The harness reaches into @flat/server/src/** on purpose (dev-only edge, no exports on the server package).
     rules: restrictFor(true, [NO_RENDERER, NO_SRC_ESCAPE_EXCEPT_SERVER, pkg(['@flat/viewer', '@flat/capture', '@flat/assets/node', '@flat/web'], 'The MCP app imports scene, assets and site only.')], SCENE_ASSET_PATHS),
   },
-  // Temporary (removed when model-math moves to @flat/assets, step A5): this server test cross-checks the viewer's checkDims.
-  {
-    files: ['apps/server/src/providers/local/fit.test.ts'],
-    rules: restrictFor(true, [NO_RENDERER, pkg(['@flat/viewer', '@flat/mcp'], 'The server never imports the viewer or another app.')], SCENE_ASSET_PATHS),
-  },
   // Root-level consumers (not packages: they reach scene and assets by relative path). apps/web has the same rule (A3a).
   {
     files: ['scripts/**/*.{ts,mjs}', 'e2e/**/*.ts'],
