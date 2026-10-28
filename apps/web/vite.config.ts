@@ -19,6 +19,8 @@ export default defineConfig({
   plugins: [react(), trimDracoDefaults],
   // GitHub Pages serves the app from /<repo>/; set BASE_PATH there, '/' everywhere else.
   base: process.env.BASE_PATH ?? '/',
+  // One copy of each of these in the bundle even when linked workspace packages (viewer, assets) resolve them separately.
+  resolve: { dedupe: ['three', 'react', 'react-dom', '@react-three/fiber', 'zustand'] },
   server: { host: '127.0.0.1', port: 5173, strictPort: true },
   test: { name: 'web', environment: 'node', include: ['src/**/*.test.{ts,tsx}'] },
 });
