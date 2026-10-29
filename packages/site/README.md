@@ -11,7 +11,6 @@ contracts) and `@flat/site/node` (network and files: geocoder, WFS client, `getJ
 | `src/fit/` | The rigid fit of a flat to the host footprint (`fit.ts`) |
 | `src/cadastre/`, `src/plan/` | Contracts only (types, no code), see below |
 | `src/node/` | `geocode.ts`, `wfs.ts`, `http.ts`, `cli.ts` (the context generator) |
-| `legacy/` | The original untyped `.mjs` tool, kept until step 11 of `docs/architecture/modules.md` as the reference the TypeScript port was checked against. `tools/site-context/fetch.mjs` is a one-line shim to it |
 
 ## The cadastre gives parcels and footprints, not interiors
 
@@ -44,8 +43,6 @@ pnpm site:context \
   --address "21 Rue de la Fontaine 92220 Bagneux" \
   --host-id BATIMENT0000002205927841
 ```
-
-`node tools/site-context/fetch.mjs` (same flags) still works through the legacy shim.
 
 Steps: geocode the address, fetch the IGN BD TOPO buildings within `--radius` (default 150 m) of the
 host building, pick the host, derive the plan-to-map transform, write

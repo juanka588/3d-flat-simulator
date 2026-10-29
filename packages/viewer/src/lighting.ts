@@ -366,6 +366,23 @@ export function groundDisplay(sunIntensity: number, ambientIntensity: number, su
   return tint.map((v) => v * radiance) as RGB;
 }
 
+/** Hard bounds of the auto exposure (before the user's EV): a noon is ~3e-4, a starlit night ~3 (see `autoExposure`); nothing outside may reach the renderer. */
+export const EXPOSURE_MIN = 1e-4;
+export const EXPOSURE_MAX = 4;
+/**
+ * How many stops brighter than the exposure the DISPLAYED probe grid was baked for the image may be exposed. Probes lag the lighting
+ * (debounce plus bake time, longer while the sun animates); an exposure that races ahead of a grid baked for a much brighter
+ * light (noon grid, sunrise sky: x100) burns the interior as if the EV were at maximum. Darker than the grid's exposure is never limited.
+ */
+export const STALE_GRID_MAX_EV = 1;
+
+/** `exposure` (for the live light `keyLux`) limited by the light the displayed probe grid was baked for (`gridKeyLux`, null = no grid yet). */
+export function gridLimitedExposure(exposure: number, keyLux: number, gridKeyLux: number | null): number {
+  if (gridKeyLux === null || !Number.isFinite(gridKeyLux) || !Number.isFinite(keyLux)) return exposure;
+  const ratio = (Math.pow(2, STALE_GRID_MAX_EV) * autoExposure(gridKeyLux, 0, 0)) / autoExposure(keyLux, 0, 0);
+  return exposure * Math.min(1, ratio);
+}
+
 /** Total floor area of the habitable rooms (balconies excluded), for the lamp share of the exposure. */
 function interiorArea(scene: Scene): number {
   return scene.rooms.filter((r) => r.type !== 'balcony').reduce((sum, r) => sum + polygonArea(r.polygon), 0);
@@ -391,7 +408,8 @@ export function computeLighting(scene: Scene, lighting: LightingView): LightingM
     const awb = awbWeight(sunIntensity, ambientIntensity, lampLux);
     const lit = lamps.map((lamp, i) => withPhotometry(lamp, scene.lights[i]!, awb));
     // Exposure key: the rendered (compressed) sun and hemisphere plus the lamps, not the 87 klux of physical sun.
-    const exposure = autoExposure(sunIntensity, ambientIntensity, lampLux) * Math.pow(2, lighting.exposureEV);
+    const ev = Number.isFinite(lighting.exposureEV) ? lighting.exposureEV : 0;
+    const exposure = Math.min(EXPOSURE_MAX, Math.max(EXPOSURE_MIN, autoExposure(sunIntensity, ambientIntensity, lampLux))) * Math.pow(2, ev);
     if (!Number.isFinite(exposure) || exposure <= 0) throw new Error('exposure is not a positive number');
     return {
       ok: true,

@@ -1,7 +1,6 @@
 import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import reactHooks from 'eslint-plugin-react-hooks';
-import { facadeSymbols } from './scripts/refactor/rewrite-imports.mjs';
 
 // Local-only boundary (D4): provider code (retailer scraping, product photos / models) lives in apps/server and
 // must never be bundled into the web app or the shared packages, which end up on GitHub Pages.
@@ -17,13 +16,6 @@ const NO_NODE = { group: ['node:*', 'fs', 'fs/*', 'path', 'http', 'https', 'chil
 const NO_SRC_ESCAPE = { group: ['**/packages/*/src/**', '**/apps/*/src/**', ...['scene', 'assets', 'site', 'viewer', 'capture', 'server', 'mcp', 'web'].map((n) => `**/${n}/src/**`)], message: 'Import other packages by name, never by relative path.' };
 const NO_SRC_ESCAPE_EXCEPT_SERVER = { ...NO_SRC_ESCAPE, group: NO_SRC_ESCAPE.group.filter((g) => !g.includes('/server/')) };
 const APPS_LEAF = pkg(['@flat/web', '@flat/mcp'], 'Apps are leaves of the graph: nothing imports them.');
-// Step A3 (modules.md section 4): the asset and product-wire symbols are imported from @flat/assets, never from @flat/scene.
-// The list IS the named export list of packages/assets/src/index.ts. Removed in step 11, when scene no longer has them.
-const ASSET_NAMES = facadeSymbols();
-const ASSETS_NOT_FROM_SCENE = 'Import asset and product-wire symbols from @flat/assets, not @flat/scene (modules.md step A3).';
-const SCENE_ASSET_PATHS = [{ name: '@flat/scene', importNames: ASSET_NAMES, message: ASSETS_NOT_FROM_SCENE }];
-const SCENE_ASSET_PATTERN = { group: ['**/packages/scene/src', '**/packages/scene/src/**'], importNames: ASSET_NAMES, message: ASSETS_NOT_FROM_SCENE };
-const restrict = (...patterns) => ({ 'no-restricted-imports': ['error', { patterns: [...patterns, ...SERVER_BOUNDARY] }] });
 const TESTS = ['**/*.test.{ts,tsx}', '**/test/**', '**/fixtures/**'];
 
 /**
@@ -32,14 +24,14 @@ const TESTS = ['**/*.test.{ts,tsx}', '**/test/**', '**/fixtures/**'];
  * `srcIgnores` carves out directories that follow another row, and `server` marks the apps that ARE the server side
  * (they do not take SERVER_BOUNDARY).
  */
-function row(dir, patterns, { node = false, src = dir, all = src, srcIgnores = [], server = false, paths = [] } = {}) {
-  const make = (extra) => restrictFor(server, [...patterns, ...extra], paths);
+function row(dir, patterns, { node = false, src = dir, all = src, srcIgnores = [], server = false } = {}) {
+  const make = (extra) => restrictFor(server, [...patterns, ...extra]);
   const glob = (d) => [`${d}/**/*.{ts,tsx}`];
   const blocks = [{ files: glob(all), ignores: srcIgnores, rules: make([]) }];
   if (!node) blocks.push({ files: glob(src), ignores: [...srcIgnores, ...TESTS], rules: make([NO_NODE]) });
   return blocks;
 }
-const restrictFor = (server, patterns, paths = []) => ({ 'no-restricted-imports': ['error', { paths, patterns: server ? patterns : [...patterns, ...SERVER_BOUNDARY] }] });
+const restrictFor = (server, patterns) => ({ 'no-restricted-imports': ['error', { patterns: server ? patterns : [...patterns, ...SERVER_BOUNDARY] }] });
 
 export default tseslint.config(
   { ignores: ['.claude/**', '.tmp/**', 'test-results/**', 'playwright-report/**', '**/dist/**', '**/node_modules/**', '**/coverage/**'] },
@@ -65,11 +57,6 @@ export default tseslint.config(
   // earlier one for the same file, so every block is built from the shared pattern groups above and repeats SERVER_BOUNDARY.
   // packages/scene: root of the graph. No renderer, no node built-ins (tests excepted), no other package.
   ...row('packages/scene', [NO_RENDERER, NO_SRC_ESCAPE, APPS_LEAF, pkg(['@flat/assets', '@flat/site', '@flat/viewer', '@flat/capture'], 'scene is the root of the graph: it imports no other package.')]),
-  // Temporary (removed in step 11): scene tests run against the real generators through this one setup file.
-  {
-    files: ['packages/scene/test/generators.setup.ts'],
-    rules: restrict(NO_RENDERER, APPS_LEAF, pkg(['@flat/assets', '@flat/site', '@flat/viewer', '@flat/capture'], 'scene is the root of the graph: it imports no other package.')),
-  },
   // @flat/scene/live (section 8.2): pure types, zod and applyLiveState; no Home Assistant, renderer or node code.
   ...row('packages/scene', [NO_RENDERER, NO_SRC_ESCAPE, APPS_LEAF, pkg(['@flat/assets', '@flat/site', '@flat/viewer', '@flat/capture', '@flat/scene'], '@flat/scene/live is a pure leaf of scene: relative imports inside scene only.')], { src: 'packages/scene/src/live' }),
   // packages/assets: universal entry (no node, no renderer); src/node is the node-only entry.
@@ -85,24 +72,19 @@ export default tseslint.config(
   // @flat/viewer/element (section 8.2): the custom element depends on the viewer alone, through relative imports.
   ...row('packages/viewer', [NO_SRC_ESCAPE, APPS_LEAF, pkg(['@flat/scene', '@flat/assets', '@flat/site', '@flat/capture', '@flat/site/node'], '@flat/viewer/element depends on the viewer only; React stays an implementation detail.')], { src: 'packages/viewer/src/element' }),
   // apps/web: the UI shell. The test internals are for testHook*.ts only; node entries and the server are never imported.
-  ...row('apps/web', [NO_SRC_ESCAPE, APPS_LEAF, pkg(['@flat/assets/node', '@flat/site/node', '@flat/viewer/testing'], 'apps/web imports the public entries only; @flat/viewer/testing belongs to testHook*.ts.')], { all: 'apps/web/src', src: 'apps/web/src', srcIgnores: ['apps/web/src/testHook*.ts'], paths: SCENE_ASSET_PATHS }),
+  ...row('apps/web', [NO_SRC_ESCAPE, APPS_LEAF, pkg(['@flat/assets/node', '@flat/site/node', '@flat/viewer/testing'], 'apps/web imports the public entries only; @flat/viewer/testing belongs to testHook*.ts.')], { all: 'apps/web/src', src: 'apps/web/src', srcIgnores: ['apps/web/src/testHook*.ts'] }),
   {
     files: ['apps/web/src/testHook*.ts'],
-    rules: restrictFor(false, [NO_SRC_ESCAPE, APPS_LEAF, pkg(['@flat/assets/node', '@flat/site/node'], 'testHook may use @flat/viewer/testing but no node entry.')], SCENE_ASSET_PATHS),
+    rules: restrictFor(false, [NO_SRC_ESCAPE, APPS_LEAF, pkg(['@flat/assets/node', '@flat/site/node'], 'testHook may use @flat/viewer/testing but no node entry.')]),
   },
   // apps/server: node is fine; no renderer, no viewer, no other app. It may be the target of apps/mcp/src/testing only.
-  ...row('apps/server', [NO_RENDERER, NO_SRC_ESCAPE, pkg(['@flat/viewer', '@flat/web', '@flat/mcp'], 'The server never imports the viewer or another app.')], { node: true, server: true, paths: SCENE_ASSET_PATHS }),
+  ...row('apps/server', [NO_RENDERER, NO_SRC_ESCAPE, pkg(['@flat/viewer', '@flat/web', '@flat/mcp'], 'The server never imports the viewer or another app.')], { node: true, server: true }),
   // apps/mcp: node is fine; no renderer, viewer, capture or node entries of assets; the server only from the test harness.
-  ...row('apps/mcp', [NO_RENDERER, NO_SRC_ESCAPE, pkg(['@flat/viewer', '@flat/capture', '@flat/assets/node', '@flat/web'], 'The MCP app imports scene, assets and site only.'), pkg(['@flat/server'], 'Only src/testing/** (the test harness) may import the server.')], { node: true, server: true, paths: SCENE_ASSET_PATHS, srcIgnores: ['apps/mcp/src/testing/**'] }),
+  ...row('apps/mcp', [NO_RENDERER, NO_SRC_ESCAPE, pkg(['@flat/viewer', '@flat/capture', '@flat/assets/node', '@flat/web'], 'The MCP app imports scene, assets and site only.'), pkg(['@flat/server'], 'Only src/testing/** (the test harness) may import the server.')], { node: true, server: true, srcIgnores: ['apps/mcp/src/testing/**'] }),
   {
     files: ['apps/mcp/src/testing/**/*.ts'],
     // The harness reaches into @flat/server/src/** on purpose (dev-only edge, no exports on the server package).
-    rules: restrictFor(true, [NO_RENDERER, NO_SRC_ESCAPE_EXCEPT_SERVER, pkg(['@flat/viewer', '@flat/capture', '@flat/assets/node', '@flat/web'], 'The MCP app imports scene, assets and site only.')], SCENE_ASSET_PATHS),
-  },
-  // Root-level consumers (not packages: they reach scene and assets by relative path). apps/web has the same rule (A3a).
-  {
-    files: ['scripts/**/*.{ts,mjs}', 'e2e/**/*.ts'],
-    rules: { 'no-restricted-imports': ['error', { paths: SCENE_ASSET_PATHS, patterns: [SCENE_ASSET_PATTERN] }] },
+    rules: restrictFor(true, [NO_RENDERER, NO_SRC_ESCAPE_EXCEPT_SERVER, pkg(['@flat/viewer', '@flat/capture', '@flat/assets/node', '@flat/web'], 'The MCP app imports scene, assets and site only.')]),
   },
   {
     // On stdio, stdout is the JSON-RPC channel: any console.log/info/debug would corrupt the protocol.

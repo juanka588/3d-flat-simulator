@@ -4,7 +4,7 @@ import { Vec2 } from '../schema';
 /**
  * Site context: surrounding buildings around a flat, in the flat's plan coordinates (metres,
  * same axes as the Scene), so they can be rendered and cast shadows. Generated offline from
- * IGN BD TOPO by `tools/site-context` and stored next to the flat as `*.context.json`.
+ * IGN BD TOPO by `pnpm site:context` (@flat/site) and stored next to the flat as `*.context.json`.
  */
 export const ContextBuilding = z.strictObject({
   id: z.string(),

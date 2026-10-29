@@ -248,11 +248,11 @@ plays, the sun changes every frame, so it costs the sun pass (+3) per frame.
 **Per-room sky ambient (legacy, `?gi=off`).** With the probes (the default) the hemisphere light is only a small fill (`PROBE_SKY_FILL`) and the sky reaches a room through its windows, so no per-room factor exists. The old path: a hemisphere light cannot be shadowed by walls, so a windowless WC would get the same sky light as the living room. The room daylight factor (`roomDaylightFactors`) was applied to the hemisphere light only through the shell materials' `aoMap` (a one-row texture with one texel per room, read through a second UV set, `room-ambient.ts`); lamps and the sun were untouched. At noon the WC and SDB floors rendered clearly darker than the living room floor.
 
 **Site context after Site edits.** `siteContext.alignContext` follows later edits of `scene.site`
-without re-running `tools/site-context`: the context is rotated about the flat origin by
+without re-running `pnpm site:context`: the context is rotated about the flat origin by
 `site.northAngle - context.northAngle` (clockwise on the plan, `(x, y) -> (x cos t - y sin t,
 x sin t + y cos t)`), its bases shift by the floor-elevation difference (ground at
 `-site.floorElevation`), and when the site is more than 50 m from the context's origin the context is
-hidden and the viewer asks for `tools/site-context` to be re-run. The IGN BD TOPO attribution is
+hidden and the viewer asks for `pnpm site:context` to be re-run. The IGN BD TOPO attribution is
 shown whenever the context is visible.
 
 ## Sun patches and sunlight hours
@@ -282,7 +282,7 @@ exceeds 0.05 m2.
 ### Obstruction by neighbouring buildings (optional `context`)
 
 Both functions take an optional `SiteContext` (the `*.context.json` produced by
-`tools/site-context`). Without it nothing is obstructed (the previous behaviour). With it, each
+`pnpm site:context`). Without it nothing is obstructed (the previous behaviour). With it, each
 glazed opening is cut into a 3 x 3 grid of cells (along the wall and up the glass). For each cell
 a ray from its centre, on the wall's centreline plane, towards the sun is tested against the
 context buildings, each a vertical prism (footprint minus `holes`, from `base` to
@@ -313,7 +313,7 @@ slab or railing.
 
 The values are asserted in `sunpatch.test.ts`. The neighbours mostly cost the living room its
 low winter and equinox afternoon sun, and over an hour of summer afternoon sun now that the flat sits
-3 m deeper inside the host footprint (see `tools/site-context`, `--fit`).
+3 m deeper inside the host footprint (see `pnpm site:context`, `--fit`).
 
 ## Room daylight factors
 

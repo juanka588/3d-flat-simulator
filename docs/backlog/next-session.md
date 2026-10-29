@@ -12,12 +12,7 @@
 
 ## Remaining refactor (docs/architecture/modules.md)
 1. **V7/V8:** `@flat/viewer` (above).
-2. **Step 11, cleanup:**
-   - drop the scene `test/generators.setup.ts` exception;
-   - drop the `importNames` rules, since the symbols no longer exist in scene;
-   - drop the `tools/site-context` shim and `packages/site/legacy/`;
-   - tighten the package-graph test;
-   - update the README "Layout" and the provider README links.
+2. **Step 11, cleanup:** done (see `docs/architecture/modules.md`, "Step 11 record and final state").
 3. **Reuse for the home-management / Home Assistant project (§8):**
    - **P12:** library builds (tsup or `vite --lib`) for scene, assets and viewer, a `development` export condition,
      changesets, and a `pnpm pack` consumer smoke test in CI;

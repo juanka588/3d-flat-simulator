@@ -1,16 +1,17 @@
-import { useThree } from '@react-three/fiber';
-import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import { useFrame, useThree } from '@react-three/fiber';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { Color } from 'three';
 import type { LightingView, Scene, SiteContext } from '@flat/scene';
 import { ContextMesh } from './ContextMesh';
-import { ExposureAdapt, adaptiveExposure } from './ExposureAdapt';
+import { ExposureAdapt, adaptiveExposure, settledAtOnce } from './ExposureAdapt';
 import { Lamps } from './Lamps';
 import { ProbeGI, useProbesActive } from './ProbeGI';
 import { probeAmbientSplit } from './probe-light';
+import { probeStats, subscribeProbeStats } from './probe-runtime';
 import { SkyDome } from './SkyDome';
 import { SunLight } from './SunLight';
 import type { BuildingMode, ViewMode } from './view-types';
-import { computeLighting, environmentLight, groundDisplay, hemisphereColors } from './lighting';
+import { computeLighting, environmentLight, gridLimitedExposure, groundDisplay, hemisphereColors } from './lighting';
 import { loadEnvironment } from './environment';
 import type { EnvironmentMap } from './environment';
 import { getPerfProfile } from './perf';
@@ -19,6 +20,8 @@ import { toneMappingSetting } from './tone';
 
 const FALLBACK_BACKGROUND = '#e8ebf0';
 const NIGHT_BACKGROUND = '#07090e';
+/** Time constant (s) of the ease of the displayed exposure towards its target in the app. */
+const EXPOSURE_EASE_S = 0.25;
 
 /**
  * All lighting of the flat as a function of scene + lighting view: sun, sky, ambient, lamps and
@@ -41,18 +44,37 @@ export function LightingRig({
   const get = useThree((s) => s.get);
   const env = useEnvironment();
 
-  const exposure = model.ok ? model.exposure : 1;
   const tone = toneMappingSetting();
   const probes = useProbesActive();
   const adaptive = probes && adaptiveExposure();
+  // Exposure shown: the live auto exposure, but never more than STALE_GRID_MAX_EV above the one the displayed probe grid was baked for
+  // (a stale grid under a much brighter exposure burns out), eased in the app so a change of grid or light never pops. Automation settles at once.
+  const gridKeyLux = useSyncExternalStore(subscribeProbeStats, () => (probes ? probeStats().displayedKeyLux : null));
+  const exposure = model.ok ? model.exposure : 1;
+  const target = (model.ok && probes ? gridLimitedExposure(model.exposure, model.keyLux, gridKeyLux) : exposure) * tone.exposureScale;
+  const shown = useRef(0);
+  const apply = (value: number) => {
+    const { gl, invalidate } = get();
+    gl.toneMapping = tone.mapping;
+    gl.toneMappingExposure = value;
+    shown.current = value;
+    invalidate();
+  };
   useLayoutEffect(() => {
     // `?exposure=adapt`: the exposure adapts to the light the camera sees (ExposureAdapt owns it).
     if (adaptive && model.ok) return;
-    const { gl, invalidate } = get();
-    gl.toneMapping = tone.mapping;
-    gl.toneMappingExposure = exposure * tone.exposureScale;
-    invalidate();
-  }, [get, exposure, tone, adaptive, model.ok]);
+    if (settledAtOnce() || shown.current <= 0) apply(target);
+    else get().invalidate(); // the useFrame below eases towards the new target
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [get, target, tone, adaptive, model.ok]);
+  useFrame((_, delta) => {
+    if (adaptive && model.ok) return;
+    if (Math.abs(Math.log(target / shown.current)) < 1e-3) {
+      if (shown.current !== target) apply(target);
+      return;
+    }
+    apply(shown.current * Math.pow(target / shown.current, 1 - Math.exp(-Math.min(delta, 0.25) / EXPOSURE_EASE_S)));
+  });
 
   // Image-based light: a share of the sky's diffuse light comes from the environment map (so glossy surfaces reflect a
   // room), the hemisphere light keeps the rest; at night there is no sky and so no environment either (lamps dominate).

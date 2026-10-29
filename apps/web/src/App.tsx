@@ -268,7 +268,7 @@ export function App() {
             <PropertiesPanel scene={scene} selection={selection} sheet={mobile} hidden={mobile && mode === 'walk'} />
             {contextStale && lighting.showContext && (
               <p className="context-hint" role="status" data-testid="context-stale">
-                Site context out of date: re-run tools/site-context
+                Site context out of date: re-run pnpm site:context
               </p>
             )}
             {context && lighting.showContext && (

@@ -1,7 +1,6 @@
 // @flat/assets: the shape and look of items, and where they come from (docs/architecture/modules.md section 1.2).
 //
-// Step A4: the implementations live here. This list of explicit named exports is the public API and drives the import
-// codemod (scripts/refactor/rewrite-imports.mjs) and the ESLint `importNames` rule. Add a name here, never `export *`.
+// Step A4: the implementations live here. This list of explicit named exports is the public API (index.test.ts pins it). Add a name here, never `export *`.
 //
 // Importing this module registers the generators in @flat/scene's `GENERATORS` (side effect of `./register`). Scene no
 // longer does it, so every app entry imports `@flat/assets` and calls `assertGeneratorsRegistered()`.

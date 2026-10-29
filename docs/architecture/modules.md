@@ -1,6 +1,6 @@
 # Module architecture: splitting the 3D flat simulator
 
-> Status: proposal (2026-10-28), written after M5 was accepted. Scope: the module split asked for in the M5 acceptance follow-ups. This document is the plan only. It does not implement M6, the cadastre or capture.
+> Status: **refactor complete (2026-10-29, step 11 done; see "Step 11 record and final state")**. Originally a proposal (2026-10-28), written after M5 was accepted. Scope: the module split asked for in the M5 acceptance follow-ups. This document is the plan only. It does not implement M6, the cadastre or capture.
 
 ## 0. What the code looks like today, and why the split is not a plain file move
 
@@ -20,7 +20,7 @@ Exploring the code turned up four couplings that decide the plan:
    - consumers switch to the new package;
    - then the code moves underneath the facade.
 
-   Shims at the *old* location are only used where the old location is downstream (`apps/web/src/viewer` → `@flat/viewer`, `tools/site-context` → `@flat/site`).
+   Shims at the *old* location are only used where the old location is downstream (`apps/web/src/viewer` → `@flat/viewer`, `tools/site-context` → `@flat/site`). Both shims are gone (V8, step 11).
 
 3. **The viewer imports app state.** These imports must be cut before the viewer can be extracted:
    - `PlacementLayer.tsx` imports `catalog/{catalogStore,ghost,placement,snap}`, which imports `state/sceneStore`, which imports `viewer/scene-identity`. That is already a cycle inside the app.
@@ -58,7 +58,7 @@ apps/
   web/       UI shell: panels, catalog UI, editor overlays, stores, sync client, testHook, main.tsx
   server/    Hono scene server, providers (retailers, server-only), products and assets routes, persistence
   mcp/       MCP server, tools, headless render (still serves apps/web/dist)
-tools/site-context/   a one-file shim to the @flat/site CLI (removed in step 11)
+(tools/site-context was a one-file shim to the @flat/site CLI; removed in step 11, use `pnpm site:context`)
 scripts/              unchanged location (materials, models, models-hd, env, ci, mcp-demo); only import paths change
 ```
 
@@ -243,7 +243,7 @@ const restrict = (...patterns) => ({ 'no-restricted-imports': ['error', { patter
 
 All of these blocks are **declared in step 0**, before the packages exist (a glob that matches nothing is a no-op). Parallel lanes therefore never edit `eslint.config.js`.
 
-Two temporary exceptions are needed during the migration, and both are removed in step 11:
+Two temporary exceptions were needed during the migration, and both are removed (the viewer one in V8, the scene one in step 11):
 - `packages/scene/test/generators.setup.ts` may import `../../assets/src/register`. This lets scene tests keep running against the real generators without a package dependency (see the risks section).
 - `apps/web/src/viewer/**` shim files may import `@flat/viewer/internal/*`.
 
@@ -264,7 +264,7 @@ It reads every `packages/*/package.json` and `apps/*/package.json` and asserts:
 1. the workspace dependency edges are a subset of the matrix above (devDependencies included; `apps/mcp → @flat/server` is the one dev-only exception);
 2. there is no cycle (a DFS);
 3. every `@flat/<x>[/<sub>]` specifier found in `src/**/*.{ts,tsx}` and `test/**` is a declared dependency of that package, and `<sub>` is one of the target's declared `exports`;
-4. no file imports another package's `src/` by relative path. Allowed exceptions: the e2e and scripts allow-list, and the temporary scene setup file until step 11.
+4. no file imports another package's `src/` by relative path, with no exception (the temporary scene setup file is gone since step 11; e2e and scripts are not workspace packages and are not walked).
 
 This test runs inside `pnpm test` (the `scripts` vitest project), so it gates `check`.
 
@@ -314,7 +314,7 @@ This test runs inside `pnpm test` (the `scripts` vitest project), so it gates `c
 | `site-context-tool.test.ts` | `site/src/context/context-tool.test.ts` |
 | `schema.ts`, `validate.ts`, `describe.ts`, `geometry/shell.ts`, `commands/{items,item-schema,labels}.ts`, `placement/{footprint,solve,support,walkways}.ts`, `lighting/lamps.ts` | stay; imports point to `./items/*`; `buildShell` gets the injected builder |
 | everything else (schema, commands, placement, geometry, lighting, context, view, camera, protocol, mcp-types, describe, diff, bill-of-materials, fixtures) | stays |
-| new: `packages/scene/test/generators.setup.ts` | temporary, until step 11 |
+| new: `packages/scene/test/generators.setup.ts` | temporary; deleted in step 11 (replaced by `test/fake-bed.ts` and `packages/assets/src/__scene__/`) |
 
 ### 3.2 `apps/web/src`
 
@@ -359,7 +359,7 @@ This test runs inside `pnpm test` (the `scripts` vitest project), so it gates `c
 | `lib.mjs`, `lib.d.mts`, `fetch.mjs`, `README.md` | step S9a: as-is → `packages/site/legacy/{lib.mjs,lib.d.mts,fetch.mjs}`, `packages/site/README.md`. `tools/site-context/fetch.mjs` becomes a one-line `import` shim |
 | `legacy/lib.mjs` | step S9b: converted to TS: `src/geo/enu.ts`, `src/geo/polygon.ts`, `src/context/bdtopo.ts`, `src/fit/fit.ts`, `src/context/validate.ts` (zod) |
 | `legacy/fetch.mjs` | step S9b: `src/node/{geocode,wfs,http,cli}.ts`; root script `"site:context": "tsx packages/site/src/node/cli.ts"` |
-| `legacy/`, `lib.d.mts`, `tools/site-context/` | deleted in step 11 |
+| `legacy/`, `lib.d.mts`, `tools/site-context/` | deleted in step 11 (done) |
 | new | `src/cadastre/types.ts`, `src/plan/types.ts` (contracts only) |
 
 ### 3.6 Other places
@@ -407,7 +407,7 @@ Specs to watch closely per area:
 | **S9b** | Convert site to TypeScript (DONE 2026-10-28) | Convert `legacy/*.mjs` to TS modules (section 3.5) **without changing the algorithms**; replace `validateContext` with zod; delete `lib.d.mts`. Golden test: replay a recorded BD TOPO response (`--from-geojson`, committed as a small fixture, Etalab licence) and require byte-identical `charme-3205.context.json`. | M (1–1.5 d) | golden test |
 | **S9c** | Site contracts (DONE 2026-10-28) | `cadastre/types.ts`, `plan/types.ts` and their README sections. No network code. | S (½ d) | – |
 | **C10** (DONE 2026-10-28) | `@flat/capture` placeholder | Package, schemas, schema tests, README with the privacy rule; `denyDirs` and `denyFiles` updates. | S (½ d) | `check-no-retailer` test cases for `captures/` |
-| **11** | Cleanup | Remove the scene `generators.setup.ts` exception, either by moving the remaining generator-dependent scene tests into `packages/assets/src/__scene__/` or by switching them to a fake registry, case by case. Remove the `importNames` rule (the symbols no longer exist in scene) and the `tools/site-context` shim. Tighten the package-graph test to the final matrix. Update README "Layout" and the provider README links. | S (½ d) | full gate |
+| **11** (DONE 2026-10-29, see "Step 11 record and final state") | Cleanup | Remove the scene `generators.setup.ts` exception, either by moving the remaining generator-dependent scene tests into `packages/assets/src/__scene__/` or by switching them to a fake registry, case by case. Remove the `importNames` rule (the symbols no longer exist in scene) and the `tools/site-context` shim. Tighten the package-graph test to the final matrix. Update README "Layout" and the provider README links. | S (½ d) | full gate |
 
 ### Step A3a/A4 record (done 2026-10-28)
 
@@ -671,3 +671,24 @@ The user wants to reuse the modelled house, and the 3D visualisation and interac
 | P15 | API reports and a docs page "Embedding the viewer" | S |
 
 The home-management app itself (the Home Assistant integration, entity discovery, auth, its own repo) is out of scope here. This repo only delivers the reusable model, viewer and contracts.
+
+## Step 11 record and final state (done 2026-10-29)
+
+**The refactor is complete.** Packages: `scene` (root), `assets` (+ `assets/node`), `site` (+ `site/node`), `viewer` (+ `viewer/testing`), `capture`; apps: `web`, `server`, `mcp`. The dependency matrix of section 2 is enforced by ESLint (`eslint.config.js`, `scripts/ci/lint-boundary.test.mjs`) and by `scripts/ci/package-graph.test.mjs`, which now has no allow-list.
+
+Removed:
+- **Scene `test/generators.setup.ts`** (and its ESLint block, its `lint-boundary` case and the `RELATIVE_ALLOW` list of the package-graph test; rule 4 has no exception left). Of the 6 scene tests that needed generators, case by case: (a) `item.test.ts` (1 test) and `commands/items.test.ts` (2 tests) use a fake `bed` generator, `test/fake-bed.ts` (`useFakeBed()` registers it in `beforeAll` and unregisters it in `afterAll`; same params and dims contract as the real one, no geometry); (b) three tests assert properties of the real generators and moved to `packages/assets/src/__scene__/`: `parametric-defaults.test.ts` (every category maps to a registered generator, plus the "wardrobe is registered" case, both from `items/mesh-source.test.ts`) and `charme-validation.test.ts` (Charme validates with the four known unwalled-edge warnings, from `validate.test.ts`). They import `@flat/scene` by name and `../register`. Scene's vitest project has no `setupFiles` any more.
+- **ESLint `importNames` rules** (`SCENE_ASSET_PATHS`, `SCENE_ASSET_PATTERN`, the `paths` option of `row()`, the root `scripts/**` and `e2e/**` block) were removed, not kept as a guard. Reason: they banned importing names from `@flat/scene` that scene no longer exports, so TypeScript (`tsc` in `check`) already fails such an import with a clearer error; a guard would only list a frozen set of names that rots as the facade evolves, and it needed the codemod at lint time.
+- **`scripts/refactor/rewrite-imports.mjs`** and its test (the codemod; its only other consumer was the ESLint rule). It stays in the repository history if a similar move is needed.
+- **`tools/site-context/`** (the one-line shim) and **`packages/site/legacy/`** (the untyped `.mjs` reference; the TypeScript port is pinned by the golden test, which replays the recorded BD TOPO response). The `legacy` carve-out of the site lint block is gone. Texts that said `tools/site-context` (web banner, e2e assertion, comments, `docs/photometry.md`, the site README) now say `pnpm site:context`.
+- Docs: root README "Layout" lists the five packages and three apps; the provider README points to `@flat/assets` for `ProductRecord`; `packages/assets/src/index.ts` no longer mentions the codemod.
+
+**Kept on purpose:**
+- **`@flat/scene/primitives`** (`NameString`, `ProductName`, `Price`, `Lumens`). It is not a temporary exception: these are zod atoms of the stored scene contract that scene owns and `@flat/assets` product records reuse. A subpath keeps them out of the root barrel (whose export set is pinned by a snapshot) and out of the facade. It is an allowed target in the matrix like any declared `exports` entry.
+- **`allowPaths` `packages/scene/**/*.test.ts` in `retailer-hosts.json`**: scene tests still mention retailer names as test data (`products.test.ts`, `items/dressing.test.ts`, `commands/items.test.ts`), so the entry stays.
+
+**Remaining deviations from the plan** (none blocks the matrix):
+- The legacy per-room lighting path stays in `packages/viewer` for software GL (CI, MCP, e2e), `?gi=off` and `VITE_FLAT_GI=off` until sign-off of the probe GI.
+- `apps/mcp -> @flat/server` stays a devDependency used by `apps/mcp/src/testing/**` only (the documented dev-only exception; it reaches into `@flat/server/src/**` because the server has no `exports`).
+- Section 8 (reuse: P12 library builds, P13 `@flat/scene/live` bindings and viewer overlays, P14 custom element, P15 API reports) is future work, not part of this refactor. `@flat/scene/live` and `@flat/viewer/element` already have their ESLint rows.
+- Scene perf-budget tests can flake on a loaded machine without `CI=1` (30 s timeout instead of 5 s).

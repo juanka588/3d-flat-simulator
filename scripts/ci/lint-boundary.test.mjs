@@ -72,9 +72,10 @@ describe('package graph boundaries', () => {
     await blocked('packages/scene/src/x.ts', "import 'zustand';");
   });
 
-  it('the temporary scene generators setup may reach assets, but still not the renderer', async () => {
-    await allowed('packages/scene/test/generators.setup.ts', "import '../../assets/src/register';");
-    await blocked('packages/scene/test/generators.setup.ts', "import 'three';");
+  it('scene tests get no exception: they cannot reach assets either (generator-dependent tests live in packages/assets/src/__scene__)', async () => {
+    await blocked('packages/scene/test/x.ts', "import '../../assets/src/register';");
+    await blocked('packages/scene/test/x.ts', "import '@flat/assets';");
+    await blocked('packages/scene/src/x.test.ts', "import '@flat/assets';");
   });
 
   it('@flat/scene/live stays pure', async () => {

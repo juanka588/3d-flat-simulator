@@ -12,6 +12,8 @@ export interface ProbeStats {
   /** Key of the state the displayed grid was baked for, and of the state wanted now. */
   displayedKey: string | null;
   wantedKey: string | null;
+  /** Open-air light (lux, `LightingModel.keyLux`) the displayed grid was baked for: the exposure is not allowed to run far ahead of it. Null before the first bake. */
+  displayedKeyLux: number | null;
   /** Bakes completed since the page loaded. */
   bakes: number;
   /** Wall time of the last completed bake, ms (first draw to published), and the probes it rendered. */
@@ -33,6 +35,7 @@ const EMPTY: ProbeStats = {
   pending: false,
   displayedKey: null,
   wantedKey: null,
+  displayedKeyLux: null,
   bakes: 0,
   lastBakeMs: 0,
   lastBakeProbes: 0,

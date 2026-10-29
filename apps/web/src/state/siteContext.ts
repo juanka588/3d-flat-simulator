@@ -5,7 +5,7 @@ import { CONTEXT_MAX_DRIFT_M, originDriftMeters } from '@flat/site';
 // The drift helpers moved to @flat/site (geo/drift) and contextGround to @flat/scene; re-exported for existing importers.
 export { CONTEXT_MAX_DRIFT_M, originDriftMeters };
 
-// Context files are generated offline (tools/site-context) next to the fixtures. They may be
+// Context files are generated offline (pnpm site:context) next to the fixtures. They may be
 // absent, so they are discovered with a glob rather than imported by name.
 const files = import.meta.glob('../../../../packages/scene/fixtures/*.context.json', {
   eager: true,

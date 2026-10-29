@@ -100,10 +100,22 @@ The layout switches to the mobile one when the viewport is narrower than 768 px 
 - **Properties** become a collapsible bottom sheet that appears when something is selected, and is not shown in walk mode.
 - **Touch.** Orbit: one finger rotates, two fingers pinch-zoom and pan. Top: one finger pans, two pinch-zoom (`touches` in `CameraRig`). A tap selects, a drag does not. Walk: dragging the view looks around (pointer events; iOS has no pointer lock, so pointer lock is only used with a fine pointer), move pad bottom-left, turn buttons bottom-right (56 px targets, safe-area aware), and the overlay does not capture touches elsewhere, so you can hold a button and drag with the other thumb. The canvas has `touch-action: none`, buttons `touch-action: manipulation` (no double-tap zoom), long-press callouts and text selection are disabled on the canvas and pad.
 - **iOS / Android.** `viewport-fit=cover` with `env(safe-area-inset-*)` padding, `100dvh` (with a `100%` fallback), inputs at 16 px (no zoom on focus), native date and time inputs ("Exact time" next to the time slider), 44 px minimum targets.
-- **Performance.** Phones (coarse pointer) and machines with at most 2 logical cores use `LOW_PROFILE` in `viewer/perf.ts`: canvas DPR capped at 1.5 (2 on desktop), sun shadow map 1024 (2048), point-lamp maps 256 (512), area and spot 512 (1024). `?quality=low` or `?quality=high` forces a profile.
+- **Performance.** Phones (coarse pointer) and machines with at most 2 logical cores use `LOW_PROFILE` in `packages/viewer/src/perf.ts`: canvas DPR capped at 1.5 (2 on desktop), sun shadow map 1024 (2048), point-lamp maps 256 (512), area and spot 512 (1024). `?quality=low` or `?quality=high` forces a profile.
 
 ## Layout
 
-- `packages/scene` — Zod Scene schema (`*.flat.json`), validation, pure geometry builders (renderer-agnostic `MeshData`), collision, camera fitting. Conventions are documented in `src/schema.ts`.
-- `apps/web` — Vite + React + react-three-fiber viewer.
-- `docs/backlog` — milestones, user stories and acceptance criteria.
+Packages (`packages/*`, workspace names `@flat/*`; the dependency matrix is enforced by ESLint and `scripts/ci/package-graph.test.mjs`, see `docs/architecture/modules.md`):
+
+- `packages/scene` — the root of the graph: Zod Scene schema (`*.flat.json`), validation, commands, placement, pure geometry builders (renderer-agnostic `MeshData`), collision, camera fitting. No renderer, no I/O. Conventions are documented in `src/schema.ts`.
+- `packages/assets` — the shape and look of items: parametric generators, mesh catalogue and lookalike matching, product records, materials, asset loading and caches; `@flat/assets/node` reads the local pack from disk. Importing it registers the generators.
+- `packages/site` — where the flat is: geodesy, BD TOPO to `SiteContext`, the fit to the host footprint, and the `pnpm site:context` generator (`@flat/site/node`). See [`packages/site/README.md`](packages/site/README.md).
+- `packages/viewer` — the rendering library (react-three-fiber): shell, items, lighting, probe GI, sky, cameras; `@flat/viewer/testing` is for the web test hooks only.
+- `packages/capture` — contracts for photo and plan capture (no code yet). See [`packages/capture/README.md`](packages/capture/README.md).
+
+Apps (`apps/*`, leaves of the graph):
+
+- `apps/web` — Vite + React shell around the viewer: editor UI, catalogue, state, Pages build.
+- `apps/server` — local scene server (REST + WebSocket on loopback) and the personal-use product providers. See [`apps/server/README.md`](apps/server/README.md) and [`apps/server/src/providers/README.md`](apps/server/src/providers/README.md).
+- `apps/mcp` — MCP server for assistants. See [`apps/mcp/README.md`](apps/mcp/README.md).
+
+Elsewhere: `e2e/` (Playwright), `scripts/` (CI guards, asset and model tooling), `docs/` (`backlog` — milestones, user stories and acceptance criteria; `architecture`).

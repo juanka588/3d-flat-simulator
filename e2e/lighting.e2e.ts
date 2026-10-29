@@ -279,7 +279,7 @@ test('the IGN attribution shows with the site context and the context is hidden 
   const latitude = page.getByTestId('site-latitude');
   const original = await latitude.inputValue();
   await latitude.fill(String(Number(original) + 0.01)); // ~1.1 km away from where the context was generated
-  await expect(stale).toContainText('re-run tools/site-context');
+  await expect(stale).toContainText('re-run pnpm site:context');
   await expect(attribution).toHaveCount(0);
   await rendered(page);
   expect((await flat(page, (f) => f.stats())).meshes).not.toContain('context-buildings');

@@ -1,6 +1,6 @@
 # Product providers (authoring guide)
 
-A provider turns one source of real products (a retailer's site, a feed, a fixture file) into `ProductRecord`s for the flat simulator. Providers live here, in `apps/server`, and nowhere else: the web app, the Pages build and the MCP server never import this folder. Everything a provider returns stays on the user's machine.
+A provider turns one source of real products (a retailer's site, a feed, a fixture file) into `ProductRecord`s for the flat simulator (the `ProductRecord` schema and the fit rules live in `@flat/assets`, [`packages/assets`](../../../../packages/assets); the wire types and `PROVIDER_ERROR_CODES` in `@flat/scene`). Providers live here, in `apps/server`, and nowhere else: the web app, the Pages build and the MCP server never import this folder. Everything a provider returns stays on the user's machine.
 
 Why it is strict: the assistant may only place products that exist (D9 of `docs/backlog/m5.md`), the retailer must not be hammered, and retailer data and 3D models are for the user's private use (see "Products and personal-use providers" in the root README).
 
@@ -33,7 +33,7 @@ Rules for the records you return (they are validated by the `ProductRecord` sche
 - `modelRef` is whatever `fetchModel` needs to find the GLB; it never leaves the server (the model facts the assistant sees are only `has3d`).
 - No photo is ever stored in a scene. `photoUrl` is only for the local UI card.
 
-Failures are `ProviderError(code, message, { hint?, retryAt?, details? })` with a code of `PROVIDER_ERROR_CODES` (`packages/scene/src/products.ts`): `product_not_found`, `provider_parse_failed` (the page changed), `provider_blocked` (403, bot protection), `provider_rate_limited`, `provider_unavailable`, `model_unavailable`, `url_not_allowed`, `robots_disallowed`, `product_dims_missing`. The framework maps them to HTTP statuses and MCP errors, and each has a default hint for the model (`PROVIDER_ERROR_HINTS`).
+Failures are `ProviderError(code, message, { hint?, retryAt?, details? })` with a code of `PROVIDER_ERROR_CODES` (`packages/scene/src/products.ts`, re-exported by `@flat/scene`): `product_not_found`, `provider_parse_failed` (the page changed), `provider_blocked` (403, bot protection), `provider_rate_limited`, `provider_unavailable`, `model_unavailable`, `url_not_allowed`, `robots_disallowed`, `product_dims_missing`. The framework maps them to HTTP statuses and MCP errors, and each has a default hint for the model (`PROVIDER_ERROR_HINTS`).
 
 ## Politeness: use `ctx.fetch`, nothing else
 
@@ -83,7 +83,7 @@ Prefer small recorded fixtures with the fields you parse over full pages (a page
 
 ## Local-only checklist
 
-- [ ] No import of the provider from `apps/web`, `packages/scene` or `apps/mcp` (the MCP server talks to the scene server's REST API, never to a provider).
+- [ ] No import of the provider from `apps/web`, any `packages/*` or `apps/mcp` (the MCP server talks to the scene server's REST API, never to a provider).
 - [ ] Records carry text and numbers only; no photo or model bytes in a scene, a log or a fixture.
 - [ ] `personalUseOnly: true` when the terms restrict use; `note` says so in a sentence.
 - [ ] Nothing is cached on disk and nothing is served from Pages.

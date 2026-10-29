@@ -21,7 +21,7 @@ import { getJson as getJsonWith } from './http';
 import { fetchBuildings as fetchBuildingsWith } from './wfs';
 
 const HELP = `Usage: pnpm site:context --flat <flat.json> [options]
-       (or: tsx packages/site/src/node/cli.ts ...; the old node tools/site-context/fetch.mjs still works)
+       (or: tsx packages/site/src/node/cli.ts ...)
 
   --flat <file>          Flat (Scene) JSON; supplies site.address, floorElevation and wall geometry
   --address <text>       Geocoding query (default: flat site.address)

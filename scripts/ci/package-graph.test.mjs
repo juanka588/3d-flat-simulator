@@ -1,12 +1,12 @@
 // Package-graph gate (docs/architecture/modules.md section 2.3). It reads every packages/*/package.json and
 // apps/*/package.json and holds them to the TARGET matrix, so it already knows packages that do not exist yet
-// (assets, site, viewer, capture): the migration lanes only add packages, they never edit this file.
+// (assets, site, viewer, capture). The refactor is complete (step 11): the matrix is final and has no temporary exception.
 //
 //   1. workspace dependency edges (dependencies, devDependencies, peerDependencies) are a subset of the matrix;
 //   2. the graph has no cycle;
 //   3. every `@flat/<x>[/<sub>]` specifier in a package's src/ and test/ is a declared dependency, the <sub> is one of the
 //      target's `exports`, and the (importing entry -> imported entry) pair is allowed by the matrix;
-//   4. no file imports another package by a relative path (small allow-list for temporary cases).
+//   4. no file imports another package by a relative path (no exceptions).
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -37,10 +37,6 @@ export const MATRIX = {
 export const DEV_ONLY = [{ from: 'mcp', to: 'server', dir: 'src/testing/' }];
 /** Importing `viewer/testing` is allowed only from these files of apps/web. */
 const TESTING_FILES = /^src\/testHook[^/]*\.ts$/;
-/** Relative cross-package imports that exist today or are planned (paths relative to the repo root). Shrink this list, never grow it. */
-export const RELATIVE_ALLOW = [
-  'packages/scene/test/generators.setup.ts', // temporary until step 11: scene tests run against the real generators
-];
 
 const pkgOfEntry = (entry) => entry.split('/')[0];
 const shortName = (name) => name.replace(/^@flat\//, '');
@@ -234,14 +230,14 @@ describe('package graph: the sources', () => {
         const specs = specifiersOf(readFileSync(file, 'utf8'));
         const rel = relative(p.dir, file).split(sep).join('/');
         violations.push(...importViolations(p, rel, specs, byShort));
-        escapes.push(...relativeEscapes(p, file, specs, packages).filter((e) => !RELATIVE_ALLOW.some((a) => e.startsWith(a))));
+        escapes.push(...relativeEscapes(p, file, specs, packages));
       }
     }
   }
   it('3. every @flat/* specifier is a declared dependency, an exported subpath and an allowed entry pair', () => {
     expect(violations).toEqual([]);
   });
-  it('4. no file imports another package by a relative path (outside the allow-list)', () => {
+  it('4. no file imports another package by a relative path (no exceptions)', () => {
     expect(escapes).toEqual([]);
   });
 });

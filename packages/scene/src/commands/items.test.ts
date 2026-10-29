@@ -8,6 +8,9 @@ import type { Command } from './schema';
 import { itemCoalesceKey } from './item-schema';
 import type { Item, Scene } from '../schema';
 import { Scene as SceneSchema } from '../schema';
+import { useFakeBed } from '../../test/fake-bed';
+
+useFakeBed();
 
 /** Charme without its items: robust against fixture items other lanes add. */
 const bare: Scene = deepFreeze({ ...FIXTURES.charme!, items: [] });

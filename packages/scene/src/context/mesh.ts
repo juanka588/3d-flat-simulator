@@ -94,7 +94,7 @@ function addCap(
  * by `entityId: 'ground'`. Materials: `builtin:context-building`, `builtin:context-host`
  * (buildings with `host: true`) and `builtin:ground`.
  *
- * The flat's own volume is NOT carved out here: the generator (`tools/site-context`) splits
+ * The flat's own volume is NOT carved out here: the generator (`pnpm site:context`, @flat/site) splits
  * the host building into bands (below the flat, the flat's storey minus the flat's
  * bounding rectangle, above the flat), each a normal context building with `host: true`.
  */

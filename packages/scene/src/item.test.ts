@@ -6,6 +6,7 @@ import sample from '../fixtures/sample.flat.json';
 import { GENERATORS, type Generator } from './items/mesh-source';
 import { loadSceneText } from './load';
 import { parseScene } from './parse';
+import { useFakeBed } from '../test/fake-bed';
 import { bed, productSnapshot } from '../test/product-fixtures';
 import { Item, NAME_MAX, type Scene } from './schema';
 import { serializeScene } from './serialize';
@@ -56,6 +57,7 @@ const fakeBed: Generator<{ w: number; d: number; h: number }> = {
   },
 };
 
+useFakeBed();
 afterEach(() => GENERATORS.unregister('test-bed'));
 
 describe('Item schema evolution (additive, still version 1)', () => {
@@ -68,7 +70,7 @@ describe('Item schema evolution (additive, still version 1)', () => {
   it('accepts a fully product-grounded item', () => {
     const s = load([full]);
     expect(s.items[0]).toMatchObject({ productRef: { provider: 'mock' }, mesh: { kind: 'parametric' }, relation: { kind: 'against_wall' } });
-    expect(codes(s)).toEqual([]); // the real `bed` generator (M5.3) is registered and agrees with the dims
+    expect(codes(s)).toEqual([]); // the fake `bed` generator (test/fake-bed.ts) is registered and agrees with the dims
   });
 
   it.each([

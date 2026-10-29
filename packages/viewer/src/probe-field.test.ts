@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_BOOST_LUX, adaptExposure, fieldAt, fieldFromAtlas, keyLux } from './probe-field';
+import { MAX_BOOST_LUX, adaptExposure, fieldAt, fieldFromAtlas, keyLux, MAX_ATLAS_VALUE, sanitizeAtlas } from './probe-field';
 import type { ProbeField } from './probe-field';
 import type { ProbeLayout } from './probe-grid';
 
@@ -65,5 +65,24 @@ describe('adaptExposure', () => {
     expect(step).toBeGreaterThan(1);
     expect(step).toBeLessThan(4);
     expect(adaptExposure(1, 4, 100, 0.35)).toBe(4);
+  });
+});
+
+describe('sanitizeAtlas', () => {
+  it('turns NaN into 0 and clamps Inf and half-float overflow, leaving finite values alone', () => {
+    const data = new Float32Array([1, -2.5, Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, 1e9, -1e9, 65504, 0]);
+    expect(sanitizeAtlas(data)).toBe(5);
+    expect([...data]).toEqual([1, -2.5, 0, MAX_ATLAS_VALUE, -MAX_ATLAS_VALUE, MAX_ATLAS_VALUE, -MAX_ATLAS_VALUE, 65504, 0]);
+    expect(sanitizeAtlas(data)).toBe(0);
+  });
+  it('keeps the field finite when bad values are injected into the atlas', () => {
+    const [nx, ny, nz] = layout.res;
+    const atlas = new Float32Array(nx * ny * (nz + 2) * 7 * 4).fill(Number.NaN);
+    atlas[3] = Number.POSITIVE_INFINITY;
+    sanitizeAtlas(atlas);
+    const indoor = new Uint8Array(nx * nz).fill(1);
+    const f = fieldFromAtlas(layout, indoor, atlas);
+    expect(Number.isFinite(f.mean)).toBe(true);
+    for (const v of f.lux) expect(Number.isFinite(v)).toBe(true);
   });
 });

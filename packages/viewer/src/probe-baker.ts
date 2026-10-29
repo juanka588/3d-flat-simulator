@@ -1,7 +1,7 @@
 import { Data3DTexture, FloatType, LinearFilter, Mesh, NearestFilter, OrthographicCamera, PlaneGeometry, RGBAFormat, Scene, ShaderMaterial, Vector3, WebGL3DRenderTarget, WebGLRenderTarget } from 'three';
 import type { WebGLRenderer } from 'three';
 import { LightProbeGridWebGL } from 'three/examples/jsm/lighting/LightProbeGridWebGL.js';
-import { fieldFromAtlas } from './probe-field';
+import { fieldFromAtlas, sanitizeAtlas } from './probe-field';
 import type { ProbeField } from './probe-field';
 import { bakeRuns, buildVisibility, hashString, probeCount, probeValidity } from './probe-grid';
 import type { PlanBox, ProbeLayout, ProbeSettings, Solid, Visibility } from './probe-grid';
@@ -11,6 +11,8 @@ import type { ProbeControls } from './probe-runtime';
 /** What to bake: the state of the flat and its lights, as a key, plus how to put the three.js scene into bake state. */
 export interface BakeJob {
   key: string;
+  /** Open-air light (lux) the job is baked for: the displayed grid's exposure reference (see `gridLimitedExposure`). */
+  keyLux: number;
   layout: ProbeLayout;
   settings: ProbeSettings;
   solids: readonly Solid[];
@@ -28,6 +30,7 @@ interface Slot {
   /** The bake key the grid holds (null while it is being baked or never was) and the light field read from it. */
   key: string | null;
   field: ProbeField | null;
+  keyLux: number | null;
 }
 
 type GridInternals = { _renderTarget: WebGL3DRenderTarget | null };
@@ -63,6 +66,10 @@ export class ProbeBaker {
   private timer: ReturnType<typeof setTimeout> | undefined;
   private token = 0;
   private running = false;
+  /** The job being baked (null when idle): a request for the same layout waits for it instead of cancelling it, so a changing light cannot starve the bake. */
+  private runningJob: BakeJob | null = null;
+  /** When the first request of the current burst arrived (performance.now), for the maximum wait. */
+  private waitSince: number | null = null;
   private disposed = false;
   private bakes = 0;
   private sliceSize = 8;
@@ -74,6 +81,7 @@ export class ProbeBaker {
     private readonly scene: Scene,
     private readonly onPublished: () => void,
     private readonly debounceMs = 400,
+    private readonly maxWaitMs = 1000,
   ) {
     this.controls = { rebake: () => this.rebake(), hash: () => this.hash() };
   }
@@ -88,21 +96,19 @@ export class ProbeBaker {
   }
 
   /** Asks for a bake of `job` (after the debounce). The same key as what is displayed or already wanted is a no-op. */
-  request(job: BakeJob): void {
+  request(job: BakeJob, immediate = false): void {
     if (this.disposed) return;
     setProbeControls(this.controls);
     if (job.key === this.wanted?.key) return;
     const cached = this.spares.find((sp) => sp.key === job.key && sp.layoutKey === layoutKeyOf(job.layout));
     if (cached) {
       // A recent state: swap it back in, nothing to bake.
-      this.token++;
-      clearTimeout(this.timer);
-      this.timer = undefined;
+      this.cancel();
       this.wanted = job;
       this.publish(cached);
       this.displayedKey = job.key;
       setProbeField(cached.field);
-      setProbeStats({ pending: false, displayedKey: job.key, wantedKey: job.key });
+      setProbeStats({ pending: false, displayedKey: job.key, displayedKeyLux: cached.keyLux, wantedKey: job.key });
       this.onPublished();
       return;
     }
@@ -112,22 +118,38 @@ export class ProbeBaker {
       return;
     }
     this.wanted = job;
-    this.token++;
-    clearTimeout(this.timer);
+    if (this.running && this.runningJob && layoutKeyOf(this.runningJob.layout) === layoutKeyOf(job.layout)) {
+      // The light keeps changing (the sun animates): let the running bake finish and show its grid, then bake the newest state at once.
+      setProbeStats({ pending: true, wantedKey: job.key });
+      return;
+    }
+    this.cancel();
     setProbeStats({ pending: true, wantedKey: job.key });
+    // Debounce, but never wait longer than `maxWaitMs` since the first request of a burst: a changing light must still get baked.
+    const now = performance.now();
+    this.waitSince ??= now;
+    const delay = immediate ? 0 : Math.min(this.debounceMs, Math.max(0, this.maxWaitMs - (now - this.waitSince)));
     this.timer = setTimeout(() => {
       this.timer = undefined;
+      this.waitSince = null;
       void this.bake(job);
-    }, this.debounceMs);
+    }, delay);
+  }
+
+  /** Drops the running bake and the pending timer. */
+  private cancel(): void {
+    this.token++;
+    clearTimeout(this.timer);
+    this.timer = undefined;
+    this.running = false;
+    this.runningJob = null;
   }
 
   /** Bakes the wanted state again at once (no debounce), even if it is the displayed one. Resolves when published. */
   rebake(): Promise<void> {
     const job = this.wanted;
     if (!job || this.disposed) return Promise.resolve();
-    this.token++;
-    clearTimeout(this.timer);
-    this.timer = undefined;
+    this.cancel();
     setProbeStats({ pending: true });
     return this.bake(job);
   }
@@ -147,7 +169,7 @@ export class ProbeBaker {
     grid.texture = rt.texture;
     this.uploadVisibility(rt, vis, 7 * (nz + 2));
     this.scene.add(grid);
-    return { grid, layoutKey: layoutKeyOf(layout), visSlices: vis.slices, key: null, field: null };
+    return { grid, layoutKey: layoutKeyOf(layout), visSlices: vis.slices, key: null, field: null, keyLux: null };
   }
 
   private uploadVisibility(rt: WebGL3DRenderTarget, vis: Visibility, base: number): void {
@@ -167,6 +189,8 @@ export class ProbeBaker {
     if (this.disposed) return;
     const token = ++this.token;
     this.running = true;
+    this.runningJob = job;
+    this.waitSince = null;
     const started = performance.now();
     try {
       const lk = layoutKeyOf(job.layout);
@@ -178,6 +202,7 @@ export class ProbeBaker {
       else {
         this.spares = this.spares.filter((x) => x !== slot);
         slot.key = null;
+        slot.keyLux = null;
         const max3d = (this.renderer.getContext() as WebGL2RenderingContext).getParameter(WebGL2RenderingContext.MAX_3D_TEXTURE_SIZE) as number;
         const vis = buildVisibility(job.layout, job.solids, job.boxes, Math.max(1, max3d - 7 * (job.layout.res[2] + 2)));
         this.uploadVisibility((slot.grid as unknown as GridInternals)._renderTarget!, vis, 7 * (job.layout.res[2] + 2));
@@ -206,8 +231,10 @@ export class ProbeBaker {
         }
       }
       if (token !== this.token || this.disposed) return;
+      this.sanitize(slot);
       this.publish(slot);
       slot.key = job.key;
+      slot.keyLux = job.keyLux;
       slot.field = this.readField(slot, job);
       setProbeField(slot.field);
       this.displayedKey = job.key;
@@ -217,6 +244,7 @@ export class ProbeBaker {
         mode: 'probes',
         pending: !done,
         displayedKey: job.key,
+        displayedKeyLux: job.keyLux,
         bakes: this.bakes,
         lastBakeMs: Math.round(performance.now() - started),
         lastBakeProbes: baked * passes,
@@ -234,8 +262,41 @@ export class ProbeBaker {
         setProbeStats({ pending: false, error: error instanceof Error ? error.message : String(error) });
       }
     } finally {
-      if (token === this.token) this.running = false;
+      if (token === this.token) {
+        this.running = false;
+        this.runningJob = null;
+        // Requests that arrived during the bake (same layout) were deferred: bake the newest state now.
+        const next = this.wanted;
+        if (next && next.key !== job.key && !this.disposed && !this.timer) {
+          this.wanted = null;
+          this.request(next, true);
+        }
+      }
     }
+  }
+
+  /** NaN or Inf in the baked atlas would spread through the interpolation and tone-map to white: clean it before it is shown. */
+  private sanitize(slot: Slot): void {
+    const rt = (slot.grid as unknown as GridInternals)._renderTarget;
+    let atlas: Float32Array | null;
+    try {
+      atlas = rt ? this.readAtlas(slot) : null;
+    } catch {
+      return; // the readback is a safety net: without it the grid is shown as baked
+    }
+    if (!rt || !atlas) return;
+    const changed = sanitizeAtlas(atlas);
+    if (changed === 0) return;
+    console.warn(`[probes] ${changed} non-finite or out-of-range values in the baked atlas were sanitised`);
+    const tex = new Data3DTexture(atlas, rt.width, rt.height, rt.depth);
+    tex.format = RGBAFormat;
+    tex.type = FloatType;
+    tex.minFilter = NearestFilter;
+    tex.magFilter = NearestFilter;
+    tex.unpackAlignment = 1;
+    tex.needsUpdate = true;
+    this.renderer.copyTextureToTexture(tex, rt.texture, null, new Vector3(0, 0, 0));
+    tex.dispose();
   }
 
   /** One slice: the scene in bake state, only the grid being baked visible, then everything back. */
