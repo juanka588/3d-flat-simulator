@@ -4123,6 +4123,10 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "maxLength": 200,
           "type": "string",
         },
+        "thumbs": {
+          "description": "Add px photos (first ).",
+          "type": "boolean",
+        },
       },
       "required": [
         "query",
@@ -4142,6 +4146,10 @@ exports[`snapshots (the contract) > tools/list 1`] = `
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
+        "photo": {
+          "description": "Add the photo (JPEG, px max).",
+          "type": "boolean",
+        },
         "productId": {
           "description": "productId from search_products, "<provider>:<sku>".",
           "type": "string",
@@ -4227,11 +4235,84 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "maxLength": 32,
           "type": "string",
         },
+        "thumbs": {
+          "description": "Add px thumbnails (first ).",
+          "type": "boolean",
+        },
       },
       "required": [],
       "type": "object",
     },
     "name": "search_assets",
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true,
+    },
+    "description": "Real products and library models that look like a part of a reference image (image {jobId,index} from generate_reference, or {path}; box in pixels) or like a text. Returns productId/assetId, score, price, dims, has3d and a 160px photo each. Products are placeable; assets are shapes for place_item mesh. Needs the image service.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "box": {
+          "description": "[x0,y0,x1,y1] px; default whole image.",
+          "items": {
+            "minimum": 0,
+            "type": "number",
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array",
+        },
+        "category": {
+          "type": "string",
+        },
+        "cutout": {
+          "description": "Whiten the crop background.",
+          "type": "boolean",
+        },
+        "image": {
+          "description": "{jobId,index} or {path}.",
+          "type": "object",
+        },
+        "mask": {
+          "description": "{path,color?}: render_passes instance-id image and the [r,g,b] of the object (our renders).",
+          "type": "object",
+        },
+        "maxPrice": {
+          "minimum": 0,
+          "type": "number",
+        },
+        "source": {
+          "enum": [
+            "catalog",
+            "hd",
+            "all",
+          ],
+          "type": "string",
+        },
+        "text": {
+          "description": "e.g. "freestanding white bathtub".",
+          "maxLength": 300,
+          "type": "string",
+        },
+        "thumbs": {
+          "description": "Default true.",
+          "type": "boolean",
+        },
+        "topK": {
+          "description": "Default 5.",
+          "maximum": 8,
+          "minimum": 1,
+          "type": "integer",
+        },
+      },
+      "required": [],
+      "type": "object",
+    },
+    "name": "match_crop",
   },
   {
     "annotations": {

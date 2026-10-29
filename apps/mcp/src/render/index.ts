@@ -2,3 +2,4 @@ export { BrowserRenderer, BUILD_HINT, DEFAULT_DIST, IDLE_MS, QueueBusyError, Ser
 export { RenderError, type RenderFailureCode } from './errors';
 export { McpRenderer, sharedMcpRenderer, type McpRenderResult } from './service';
 export { nearestIds, resolveLighting, resolvePose } from './resolve';
+export { chromiumShrinker, closeShrinker, type ImageShrinker, type RawImage, type ShrunkImage } from './shrink';

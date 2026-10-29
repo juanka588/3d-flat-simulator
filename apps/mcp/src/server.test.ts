@@ -150,13 +150,13 @@ describe('stubs and modes', () => {
 });
 
 describe('tools/list token budget', () => {
-  it('stays under about 22.5k tokens (chars / 4); item_place and item_set_variant are not listed', async () => {
+  it('stays under about 22.8k tokens (chars / 4); item_place and item_set_variant are not listed', async () => {
     const { client } = await connect();
     const { tools } = await client.listTools();
     // 21.0k before grid lights (M5 lighting) and floor zones; those add ~1.1k tokens of unavoidable schema (4 light variants repeated in light_add / light_update / batch).
-    // CG2 generate_reference: ~0.43k tokens, so the limit went from 22k to 22.5k (the list was at 21.9k). CG1 render_passes will need its own bump.
+    // CG2 generate_reference: ~0.43k tokens, so the limit went from 22k to 22.5k (the list was at 21.9k). CG1 render_passes will need its own bump. CG3 match_crop plus thumbs/photo flags: ~0.4k tokens, limit 22.8k.
     const chars = JSON.stringify(tools).length;
-    expect(Math.round(chars / 4), `tools/list is ${chars} chars`).toBeLessThan(22_500);
+    expect(Math.round(chars / 4), `tools/list is ${chars} chars`).toBeLessThan(22_800);
   });
 });
 

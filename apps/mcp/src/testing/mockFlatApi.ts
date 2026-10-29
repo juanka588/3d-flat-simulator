@@ -332,6 +332,18 @@ export class MockFlatApi implements FlatApi {
   /** Assets the mock serves, by URL (tests). */
   readonly assets = new Map<string, FetchedAsset>();
 
+  /** Product photos the mock serves, by productId (tests). */
+  readonly photos = new Map<string, FetchedAsset>();
+  readonly photoCalls: string[] = [];
+
+  async getProductPhoto(productId: string): Promise<FlatResult<FetchedAsset>> {
+    const g = this.gate<FetchedAsset>('getProductPhoto');
+    if (g) return g;
+    this.photoCalls.push(productId);
+    const a = this.photos.get(productId);
+    return a ? { ok: true, data: a } : this.http(404, 'product_not_found', `no photo for ${productId}`);
+  }
+
   async fetchAsset(url: string): Promise<FlatResult<FetchedAsset>> {
     const g = this.gate<FetchedAsset>('fetchAsset');
     if (g) return g;

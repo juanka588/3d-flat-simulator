@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { parseCatalogJson } from '@flat/assets';
 import type { MeshAsset } from '@flat/assets';
 import catalogJson from '../../web/public/models/catalog.json';
@@ -17,4 +18,26 @@ export function cc0Assets(): readonly MeshAsset[] {
   const out = [...parseCatalogJson(catalogJson), ...parseCatalogJson(hdCatalogJson)].filter((a) => a.source === 'cc0');
   cached = out;
   return out;
+}
+
+// -- thumbnails (CG3) ----------------------------------------------------------------------------------------------
+// The committed library thumbnails (`<tier>/thumbs/<name>.webp`, renders of our own CC0 / CC-BY models). Safe to show the model.
+
+const THUMB_DIRS: { dir: URL; catalog: unknown }[] = [
+  { dir: new URL('../../web/public/models/', import.meta.url), catalog: catalogJson },
+  { dir: new URL('../../web/public/models-hd/', import.meta.url), catalog: hdCatalogJson },
+];
+
+/** The thumbnail bytes of a library asset id (`undefined` when it has none). */
+export function assetThumb(assetId: string): { data: Uint8Array; contentType: string } | undefined {
+  for (const { dir, catalog } of THUMB_DIRS) {
+    const entry = (Array.isArray(catalog) ? (catalog as { id?: string; thumb?: string }[]) : []).find((a) => a.id === assetId);
+    if (!entry?.thumb || /\.\.|^\//.test(entry.thumb)) continue;
+    try {
+      return { data: new Uint8Array(readFileSync(new URL(entry.thumb, dir))), contentType: 'image/webp' };
+    } catch {
+      return undefined;
+    }
+  }
+  return undefined;
 }

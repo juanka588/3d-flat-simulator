@@ -5,7 +5,7 @@ import { loadConfig } from './config';
 import { HttpFlatApi } from './flatApi';
 import { parseArgs } from './cli';
 import { startHttp } from './http';
-import { McpRenderer, closeSharedRenderer, sharedRenderer } from './render';
+import { McpRenderer, closeShrinker, closeSharedRenderer, sharedRenderer } from './render';
 import { createFlatMcpServer } from './server';
 
 /**
@@ -34,6 +34,7 @@ async function main(): Promise<void> {
     void close()
       .catch(() => undefined)
       .then(() => closeSharedRenderer())
+      .then(() => closeShrinker())
       .catch(() => undefined)
       .finally(() => process.exit(0));
   };

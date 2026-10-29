@@ -41,6 +41,14 @@ class Config:
     max_side: int = 1536
     #: Default steps for qwen-cn when the request gives none (None: the model's own default).
     steps: int | None = None
+    #: CG3 similarity index. The catalogue folder (gitignored, personal use) holds `photos/` and `catalog.json`; its index is
+    #: written next to them. The HD / CC0 thumbnails are committed in the web app; their derived index lives in `index_dir`.
+    catalog_dir: Path = REPO_ROOT / "apps" / "server" / "local-assets" / "ikea-fr"
+    hd_dirs: tuple[Path, ...] = (REPO_ROOT / "apps" / "web" / "public" / "models", REPO_ROOT / "apps" / "web" / "public" / "models-hd")
+    index_dir: Path = REPO_ROOT / ".tmp" / "imagegen" / "index"
+    #: open_clip model and pretrained tag (see clip.py for the licence note).
+    clip_model: str = "ViT-B-32"
+    clip_pretrained: str = "laion2b_s34b_b79k"
 
 
 def _paths(value: str | None) -> list[Path]:
@@ -79,4 +87,9 @@ def from_env(env: dict[str, str] | None = None) -> Config:
         bin_dir=Path(e["IMAGEGEN_BIN_DIR"]).expanduser().resolve() if env_get(e, "IMAGEGEN_BIN_DIR") else None,
         max_side=int(env_get(e, "IMAGEGEN_MAX_SIDE") or base.max_side),
         steps=int(env_get(e, "IMAGEGEN_STEPS")) if env_get(e, "IMAGEGEN_STEPS") else None,
+        catalog_dir=Path(e["IMAGEGEN_CATALOG_DIR"]).expanduser().resolve() if env_get(e, "IMAGEGEN_CATALOG_DIR") else base.catalog_dir,
+        hd_dirs=tuple(_paths(e.get("IMAGEGEN_HD_DIRS"))) or base.hd_dirs,
+        index_dir=Path(e["IMAGEGEN_INDEX_DIR"]).expanduser().resolve() if env_get(e, "IMAGEGEN_INDEX_DIR") else out.parent / "index",
+        clip_model=env_get(e, "IMAGEGEN_CLIP_MODEL") or base.clip_model,
+        clip_pretrained=env_get(e, "IMAGEGEN_CLIP_PRETRAINED") or base.clip_pretrained,
     )

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
+import json
 import os
 import sys
 
@@ -28,6 +29,14 @@ def cmd_check(args: argparse.Namespace) -> int:
         print(f"              licence: {m.licence}")
         if not ok:
             missing.append(m)
+    clip_repo = cfg.hf_home / "hub" / "models--laion--CLIP-ViT-B-32-laion2B-s34B-b79K"
+    clip_ok = (clip_repo / "snapshots").is_dir() and any((clip_repo / "snapshots").iterdir())
+    print(f"  {'clip':11} {'present' if clip_ok else 'MISSING':8} ~0.6 GB  ({cfg.clip_model}/{cfg.clip_pretrained}, MIT; optional: only the similarity index needs it)")
+    if not clip_ok and args.download:
+        from .clip import OpenClipEmbedder
+
+        print("downloading the CLIP weights ...", flush=True)
+        OpenClipEmbedder(cfg.clip_model, cfg.clip_pretrained, cfg.hf_home / "hub", allow_download=True)._load()
     if not missing:
         print("All models present.")
         return 0
@@ -66,6 +75,7 @@ def cmd_preflight(_args: argparse.Namespace) -> int:
 
 
 def cmd_serve(args: argparse.Namespace) -> int:
+    from .clip import ClipService
     from .jobs import JobQueue
     from .server import make_server
 
@@ -100,7 +110,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
     if cfg.host not in ("127.0.0.1", "localhost", "::1") and not cfg.token:
         print(f"[imagegen] WARNING: bound to {cfg.host} without IMAGEGEN_TOKEN: anything that can reach the port can use the GPU", file=sys.stderr)
     queue = JobQueue(runner)
-    srv = make_server(cfg, queue, info)
+    srv = make_server(cfg, queue, info, ClipService(cfg, allow_download=allow))
     print(f"[imagegen] {cfg.backend} backend listening on http://{cfg.host}:{cfg.port} (HF cache {cfg.hf_home}, out {cfg.out_dir})", file=sys.stderr, flush=True)
     try:
         srv.serve_forever()
@@ -112,6 +122,22 @@ def cmd_serve(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_index(args: argparse.Namespace) -> int:
+    """Builds the similarity index without the server (the sidecar picks it up by file time)."""
+    from .clip import SOURCES, ClipError, ClipService
+
+    cfg = from_env()
+    svc = ClipService(cfg, allow_download=args.download or os.environ.get("IMAGEGEN_ALLOW_DOWNLOAD", "").strip().lower() in ("1", "true", "yes", "on"))
+    rc = 0
+    for src in SOURCES if args.source == "all" else (args.source,):
+        try:
+            print(json.dumps(svc.build(src)), flush=True)
+        except ClipError as e:
+            print(f"index {src}: {e}", file=sys.stderr)
+            rc = 1
+    return rc
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="imagegen")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -120,9 +146,12 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--download", action="store_true", help="let jobs fetch missing models (off by default: offline)")
     c = sub.add_parser("check")
     c.add_argument("--download", action="store_true")
+    i = sub.add_parser("index", help="build the CLIP similarity index (catalogue photos and / or HD thumbnails)")
+    i.add_argument("--source", choices=["catalog", "hd", "all"], default="all")
+    i.add_argument("--download", action="store_true", help="allow fetching the CLIP weights if missing")
     sub.add_parser("preflight", help="diffusers backend: check the GPU, the torch kernels and the profile")
     args = p.parse_args(argv)
-    return {"serve": cmd_serve, "check": cmd_check, "preflight": cmd_preflight}[args.cmd](args)
+    return {"serve": cmd_serve, "check": cmd_check, "preflight": cmd_preflight, "index": cmd_index}[args.cmd](args)
 
 
 if __name__ == "__main__":

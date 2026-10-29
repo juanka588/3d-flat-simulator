@@ -21,7 +21,7 @@ WORKDIR /app
 
 # Dependencies first (cached until pyproject.toml / uv.lock change).
 COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-install-project --extra cuda
+RUN uv sync --frozen --no-install-project --extra cuda --extra clip
 
 COPY imagegen ./imagegen
 

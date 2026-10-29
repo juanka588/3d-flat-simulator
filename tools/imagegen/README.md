@@ -24,6 +24,23 @@ All bodies are JSON. Errors are `{ok:false, code, message, field?}`.
 
 Jobs run strictly one at a time, first in first out (a generation peaks at 38 GB on a 64 GB Mac). Sizes: multiples of 32, 256 to `IMAGEGEN_MAX_SIDE` (at most 1536), at most 1536x1152 pixels.
 
+### Similarity index (CG3)
+
+`match_crop` finds real products and library models that look like a crop of a reference image. The sidecar embeds pictures with **open_clip `ViT-B-32` / `laion2b_s34b_b79k`** (151M parameters, 512-d, 0.6 GB; code MIT, weights repo `laion/CLIP-ViT-B-32-laion2B-s34B-b79K` is **MIT**, read from its Hugging Face card) on MPS, CUDA or CPU. Needs the `clip` extra (`pnpm imagegen` and `imagegen:setup` include it; the Docker image too) and the weights in the cache (`pnpm imagegen:index --download` fetches only these, once; `check --download` fetches every model, 60 GB or more).
+
+- `POST /embed {images?:[path|base64|{jobId,index}], texts?:[...]}` -> `{model, dim, images:[[...]], texts:[[...]]}` (at most 64 items).
+- `POST /index/build {source:"catalog"|"hd"}` -> `{count, model, seconds, bytes, path}`. `catalog` embeds `apps/server/local-assets/ikea-fr/photos/*` into `clip-index.json` + `clip-index.bin` next to them (gitignored, denied by `check-no-retailer`; derived from retailer photos, so it never leaves that folder). `hd` embeds the committed thumbnails of the CC0/CC-BY library into `.tmp/imagegen/index/hd-clip-index.*`: derived and tied to the model version, rebuilt in under a second, so it is not committed. `pnpm imagegen:index [--source ...]` does the same without the server. Vectors are L2-normalised float32 in the `.bin`; items and metadata (id, name, price, dims, category, has3d) in the `.json`; search is plain Python, no numpy.
+- `POST /index/query {image?:path|base64|{jobId,index}, box?:[x0,y0,x1,y1], mask?:path, maskColor?:[r,g,b], background?:"plain"|"border", text?, topK=5 (1..20), source?:"catalog"|"hd"|"all", filters?:{category?, maxPrice?}}` -> `{results:[{id, kind:"product"|"asset", score, name, price?, currency?, category?, dims?, has3d}], missing?, prep}`. Image and text vectors are averaged when both are given. Errors: `index_missing`, `index_stale` (built with another model), `model_missing` (409).
+- **Crop and mask.** Product photos are objects on white, so the crop is put on a white square: `box` crops; with `mask` (a CG1 instance-id image of our own render, plus the object's colour in `maskColor`) everything outside the object is whitened; `background:"border"` whitens pixels close to the border colour (a saliency heuristic for a reference crop; in the live test it helped nothing, the default `plain` is better); otherwise the crop is padded as is.
+
+Costs measured on an M4 Max (MPS): 400 catalogue photos in 12 s (912 kB), 84 library thumbnails in 0.4 s (189 kB). Library thumbnails are renders and score higher than photos of similar things; compare scores within a kind first.
+
+Live check (opt-in, needs the weights and the local catalogue; prints the top 5 for crops of the CG0 bathroom image):
+
+```sh
+IMAGEGEN_LIVE=1 uv run --directory tools/imagegen --extra clip python -m unittest tests.test_clip_live -v
+```
+
 ### Safety
 
 - Binds `127.0.0.1` (the Docker image binds `0.0.0.0` inside the container; compose publishes it on `127.0.0.1` only).

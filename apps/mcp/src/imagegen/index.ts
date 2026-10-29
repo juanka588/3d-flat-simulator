@@ -16,3 +16,5 @@ export {
   type ControlImages,
   type ControlImagesRequest,
 } from './wiring';
+export { FakeImageMatcher, ImageMatchError, SidecarMatcher, type ImageMatcher, type MatchHit, type MatchRequest, type MatchResponse } from './match';
+export { getImageMatcher, setImageMatcher } from './wiring';

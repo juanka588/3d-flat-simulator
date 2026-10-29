@@ -2,8 +2,10 @@ import { GENERATORS, PRODUCT_CATEGORIES, ProductCategory, ProductId } from '@fla
 import { type ProductRecord, type ProductSummary } from '@flat/assets';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import { z } from 'zod';
-import { cc0Assets } from '../assetCatalog';
+import { assetThumb, cc0Assets } from '../assetCatalog';
 import { apiFailure, toolError, toolOk } from '../errors';
+import { MAX_THUMBS, PHOTO_MAX_SIDE, THUMB_MAX_SIDE, pictureContent } from '../imageContent';
+import type { RawImage } from '../render/shrink';
 import { READ, obj, parseArgs } from './common';
 import type { ToolContext, ToolDef } from './registry';
 
@@ -45,6 +47,20 @@ const rateLimited = (ctx: ToolContext, bucket: 'searches' | 'productGets', what:
   const t = ctx.session[bucket].take();
   return t.ok ? undefined : toolError('rate_limited', `more than ${perMinute} ${what} per minute`, `Wait ${t.retryAfterMs} ms and retry; narrow the search (category, price, size) instead of repeating it.`, { retryAfterMs: t.retryAfterMs });
 };
+
+/** The photo of a product as raw bytes (local catalogue file or the server's photo proxy); `undefined` when there is none. Kept in memory only. */
+export async function productPhoto(ctx: ToolContext, productId: string): Promise<RawImage | undefined> {
+  const r = await ctx.flat.getProductPhoto(productId);
+  return r.ok && r.data.status === 200 && r.data.body.length > 0 ? { data: r.data.body, contentType: r.data.contentType } : undefined;
+}
+
+/** Labelled photos for `ids`, fetched in parallel, in order; the ones without a photo are dropped. */
+export async function productPictures(ctx: ToolContext, ids: readonly string[], maxSide: number): Promise<{ content: CallToolResult['content']; shown: number; missing: string[] }> {
+  const raws = await Promise.all(ids.map((id) => productPhoto(ctx, id)));
+  const have = ids.flatMap((id, i) => (raws[i] ? [{ label: `photo ${id}`, raw: raws[i]! }] : []));
+  const { content, skipped } = await pictureContent(have, maxSide);
+  return { content, shown: have.length - skipped.length, missing: [...ids.filter((_, i) => !raws[i]), ...skipped.map((l) => l.slice(6))] };
+}
 
 /** One compact line of a search result. */
 function searchLine(p: ProductSummary) {
@@ -116,6 +132,7 @@ const SearchArgs = z.strictObject({
   colour: z.string().min(1).max(40).optional(),
   limit: z.number().int().min(1).max(MAX_SEARCH_RESULTS).optional(),
   live: z.boolean().optional(),
+  thumbs: z.boolean().optional(),
 });
 
 const searchProducts: ToolDef = {
@@ -135,6 +152,7 @@ const searchProducts: ToolDef = {
       colour: { type: 'string', maxLength: 40, description: 'Keep products that come in this colour (case-insensitive text match on the colour names).' },
       limit: { type: 'integer', minimum: 1, maximum: MAX_SEARCH_RESULTS, description: `Results wanted, default ${DEFAULT_SEARCH_RESULTS}.` },
       live: { type: 'boolean', description: 'Also ask the live shop (10-20 s).' },
+      thumbs: { type: 'boolean', description: `Add px photos (first ).` },
     },
     ['query'],
   ),
@@ -170,15 +188,20 @@ const searchProducts: ToolDef = {
     if (failed) return failed;
     const problems = r.data.providers.filter((p) => !p.ok).map((p) => ({ provider: p.provider, code: p.code ?? 'provider_unavailable', ...(p.message ? { message: p.message.slice(0, 160) } : {}) }));
     const warnings = r.data.providers.filter((p) => p.ok && p.message).map((p) => `${p.provider}: ${p.message!.slice(0, 200)}`);
-    return toolOk({
-      ok: true,
-      count: results.length,
-      truncated,
-      results: results.map(searchLine),
-      ...(problems.length ? { providerProblems: problems } : {}),
-      ...(warnings.length ? { providerWarnings: warnings } : {}),
-      note: results.length ? 'Prices are indicative TTC shelf prices. Next: get_product for variants and weight, then get_placement_options / place_item.' : 'No match: loosen the filters or try another provider (list_providers).',
-    });
+    const pics = q.thumbs && results.length ? await productPictures(ctx, results.slice(0, MAX_THUMBS).map((p) => p.productId), THUMB_MAX_SIDE) : undefined;
+    return toolOk(
+      {
+        ok: true,
+        count: results.length,
+        truncated,
+        results: results.map(searchLine),
+        ...(pics ? { thumbs: pics.shown, ...(pics.missing.length ? { noPhoto: pics.missing } : {}) } : {}),
+        ...(problems.length ? { providerProblems: problems } : {}),
+        ...(warnings.length ? { providerWarnings: warnings } : {}),
+        note: results.length ? 'Prices are indicative TTC shelf prices. Next: get_product for variants and weight, then get_placement_options / place_item.' : 'No match: loosen the filters or try another provider (list_providers).',
+      },
+      pics?.content ?? [],
+    );
   },
 };
 
@@ -228,12 +251,18 @@ const getProduct: ToolDef = {
   name: 'get_product',
   description:
     'Full facts of one product from search_products: price (TTC), link, assembled dimensions, colours, variants (variants[].sku with their own price and dims, for place_item variantSku), weightKg (wall mounts over 15 kg need a structural wall), has3d and when the data was read. Use it for the few products you intend to place. Limited to 60 per minute.',
-  inputSchema: obj({ productId: { type: 'string', description: 'productId from search_products, "<provider>:<sku>".' } }, ['productId']),
+  inputSchema: obj(
+    {
+      productId: { type: 'string', description: 'productId from search_products, "<provider>:<sku>".' },
+      photo: { type: 'boolean', description: `Add the photo (JPEG, px max).` },
+    },
+    ['productId'],
+  ),
   annotations: READ,
   group: 'read',
   mutatesScene: false,
   async handler(ctx, args) {
-    const a = parseArgs(z.strictObject({ productId: ProductId }), args);
+    const a = parseArgs(z.strictObject({ productId: ProductId, photo: z.boolean().optional() }), args);
     if (!a.ok) return a.result;
     const limited = rateLimited(ctx, 'productGets', 'product reads', ctx.limits.productGetsPerMinute);
     if (limited) return limited;
@@ -241,7 +270,8 @@ const getProduct: ToolDef = {
     if (!r.ok) return apiFailure(r);
     const failed = await markSeen(ctx, [a.data.productId]);
     if (failed) return failed;
-    return toolOk({ ok: true, ...factsWithSource(r.data.product, r.data.source, r.data.stale) });
+    const pics = a.data.photo ? await productPictures(ctx, [a.data.productId], PHOTO_MAX_SIDE) : undefined;
+    return toolOk({ ok: true, ...factsWithSource(r.data.product, r.data.source, r.data.stale), ...(pics && !pics.shown ? { photo: 'unavailable' } : {}) }, pics?.content ?? []);
   },
 };
 
@@ -272,6 +302,7 @@ const SearchAssetsArgs = z.strictObject({
   style: z.string().min(1).max(32).optional(),
   maxDims: z.strictObject({ w: z.number().positive().optional(), d: z.number().positive().optional(), h: z.number().positive().optional() }).optional(),
   limit: z.number().int().min(1).max(30).optional(),
+  thumbs: z.boolean().optional(),
 });
 
 const searchAssets: ToolDef = {
@@ -288,6 +319,7 @@ const searchAssets: ToolDef = {
       description: 'Keep library models whose authored size fits this box (metres). Generators are resizable, so they are always kept.',
     },
     limit: { type: 'integer', minimum: 1, maximum: 30, description: 'Library models wanted, default 12.' },
+    thumbs: { type: 'boolean', description: `Add px thumbnails (first ).` },
   }),
   annotations: READ,
   group: 'read',
@@ -295,7 +327,7 @@ const searchAssets: ToolDef = {
   async handler(_ctx, args) {
     const a = parseArgs(SearchAssetsArgs, args);
     if (!a.ok) return a.result;
-    const { category, style, maxDims, limit } = a.data;
+    const { category, style, maxDims, limit, thumbs } = a.data;
     const wantStyle = style?.toLowerCase();
     const parametric = GENERATORS.list()
       .filter((g) => category === undefined || g.category === category)
@@ -305,13 +337,23 @@ const searchAssets: ToolDef = {
       .filter((m) => !wantStyle || m.styleTags.some((t) => t.toLowerCase().includes(wantStyle)))
       .filter((m) => (maxDims?.w === undefined || m.nativeDims.w <= maxDims.w) && (maxDims?.d === undefined || m.nativeDims.d <= maxDims.d) && (maxDims?.h === undefined || m.nativeDims.h <= maxDims.h));
     const shown = library.slice(0, limit ?? 12);
-    return toolOk({
-      ok: true,
-      parametric,
-      library: shown.map((m) => ({ assetId: m.id, name: m.name, category: m.category, styleTags: m.styleTags, nativeDims: dimsOf(m.nativeDims), licence: m.licence })),
-      ...(library.length > shown.length ? { libraryTruncated: library.length - shown.length } : {}),
-      note: 'Local 3D-FUTURE models are not exposed by the scene server, so they are not listed.',
-    });
+    const withThumb = thumbs
+      ? shown.slice(0, MAX_THUMBS).flatMap((m) => {
+          const raw = assetThumb(m.id);
+          return raw ? [{ label: `thumb ${m.id}`, raw }] : [];
+        })
+      : [];
+    const pics = thumbs ? await pictureContent(withThumb, THUMB_MAX_SIDE) : undefined;
+    return toolOk(
+      {
+        ok: true,
+        parametric,
+        library: shown.map((m) => ({ assetId: m.id, name: m.name, category: m.category, styleTags: m.styleTags, nativeDims: dimsOf(m.nativeDims), licence: m.licence })),
+        ...(library.length > shown.length ? { libraryTruncated: library.length - shown.length } : {}),
+        note: 'Local 3D-FUTURE models are not exposed by the scene server, so they are not listed.',
+      },
+      pics?.content ?? [],
+    );
   },
 };
 

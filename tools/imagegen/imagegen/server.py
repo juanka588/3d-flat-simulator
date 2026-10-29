@@ -13,9 +13,10 @@ from typing import Any
 
 from . import __version__
 from .config import Config
+from .clip import ClipError, ClipService, MAX_TOP_K, SOURCES, mask_from_ids, prepare_crop
 from .jobs import JobQueue
 from .models import MODELS, downloaded
-from .validate import ValidationError, parse_edit, parse_generate
+from .validate import ValidationError, parse_edit, parse_generate, resolve_image
 
 LOCAL_HOSTS = {"127.0.0.1", "localhost", "[::1]"}
 JOB_PATH = re.compile(r"^/jobs/([0-9a-f]{16})$")
@@ -74,7 +75,7 @@ def mflux_version() -> str | None:
         return None
 
 
-def health(cfg: Config, queue: JobQueue, info: dict[str, Any] | None = None) -> dict[str, Any]:
+def health(cfg: Config, queue: JobQueue, info: dict[str, Any] | None = None, clip: ClipService | None = None) -> dict[str, Any]:
     """`info` is what the backend learned at start-up: gpu, settings, fit, loaded() (diffusers only)."""
     info = info or {}
     stats = queue.stats()
@@ -104,10 +105,110 @@ def health(cfg: Config, queue: JobQueue, info: dict[str, Any] | None = None) -> 
     for key in ("gpu", "settings", "fit", "warnings"):
         if key in info:
             out[key] = info[key]
+    if clip is not None:
+        out["clip"] = clip.status()
     return out
 
 
-def make_server(cfg: Config, queue: JobQueue, info: dict[str, Any] | None = None) -> ThreadingHTTPServer:
+def _open(path: Path) -> Any:
+    from PIL import Image
+
+    im = Image.open(path)
+    im.load()
+    return im
+
+
+def make_server(cfg: Config, queue: JobQueue, info: dict[str, Any] | None = None, clip: ClipService | None = None) -> ThreadingHTTPServer:
+    clip = clip or ClipService(cfg, allow_download=cfg.allow_download)
+
+    def image_path(value: Any, key: str) -> Path:
+        """A path / base64 (resolve_image) or `{jobId, index}` of a finished job of this sidecar."""
+        if isinstance(value, dict):
+            job_id, index = value.get("jobId"), value.get("index", 0)
+            found = queue.get(job_id) if isinstance(job_id, str) else None
+            if not found or not isinstance(index, int) or not 0 <= index < len(found[0].images):
+                raise ValidationError(f"{key}: no such job image", key)
+            return Path(found[0].images[index].path)
+        return resolve_image(value, key, cfg)
+
+    def box_of(value: Any) -> tuple[int, int, int, int] | None:
+        if value is None:
+            return None
+        if not (isinstance(value, list) and len(value) == 4 and all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in value)):
+            raise ValidationError("box must be [x0, y0, x1, y1] in pixels", "box")
+        x0, y0, x1, y1 = (int(round(v)) for v in value)
+        if x1 <= x0 or y1 <= y0:
+            raise ValidationError("box must have x1 > x0 and y1 > y0", "box")
+        return x0, y0, x1, y1
+
+    def do_embed(b: dict[str, Any]) -> dict[str, Any]:
+        for k in b:
+            if k not in ("images", "texts"):
+                raise ValidationError(f"unknown field {k}", k)
+        images, texts = b.get("images") or [], b.get("texts") or []
+        if not isinstance(images, list) or not isinstance(texts, list) or not all(isinstance(t, str) and 0 < len(t) <= 300 for t in texts):
+            raise ValidationError("images and texts must be lists (texts: strings of 1 to 300 characters)")
+        pics = [prepare_crop(_open(image_path(v, f"images[{i}]"))) for i, v in enumerate(images)]
+        return clip.embed(pics, texts)
+
+    def do_build(b: dict[str, Any]) -> dict[str, Any]:
+        for k in b:
+            if k != "source":
+                raise ValidationError(f"unknown field {k}", k)
+        src = b.get("source")
+        if src not in SOURCES:
+            raise ValidationError(f"source must be one of {', '.join(SOURCES)}", "source")
+        return clip.build(src)
+
+    def do_query(b: dict[str, Any]) -> dict[str, Any]:
+        for k in b:
+            if k not in ("image", "box", "mask", "maskColor", "background", "text", "topK", "source", "filters"):
+                raise ValidationError(f"unknown field {k}", k)
+        top_k = b.get("topK", 5)
+        if not isinstance(top_k, int) or isinstance(top_k, bool) or not 1 <= top_k <= MAX_TOP_K:
+            raise ValidationError(f"topK must be an integer from 1 to {MAX_TOP_K}", "topK")
+        src = b.get("source", "all")
+        if src not in (*SOURCES, "all"):
+            raise ValidationError("source must be catalog, hd or all", "source")
+        f = b.get("filters") or {}
+        if not isinstance(f, dict) or set(f) - {"category", "maxPrice"}:
+            raise ValidationError("filters accepts category and maxPrice", "filters")
+        cat, mp = f.get("category"), f.get("maxPrice")
+        if cat is not None and not isinstance(cat, str):
+            raise ValidationError("filters.category must be a string", "filters")
+        if mp is not None and (not isinstance(mp, (int, float)) or isinstance(mp, bool) or mp < 0):
+            raise ValidationError("filters.maxPrice must be a number >= 0", "filters")
+        text = b.get("text")
+        if text is not None and (not isinstance(text, str) or not 0 < len(text) <= 300):
+            raise ValidationError("text must be a string of 1 to 300 characters", "text")
+        if b.get("image") is None and text is None:
+            raise ValidationError("give image (with box) or text", "image")
+        bg = b.get("background", "plain")
+        if bg not in ("plain", "border"):
+            raise ValidationError("background must be plain or border", "background")
+        vecs: list[list[float]] = []
+        mode = []
+        if b.get("image") is not None:
+            im = _open(image_path(b["image"], "image"))
+            mask = None
+            if b.get("mask") is not None:
+                col = b.get("maskColor")
+                if col is not None and not (isinstance(col, list) and len(col) == 3 and all(isinstance(c, int) and 0 <= c <= 255 for c in col)):
+                    raise ValidationError("maskColor must be [r, g, b] integers", "maskColor")
+                mask = mask_from_ids(_open(image_path(b["mask"], "mask")), tuple(col) if col else None)
+                mode.append("mask")
+            crop = prepare_crop(im, box_of(b.get("box")), mask, bg)
+            if bg == "border" and mask is None:
+                mode.append("border")
+            vecs.extend(clip.embed([crop], [])["images"])
+        if text is not None:
+            vecs.extend(clip.embed([], [text])["texts"])
+        q = [sum(v[i] for v in vecs) / len(vecs) for i in range(len(vecs[0]))]
+        out = clip.query(q, top_k, list(SOURCES) if src == "all" else [src], cat, mp)
+        return {**out, "prep": mode or ["plain"]}
+
+    ROUTES = {"/embed": do_embed, "/index/build": do_build, "/index/query": do_query}
+
     class Handler(BaseHTTPRequestHandler):
         server_version = "flat-imagegen"
         protocol_version = "HTTP/1.1"
@@ -163,7 +264,7 @@ def make_server(cfg: Config, queue: JobQueue, info: dict[str, Any] | None = None
                 return
             path = self.path.split("?")[0]
             if path == "/health":
-                return self._send(200, health(cfg, queue, info))
+                return self._send(200, health(cfg, queue, info, clip))
             im = IMAGE_PATH.match(path)
             if im:
                 return self._image(im.group(1), int(im.group(2)), self.path.partition("?")[2])
@@ -204,6 +305,18 @@ def make_server(cfg: Config, queue: JobQueue, info: dict[str, Any] | None = None
             if not self._guard():
                 return
             path = self.path.split("?")[0]
+            if path in ROUTES:
+                try:
+                    body = self._body()
+                    if not isinstance(body, dict):
+                        raise ValidationError("body must be a JSON object")
+                    return self._send(200, {"ok": True, **ROUTES[path](body)})
+                except ValidationError as e:
+                    return self._err(400, "invalid_request", str(e), e.field)
+                except ClipError as e:
+                    return self._err(e.status, e.code, str(e), e.field)
+                except ImportError as e:
+                    return self._err(501, "not_implemented", f"missing dependency: {e}")
             if path not in ("/generate", "/edit"):
                 return self._err(404, "not_found", "no such route")
             try:

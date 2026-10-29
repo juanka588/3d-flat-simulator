@@ -54,7 +54,8 @@
     "**/.env.*",
     "**/.envrc",
     "**/*3d-future*",
-    "**/*3D-FUTURE*"
+    "**/*3D-FUTURE*",
+    "**/*clip-index.*"
   ],
   "allowFiles": [
     "**/.env.example",

@@ -96,6 +96,11 @@ export interface FlatApi {
   /** `GET /api/products/seen?session=&id=`: whether a search of this session returned the product (D9: only seen products can be placed). */
   isProductSeen(session: string, productId: string): Promise<FlatResult<IsSeenResponse>>;
   /**
+   * `GET /api/products/:id/photo`: the product photo bytes (local catalogue file or the polite photo proxy). CG3: handed to the
+   * local model session only, never stored (not in a scene, a log or a file).
+   */
+  getProductPhoto(productId: string): Promise<FlatResult<FetchedAsset>>;
+  /**
    * URL (no request is made) the viewer / a render uses to fetch a model, same origin as the scene server:
    * `GET /api/assets/products/:provider/:sku.glb` (a provider model, streamed; personal use) or
    * `GET /api/assets/meshes/:assetId.glb` (a library mesh).
@@ -243,6 +248,27 @@ export class HttpFlatApi implements FlatApi {
   }
   isProductSeen(session: string, productId: string) {
     return this.call<IsSeenResponse>('GET', `/api/products/seen?${new URLSearchParams({ session, id: productId })}`);
+  }
+  async getProductPhoto(productId: string): Promise<FlatResult<FetchedAsset>> {
+    try {
+      const res = await this.fetchImpl(`${this.config.serverUrl}/api/products/${encodeURIComponent(productId)}/photo`, {
+        headers: this.config.token ? { authorization: `Bearer ${this.config.token}` } : {},
+        signal: AbortSignal.timeout(this.providerTimeoutMs()),
+      });
+      if (!res.ok) {
+        let j: { errors?: ApiErrorItem[] } = {};
+        try {
+          j = (await res.json()) as typeof j;
+        } catch {
+          // not JSON
+        }
+        const errors = Array.isArray(j.errors) && j.errors.length ? j.errors : [{ code: res.status === 404 ? 'product_not_found' : 'internal_error', path: '', message: `scene server answered ${res.status}` }];
+        return { ok: false, kind: 'http', status: res.status, errors };
+      }
+      return { ok: true, data: { status: res.status, contentType: res.headers.get('content-type') ?? 'application/octet-stream', body: new Uint8Array(await res.arrayBuffer()) } };
+    } catch (e) {
+      return { ok: false, kind: 'unreachable', message: `${this.config.serverUrl}/api/products/.../photo: ${isTimeout(e) ? 'timed out' : e instanceof Error ? e.message : String(e)}` };
+    }
   }
   async fetchAsset(url: string): Promise<FlatResult<FetchedAsset>> {
     // The URL is normalised first (`..` segments resolved) so the prefix test below is about where the request really goes.

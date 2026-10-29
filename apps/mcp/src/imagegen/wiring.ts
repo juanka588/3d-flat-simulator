@@ -1,6 +1,7 @@
 import type { CameraPose, Scene } from '@flat/scene';
 import { GeminiImageProvider, OpenAIImageProvider } from './apiProviders';
-import { LocalSidecarProvider } from './localSidecar';
+import { LocalSidecarProvider, DEFAULT_SIDECAR_URL } from './localSidecar';
+import { SidecarMatcher, type ImageMatcher } from './match';
 import type { ImageInput, ImageProvider } from './types';
 
 /**
@@ -73,4 +74,16 @@ export function providerFromEnv(env: Record<string, string | undefined> = proces
 
 export function getImageProvider(): ImageProvider {
   return override ?? (cached ??= providerFromEnv());
+}
+
+// -- similarity matcher (CG3) ----------------------------------------------------------------------------------------
+
+let matcherOverride: ImageMatcher | undefined;
+let matcherCached: ImageMatcher | undefined;
+export const setImageMatcher = (m: ImageMatcher | undefined): void => {
+  matcherOverride = m;
+};
+/** The index lives in the local sidecar; there is no hosted variant (catalogue photos never leave this machine). */
+export function getImageMatcher(env: Record<string, string | undefined> = process.env): ImageMatcher {
+  return matcherOverride ?? (matcherCached ??= new SidecarMatcher(env.IMAGEGEN_URL?.trim() || DEFAULT_SIDECAR_URL, env.IMAGEGEN_TOKEN || undefined));
 }

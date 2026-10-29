@@ -22,6 +22,10 @@ cuda = [
   "huggingface_hub>=0.35",
 ]
 
+# Similarity index (CG3), works next to either backend: `uv run --extra mflux --extra clip` (or `--extra cuda --extra clip`).
+# torch is left to the other extra when present (cuda pins 2.8.0); alone, any torch >= 2.4 will do.
+clip = ["open_clip_torch>=2.32,<4", "torch>=2.4", "pillow>=11"]
+
 [tool.uv]
 package = false
 conflicts = [[{ extra = "mflux" }, { extra = "cuda" }]]
