@@ -34,7 +34,7 @@ function row(dir, patterns, { node = false, src = dir, all = src, srcIgnores = [
 const restrictFor = (server, patterns) => ({ 'no-restricted-imports': ['error', { patterns: server ? patterns : [...patterns, ...SERVER_BOUNDARY] }] });
 
 export default tseslint.config(
-  { ignores: ['.claude/**', '.tmp/**', 'test-results/**', 'playwright-report/**', '**/dist/**', '**/node_modules/**', '**/coverage/**'] },
+  { ignores: ['.claude/**', '.tmp/**', 'test-results/**', 'playwright-report/**', '**/dist/**', '**/node_modules/**', '**/coverage/**', '**/.venv/**'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

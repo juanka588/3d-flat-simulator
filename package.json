@@ -33,7 +33,10 @@
     "models:contact-sheet": "node scripts/models/contact-sheet.mjs",
     "models:local": "node scripts/models/local.mjs",
     "mcp:demo:design": "node scripts/mcp-demo/design-flat.mjs",
-    "site:context": "tsx packages/site/src/node/cli.ts"
+    "site:context": "tsx packages/site/src/node/cli.ts",
+    "imagegen": "uv run --directory tools/imagegen --extra mflux python -m imagegen serve",
+    "imagegen:setup": "uv sync --directory tools/imagegen --extra mflux && uv run --directory tools/imagegen --extra mflux python -m imagegen check",
+    "imagegen:test": "uv run --directory tools/imagegen python -m unittest discover -s tests -v"
   },
   "devDependencies": {
     "@anthropic-ai/sdk": "^1.3.0",

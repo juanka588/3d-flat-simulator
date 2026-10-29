@@ -1,0 +1,27 @@
+[project]
+name = "flat-imagegen"
+version = "0.1.0"
+description = "Local image-generation sidecar for 3d-flat-simulator: one HTTP API, two backends (mflux on Apple silicon, diffusers on NVIDIA CUDA)"
+requires-python = ">=3.12,<3.13"
+# The server itself is stdlib only. Pick one backend extra:
+#   uv sync --extra mflux   (Mac, native; `pnpm imagegen:setup`)
+#   uv sync --extra cuda    (Linux / Docker with an NVIDIA GPU; see Dockerfile)
+dependencies = []
+
+[project.optional-dependencies]
+mflux = ["mflux==0.24.0"]
+cuda = [
+  "torch==2.8.0",
+  "diffusers==0.42.1",
+  "transformers>=5,<6",
+  "accelerate>=1.10,<2",
+  "bitsandbytes>=0.47,<1",
+  "sentencepiece>=0.2",
+  "protobuf>=5",
+  "pillow>=11",
+  "huggingface_hub>=0.35",
+]
+
+[tool.uv]
+package = false
+conflicts = [[{ extra = "mflux" }, { extra = "cuda" }]]

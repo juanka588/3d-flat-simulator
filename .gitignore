@@ -40,3 +40,6 @@ apps/server/local-assets/
 
 # Home photos/videos/scans are personal data (see packages/capture/README.md)
 captures/
+
+# CG2: the image sidecar env template is committed
+!tools/imagegen/.env.example

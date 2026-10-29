@@ -1,0 +1,44 @@
+# Image sidecar for an NVIDIA GPU (Windows Docker Desktop + WSL2, or Linux with the NVIDIA Container Toolkit).
+#   cp .env.example .env     (set PROFILE for your card; the default is rtx-12gb)
+#   docker compose up --build
+# The port is published on 127.0.0.1 only. Reaching it from another machine is opt-in: see README "LAN access".
+name: flat-imagegen
+
+services:
+  imagegen:
+    build:
+      context: .
+    image: flat-imagegen:latest
+    init: true
+    restart: unless-stopped
+    ports:
+      - "${IMAGEGEN_PUBLISH:-127.0.0.1}:${IMAGEGEN_HOST_PORT:-8790}:8790"
+    environment:
+      # Empty means "use the profile's value" (the server treats empty variables as unset).
+      IMAGEGEN_PROFILE: ${PROFILE:-rtx-12gb}
+      IMAGEGEN_PRECISION: ${IMAGEGEN_PRECISION:-}
+      IMAGEGEN_CPU_OFFLOAD: ${IMAGEGEN_CPU_OFFLOAD:-}
+      IMAGEGEN_MAX_SIDE: ${IMAGEGEN_MAX_SIDE:-}
+      IMAGEGEN_STEPS: ${IMAGEGEN_STEPS:-}
+      IMAGEGEN_LIGHTNING: ${IMAGEGEN_LIGHTNING:-}
+      IMAGEGEN_ALLOWED_ORIGINS: ${IMAGEGEN_ALLOWED_ORIGINS:-}
+      IMAGEGEN_ALLOWED_HOSTS: ${IMAGEGEN_ALLOWED_HOSTS:-}
+      IMAGEGEN_TOKEN: ${IMAGEGEN_TOKEN:-}
+      # Jobs run offline unless this is true. Prefer the explicit download step in the README.
+      IMAGEGEN_ALLOW_DOWNLOAD: ${IMAGEGEN_ALLOW_DOWNLOAD:-false}
+      # Optional; read by huggingface_hub, never logged or returned by the API.
+      HF_TOKEN: ${HF_TOKEN:-}
+    volumes:
+      - models:/models   # Hugging Face cache: downloaded once, survives rebuilds
+      - data:/data       # generated images and uploaded control images
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+volumes:
+  models:
+  data:

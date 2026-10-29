@@ -43,6 +43,25 @@ jobs:
       # D4 local-only guard: no retailer host in the Pages build or in tracked files, no stray GLB/GLTF, no .env or 3D-FUTURE files.
       - run: node scripts/ci/check-no-retailer.mjs
 
+  # CG2 image sidecar: its Python tests (stdlib only, no model, no GPU) on every push; the Docker image is build-only,
+  # on demand (it is ~18 GB unpacked: runner disk is freed first). Neither is part of `check`.
+  imagegen:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv run --directory tools/imagegen python -m unittest discover -s tests -v
+
+  imagegen-docker:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android
+      - run: docker build -t flat-imagegen tools/imagegen
+
   # The texture sources must still publish CC0 (the committed library is only CC0 while they do).
   licence:
     if: github.event_name == 'workflow_dispatch' || github.event.schedule == '17 5 * * 1'

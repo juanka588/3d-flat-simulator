@@ -4961,6 +4961,82 @@ exports[`snapshots (the contract) > tools/list 1`] = `
   {
     "annotations": {
       "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": true,
+      "title": "Generate a reference image",
+    },
+    "description": "AI image of a room in a style (eye-level view). reference: photoreal target that follows our walls, windows and doors; pick real products to match it. visualisation: photo-style edit of our current render. Labelled, never an asset. About 90 s per reference image: if not done after waitS you get a jobId; call again with it.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "facing": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string",
+            },
+            {
+              "maximum": 360,
+              "minimum": -360,
+              "type": "number",
+            },
+          ],
+          "description": "As in render_view (walk camera).",
+        },
+        "jobId": {
+          "description": "Collect a job that was still running.",
+          "maxLength": 64,
+          "minLength": 1,
+          "type": "string",
+        },
+        "mode": {
+          "default": "reference",
+          "enum": [
+            "reference",
+            "visualisation",
+          ],
+          "type": "string",
+        },
+        "n": {
+          "default": 1,
+          "description": "reference only.",
+          "maximum": 4,
+          "minimum": 1,
+          "type": "integer",
+        },
+        "roomId": {
+          "description": "Required unless jobId.",
+          "maxLength": 64,
+          "minLength": 1,
+          "type": "string",
+        },
+        "seed": {
+          "maximum": 4294967295,
+          "minimum": 0,
+          "type": "integer",
+        },
+        "styleId": {
+          "description": "Required unless jobId.",
+          "maxLength": 40,
+          "minLength": 1,
+          "type": "string",
+        },
+        "waitS": {
+          "default": 45,
+          "maximum": 300,
+          "minimum": 0,
+          "type": "number",
+        },
+      },
+      "type": "object",
+    },
+    "name": "generate_reference",
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
       "idempotentHint": true,
       "openWorldHint": false,
       "readOnlyHint": true,
