@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { toolError, toolOk } from '../errors';
 import { ControlsUnavailableError, ImageProviderError, buildReferencePrompt, buildVisualisationPrompt, getControlImageSource, getImageProvider, passControlSource, unavailableControls, type GeneratedImage, type JobStatus } from '../imagegen';
 import { RenderError, resolvePose, sharedMcpRenderer } from '../render';
+import { findView, layoutIntent, roomViews, type ViewSpec } from '../reference/views';
 import { StyleError, findStyle } from '../styles';
 import { READ, fetchScene, parseArgs } from './common';
 import type { Renderer, ToolContext, ToolDef } from './registry';
@@ -24,14 +25,16 @@ const REFERENCE_LABEL = 'REFERENCE IMAGE (AI-generated target for the design; no
 const VISUALISATION_LABEL = 'VISUALISATION (AI-edited from our render; furniture, windows and proportions may differ from the honest 3D render).';
 
 export const GenerateReferenceArgs = z.strictObject({
-  roomId: z.string().min(1).max(64).optional().describe('Required unless jobId.'),
-  styleId: z.string().min(1).max(40).optional().describe('Required unless jobId.'),
+  roomId: z.string().min(1).max(64).optional(),
+  styleId: z.string().min(1).max(40).optional(),
   mode: z.enum(['reference', 'visualisation']).default('reference'),
   facing: z.union([z.string().min(1).max(64), z.number().min(-360).max(360)]).optional().describe('As in render_view (walk camera).'),
-  n: z.number().int().min(1).max(4).default(1).describe('reference only.'),
+  view: z.string().min(1).max(40).optional().describe('View id from describe_room.'),
+  layout: z.string().min(1).max(500).optional().describe('Layout in words; default: the room\'s intent.'),
+  n: z.number().int().min(1).max(4).default(1),
   seed: z.number().int().min(0).max(4294967295).optional(),
   waitS: z.number().min(0).max(300).default(45),
-  jobId: z.string().min(1).max(64).optional().describe('Collect a job that was still running.'),
+  jobId: z.string().min(1).max(64).optional(),
 });
 export type GenerateReferenceArgs = z.infer<typeof GenerateReferenceArgs>;
 
@@ -53,6 +56,11 @@ export interface JobMeta {
   seed: number;
   /** The camera of the room view the image was made from (reference mode): the depth of the same pose gives the positions. */
   pose?: CameraPose;
+  /** Named view (describe_room views) and its zone and weight, when the image was made for one. */
+  view?: string;
+  zone?: string;
+  weight?: number;
+  layout?: string;
 }
 const jobs = new Map<string, JobMeta>();
 /** What a job was asked for (this process only); `record_reference` uses its room and camera. */
@@ -153,9 +161,9 @@ function resultFor(status: JobStatus, meta: JobMeta | undefined, providerId: str
   );
 }
 
-async function colourRender(ctx: ToolContext, a: GenerateReferenceArgs): Promise<{ data: string; mimeType: 'image/png' | 'image/jpeg' }> {
+async function colourRender(ctx: ToolContext, a: GenerateReferenceArgs, pose?: CameraPose): Promise<{ data: string; mimeType: 'image/png' | 'image/jpeg' }> {
   const r: Renderer = ctx.renderer ?? sharedMcpRenderer(ctx.flat, { webUrl: ctx.config.webUrl, renderChannel: ctx.config.renderChannel, log: ctx.config.log });
-  const out = await r.render({ view: 'walk', roomId: a.roomId!, ...(a.facing !== undefined ? { facing: a.facing as never } : {}), size: { ...SIZE } }, { format: 'png', session: ctx.session });
+  const out = await r.render({ view: 'walk', roomId: a.roomId!, ...(pose ? { pose } : a.facing !== undefined ? { facing: a.facing as never } : {}), size: { ...SIZE } }, { format: 'png', session: ctx.session });
   return { data: out.image, mimeType: out.mimeType };
 }
 
@@ -181,22 +189,31 @@ async function generateReference(ctx: ToolContext, args: Record<string, unknown>
     if (!sc.ok) return sc.result;
     const scene = sc.data.scene;
     const room = scene.rooms.find((r) => r.id === a.roomId);
-    const { pose } = resolvePose(scene, { view: 'walk', roomId: a.roomId, facing: a.facing }, SIZE.width / SIZE.height);
     if (!room) return toolError('unknown_room', `no room "${a.roomId}"`);
+    let spec: ViewSpec | undefined;
+    if (a.view) {
+      const views = roomViews(scene, a.roomId);
+      spec = findView(views, a.view);
+      if (!spec) return toolError('unknown_entity', `no view "${a.view}" in room "${a.roomId}"`, `Views: ${views.map((v) => v.id).join(', ')} (describe_room lists them).`);
+    }
+    const pose: CameraPose = spec?.pose ?? resolvePose(scene, { view: 'walk', roomId: a.roomId, facing: a.facing }, SIZE.width / SIZE.height).pose;
+    const viewMeta = spec ? { view: spec.id, zone: spec.zone, weight: spec.weight } : {};
     const limited = rateLimited(ctx);
     if (limited) return limited;
     const seed = a.seed ?? 1;
 
     if (a.mode === 'visualisation') {
       const built = buildVisualisationPrompt(style.meta, room.type);
-      const image = await colourRender(ctx, a);
+      const image = await colourRender(ctx, a, spec?.pose);
       const status = await provider.edit({ image: { provenance: 'render', ...image }, prompt: built.prompt, seed, strength: 0.5, model: 'klein-edit' }, { waitMs });
-      const meta: JobMeta = { mode: 'visualisation', roomId: a.roomId, styleId: a.styleId, roomType: room.type, prompt: built.prompt, negativePrompt: built.negativePrompt, seed };
+      const meta: JobMeta = { mode: 'visualisation', roomId: a.roomId, styleId: a.styleId, roomType: room.type, prompt: built.prompt, negativePrompt: built.negativePrompt, seed, ...viewMeta };
       remember(status.jobId, meta);
       return resultFor(status, meta, provider.id);
     }
 
-    const built = buildReferencePrompt(style.meta, room.type);
+    // The layout is decided from the room, before the image: the prompt states it, the camera only shows it.
+    const layout = a.layout ?? (spec ? layoutIntent(scene, a.roomId, spec.zone).promptText : undefined);
+    const built = buildReferencePrompt(style.meta, room.type, { zone: spec?.zone === 'kitchen' ? 'kitchen' : undefined, kitchenVisible: spec ? spec.zone !== 'kitchen' && spec.sees.includes('kitchen') : false, viewHint: spec?.promptHint, layout });
     // A source installed with setControlImageSource wins (tests); otherwise the CG1 render passes of this server's renderer.
     const source = getControlImageSource();
     const ctrl = await (source === unavailableControls ? passControlSource(ctx.renderer ?? sharedMcpRenderer(ctx.flat, { webUrl: ctx.config.webUrl, renderChannel: ctx.config.renderChannel, log: ctx.config.log })) : source).getControlImages({ scene, roomId: a.roomId, pose, size: { ...SIZE } });
@@ -204,7 +221,7 @@ async function generateReference(ctx: ToolContext, args: Record<string, unknown>
       { prompt: built.prompt, negativePrompt: built.negativePrompt, seed, n: a.n, width: SIZE.width, height: SIZE.height, model: 'qwen-cn', controls: [{ type: 'canny', image: ctrl.canny, strength: 1.0 }] },
       { waitMs },
     );
-    const meta: JobMeta = { mode: 'reference', roomId: a.roomId, styleId: a.styleId, roomType: room.type, prompt: built.prompt, negativePrompt: built.negativePrompt, seed, pose };
+    const meta: JobMeta = { mode: 'reference', roomId: a.roomId, styleId: a.styleId, roomType: room.type, prompt: built.prompt, negativePrompt: built.negativePrompt, seed, pose, ...viewMeta, ...(layout ? { layout } : {}) };
     remember(status.jobId, meta);
     return resultFor(status, meta, provider.id);
   } catch (e) {
@@ -217,7 +234,7 @@ export function referenceTools(): ToolDef[] {
     {
       name: 'generate_reference',
       description:
-        'AI image of a room in a style (eye level). reference: photoreal target that follows our walls, windows and doors; match real products to it. visualisation: photo-style edit of our current render. Labelled, never an asset. About 90 s per image: if not done after waitS, call again with the jobId.',
+        'AI image of a room in a style. reference: photoreal target that follows our walls, windows and doors. visualisation: photo-style edit of our render. Labelled, never an asset. ~90 s per image: if not done after waitS, call again with jobId.',
       inputSchema: inputSchema(),
       annotations: { ...READ, idempotentHint: false},
       group: 'render',

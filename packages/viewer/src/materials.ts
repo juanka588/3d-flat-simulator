@@ -1,5 +1,5 @@
 import { BUILTIN_MATERIALS, BUILTIN_PAINT_PREFIX, clampAlbedo, relativeLuminance } from '@flat/scene';
-import { ITEM_MATERIAL_SPECS } from '@flat/assets';
+import { COLOUR_HEX, ITEM_MATERIAL_SPECS, parseProductMaterial } from '@flat/assets';
 import type { ItemMaterialId } from '@flat/assets';
 import type { Scene } from '@flat/scene';
 import type { CatalogEntry, CatalogSource } from '@flat/assets';
@@ -8,6 +8,8 @@ import type { Material, Texture } from 'three';
 import { libraryCatalog } from './catalog';
 import { DEFAULT_PLANK_WIDTH_MM, createParquetTexture } from './parquet-texture';
 import type { ParquetTexture } from './parquet-texture';
+import { viewerConfig } from './config';
+import { loadProductPhoto } from './product-photo';
 import { MAX_ANISOTROPY, disposeSet, instantiateSet, libSlug, textureCache } from './texture-cache';
 import type { Subscription, TextureCache, TextureSet } from './texture-cache';
 
@@ -292,6 +294,9 @@ function builtin(id: string): MeshStandardMaterial {
       if (id.startsWith(BUILTIN_PAINT_PREFIX) && /^#[0-9a-f]{6}$/.test(id.slice(BUILTIN_PAINT_PREFIX.length))) {
         return new MeshStandardMaterial({ color: clampAlbedo(id.slice(BUILTIN_PAINT_PREFIX.length)), roughness: 0.55 });
       }
+      // A part of a stand-in for a product without a 3D model: the palette colour until the product photo has arrived (see `bindProductPhoto`).
+      const product = parseProductMaterial(id);
+      if (product) return new MeshStandardMaterial({ color: COLOUR_HEX[product.colour], roughness: product.kind === 'photo' ? 0.92 : 0.7, metalness: 0 });
       const spec = itemSpec(id);
       return spec ? new MeshStandardMaterial({ color: spec.color, roughness: spec.roughness, metalness: spec.metalness, ...(spec.opacity !== undefined && spec.opacity < 1 ? { transparent: true, opacity: spec.opacity, depthWrite: false, side: DoubleSide } : {}) }) : new MeshStandardMaterial({ color: '#e9e6e0', roughness: 0.95 });
     }
@@ -431,6 +436,47 @@ export function createMaterialLibrary(initial: Pick<Scene, 'materials'> | null =
 
   let handle: MaterialLibrary | null = null;
   let handleVersion = -1;
+  // Stand-in parts keyed by product (`photo:` / `tint:` ids): the photo's texture / dominant colour is applied when it has arrived.
+  const bound = new Map<string, 'pending' | 'done' | 'none'>();
+  const photoMaterials = new Map<string, MeshStandardMaterial>();
+  const bindProductPhoto = (id: string, material: MeshStandardMaterial): void => {
+    const product = parseProductMaterial(id);
+    if (!product || bound.get(id) === 'pending' || bound.get(id) === 'done') return;
+    if (!viewerConfig.modelOrigin()) {
+      photoMaterials.set(id, material);
+      bound.set(id, 'none'); // no server (Pages / Local mode): the palette colour stays; asked again once a server is connected
+      return;
+    }
+    photoMaterials.set(id, material);
+    bound.set(id, 'pending');
+    void cache_track(
+      loadProductPhoto(product.productId).then((photo) => {
+        if (!photo || !bound.has(id)) {
+          bound.set(id, 'none');
+          return;
+        }
+        bound.set(id, 'done');
+        const dominant = photo.dominant ? clampAlbedo(photo.dominant) : undefined;
+        if (product.kind === 'photo') {
+          material.map = photo.texture;
+          material.color.setScalar(1);
+          setAlbedo(material, dominant ?? clampAlbedo(COLOUR_HEX[product.colour]));
+          material.needsUpdate = true;
+        } else if (dominant) {
+          material.color.set(dominant);
+          setAlbedo(material, dominant);
+        }
+        syncEmissive(material);
+        opts.onChange?.();
+      }),
+    );
+  };
+  // The scene may be drawn before the server is connected (or after it is lost): ask again for the parts still on their palette colour.
+  const rebindNone = () => {
+    for (const [id, state] of [...bound]) if (state === 'none') bindProductPhoto(id, photoMaterials.get(id)!);
+  };
+  let stopOrigin: (() => void) | undefined = viewerConfig.subscribe(rebindNone);
+  const cache_track = <T,>(p: Promise<T>): Promise<T> => (opts.cache ?? textureCache).track(p);
   const lib: MaterialLibrary = {
     get(id) {
       // Textures load when a material is first used by visible geometry; until then it shows its colour.
@@ -449,6 +495,7 @@ export function createMaterialLibrary(initial: Pick<Scene, 'materials'> | null =
         }
       }
       textured.get(id)?.start();
+      if (id.startsWith('photo:') || id.startsWith('tint:')) bindProductPhoto(id, material as MeshStandardMaterial);
       return material;
     },
     update,
@@ -474,9 +521,12 @@ export function createMaterialLibrary(initial: Pick<Scene, 'materials'> | null =
       lib.commit();
       textured.forEach((t) => t.stop());
       parquets.forEach((p) => p.tex.texture.dispose());
+      stopOrigin?.();
+      stopOrigin = undefined;
       cache.forEach((m) => m.dispose());
     },
     resume() {
+      stopOrigin ??= viewerConfig.subscribe(rebindNone);
       textured.forEach((t) => {
         if (t.wanted) t.start();
       });

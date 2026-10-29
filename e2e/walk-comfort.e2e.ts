@@ -86,7 +86,9 @@ test('walk mode turns all lamps on (+0.5 EV); leaving restores the lamp states a
   await mode(page, 'walk');
   const plain = await stats(page);
   expect(plain.lights.lampsLit).toEqual(['l-cuisine']);
-  expect(plain.exposure).toBeCloseTo(before.exposure, 5);
+  // The walking camera adapts to the room it stands in (a windowless room opens the exposure up, never down: `roomExposureGain`).
+  expect(plain.exposure).toBeGreaterThanOrEqual(before.exposure * (1 - 1e-6));
+  expect(plain.exposure).toBeLessThanOrEqual(before.exposure * 16.001);
   await expect(page.getByTestId('walk-lights-note')).toHaveCount(0);
   // ... and it is remembered.
   await page.reload();

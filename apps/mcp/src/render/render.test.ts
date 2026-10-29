@@ -13,6 +13,7 @@ import { startStaticServer, type StaticServer } from './staticServer';
 import { InMemoryTransport } from '@modelcontextprotocol/server';
 import { makeEnvelope } from '@flat/scene';
 import { loadConfig } from '../config';
+import { deltaE2000, hexToLab, rgbToLab } from '../score/color';
 import { createFlatMcpServer } from '../server';
 import { fakeClock } from '../testing/inproc';
 import { renderTools } from '../tools/render';
@@ -180,6 +181,27 @@ describe.runIf(process.env.MCP_RENDER)('render service (slow: real browser, real
     expect(g).toBeGreaterThanOrEqual(r); // sage: green >= red >= blue
     expect(r).toBeGreaterThan(b);
     save('sejour-sage', after);
+  });
+
+  it('a windowless room (salle de bain) at noon is exposed for the light it gets: paint reads close to its hex, furniture is not blown out', async () => {
+    const GREIGE = { id: 'paint-greige', name: 'Greige', kind: 'paint', color: '#c9bfb0', roughness: 0.9 } as const;
+    await apply(srv.flat, { type: 'material.define', material: GREIGE });
+    await apply(srv.flat, { type: 'room.setWallFinish', roomId: 'sdb', materialId: 'paint-greige' });
+    const view = { view: 'walk', roomId: 'sdb', pose: { mode: 'walk', position: [6, 6.6], headingDeg: 235, eyeHeight: 1.7, pitchDeg: -20, fovDeg: 85 }, preset: 'day' };
+    const r = await call(view);
+    expect(r.isError, JSON.stringify(r.content[0])).toBeFalsy();
+    const png = decode(images(r)[0]!);
+    // The far wall (upper middle right of the picture) is lit by the sky only; it used to render near black (dE ~ 60 from the paint).
+    const [wr, wg, wb] = meanRgb(png, 0.55, 0.2, 0.7, 0.4);
+    const dE = deltaE2000(rgbToLab(wr, wg, wb), hexToLab(GREIGE.color));
+    expect(dE, `far wall mean ${[wr, wg, wb].map(Math.round)}`).toBeLessThan(12);
+    // The bathtub (white, lower middle right) stays below clipping: the furniture shares its room's ambient with the walls.
+    const tub = meanRgb(png, 0.55, 0.6, 0.65, 0.75);
+    expect(Math.max(...tub), `tub mean ${tub.map(Math.round)}`).toBeLessThan(250);
+    expect(luma(tub)).toBeGreaterThan(luma([wr, wg, wb]));
+    // A lamp-lit evening view of the same room is no darker than the daylit one by more than a few stops (exposure is not keyed on a dark frame).
+    const evening = await call({ ...view, preset: 'evening' });
+    expect(luma(meanRgb(decode(images(evening)[0]!), 0, 0, 1, 1))).toBeGreaterThan(40);
   });
 
   it('the evening preset with a lamp on is brighter than with it off', async () => {

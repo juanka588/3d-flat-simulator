@@ -75,19 +75,19 @@ function hash(mesh: MeshData): string {
 }
 
 describe('generator registry', () => {
-  it('registers the furniture generators, the TV, the fixed bathroom / kitchen ware and the CG4 curtains and pendant in the process-wide registry', () => {
+  it('registers the furniture generators, the TV, the fixed bathroom / kitchen ware and the CG4 curtains and pendant and the CG8 stand-ins in the process-wide registry', () => {
     expect(GENERATORS.list().map((g) => g.id)).toEqual(
-      ['bathtub', 'bed', 'bookshelf', 'chair', 'cooktop', 'curtains', 'desk', 'fridge', 'island', 'kitchenBase', 'kitchenWall', 'mirror', 'nightstand', 'pendant', 'rug', 'sideboard', 'sofa', 'table', 'toilet', 'tv', 'tvUnit', 'wardrobe', 'washbasin'],
+      ['basket', 'bathtub', 'bed', 'bookshelf', 'chair', 'cooktop', 'curtains', 'cushion', 'desk', 'frame', 'fridge', 'island', 'kitchenBase', 'kitchenWall', 'lamp', 'mirror', 'nightstand', 'pendant', 'plant', 'rug', 'sideboard', 'sofa', 'table', 'throwBlanket', 'toilet', 'tv', 'tvUnit', 'vase', 'wallFitting', 'wardrobe', 'washbasin'],
     );
-    expect(ALL_GENERATORS).toHaveLength(23);
+    expect(ALL_GENERATORS).toHaveLength(31);
   });
   it('registerGenerators is idempotent and fills any registry', () => {
     const r = createGeneratorRegistry();
     registerGenerators(r);
     registerGenerators(r);
-    expect(r.list()).toHaveLength(23);
+    expect(r.list()).toHaveLength(31);
     registerGenerators();
-    expect(GENERATORS.list()).toHaveLength(23);
+    expect(GENERATORS.list()).toHaveLength(31);
   });
   it('assertGeneratorsRegistered passes on the process-wide registry and names what is missing otherwise', () => {
     expect(() => assertGeneratorsRegistered()).not.toThrow();
@@ -168,27 +168,35 @@ describe('generator geometry snapshot (determinism across versions)', () => {
     const hashes = Object.fromEntries(ALL_GENERATORS.map((g) => [g.id, hash(g.generate(g.params.parse({})))]));
     expect(hashes).toMatchInlineSnapshot(`
       {
+        "basket": "fa2a38ab5da8",
         "bathtub": "53f86549a006",
         "bed": "dd1c8f81770e",
         "bookshelf": "0fc035283a17",
         "chair": "5938bcd59be5",
         "cooktop": "25fad467c88c",
         "curtains": "687236717fb3",
+        "cushion": "9800b875d4e5",
         "desk": "33b3f0f692b5",
+        "frame": "bca6caa7319d",
         "fridge": "4a989acb1d4d",
         "island": "55908420f6f3",
         "kitchenBase": "7595c22b3dc2",
         "kitchenWall": "0cfbd2b6c08b",
+        "lamp": "a122e85a4b0e",
         "mirror": "9f58ba728e26",
         "nightstand": "17cb49fdb6c2",
         "pendant": "6b40fd1ba1b4",
-        "rug": "e729b46333e0",
+        "plant": "0c18a7add731",
+        "rug": "b42900d44133",
         "sideboard": "21e5c1283a52",
         "sofa": "b950d0047d92",
         "table": "39996e898674",
+        "throwBlanket": "635f4fea2c4c",
         "toilet": "0491142612c8",
         "tv": "0f13a4923799",
         "tvUnit": "96be9ddf0cd6",
+        "vase": "6b2a9dd5f99b",
+        "wallFitting": "12b6e54884cf",
         "wardrobe": "6b7946f318dd",
         "washbasin": "a33867c4ee57",
       }

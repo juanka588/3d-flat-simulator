@@ -6,3 +6,4 @@ export * from './parametric-defaults';
 export * from './builtin-assets';
 export * from './item-helpers';
 export * from './dressing';
+export * from './colour-words';

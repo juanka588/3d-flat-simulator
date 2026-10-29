@@ -211,6 +211,20 @@ describe('room-type-aware prompts', () => {
     expect(buildReferencePrompt(japandi, 'balcony').prompt).toMatch(/bistro table/);
   });
 
+  it('view extras: the kitchen zone of a living room uses the kitchen template; the layout and the view hint go in the prompt', () => {
+    const k = buildReferencePrompt(japandi, 'living', { zone: 'kitchen', viewHint: 'The camera faces the kitchen fittings.' });
+    expect(k.prompt).toMatch(/open kitchen of a flat/);
+    expect(k.prompt).toMatch(/cabinets/);
+    expect(k.prompt).toMatch(/camera faces the kitchen fittings/);
+    expect(k.negativePrompt).not.toMatch(/kitchen counter/);
+    const l = buildReferencePrompt(japandi, 'living', { layout: 'Layout: the sofa faces the TV wall.', kitchenVisible: true });
+    expect(l.prompt).toMatch(/Layout: the sofa faces the TV wall\./);
+    expect(l.prompt).toMatch(/open kitchen in the background/);
+    expect(l.negativePrompt).not.toMatch(/kitchen counter/);
+    // without extras nothing changes
+    expect(buildReferencePrompt(japandi, 'living').negativePrompt).toMatch(/kitchen counter/);
+  });
+
   it('the visualisation prompt keeps the layout', () => {
     expect(buildVisualisationPrompt(japandi, 'living').prompt).toMatch(/Keep the room layout/);
   });

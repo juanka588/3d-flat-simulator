@@ -60,8 +60,9 @@ export { buildBedDressing } from './meshes/bed-dressing';
 export { buildItems } from './meshes/build-items';
 
 // ---- materials: item materials and the texture catalog
-export { COLOUR_HEX, COLOUR_NAMES, FABRIC_KINDS, ITEM_MATERIALS, ITEM_MATERIAL_SPECS, ITEM_SLOTS, SHEER_MATERIAL, ceramicMaterial, fabricMaterial } from './materials/item-materials';
-export type { ColourName, FabricKind, ItemMaterialId, ItemMaterialSpec } from './materials/item-materials';
+export { COLOUR_HEX, COLOUR_NAMES, FABRIC_KINDS, ITEM_MATERIALS, ITEM_MATERIAL_SPECS, ITEM_SLOTS, SHEER_MATERIAL, ceramicMaterial, fabricMaterial, itemMaterialFor, parseProductMaterial, photoMaterial, productMaterial, tintMaterial } from './materials/item-materials';
+export type { ColourName, FabricKind, ItemMaterialId, ItemMaterialSpec, ProductMaterialKind } from './materials/item-materials';
+export { dominantColour } from './materials/dominant-colour';
 export { Catalog, CatalogEntry, LicenseEvidence, MaterialCategory, libraryTextureUrl, materialFromCatalog } from './materials/texture-catalog';
 export type { MaterialFromCatalogOptions } from './materials/texture-catalog';
 export { createCatalogSource } from './materials/texture-catalog-source';

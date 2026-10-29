@@ -153,6 +153,21 @@ export class Kit {
     }
   }
 
+  /**
+   * An upward-facing rectangle at height `y` with UV 0-1 over it (u along +x, v from the front `z1` towards the back
+   * `z0`): a product photo laid on a rug, cushion or throw. The photo is already cropped by the viewer.
+   */
+  topFace(material: string, x0: number, z0: number, x1: number, z1: number, y: number): void {
+    if (x1 - x0 < 1e-9 || z1 - z0 < 1e-9) return;
+    this.b.quad([[x0, y, z1], [x1, y, z1], [x1, y, z0], [x0, y, z0]], [0, 1, 0], [[0, 0], [1, 0], [1, 1], [0, 1]], material, OWNER);
+  }
+
+  /** A rectangle facing +z (the front) at depth `z` with UV 0-1 over it: the picture of a frame. */
+  frontFace(material: string, x0: number, y0: number, x1: number, y1: number, z: number): void {
+    if (x1 - x0 < 1e-9 || y1 - y0 < 1e-9) return;
+    this.b.quad([[x0, y0, z], [x1, y0, z], [x1, y1, z], [x0, y1, z]], [0, 0, 1], [[0, 0], [1, 0], [1, 1], [0, 1]], material, OWNER);
+  }
+
   /** A box with sharp edges (12 triangles). */
   private sharpBox(material: string, x0: number, y0: number, z0: number, x1: number, y1: number, z1: number): void {
     const b = this.b;

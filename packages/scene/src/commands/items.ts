@@ -343,7 +343,7 @@ function setVariant(scene: Scene, cmd: Extract<ItemLeaf, { type: 'item.setVarian
     inverse.mesh = item.mesh ?? null;
   } else if (item.mesh?.kind === 'parametric' && newDims !== undefined && !sameDims(newDims, item.dims ?? item.product?.dims ?? newDims)) {
     const category = cmd.product?.category ?? item.product?.category;
-    const def = category !== undefined ? defaultParametricFor(category, newDims, cmd.product?.name ?? item.product?.name) : undefined;
+    const def = category !== undefined ? defaultParametricFor(category, newDims, cmd.product?.name ?? item.product?.name, cmd.product?.colour ?? item.product?.colour) : undefined;
     if (def && checkParametricMesh(def, newDims).status === 'ok') {
       next.mesh = { kind: 'parametric', generator: def.generator, params: def.params };
       next.assetId = meshAssetId(next.mesh as never);

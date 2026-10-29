@@ -14,11 +14,13 @@ const texelOf = (uv1: Float32Array, vertex: number) => Math.floor(uv1[vertex * 2
 const value = (roomId: string) => (ambient.texture.image.data as Uint8Array)[ambient.indexOf(roomId)]! / 255;
 
 describe('room ambient texture and uv1', () => {
-  it('has one texel per room, a full-sky texel and one full-sky texel per room for its furniture', () => {
+  it('has one texel per room, a full-sky texel, and one texel per room for its furniture with the room`s own factor (a bathtub in a windowless room is not lit by the full sky)', () => {
     expect(ambient.texture.image.width).toBe(2 * scene.rooms.length + 1);
     expect(ambient.texels).toBe(2 * scene.rooms.length + 1);
     const data = ambient.texture.image.data as Uint8Array;
-    for (let i = scene.rooms.length; i < data.length; i++) expect(data[i]).toBe(255);
+    expect(data[ambient.none]).toBe(255);
+    for (const room of scene.rooms) expect(data[ambient.itemIndexOf(room.id)], room.id).toBe(data[ambient.indexOf(room.id)]);
+    expect(data[ambient.itemIndexOf('wc')]).toBeLessThan(80);
     const factors = roomDaylightFactors(scene);
     for (const room of scene.rooms) expect(value(room.id), room.id).toBeCloseTo(factors[room.id]!, 2);
     expect(value('wc')).toBeLessThan(0.3);

@@ -70,8 +70,12 @@ function saveDescriptor(ref: StoredReference): void {
   try {
     const dir = resolve(out);
     mkdirSync(dir, { recursive: true });
-    const body = `${JSON.stringify({ jobId: ref.jobId, index: ref.index, roomId: ref.roomId, styleId: ref.styleId, planStatus: ref.planStatus, plan: ref.plan, descriptor: ref.descriptor }, null, 2)}\n`;
+    const body = `${JSON.stringify({ jobId: ref.jobId, index: ref.index, roomId: ref.roomId, styleId: ref.styleId, view: ref.view, zone: ref.zone, weight: ref.weight, planStatus: ref.planStatus, plan: ref.plan, descriptor: ref.descriptor }, null, 2)}\n`;
     writeFileSync(join(dir, 'descriptor.json'), body);
+    if (ref.view) {
+      mkdirSync(join(dir, 'views'), { recursive: true });
+      writeFileSync(join(dir, 'views', `${ref.view}.descriptor.json`), body);
+    }
     writeFileSync(join(dir, `descriptor-${ref.jobId}-${ref.index}.json`), body);
   } catch {
     // saving is a convenience of the runner
@@ -81,7 +85,7 @@ function saveDescriptor(ref: StoredReference): void {
 const recordReference: ToolDef = {
   name: 'record_reference',
   description:
-    'Store your reading of a reference image as a descriptor (exact shape: prompt reference_reader). Validated with located errors. Each item gets a plan position from our depth. Next: match_reference.',
+    'Store your reading of a reference image (shape: prompt reference_reader). Validated; items get plan positions from our depth.',
   inputSchema: obj({ ...refSchema, roomId: { type: 'string', description: 'Only for images not made here.' }, descriptor: { type: 'object', description: 'style, palette, materials, lighting, items[], decor[].' } }, ['jobId', 'descriptor']),
   annotations: READ,
   group: 'read',
@@ -103,7 +107,7 @@ const recordReference: ToolDef = {
       plan = Object.fromEntries(a.descriptor.items.map((i) => [i.id, null]));
       status = 'unavailable: unknown room (pass roomId; the job was not made by this server)';
     } else ({ plan, status } = await planHints(ctx, roomId, a.descriptor, meta?.pose));
-    const stored: StoredReference = { jobId: a.jobId, index: a.index, ...(roomId ? { roomId } : {}), ...(meta?.styleId ? { styleId: meta.styleId } : {}), descriptor: a.descriptor, plan, planStatus: status };
+    const stored: StoredReference = { jobId: a.jobId, index: a.index, ...(roomId ? { roomId } : {}), ...(meta?.styleId ? { styleId: meta.styleId } : {}), ...(meta?.view ? { view: meta.view, zone: meta.zone, weight: meta.weight } : {}), descriptor: a.descriptor, plan, planStatus: status };
     putReference(stored);
     saveDescriptor(stored);
     return toolOk({
@@ -111,6 +115,7 @@ const recordReference: ToolDef = {
       jobId: a.jobId,
       index: a.index,
       ...(roomId ? { roomId } : {}),
+      ...(meta?.view ? { view: meta.view } : {}),
       items: a.descriptor.items.length,
       planStatus: status,
       positions: Object.fromEntries(Object.entries(plan).map(([id, h]) => [id, h ? { centre: h.centre, ...(h.heightM > 0.1 ? { heightM: h.heightM } : {}), widthM: h.widthM, ...(h.note ? { note: h.note } : {}) } : null])),
@@ -171,7 +176,7 @@ function candidateLine(c: ItemMatch['candidates'][number]) {
 const matchReference: ToolDef = {
   name: 'match_reference',
   description:
-    'Per recorded item: top real products (text + CLIP, photo of the best, price, has3d), a fit verdict good|approx|none with reasons (shape, colour, size, missing), and suggestGenerator, a CONCEPT stand-in (not purchasable; place_item concept:true).',
+    'Per recorded item: top real products (text + CLIP, photo, price, has3d), verdict good|approx|none with reasons, and suggestGenerator, a CONCEPT stand-in (place_item concept:true).',
   inputSchema: obj({ ...refSchema, itemIds: { type: 'array', items: { type: 'string' }, description: 'Default all.' }, thumbs: { type: 'boolean', description: 'Default true.' } }, ['jobId']),
   annotations: READ,
   group: 'read',
@@ -242,7 +247,7 @@ function saveDir(saveTo: string | undefined, jobId: string, index: number): { di
 const gapReport: ToolDef = {
   name: 'gap_report',
   description:
-    'Per item: target, best real match, the gap, the concept alternative and a search term. Markdown plus JSON; saved to saveTo or the design output folder.',
+    'Per item: target, best match, gap, concept alternative, search term. Markdown + JSON; saved to saveTo or the design folder.',
   inputSchema: obj({ ...refSchema, saveTo: { type: 'string', description: 'Directory under the working dir.' } }, ['jobId']),
   annotations: { ...READ, idempotentHint: false },
   group: 'read',

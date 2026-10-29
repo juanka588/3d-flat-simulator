@@ -25,7 +25,12 @@
  *   --dry     no model, no cost: a scripted fake session that calls a few tools (use it to test the harness; offline mock providers)
  *
  * Close the gap (CG7, scripts/mcp-demo/close-gap.mjs): per room, a generated reference image, then furnish, score, fix, repeat.
- *   pnpm mcp:demo:design -- --close-gap --style japandi --rooms sejour,sdb,ch1 --iterations 3 [--budget 2500]
+ *   pnpm mcp:demo:design -- --close-gap --style japandi --rooms sejour:living,sejour:kitchen,sdb --iterations 3 [--budget 2500]
+ *   --rooms takes room or room:zone (sejour:living, sejour:kitchen); a plain room with several zones is split per zone. Each target has
+ *   several views (cameras from the geometry: see describe_room {plan:true}); --views 2 (most per zone) or --views media,wide (ids).
+ *   Targets run in order, each starting from the previous result; the chain is saved as <out>/<style>/final-scene.flat.json (and
+ *   <target>/scene.flat.json). Start from another scene with --resume <file>.
+ *   --publish <url>  opt-in: GET the scene of that server to a backup file in the output folder, then PUT the final scene (PUT /api/scene).
  *   Caps per room: --max-usd (default 8), --max-minutes (default 45); in total: --max-total-usd (default per-room cap x rooms).
  *   Needs the image service (`pnpm imagegen`, CLIP indexes from `pnpm imagegen:index`): checked first, with instructions.
  *   --dry runs it end to end with a scripted fake model, the FakeImageProvider and a fake image service (output .tmp/design-closegap-dry/).
@@ -42,7 +47,7 @@ import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { closeGapMain } from './close-gap.mjs';
+import { closeGapMain, parseRoomSpec, parseViewsArg } from './close-gap.mjs';
 import { ROOT, cleanEnv, connectLikeClaudeCode, mcpCommand, startServer } from './lib.mjs';
 
 const argv = process.argv.slice(2);
@@ -66,6 +71,8 @@ const PARALLEL = Math.max(1, Number(opt('--parallel') || 1));
 const BUDGET = opt('--budget');
 const CLOSE_GAP = args.has('--close-gap');
 const ROOMS_ARG = opt('--rooms')?.split(',').map((x) => x.trim()).filter(Boolean);
+const VIEWS_ARG = parseViewsArg(opt('--views'));
+const PUBLISH = opt('--publish');
 const ITERATIONS = Math.max(1, Math.min(6, Number(opt('--iterations') || 3)));
 const CLAUDE = process.env.CLAUDE_BIN || 'claude';
 /** The name of Claude Code's subagent tool (`Task` in older versions). */
@@ -526,7 +533,13 @@ if (TEAM && !STYLE && !VARIANTS) {
 if (CLOSE_GAP) {
   const rooms = ROOMS_ARG?.length ? ROOMS_ARG : ['sejour'];
   const known = new Set(ROOMS);
-  const unknown = rooms.filter((r) => !known.has(r));
+  let unknown;
+  try {
+    unknown = rooms.filter((r) => !known.has(parseRoomSpec(r).roomId));
+  } catch (e) {
+    console.error(e.message);
+    process.exit(2);
+  }
   if (!STYLE) {
     console.error('--close-gap needs --style <id> (see --list-styles)');
     process.exit(2);
@@ -549,6 +562,10 @@ if (CLOSE_GAP) {
     claude: CLAUDE,
     skipPrereqs: args.has('--skip-prereqs'),
     noVisualisation: args.has('--no-visualisation'),
+    viewsSpec: VIEWS_ARG,
+    resume: RESUME,
+    publish: PUBLISH,
+    dryRegress: args.has('--dry-regress'),
   });
   process.exit(code);
 }

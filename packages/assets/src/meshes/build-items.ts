@@ -1,8 +1,8 @@
-import { BUILTIN_ASSETS, GENERATORS, MeshBuilder, PLACEHOLDER_SIZE_M, bedDressingOf, emptyMesh } from '@flat/scene';
+import { BUILTIN_ASSETS, GENERATORS, MeshBuilder, PLACEHOLDER_SIZE_M, bedDressingOf, emptyMesh, formatProductId } from '@flat/scene';
 import type { Item, MeshData, Scene } from '@flat/scene';
 import { Kit } from '../generators/kit';
 import { tv } from '../generators/misc';
-import { ITEM_MATERIALS } from '../materials/item-materials';
+import { ITEM_MATERIALS, itemMaterialFor } from '../materials/item-materials';
 import '../register'; // registers every generator in GENERATORS (side effect)
 import { buildBedDressing } from './bed-dressing';
 
@@ -61,12 +61,23 @@ function scaleMesh(mesh: MeshData, s: Vec3): MeshData {
   return { ...mesh, positions };
 }
 
+/** `provider:sku` of the item's product, if it has one: its stand-in parts that show the product photo are keyed by it. */
+function productIdOfItem(item: Item): string | undefined {
+  const ref = item.productRef ?? (item.product ? { provider: item.product.provider, sku: item.product.sku } : undefined);
+  try {
+    return ref ? formatProductId(ref) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** Appends an item-local mesh to `b` at the item's position, elevation and rotation, owned by the item. */
 function appendItemMesh(b: MeshBuilder, item: Item, local: MeshData): void {
   const r = (item.rotation * Math.PI) / 180;
   const cos = Math.cos(r);
   const sin = Math.sin(r);
   const owner = { kind: 'item' as const, entityId: item.id };
+  const productId = productIdOfItem(item);
   const mapped = new Map<number, number>();
   const vertex = (i: number): number => {
     let n = mapped.get(i);
@@ -90,7 +101,7 @@ function appendItemMesh(b: MeshBuilder, item: Item, local: MeshData): void {
   };
   for (const g of local.groups) {
     for (let k = g.start; k < g.start + g.count; k += 3) {
-      b.triangle(vertex(local.indices[k]!), vertex(local.indices[k + 1]!), vertex(local.indices[k + 2]!), g.materialId, owner);
+      b.triangle(vertex(local.indices[k]!), vertex(local.indices[k + 1]!), vertex(local.indices[k + 2]!), itemMaterialFor(g.materialId, productId), owner);
     }
   }
 }

@@ -6,6 +6,7 @@ import {
   lightFixtureCount,
   lightLumens,
   pointCandela,
+  pointInPolygon,
   polygonArea,
   roomBounceLux,
   roomIdOfLight,
@@ -381,6 +382,53 @@ export function gridLimitedExposure(exposure: number, keyLux: number, gridKeyLux
   if (gridKeyLux === null || !Number.isFinite(gridKeyLux) || !Number.isFinite(keyLux)) return exposure;
   const ratio = (Math.pow(2, STALE_GRID_MAX_EV) * autoExposure(gridKeyLux, 0, 0)) / autoExposure(keyLux, 0, 0);
   return exposure * Math.min(1, ratio);
+}
+
+/**
+ * Largest gain (x, ~4 stops) the room exposure may add to the open-air exposure. A windowless room at noon is lit by a few per cent of
+ * the sky; the open-air exposure (keyed on ~25 klx) renders it black, a camera in it would open up.
+ */
+export const MAX_ROOM_EXPOSURE_GAIN = 16;
+
+/** Mean illuminance (lux) the lit lamps of each room add over that room (lumens per square metre of its floor). */
+export function roomLampLuxById(scene: Scene, lamps: readonly LampSpec[]): Record<string, number> {
+  const lumens: Record<string, number> = {};
+  for (const l of lamps) {
+    if (!l.on || !(l.lumens > 0)) continue;
+    const id = roomIdOfLight(scene, { roomId: l.roomId, position: [l.position[0], l.position[2]] });
+    if (id) lumens[id] = (lumens[id] ?? 0) + l.lumens;
+  }
+  const out: Record<string, number> = {};
+  for (const room of scene.rooms) {
+    const lm = lumens[room.id];
+    if (lm) out[room.id] = lm / Math.max(polygonArea(room.polygon), 1);
+  }
+  return out;
+}
+
+/** The room whose floor plan contains the point (plan x, plan y), if any. */
+export function roomAtPoint(scene: Pick<Scene, 'rooms'>, x: number, z: number): string | undefined {
+  return scene.rooms.find((r) => pointInPolygon([x, z], r.polygon))?.id;
+}
+
+/**
+ * Exposure multiplier for a camera inside a room, for the legacy (non-probe) lighting. The open-air exposure is keyed on the
+ * light of the whole flat (sun + sky + lamps); a room that gets only `daylightFactor` of the sky (a windowless bathroom: 0.08) and
+ * has no lamp on is then 10-30x darker than the exposure expects, black on screen. A camera adapts to the light where it is: the
+ * room key is `daylightFactor x sky + daylightFactor^2 x sun (it enters through the glazing only) + the room's own lamp lux`, and the gain is the ratio of the two auto exposures,
+ * never below 1 (a bright room is not darkened) and never above `MAX_ROOM_EXPOSURE_GAIN`. A daylit room (factor ~0.9) and a
+ * lamp-lit room that is as bright as the flat average are left alone.
+ */
+export function roomExposureGain(
+  model: Pick<Extract<LightingModel, { ok: true }>, 'sunIntensity' | 'ambientIntensity' | 'keyLux'>,
+  daylightFactor: number,
+  roomLampLux: number,
+): number {
+  const factor = Math.min(1, Math.max(0, Number.isFinite(daylightFactor) ? daylightFactor : 1));
+  const roomKey = factor * model.ambientIntensity + factor * factor * model.sunIntensity + Math.max(0, roomLampLux);
+  if (!(roomKey > 0) || !(model.keyLux > 0)) return 1;
+  const gain = autoExposure(roomKey, 0, 0) / autoExposure(model.keyLux, 0, 0);
+  return Math.min(MAX_ROOM_EXPOSURE_GAIN, Math.max(1, gain));
 }
 
 /** Total floor area of the habitable rooms (balconies excluded), for the lamp share of the exposure. */

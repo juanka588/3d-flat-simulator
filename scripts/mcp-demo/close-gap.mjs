@@ -1,6 +1,12 @@
 /* global process, console, setTimeout, clearTimeout, Buffer, fetch, URL, AbortSignal */
 /**
- * CG7 runner: `design-flat.mjs --close-gap --style <id> --rooms a,b --iterations N`.
+ * CG7 runner: `design-flat.mjs --close-gap --style <id> --rooms sejour:living,sejour:kitchen,sdb --iterations N`.
+ *
+ * A target is a room or a zone of a room (`sejour:kitchen`); a plain room with several zones is split per zone. Each target has
+ * several VIEWS (named cameras derived from the geometry: describe_room plan), one reference image and one descriptor per view,
+ * scored together (weighted). Targets run in order and each starts from the scene the previous one ended with, so the last scene
+ * holds everything: `<root>/<style>/final-scene.flat.json` (and `<target>/scene.flat.json`). The best scored iteration is kept: if
+ * the session ends on a worse one, its scene is put back. `--publish <url>` (opt-in) backs up that server's scene and PUTs the final one.
  *
  * One `claude -p` session PER ROOM, each on its own throwaway scene server and its own MCP server process. Why per room and not one
  * session over all rooms:
@@ -23,7 +29,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { ROOT, cleanEnv, connectLikeClaudeCode, mcpCommand, startServer } from './lib.mjs';
 
 const FIXTURE = new URL('../../packages/scene/fixtures/charme-3205.flat.json', import.meta.url);
@@ -138,15 +144,86 @@ export async function startFakeSidecar() {
 }
 
 // ---------------------------------------------------------------------------------------------
+// Pure helpers (tested in close-gap.test.mjs)
+// ---------------------------------------------------------------------------------------------
+
+/** `sejour:kitchen` -> { roomId: 'sejour', zone: 'kitchen' }; `sdb` -> { roomId: 'sdb' }. */
+export function parseRoomSpec(s) {
+  const [roomId, zone, ...rest] = String(s).trim().split(':');
+  if (!roomId || rest.length) throw new Error(`bad room spec "${s}": expected room or room:zone`);
+  return { roomId, ...(zone ? { zone } : {}) };
+}
+
+/** `--views 2` -> 2 (most per zone); `--views media,wide` -> ['media','wide']; nothing -> undefined (the defaults). */
+export function parseViewsArg(s) {
+  if (!s) return undefined;
+  if (/^\d+$/.test(s)) return Math.max(1, Number(s));
+  return s.split(',').map((x) => x.trim()).filter(Boolean);
+}
+
+/** The views to use out of the plan's views: of one zone, limited by count per zone or by ids. Throws on an unknown id. */
+export function selectViews(views, { zone, spec } = {}) {
+  const inZone = zone ? views.filter((v) => v.zone === zone) : views;
+  if (Array.isArray(spec)) {
+    const byId = new Map(inZone.map((v) => [v.id, v]));
+    const missing = spec.filter((id) => !byId.has(id));
+    if (missing.length) throw new Error(`no view ${missing.join(', ')}${zone ? ` in zone ${zone}` : ''}. Views: ${inZone.map((v) => v.id).join(', ')}`);
+    return spec.map((id) => byId.get(id));
+  }
+  if (typeof spec === 'number') {
+    const seen = new Map();
+    return inZone.filter((v) => {
+      const n = (seen.get(v.zone) ?? 0) + 1;
+      seen.set(v.zone, n);
+      return n <= spec;
+    });
+  }
+  return inZone;
+}
+
+/** The best scored iteration (highest overall, the earliest on a tie) and whether the last one is worse. */
+export function pickBest(iters) {
+  const scored = iters.filter((i) => typeof i.overall === 'number');
+  if (!scored.length) return { best: undefined, last: iters.at(-1), regressed: false };
+  const best = scored.reduce((a, b) => (b.overall > a.overall ? b : a));
+  const last = scored.at(-1);
+  return { best, last, regressed: best.name !== last.name };
+}
+
+/**
+ * Backs up the scene served at `url` (GET /api/scene, the `scene` field, restorable with PUT) into `outDir`, then PUTs `scene`.
+ * Never called by default; the lead runs it with --publish.
+ */
+export async function publishScene({ url, scene, outDir }) {
+  const base = new URL(url).origin;
+  const got = await fetch(`${base}/api/scene`);
+  if (!got.ok) throw new Error(`could not read the current scene from ${base}: HTTP ${got.status}`);
+  const current = await got.json();
+  mkdirSync(outDir, { recursive: true });
+  const backup = join(outDir, `backup-before-publish-${new Date().toISOString().replace(/[:.]/g, '-')}.flat.json`);
+  writeFileSync(backup, `${JSON.stringify(current.scene, null, 2)}\n`);
+  const put = await fetch(`${base}/api/scene`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: typeof scene === 'string' ? scene : JSON.stringify(scene) });
+  const body = await put.text();
+  if (!put.ok) throw new Error(`PUT ${base}/api/scene failed: HTTP ${put.status} ${body.slice(0, 300)}`);
+  return { backup, base };
+}
+
+// ---------------------------------------------------------------------------------------------
 // Dry model: what an obedient model would do, scripted
 // ---------------------------------------------------------------------------------------------
 
+const LIVING = [
+  { id: 'sofa', category: 'sofa', subtype: '3 seater sofa', box: [180, 380, 620, 640], importance: 5 },
+  { id: 'rug', category: 'rug', subtype: 'wool rug', box: [140, 560, 760, 740], importance: 4 },
+  { id: 'coffee', category: 'table', subtype: 'coffee table', box: [330, 520, 560, 640], importance: 3 },
+  { id: 'lamp', category: 'lamp', subtype: 'floor lamp', box: [700, 220, 790, 600], importance: 2 },
+];
 const DRY_ITEMS = {
-  sejour: [
-    { id: 'sofa', category: 'sofa', subtype: '3 seater sofa', box: [180, 380, 620, 640], importance: 5 },
-    { id: 'rug', category: 'rug', subtype: 'wool rug', box: [140, 560, 760, 740], importance: 4 },
-    { id: 'coffee', category: 'table', subtype: 'coffee table', box: [330, 520, 560, 640], importance: 3 },
-    { id: 'lamp', category: 'lamp', subtype: 'floor lamp', box: [700, 220, 790, 600], importance: 2 },
+  sejour: LIVING,
+  'sejour:living': LIVING,
+  'sejour:kitchen': [
+    { id: 'stool', category: 'chair', subtype: 'bar stool', box: [300, 450, 380, 640], importance: 3 },
+    { id: 'pendant', category: 'lamp', subtype: 'pendant lamp', box: [420, 60, 520, 200], importance: 2 },
   ],
   sdb: [
     { id: 'tub', category: 'other', subtype: 'freestanding bathtub', box: [60, 420, 520, 640], importance: 5 },
@@ -161,8 +238,8 @@ const DRY_ITEMS = {
   ],
 };
 
-function dryDescriptor(roomId, styleName, walls, floor) {
-  const items = (DRY_ITEMS[roomId] ?? DRY_ITEMS['default']).map((i) => ({
+function dryDescriptor(key, roomId, styleName, walls, floor) {
+  const items = (DRY_ITEMS[key] ?? DRY_ITEMS[roomId] ?? DRY_ITEMS['default']).map((i) => ({
     ...i,
     colour: 'natural',
     material: 'wood and fabric',
@@ -195,7 +272,7 @@ async function dryTarget(beforePng, out) {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Post-processing: curve, contact sheet, labelled visualisation
+// Post-processing: curve, contact sheets, labelled visualisation
 // ---------------------------------------------------------------------------------------------
 
 const svgBuf = (w, h, body) => Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" font-family="Helvetica, Arial, sans-serif">${body}</svg>`);
@@ -209,23 +286,32 @@ export function readIterations(out) {
     .map((d) => ({ dir: join(dir, d), name: d, ...JSON.parse(readFileSync(join(dir, d, 'score.json'), 'utf8')) }));
 }
 
-export async function scoreCurve(iters, file, title) {
+/** The picture of our render for a view in an iteration (aggregated scoring keeps one per view). */
+export const iterRender = (it, viewId) => {
+  const perView = viewId ? join(it.dir, 'views', viewId, 'render.png') : undefined;
+  return perView && existsSync(perView) ? perView : join(it.dir, 'render.png');
+};
+
+export async function scoreCurve(iters, file, title, bestName) {
   const { default: sharp } = await import('sharp');
-  const W = 720;
+  const W = 760;
   const H = 420;
   const L = 60;
-  const R = 150;
+  const R = 190;
   const T = 50;
   const B = 50;
   const n = Math.max(2, iters.length);
   const x = (i) => L + ((W - L - R) * i) / (n - 1);
   const y = (v) => T + (H - T - B) * (1 - v);
+  const viewIds = [...new Set(iters.flatMap((it) => (it.views ?? []).map((v) => v.view)))];
+  const palette = ['#e15759', '#f28e2b', '#76b7b2', '#edc948'];
   const series = [
     { key: 'overall', get: (it) => it.overall, color: '#111111', width: 4 },
     { key: 'palette', get: (it) => it.scores?.palette?.score, color: '#d1495b' },
     { key: 'layout', get: (it) => it.scores?.layout?.score, color: '#2e86ab' },
     { key: 'clip', get: (it) => it.scores?.clip?.score, color: '#59a14f' },
     { key: 'aesthetic', get: (it) => it.scores?.aesthetic?.score, color: '#b07aa1' },
+    ...viewIds.map((id, k) => ({ key: `view ${id}`, get: (it) => it.views?.find((v) => v.view === id)?.overall, color: palette[k % palette.length], dash: true })),
   ];
   let body = `<rect width="100%" height="100%" fill="#fff"/><text x="${L}" y="30" font-size="18" font-weight="bold" fill="#222">${esc(title)}</text>`;
   for (let g = 0; g <= 10; g += 2) body += `<line x1="${L}" x2="${W - R}" y1="${y(g / 10)}" y2="${y(g / 10)}" stroke="#e3e3e3"/><text x="${L - 8}" y="${y(g / 10) + 4}" font-size="12" text-anchor="end" fill="#666">${(g / 10).toFixed(1)}</text>`;
@@ -233,34 +319,35 @@ export async function scoreCurve(iters, file, title) {
   series.forEach((s, si) => {
     const pts = iters.map((it, i) => [i, s.get(it)]).filter(([, v]) => typeof v === 'number');
     if (!pts.length) return;
-    body += `<polyline fill="none" stroke="${s.color}" stroke-width="${s.width ?? 2}" points="${pts.map(([i, v]) => `${x(i)},${y(v)}`).join(' ')}"/>`;
+    body += `<polyline fill="none" stroke="${s.color}" stroke-width="${s.width ?? 2}"${s.dash ? ' stroke-dasharray="5 4"' : ''} points="${pts.map(([i, v]) => `${x(i)},${y(v)}`).join(' ')}"/>`;
     for (const [i, v] of pts) body += `<circle cx="${x(i)}" cy="${y(v)}" r="${s.width ? 5 : 3}" fill="${s.color}"/>`;
-    body += `<rect x="${W - R + 20}" y="${T + si * 22}" width="14" height="4" fill="${s.color}"/><text x="${W - R + 40}" y="${T + si * 22 + 6}" font-size="13" fill="#333">${s.key}</text>`;
+    body += `<rect x="${W - R + 20}" y="${T + si * 22}" width="14" height="4" fill="${s.color}"/><text x="${W - R + 40}" y="${T + si * 22 + 6}" font-size="13" fill="#333">${esc(s.key)}</text>`;
   });
+  const bi = iters.findIndex((it) => it.name === bestName);
+  if (bi >= 0 && typeof iters[bi].overall === 'number') body += `<circle cx="${x(bi)}" cy="${y(iters[bi].overall)}" r="11" fill="none" stroke="#e8a200" stroke-width="3"/><text x="${x(bi)}" y="${y(iters[bi].overall) - 16}" font-size="12" text-anchor="middle" fill="#a06d00">best</text>`;
   if (!iters.length) body += `<text x="${W / 2}" y="${H / 2}" font-size="16" text-anchor="middle" fill="#888">no iteration was scored</text>`;
   await sharp(svgBuf(W, H, body)).png().toFile(file);
 }
 
-export async function contactSheet({ target, before, iters, final, file }) {
+/** Rows of captioned tiles: `rows[i].tiles[j] = { label, sub, img }`. One row per view in the contact sheet. */
+export async function contactSheetRows({ rows, file }) {
   const { default: sharp } = await import('sharp');
   const TW = 320;
   const TH = 240;
   const CAP = 44;
-  const tiles = [
-    { label: 'target (AI reference)', sub: 'not a render of this flat', img: target },
-    { label: 'before', sub: 'same camera, start of session', img: before },
-    ...iters.map((it) => ({ label: `iteration ${it.iteration}`, sub: `overall ${it.overall ?? 'n/a'}`, img: join(it.dir, 'render.png') })),
-    ...(final ? [{ label: 'final', sub: 'honest 3D render', img: final }] : []),
-  ];
+  const cols = Math.max(1, ...rows.map((r) => r.tiles.length));
   const composites = [];
-  for (let i = 0; i < tiles.length; i++) {
-    const t = tiles[i];
-    const left = i * TW;
-    const input = t.img && existsSync(t.img) ? await sharp(t.img).resize(TW - 4, TH - 4, { fit: 'cover' }).png().toBuffer() : svgBuf(TW - 4, TH - 4, `<rect width="100%" height="100%" fill="#bbb"/><text x="12" y="${TH / 2}" font-size="14" fill="#555">no image</text>`);
-    composites.push({ input, left: left + 2, top: CAP + 2 });
-    composites.push({ input: svgBuf(TW, CAP, `<rect width="100%" height="100%" fill="#222"/><text x="10" y="20" fill="#fff" font-size="15" font-weight="bold">${esc(t.label)}</text><text x="10" y="37" fill="#ccc" font-size="12">${esc(t.sub)}</text>`), left, top: 0 });
+  for (let r = 0; r < rows.length; r++) {
+    const top = r * (TH + CAP);
+    for (let i = 0; i < rows[r].tiles.length; i++) {
+      const t = rows[r].tiles[i];
+      const left = i * TW;
+      const input = t.img && existsSync(t.img) ? await sharp(t.img).resize(TW - 4, TH - 4, { fit: 'cover' }).png().toBuffer() : svgBuf(TW - 4, TH - 4, `<rect width="100%" height="100%" fill="#bbb"/><text x="12" y="${TH / 2}" font-size="14" fill="#555">no image</text>`);
+      composites.push({ input, left: left + 2, top: top + CAP + 2 });
+      composites.push({ input: svgBuf(TW, CAP, `<rect width="100%" height="100%" fill="#222"/><text x="10" y="20" fill="#fff" font-size="15" font-weight="bold">${esc(t.label)}</text><text x="10" y="37" fill="#ccc" font-size="12">${esc(t.sub ?? '')}</text>`), left, top });
+    }
   }
-  await sharp({ create: { width: TW * tiles.length, height: TH + CAP, channels: 3, background: '#fff' } }).composite(composites).png().toFile(file);
+  await sharp({ create: { width: TW * cols, height: (TH + CAP) * Math.max(1, rows.length), channels: 3, background: '#fff' } }).composite(composites).png().toFile(file);
 }
 
 /** The visualisation with its label burned in: it must never be mistaken for the honest render. */
@@ -278,9 +365,7 @@ async function labelVisualisation(src, file) {
     .toFile(file);
 }
 
-// ---------------------------------------------------------------------------------------------
-// One room
-// ---------------------------------------------------------------------------------------------
+
 
 function findLatest(dir, re) {
   if (!existsSync(dir)) return undefined;
@@ -380,12 +465,30 @@ async function runClaude({ request, serverUrl, mcpEnv, maxUsd, timeoutMs, claude
   return { result, calls, usage, turns, timedOut };
 }
 
+
+// ---------------------------------------------------------------------------------------------
+// One target (a room, or a zone of a room)
+// ---------------------------------------------------------------------------------------------
+
+const SIZE = { width: 1024, height: 768 };
+const walkPose = (v) => ({ mode: 'walk', position: v.eye, eyeHeight: 1.55, headingDeg: v.headingDeg, pitchDeg: 0, fovDeg: v.fovDeg });
+const safeName = (s) => String(s).replace(/[^a-zA-Z0-9_-]/g, '_');
+const jsonIn = (file) => {
+  try {
+    return JSON.parse(readFileSync(file, 'utf8'));
+  } catch {
+    return undefined;
+  }
+};
+
 /**
- * One room, start to finish. `o`: { styleId, roomId, iterations, budget, dry, out, imagegenUrl, maxUsd, maxMinutes, claude, noVisualisation }.
- * Returns the result record (also written to result.json).
+ * One target, start to finish. `o`: { styleId, roomId, zone?, viewsSpec?, startScene (JSON text), iterations, budget, dry, dryRegress,
+ * out, imagegenUrl, maxUsd, maxMinutes, claude, noVisualisation }. Returns the result record (also written to result.json); the
+ * final scene is written to `<out>/scene.flat.json` (the best scored iteration).
  */
 export async function runRoom(o) {
-  const log = (...a) => console.log(`[${o.styleId}/${o.roomId}] ${a.join(' ')}`);
+  const tag = o.zone ? `${o.roomId}:${o.zone}` : o.roomId;
+  const log = (...a) => console.log(`[${o.styleId}/${tag}] ${a.join(' ')}`);
   const out = o.out;
   rmSync(out, { recursive: true, force: true });
   mkdirSync(join(out, 'references'), { recursive: true });
@@ -396,28 +499,47 @@ export async function runRoom(o) {
   const mcpEnv = { FLAT_DESIGN_OUT: out, IMAGEGEN_URL: o.imagegenUrl, ...(process.env.IMAGEGEN_TOKEN ? { IMAGEGEN_TOKEN: process.env.IMAGEGEN_TOKEN } : {}), ...(process.env.FLAT_SCORE_WEIGHTS ? { FLAT_SCORE_WEIGHTS: process.env.FLAT_SCORE_WEIGHTS } : {}) };
   let reader;
   const started = Date.now();
+  const putScene = async (text) => {
+    const r = await fetch(`${server.url}/api/scene`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: text });
+    if (!r.ok) throw new Error(`could not load the scene: ${r.status} ${await r.text()}`);
+  };
   try {
-    const put = await fetch(`${server.url}/api/scene`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: readFileSync(FIXTURE) });
-    if (!put.ok) throw new Error(`could not load the fixture: ${put.status} ${await put.text()}`);
+    await putScene(o.startScene);
 
-    // This MCP server is the runner's own: the baseline and final renders, the bill of materials and, in a dry run, the whole
-    // scripted session go through it. In a real run `claude` starts its own MCP server on the same scene server.
     const dryTargetFile = join(out, 'dry-target-source.png');
     if (o.dry) Object.assign(mcpEnv, { IMAGE_PROVIDER: 'fake', IMAGEGEN_FAKE_IMAGE: dryTargetFile });
     reader = await connectLikeClaudeCode({ serverUrl: server.url, clientName: 'design-renders', env: mcpEnv });
-    // A render can wait for models and the first one starts the browser: give the MCP request room (its default is 60 s).
     const call = async (name, a) => reader.client.callTool({ name, arguments: a }, { timeout: 300_000 });
 
-    // The "before": our baseline view of the room, the default walk camera (the one generate_reference uses).
-    const base = await call('render_view', { view: 'walk', roomId: o.roomId, preset: 'day', size: { width: 1024, height: 768 }, waitForModelsS: o.dry ? 5 : 120 });
-    const baseImg = (base.content ?? []).find((p) => p.type === 'image');
-    if (!baseImg) throw new Error(`the baseline render failed: ${textOf(base).slice(0, 300)}`);
-    writeFileSync(join(out, 'before.png'), Buffer.from(baseImg.data, 'base64'));
+    // The plan: zones, views (cameras) and the layout intent of the room, from its geometry.
+    const planRes = await call('describe_room', { roomId: o.roomId, plan: true });
+    const plan = planRes.structuredContent ?? {};
+    const views = selectViews(plan.views ?? [], { zone: o.zone, spec: o.viewsSpec });
+    if (!views.length) throw new Error(`no views for ${tag}: ${textOf(planRes).slice(0, 300)}`);
+    writeFileSync(join(out, 'plan.json'), JSON.stringify({ zones: plan.zones, views, layout: (plan.layout ?? []).filter((l) => !o.zone || l.zone === o.zone) }, null, 2));
+    log(`views: ${views.map((v) => `${v.id} (${v.weight})`).join(', ')}`);
+
+    const render = async (v, file) => {
+      const r = await call('render_view', { view: 'walk', roomId: o.roomId, pose: walkPose(v), preset: 'day', size: SIZE, waitForModelsS: o.dry ? 5 : 120 });
+      const img = (r.content ?? []).find((p) => p.type === 'image');
+      if (!img) throw new Error(`render of view ${v.id} failed: ${textOf(r).slice(0, 300)}`);
+      mkdirSync(join(file, '..'), { recursive: true });
+      writeFileSync(file, Buffer.from(img.data, 'base64'));
+      return file;
+    };
+    const hero = views[0];
+    // The "before": our baseline from each view's camera.
+    for (const v of views) await render(v, join(out, 'views', v.id, 'before.png'));
+    copyFileSync(join(out, 'views', hero.id, 'before.png'), join(out, 'before.png'));
+    await contactSheetRows({
+      rows: [{ tiles: views.map((v) => ({ label: `${v.id}${v.hero ? ' (hero)' : ''}`, sub: `${v.zone}, weight ${v.weight}, heading ${Math.round(v.headingDeg)}`, img: join(out, 'views', v.id, 'before.png') })) }],
+      file: join(out, 'views-contact-sheet.png'),
+    });
     const dry = o.dry ? await dryTarget(join(out, 'before.png'), out) : undefined;
 
-    // The request: the server's own close_the_gap prompt, inlined (claude -p cannot invoke MCP prompts itself).
-    const prompt = await reader.client.getPrompt({ name: 'close_the_gap', arguments: { roomId: o.roomId, styleId: o.styleId, iterations: String(o.iterations), ...(o.budget ? { budgetEur: String(o.budget) } : {}) } });
-    const request = `Use only the flat's MCP tools. The design output folder is already set: call gap_report without saveTo. Show nothing but the tools' pictures; you cannot open files.\n\n${prompt.messages.map((m) => (m.content.type === 'text' ? m.content.text : '')).join('\n\n')}`;
+    const prompt = await reader.client.getPrompt({ name: 'close_the_gap', arguments: { roomId: o.roomId, styleId: o.styleId, iterations: String(o.iterations), ...(o.zone ? { zone: o.zone } : {}), ...(o.budget ? { budgetEur: String(o.budget) } : {}) } });
+    const restrict = o.viewsSpec ? `\n\nUse only these views of the zone: ${views.map((v) => v.id).join(', ')} (the first is the hero).` : '';
+    const request = `Use only the flat's MCP tools. The design output folder is already set: call gap_report without saveTo. Show nothing but the tools' pictures; you cannot open files.\n\n${prompt.messages.map((m) => (m.content.type === 'text' ? m.content.text : '')).join('\n\n')}${restrict}`;
     writeFileSync(join(out, 'prompt.md'), request);
 
     const calls = [];
@@ -428,9 +550,14 @@ export async function runRoom(o) {
     const dryNotes = [];
 
     if (o.dry) {
-      // ---- a scripted fake model: the calls an obedient model would make, with the controller's stop rule ----
+      // ---- a scripted fake model: the calls an obedient model would make, with the controller's rules ----
       const run = async (name, a) => {
-        const r = await call(name, a);
+        let r = await call(name, a);
+        // the per-minute render limit is real: a fake model that is much faster than a real one waits and retries, as the hint says
+        for (let t = 0; t < 6 && r.isError && r.structuredContent?.code === 'rate_limited'; t++) {
+          await sleep((r.structuredContent.retryAfterMs ?? 3000) + 200);
+          r = await call(name, a);
+        }
         calls.push({ name, input: a, error: Boolean(r.isError), text: textOf(r).slice(0, 600) });
         turns++;
         log(`  ${name}${r.isError ? ` -> ERROR ${textOf(r).slice(0, 200)}` : ''}`);
@@ -438,33 +565,37 @@ export async function runRoom(o) {
       };
       const styleText = (await reader.client.readResource({ uri: `styles://${o.styleId}` })).contents[0].text;
       const stylePalette = styleText.match(/#[0-9a-fA-F]{6}/g) ?? ['#f1ece3'];
-      const descriptor = dryDescriptor(o.roomId, o.styleId, dry.walls, dry.floor);
-      await run('describe_room', { roomId: o.roomId });
       await run('checkpoint', { name: 'before-close-gap' });
-      const gen = await run('generate_reference', { roomId: o.roomId, styleId: o.styleId, n: 2, waitS: 5 });
-      const jobId = gen.structuredContent?.jobId;
-      if (!jobId) throw new Error(`dry run: generate_reference gave no jobId: ${textOf(gen).slice(0, 300)}`);
-      dryNotes.push(`critic pick: image 0 of ${jobId} (the dry run always picks the first)`);
-      const rec = await run('record_reference', { jobId, index: 0, descriptor });
-      if (rec.isError) throw new Error(`dry run: record_reference failed: ${textOf(rec).slice(0, 400)}`);
-      let prev = null;
+      const jobs = [];
+      for (const v of views) {
+        const gen = await run('generate_reference', { roomId: o.roomId, styleId: o.styleId, view: v.id, n: v === hero ? 2 : 1, waitS: 5, seed: 1 });
+        const jobId = gen.structuredContent?.jobId;
+        if (!jobId) throw new Error(`dry run: generate_reference gave no jobId for ${v.id}: ${textOf(gen).slice(0, 300)}`);
+        const descriptor = dryDescriptor(tag, o.roomId, o.styleId, dry.walls, dry.floor);
+        const rec = await run('record_reference', { jobId, index: 0, descriptor });
+        if (rec.isError) throw new Error(`dry run: record_reference failed for ${v.id}: ${textOf(rec).slice(0, 400)}`);
+        jobs.push({ view: v, jobId, descriptor });
+      }
+      const heroJob = jobs[0];
       let paint = stylePalette[0] ?? '#f1ece3';
       const channel = (hex, c) => parseInt(hex.slice(1 + 2 * c, 3 + 2 * c), 16);
-      const toHex = (v) => `#${v.map((x) => Math.max(0, Math.min(255, Math.round(x))).toString(16).padStart(2, '0')).join('')}`;
-      let lastScore;
+      const toHex = (vv) => `#${vv.map((x) => Math.max(0, Math.min(255, Math.round(x))).toString(16).padStart(2, '0')).join('')}`;
+      let best = -Infinity;
+      let weakGains = 0;
       for (let k = 1; k <= o.iterations; k++) {
         if (k > 1) {
-          // the critic's fix from the diff list: the walls role differs by (target - ours) in the render; shift the paint by that
-          const walls = lastScore?.scores?.palette?.roles?.find((r) => r.role === 'walls');
+          const last = readIterations(out).at(-1);
+          const walls = (last?.views?.[0]?.scores ?? last?.scores)?.palette?.roles?.find((r) => r.role === 'walls');
           if (walls) paint = toHex([0, 1, 2].map((c) => channel(paint, c) + channel(walls.targetHex, c) - channel(walls.oursHex, c)));
         }
+        const regress = o.dryRegress && k === o.iterations && k > 1;
+        if (regress) paint = '#ff0000';
         const mid = `cg-wall-${k}`;
         await run('material_define', { material: { id: mid, name: `Close-gap walls ${k}`, kind: 'paint', color: paint, roughness: 0.9 } });
         await run('room_set_wall_finish', { roomId: o.roomId, materialId: mid });
         if (k === 1) {
-          // real products where match_reference says good/approx; a CONCEPT shape only for verdict none AND importance 4 or more
-          const m = await run('match_reference', { jobId, index: 0, thumbs: false });
-          const importance = new Map(descriptor.items.map((d) => [d.id, d.importance]));
+          const m = await run('match_reference', { jobId: heroJob.jobId, index: 0, thumbs: false });
+          const importance = new Map(heroJob.descriptor.items.map((d) => [d.id, d.importance]));
           for (const it of m.structuredContent?.items ?? []) {
             let entry;
             if (it.verdict !== 'none' && it.candidates?.[0]?.productId) entry = { productId: it.candidates[0].productId };
@@ -475,21 +606,31 @@ export async function runRoom(o) {
           }
         }
         await run('validate_layout', { roomId: o.roomId });
-        const s = await run('score_against_reference', { jobId, index: 0 });
-        lastScore = s.structuredContent;
-        const overall = lastScore?.overall;
-        if (typeof overall === 'number') {
-          if (prev !== null && overall - prev < 0.02) {
-            dryNotes.push(`stopped after iteration ${k}: improvement ${(overall - prev).toFixed(3)} < 0.02`);
-            break;
+        const s = await run('score_against_reference', { jobId: heroJob.jobId, index: 0, all: true });
+        const overall = s.structuredContent?.overall;
+        if (typeof overall !== 'number') continue;
+        if (overall > best) {
+          weakGains = best > -Infinity && overall - best < 0.02 ? weakGains + 1 : 0;
+          best = overall;
+          await run('checkpoint', { name: 'cg-best', replace: true });
+        } else {
+          weakGains++;
+          if (regress) dryNotes.push(`iteration ${k} was made worse on purpose (--dry-regress) and NOT reverted by the fake model: the runner must put the best iteration back`);
+          else {
+            dryNotes.push(`iteration ${k} scored ${overall} below the best ${best}: restore_checkpoint cg-best`);
+            await run('restore_checkpoint', { name: 'cg-best' });
           }
-          prev = overall;
         }
+        if (weakGains >= 2) {
+          dryNotes.push(`stopped after iteration ${k}: under 0.02 over the best twice in a row`);
+          break;
+        }
+        if (overall >= 0.85) break;
       }
-      await run('gap_report', { jobId, index: 0 });
+      for (const j of jobs) await run('gap_report', { jobId: j.jobId, index: 0 });
       await run('get_bill_of_materials', { roomId: o.roomId });
-      await run('render_view', { view: 'walk', roomId: o.roomId, preset: 'day' });
-      if (!o.noVisualisation) await run('generate_reference', { roomId: o.roomId, styleId: o.styleId, mode: 'visualisation', waitS: 5 });
+      await run('render_view', { view: 'walk', roomId: o.roomId, pose: walkPose(hero), preset: 'day' });
+      if (!o.noVisualisation) await run('generate_reference', { roomId: o.roomId, styleId: o.styleId, mode: 'visualisation', view: hero.id, waitS: 5 });
       result = { total_cost_usd: 0, num_turns: turns, result: `(dry run: no model was called; ${calls.length} scripted tool calls)` };
       usage = { input: 1500 * turns, output: 200 * turns, cacheRead: 0, cacheCreate: 0 };
     } else {
@@ -498,38 +639,58 @@ export async function runRoom(o) {
       calls.push(...r.calls);
     }
 
-    // ---- what the session left behind ----
+    // ---- keep the best scored iteration: put its scene back when the session ended on something worse (or on unscored changes) ----
     const iters = readIterations(out);
-    let desc;
+    const { best, last, regressed } = pickBest(iters);
+    let restored;
     try {
-      desc = JSON.parse(readFileSync(join(out, 'descriptor.json'), 'utf8'));
-    } catch {
-      /* no descriptor recorded */
-    }
-    const refDir = join(out, 'references');
-    const targetFile = desc ? join(refDir, `reference-${desc.jobId}-${desc.index}.png`) : undefined;
-    if (targetFile && existsSync(targetFile)) copyFileSync(targetFile, join(out, 'target.png'));
-
-    // the honest final render, from the camera of the reference when there is one
-    const pose = iters.at(-1)?.pose;
-    let finalFile;
-    try {
-      const r = await call('render_view', { ...(pose ? { view: 'walk', roomId: o.roomId, pose } : { view: 'walk', roomId: o.roomId }), preset: 'day', size: { width: 1024, height: 768 }, waitForModelsS: o.dry ? 5 : 120 });
-      const img = (r.content ?? []).find((p) => p.type === 'image');
-      if (img) {
-        finalFile = join(out, 'final.png');
-        writeFileSync(finalFile, Buffer.from(img.data, 'base64'));
+      const cur = await (await fetch(`${server.url}/api/scene`)).json();
+      const snap = best ? join(best.dir, 'scene.flat.json') : undefined;
+      if (best && snap && existsSync(snap) && (regressed || (best.rev !== undefined && cur.rev !== best.rev))) {
+        await putScene(readFileSync(snap, 'utf8'));
+        restored = { from: last?.name, to: best.name, overall: best.overall, lastOverall: last?.overall, why: regressed ? 'the last scored iteration is worse than the best' : 'the scene changed after the best score' };
+        log(`kept the best iteration: put ${best.name} (${best.overall}) back instead of ${last?.name} (${last?.overall}) - ${restored.why}`);
       }
     } catch (e) {
-      log(`final render failed: ${e.message}`);
+      log(`could not check or restore the best iteration: ${e.message}`);
+    }
+    let sceneFile;
+    try {
+      const cur = await (await fetch(`${server.url}/api/scene`)).json();
+      sceneFile = join(out, 'scene.flat.json');
+      writeFileSync(sceneFile, `${JSON.stringify(cur.scene, null, 2)}\n`);
+    } catch (e) {
+      log(`could not save the final scene: ${e.message}`);
     }
 
-    // the labelled visualisation; when the model skipped it, ask for it here (it needs only our render)
+    // ---- what the session left behind, per view ----
+    const refDir = join(out, 'references');
+    const targets = {};
+    for (const v of views) {
+      const d = jsonIn(join(out, 'views', `${v.id}.descriptor.json`)) ?? (views.length === 1 ? jsonIn(join(out, 'descriptor.json')) : undefined);
+      if (!d) continue;
+      targets[v.id] = d;
+      const f = join(refDir, `reference-${d.jobId}-${d.index}.png`);
+      if (existsSync(f)) copyFileSync(f, join(out, 'views', v.id, 'target.png'));
+    }
+    if (existsSync(join(out, 'views', hero.id, 'target.png'))) copyFileSync(join(out, 'views', hero.id, 'target.png'), join(out, 'target.png'));
+
+    // honest final renders from each view's camera
+    const finals = {};
+    for (const v of views) {
+      try {
+        finals[v.id] = await render(v, join(out, 'views', v.id, 'final.png'));
+      } catch (e) {
+        log(`final render of ${v.id} failed: ${e.message}`);
+      }
+    }
+    if (finals[hero.id]) copyFileSync(finals[hero.id], join(out, 'final.png'));
+
     let visFile = findLatest(refDir, /^visualisation-.*\.png$/);
     if (!visFile && !o.noVisualisation && !timedOut) {
       try {
         log('the model did not make the visualisation: asking for it');
-        await call('generate_reference', { roomId: o.roomId, styleId: o.styleId, mode: 'visualisation', waitS: o.dry ? 5 : 240 });
+        await call('generate_reference', { roomId: o.roomId, styleId: o.styleId, mode: 'visualisation', view: hero.id, waitS: o.dry ? 5 : 240 });
         visFile = findLatest(refDir, /^visualisation-.*\.png$/);
       } catch (e) {
         log(`visualisation failed: ${e.message}`);
@@ -537,48 +698,66 @@ export async function runRoom(o) {
     }
     if (visFile) await labelVisualisation(visFile, join(out, 'visualisation.png'));
 
-    // bill of materials (concept items listed apart by the tool) and gap report
     let bomJson = {};
     try {
       const bom = await call('get_bill_of_materials', { roomId: o.roomId });
       bomJson = bom.structuredContent ?? {};
       writeFileSync(join(out, 'bom.json'), JSON.stringify(bomJson, null, 2));
-      writeFileSync(join(out, 'bom.md'), `# Bill of materials - ${o.roomId} (${o.styleId})\n\nReal products with their TTC prices; concept shapes (stand-ins, not for sale) are listed apart and not priced.\n\n\`\`\`json\n${JSON.stringify(bomJson, null, 2)}\n\`\`\`\n\n${textOf(bom)}\n`);
+      writeFileSync(join(out, 'bom.md'), `# Bill of materials - ${tag} (${o.styleId})\n\nReal products with their TTC prices; concept shapes (stand-ins, not for sale) are listed apart and not priced.\n\n\`\`\`json\n${JSON.stringify(bomJson, null, 2)}\n\`\`\`\n\n${textOf(bom)}\n`);
     } catch (e) {
       log(`bill of materials failed: ${e.message}`);
     }
+
+    // gap reports: one per view (per reference job), merged into one file with a section per view
     const gapDir = join(out, 'gap-reports');
-    if (existsSync(gapDir)) {
-      for (const d of readdirSync(gapDir)) {
-        if (existsSync(join(gapDir, d, 'gap-report.md'))) {
-          copyFileSync(join(gapDir, d, 'gap-report.md'), join(out, 'gap-report.md'));
-          copyFileSync(join(gapDir, d, 'gap-report.json'), join(out, 'gap-report.json'));
-        }
-      }
+    const gapJson = {};
+    const gapMd = [];
+    for (const v of views) {
+      const d = targets[v.id];
+      const dir = d ? join(gapDir, `${d.jobId}-${d.index}`) : undefined;
+      if (!dir || !existsSync(join(dir, 'gap-report.md'))) continue;
+      gapJson[v.id] = jsonIn(join(dir, 'gap-report.json'));
+      gapMd.push(`## View ${v.id} (${v.label}, weight ${v.weight})\n\n${readFileSync(join(dir, 'gap-report.md'), 'utf8')}`);
+    }
+    if (gapMd.length) {
+      writeFileSync(join(out, 'gap-report.md'), `# Gap report - ${tag} (${o.styleId})\n\n${gapMd.join('\n\n')}\n`);
+      writeFileSync(join(out, 'gap-report.json'), `${JSON.stringify({ views: gapJson }, null, 2)}\n`);
     }
 
-    await scoreCurve(iters, join(out, 'score-curve.png'), `${o.styleId} / ${o.roomId}: score per iteration`);
-    await contactSheet({ target: existsSync(join(out, 'target.png')) ? join(out, 'target.png') : undefined, before: join(out, 'before.png'), iters, final: finalFile, file: join(out, 'contact-sheet.png') });
+    await scoreCurve(iters, join(out, 'score-curve.png'), `${o.styleId} / ${tag}: score per iteration`, best?.name);
+    await contactSheetRows({
+      rows: views.map((v) => ({
+        tiles: [
+          { label: `${v.id}: target`, sub: 'AI reference, not a render', img: join(out, 'views', v.id, 'target.png') },
+          { label: `${v.id}: before`, sub: 'same camera, start', img: join(out, 'views', v.id, 'before.png') },
+          ...iters.map((it) => ({ label: `iteration ${it.iteration}${it.name === best?.name ? ' (best)' : ''}`, sub: `${v.id} ${it.views?.find((x) => x.view === v.id)?.overall ?? it.overall ?? 'n/a'}, all ${it.overall ?? 'n/a'}`, img: iterRender(it, v.id) })),
+          { label: `${v.id}: final`, sub: restored ? `honest 3D render (best iteration kept)` : 'honest 3D render', img: finals[v.id] },
+        ],
+      })),
+      file: join(out, 'contact-sheet.png'),
+    });
 
     const costUsd = result?.total_cost_usd ?? 0;
     const errors = calls.filter((c) => c.error).length;
     const minutes = Number(((Date.now() - started) / 60000).toFixed(1));
     const first = iters[0]?.overall ?? null;
-    const last = iters.at(-1)?.overall ?? null;
-    const row = (it) => `| ${it.iteration} | ${it.overall ?? 'n/a'} | ${it.scores?.palette?.score ?? '-'} (ΔE ${it.scores?.palette?.meanDeltaE ?? '-'}) | ${it.scores?.layout?.score ?? '-'} | ${it.scores?.clip?.score ?? '-'} | ${it.scores?.aesthetic?.score ?? '-'} | ${it.improvement ?? ''} | ${(it.diff ?? []).slice(0, 3).join('; ')} |`;
-    const scoresMd = ['| iter | overall | palette | layout | clip | aesthetic | gain | top diffs |', '|---|---|---|---|---|---|---|---|', ...iters.map(row)].join('\n');
-    writeFileSync(join(out, 'scores.md'), `# Scores - ${o.styleId} / ${o.roomId}\n\n${scoresMd}\n\nWeights are renormalised over the metrics that were available (FLAT_SCORE_WEIGHTS; default palette 0.3, layout 0.3, clip 0.3, aesthetic 0.1).\n`);
+    const lastOverall = iters.at(-1)?.overall ?? null;
+    const viewIds = views.map((v) => v.id);
+    const row = (it) => `| ${it.iteration}${it.name === best?.name ? ' (best)' : ''} | ${it.overall ?? 'n/a'} | ${viewIds.map((id) => it.views?.find((x) => x.view === id)?.overall ?? '-').join(' | ')} | ${it.scores?.palette?.score ?? '-'} | ${it.scores?.layout?.score ?? '-'} | ${it.scores?.clip?.score ?? '-'} | ${it.scores?.aesthetic?.score ?? '-'} | ${(it.diff ?? []).slice(0, 3).join('; ')} |`;
+    const scoresMd = [`| iter | overall | ${viewIds.join(' | ')} | palette | layout | clip | aesthetic | top diffs |`, `|---|---|${viewIds.map(() => '---|').join('')}---|---|---|---|---|`, ...iters.map(row)].join('\n');
+    writeFileSync(join(out, 'scores.md'), `# Scores - ${o.styleId} / ${tag}\n\n${scoresMd}\n\nOverall is the weighted mean of the views (${views.map((v) => `${v.id} ${v.weight}`).join(', ')}); metric weights are renormalised over the metrics that were available (FLAT_SCORE_WEIGHTS; default palette 0.3, layout 0.3, clip 0.3, aesthetic 0.1).\n${restored ? `\nThe session ended on ${restored.from} (${restored.lastOverall}); ${restored.to} (${restored.overall}) was better and is the scene kept (${restored.why}).\n` : ''}`);
     const summary = [
-      `# Close the gap - ${o.styleId} / ${o.roomId} (${new Date().toISOString()})`,
+      `# Close the gap - ${o.styleId} / ${tag} (${new Date().toISOString()})`,
       o.dry ? `DRY RUN: scripted fake model, FakeImageProvider and a FAKE image service. The numbers and pictures below only prove the harness; they say nothing about quality. ${calls.length} tool calls (${errors} errors), ${minutes} min.` : `cost $${costUsd.toFixed(2)} (cap $${o.maxUsd}), ${turns} turns, ${calls.length} tool calls (${errors} errors), ${minutes} min (cap ${o.maxMinutes})${timedOut ? ' - STOPPED BY THE TIME CAP' : ''}.`,
       '',
-      `Overall score: ${first ?? 'n/a'} -> ${last ?? 'n/a'} over ${iters.length} scored iteration(s).`,
+      `Views: ${views.map((v) => `${v.id} (${v.label}, weight ${v.weight})`).join('; ')}.`,
+      `Overall score: ${first ?? 'n/a'} -> ${lastOverall ?? 'n/a'} over ${iters.length} scored iteration(s); best ${best ? `${best.name} (${best.overall})` : 'n/a'}.${restored ? ` Restored the best: ${restored.why}.` : ''}`,
       '',
       scoresMd,
       '',
       ...(dryNotes.length ? ['## Dry-run notes', ...dryNotes.map((n) => `- ${n}`), ''] : []),
       '## Files',
-      '`contact-sheet.png` (target | before | iterations | final), `score-curve.png`, `target.png`, `descriptor.json`, `gap-report.md`, `bom.md`, `final.png` (honest 3D render), `visualisation.png` (AI-edited, labelled), `references/` (all candidates), `iterations/`.',
+      '`contact-sheet.png` (one row per view: target | before | iterations | final), `views-contact-sheet.png` (the cameras), `score-curve.png`, `plan.json` (zones, views, layout intent), `scene.flat.json` (final scene of this target), `views/<view>/{before,target,final}.png`, `target.png` (hero), `descriptor.json`, `gap-report.md`, `bom.md`, `final.png`, `visualisation.png` (AI-edited, labelled), `references/`, `iterations/` (each with the scene that was scored).',
       '',
       '## Model brief',
       result?.result ?? '(no final message)',
@@ -588,7 +767,9 @@ export async function runRoom(o) {
     const record = {
       styleId: o.styleId,
       roomId: o.roomId,
+      ...(o.zone ? { zone: o.zone } : {}),
       dry: Boolean(o.dry),
+      views: views.map((v) => ({ id: v.id, zone: v.zone, label: v.label, weight: v.weight })),
       costUsd,
       turns,
       toolCalls: calls.length,
@@ -599,13 +780,16 @@ export async function runRoom(o) {
       iterations: iters.length,
       overall: iters.map((i) => i.overall),
       first,
-      last,
+      last: lastOverall,
+      best: best ? { iteration: best.name, overall: best.overall } : null,
+      restored: restored ?? null,
       totalEur: bomJson.totalEur ?? null,
-      files: { contactSheet: join(out, 'contact-sheet.png'), scoreCurve: join(out, 'score-curve.png'), final: finalFile ?? null, visualisation: visFile ? join(out, 'visualisation.png') : null, target: existsSync(join(out, 'target.png')) ? join(out, 'target.png') : null },
+      sceneFile: sceneFile ?? null,
+      files: { contactSheet: join(out, 'contact-sheet.png'), viewsSheet: join(out, 'views-contact-sheet.png'), scoreCurve: join(out, 'score-curve.png'), final: existsSync(join(out, 'final.png')) ? join(out, 'final.png') : null, visualisation: visFile ? join(out, 'visualisation.png') : null, target: existsSync(join(out, 'target.png')) ? join(out, 'target.png') : null },
       out,
     };
     writeFileSync(join(out, 'result.json'), JSON.stringify(record, null, 2));
-    log(`done: overall ${first ?? 'n/a'} -> ${last ?? 'n/a'}, ${iters.length} iteration(s), ${minutes} min, $${costUsd.toFixed(2)}; ${out}`);
+    log(`done: overall ${first ?? 'n/a'} -> ${lastOverall ?? 'n/a'} (best ${best?.overall ?? 'n/a'}), ${iters.length} iteration(s), ${minutes} min, $${costUsd.toFixed(2)}; ${out}`);
     return record;
   } finally {
     await reader?.close().catch(() => {});
@@ -618,13 +802,45 @@ export async function runRoom(o) {
 // Entry
 // ---------------------------------------------------------------------------------------------
 
+/** A plain room name that has several zones (séjour: living + kitchen) becomes one target per zone. Uses a short-lived scene server. */
+async function expandTargets(specs, startScene, imagegenUrl) {
+  if (!specs.some((s) => !s.zone)) return specs;
+  const dataDir = mkdtempSync(join(process.env.TMPDIR || tmpdir(), 'flat-closegap-plan-'));
+  const server = await startServer(dataDir, { FLAT_PROVIDERS: 'mock', FLAT_ENV_FILE: '/dev/null' });
+  let reader;
+  try {
+    const put = await fetch(`${server.url}/api/scene`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: startScene });
+    if (!put.ok) throw new Error(`could not load the scene: ${put.status}`);
+    reader = await connectLikeClaudeCode({ serverUrl: server.url, clientName: 'design-plan', env: { IMAGEGEN_URL: imagegenUrl } });
+    const out = [];
+    for (const s of specs) {
+      if (s.zone) {
+        out.push(s);
+        continue;
+      }
+      const r = await reader.client.callTool({ name: 'describe_room', arguments: { roomId: s.roomId, plan: true } });
+      if (r.isError) throw new Error(`unknown room "${s.roomId}": ${textOf(r).slice(0, 200)}`);
+      const zones = (r.structuredContent?.zones ?? []).map((z) => z.id);
+      if (zones.length > 1) out.push(...zones.map((zone) => ({ roomId: s.roomId, zone })));
+      else out.push(s);
+    }
+    return out;
+  } finally {
+    await reader?.close().catch(() => {});
+    await server.stop();
+    rmSync(dataDir, { recursive: true, force: true });
+  }
+}
+
 /**
- * `o`: { styleId, rooms[], iterations, budget, dry, maxUsd (per room), maxTotalUsd, maxMinutes (per room), root, claude, skipPrereqs, noVisualisation }.
- * Returns the process exit code.
+ * `o`: { styleId, rooms[] (strings room or room:zone), viewsSpec, iterations, budget, dry, dryRegress, maxUsd (per target), maxTotalUsd, maxMinutes (per target),
+ * root, claude, skipPrereqs, noVisualisation, resume (scene file to start from), publish (url) }. Targets run in order, each starting from the
+ * previous one's final scene, so the last scene holds all of them. Returns the process exit code.
  */
 export async function closeGapMain(o) {
   const dryRoot = join(ROOT, '.tmp/design-closegap-dry');
   const root = o.root || (o.dry ? dryRoot : join(ROOT, '.tmp/design-closegap'));
+  const styleDir = join(root, o.styleId);
   let fake;
   let imagegenUrl = (process.env.IMAGEGEN_URL || 'http://127.0.0.1:8790').replace(/\/+$/, '');
   if (o.dry) {
@@ -633,6 +849,10 @@ export async function closeGapMain(o) {
     console.log(`DRY RUN: scripted fake model, FakeImageProvider (IMAGE_PROVIDER=fake) and a FAKE image service at ${fake.url} (colour-histogram embeddings, made-up aesthetic scores). Nothing is generated, nothing costs money.`);
   }
   try {
+    if (o.publish && o.dry) {
+      console.error('--publish is refused in a dry run (the scene is not a real design).');
+      return 2;
+    }
     if (!o.skipPrereqs) {
       const pre = await checkPrerequisites({ imagegenUrl, token: process.env.IMAGEGEN_TOKEN, dry: o.dry, claude: o.claude });
       for (const i of pre.info) console.log(`ok: ${i}`);
@@ -642,38 +862,57 @@ export async function closeGapMain(o) {
         return 3;
       }
     }
-    const totalCap = o.maxTotalUsd ?? o.maxUsd * o.rooms.length;
-    console.log(`close-gap: style ${o.styleId}, rooms ${o.rooms.join(', ')}, up to ${o.iterations} iteration(s) each; ${o.dry ? 'dry (no model, no cost)' : `caps: $${o.maxUsd} and ${o.maxMinutes} min per room, $${totalCap} in total`}; output ${join(root, o.styleId)}/<room>/`);
+    let scene = readFileSync(o.resume ? o.resume : FIXTURE, 'utf8');
+    const targets = await expandTargets(o.rooms.map(parseRoomSpec), scene, imagegenUrl);
+    const label = (t) => (t.zone ? `${t.roomId}:${t.zone}` : t.roomId);
+    const totalCap = o.maxTotalUsd ?? o.maxUsd * targets.length;
+    console.log(`close-gap: style ${o.styleId}, targets ${targets.map(label).join(', ')}, up to ${o.iterations} iteration(s) each, views ${o.viewsSpec === undefined ? 'auto' : Array.isArray(o.viewsSpec) ? o.viewsSpec.join(',') : `${o.viewsSpec} per zone`}; ${o.dry ? 'dry (no model, no cost)' : `caps: $${o.maxUsd} and ${o.maxMinutes} min per target, $${totalCap} in total`}; each target starts from the previous result; output ${styleDir}/<target>/`);
     const results = [];
     let spent = 0;
-    for (const roomId of o.rooms) {
+    for (const t of targets) {
       const remaining = totalCap - spent;
       if (!o.dry && remaining < 0.5) {
-        console.log(`[${o.styleId}/${roomId}] SKIPPED: the total cost cap ($${totalCap}) is used up ($${spent.toFixed(2)})`);
-        results.push({ roomId, error: 'skipped: total cost cap reached' });
+        console.log(`[${o.styleId}/${label(t)}] SKIPPED: the total cost cap ($${totalCap}) is used up ($${spent.toFixed(2)})`);
+        results.push({ target: label(t), error: 'skipped: total cost cap reached' });
         continue;
       }
       try {
-        const rec = await runRoom({ ...o, roomId, out: join(root, o.styleId, roomId), imagegenUrl, maxUsd: Math.min(o.maxUsd, remaining) });
+        const rec = await runRoom({ ...o, ...t, startScene: scene, out: join(styleDir, safeName(t.zone ? `${t.roomId}-${t.zone}` : t.roomId)), imagegenUrl, maxUsd: Math.min(o.maxUsd, remaining) });
         spent += rec.costUsd;
-        results.push({ roomId, record: rec });
+        results.push({ target: label(t), record: rec });
+        if (rec.sceneFile) scene = readFileSync(rec.sceneFile, 'utf8');
       } catch (e) {
-        results.push({ roomId, error: e instanceof Error ? e.message : String(e) });
-        console.log(`[${o.styleId}/${roomId}] FAILED: ${results.at(-1).error}`);
+        results.push({ target: label(t), error: e instanceof Error ? e.message : String(e) });
+        console.log(`[${o.styleId}/${label(t)}] FAILED: ${results.at(-1).error}`);
       }
     }
-    mkdirSync(join(root, o.styleId), { recursive: true });
+    mkdirSync(styleDir, { recursive: true });
+    const okAny = results.some((r) => r.record);
+    const finalScene = join(styleDir, 'final-scene.flat.json');
+    if (okAny) writeFileSync(finalScene, scene);
+    // the cameras of every target on one sheet
+    const camTiles = results.flatMap((r) => (r.record ? r.record.views.map((v) => ({ label: `${r.target}: ${v.id}`, sub: `weight ${v.weight}`, img: join(r.record.out, 'views', v.id, 'before.png') })) : []));
+    if (camTiles.length) await contactSheetRows({ rows: Array.from({ length: Math.ceil(camTiles.length / 5) }, (_, i) => ({ tiles: camTiles.slice(i * 5, i * 5 + 5) })), file: join(styleDir, 'cameras.png') });
     const lines = [
       `# Close the gap - ${o.styleId} (${new Date().toISOString()})`,
-      o.dry ? 'DRY RUN (scripted model, fake image service): proves the harness only.' : `Caps: $${o.maxUsd} and ${o.maxMinutes} min per room, $${totalCap} total. Spent $${spent.toFixed(2)}.`,
+      o.dry ? 'DRY RUN (scripted model, fake image service): proves the harness only.' : `Caps: $${o.maxUsd} and ${o.maxMinutes} min per target, $${totalCap} total. Spent $${spent.toFixed(2)}.`,
+      okAny ? `Final scene (all targets chained): \`final-scene.flat.json\`; per target: \`<target>/scene.flat.json\`. Cameras of every view: \`cameras.png\`.` : 'No target finished: no final scene.',
       '',
-      '| room | status | overall first -> last | iterations | cost | minutes | furniture (BOM) | contact sheet |',
-      '|---|---|---|---|---|---|---|---|',
-      ...results.map((r) => (r.record ? `| ${r.roomId} | ok${r.record.timedOut ? ' (time cap)' : ''} | ${r.record.first ?? 'n/a'} -> ${r.record.last ?? 'n/a'} | ${r.record.iterations} | ${o.dry ? 'dry' : `$${r.record.costUsd.toFixed(2)}`} | ${r.record.minutes} | ${r.record.totalEur === null ? 'n/a' : `${Math.round(r.record.totalEur)} EUR`} | ${r.roomId}/contact-sheet.png |` : `| ${r.roomId} | FAILED: ${String(r.error).slice(0, 100)} | | | | | | |`)),
+      '| target | status | views | overall first -> last (best) | iterations | cost | minutes | furniture (BOM) | contact sheet |',
+      '|---|---|---|---|---|---|---|---|---|',
+      ...results.map((r) => (r.record ? `| ${r.target} | ok${r.record.timedOut ? ' (time cap)' : ''}${r.record.restored ? ` (best kept: ${r.record.restored.to})` : ''} | ${r.record.views.map((v) => v.id).join(', ')} | ${r.record.first ?? 'n/a'} -> ${r.record.last ?? 'n/a'} (${r.record.best?.overall ?? 'n/a'}) | ${r.record.iterations} | ${o.dry ? 'dry' : `$${r.record.costUsd.toFixed(2)}`} | ${r.record.minutes} | ${r.record.totalEur === null ? 'n/a' : `${Math.round(r.record.totalEur)} EUR`} | ${basename(r.record.out)}/contact-sheet.png |` : `| ${r.target} | FAILED: ${String(r.error).slice(0, 100)} | | | | | | | |`)),
     ];
-    writeFileSync(join(root, o.styleId, 'summary.md'), lines.join('\n'));
-    console.log(`\n${lines.join('\n')}\n\nsaved to ${join(root, o.styleId)}`);
-    return results.some((r) => r.error) ? 1 : 0;
+    writeFileSync(join(styleDir, 'summary.md'), lines.join('\n'));
+    console.log(`\n${lines.join('\n')}\n\nsaved to ${styleDir}`);
+    const failed = results.some((r) => r.error);
+    if (o.publish) {
+      if (!okAny || failed) console.log(`NOT PUBLISHED: ${failed ? 'a target failed' : 'nothing finished'}; fix it and publish the saved scene by hand if you want (${finalScene}).`);
+      else {
+        const p = await publishScene({ url: o.publish, scene, outDir: styleDir });
+        console.log(`PUBLISHED the final scene to ${p.base}/api/scene. The scene it replaced is saved at ${p.backup} (restore it with PUT /api/scene).`);
+      }
+    }
+    return failed ? 1 : 0;
   } finally {
     await fake?.stop();
   }

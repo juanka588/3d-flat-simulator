@@ -301,7 +301,7 @@ async function chooseMesh(ctx: ToolContext, cache: { list?: ProviderInfo[] }, p:
   if (has3d) return { ok: true, mesh: { kind: 'provider' }, source: 'provider' };
   const look = pickLookalike({ category: record.category, dims, styleTags: record.styleTags }, cc0Assets());
   if (look) return { ok: true, mesh: { kind: 'lookalike', assetId: look.asset.id }, source: 'lookalike' };
-  const def = defaultParametricFor(record.category, dims, record.name);
+  const def = defaultParametricFor(record.category, dims, record.name, record.colours[0]);
   if (def) {
     const r = parametric(def.generator, def.params, dims);
     if (r.ok) return r;

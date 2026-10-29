@@ -25,7 +25,7 @@ export interface RoomAmbient {
   bounce: RoomBounce;
   /** Texel index of a room id; `none` is the texel of faces that belong to no room. */
   indexOf: (roomId: string) => number;
-  /** Texel index of the furniture standing in a room (full sky like `none`, but the room's lamp bounce). */
+  /** Texel index of the furniture standing in a room (the room's daylight factor like its walls, and its lamp bounce). */
   itemIndexOf: (roomId: string) => number;
   /** Rooms on the two faces of every wall (`wallSideRooms`). */
   sides: Record<string, WallSideRooms>;
@@ -47,10 +47,11 @@ export function createRoomAmbient(scene: Scene): RoomAmbient {
   const ids = scene.rooms.map((r) => r.id);
   const n = ids.length;
   const texels = 2 * n + 1;
-  const data = new Uint8Array(texels).fill(255); // `none` and furniture: full sky
+  const data = new Uint8Array(texels).fill(255); // `none` (faces looking outside): full sky
   ids.forEach((id, i) => {
     const f = factors[id] ?? 1;
-    data[i] = Math.round(Math.max(0, Math.min(1, f)) * 255);
+    // The furniture shares its room's factor: with full sky on it, a bathtub in a windowless room glows white against its dark walls.
+    data[i] = data[n + 1 + i] = Math.round(Math.max(0, Math.min(1, f)) * 255);
   });
   const texture = new DataTexture(data, texels, 1, RedFormat, UnsignedByteType);
   texture.magFilter = NearestFilter;

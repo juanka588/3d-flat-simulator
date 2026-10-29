@@ -86,7 +86,42 @@ export const ceramicMaterial = (colour: ColourName): CeramicMaterialId => `built
 /** A translucent curtain fabric. */
 export const SHEER_MATERIAL = 'builtin:furniture-sheer' as const;
 
-export type ItemMaterialId = (typeof ITEM_MATERIALS)[keyof typeof ITEM_MATERIALS] | FabricMaterialId | CeramicMaterialId | typeof SHEER_MATERIAL;
+/**
+ * Stand-ins for products without a 3D model show the product's own look (CG8). A part drawn from the product photo uses
+ * `photoMaterial(colour)`; a part tinted with the photo's dominant colour uses `tintMaterial(colour)`. `colour` is the
+ * palette fallback shown when no photo is available (Pages, no local server, no photo): these ids resolve like any other
+ * item material. `buildItems` re-owns them per item to `productMaterial(...)` ids, which the viewer fills from the photo.
+ */
+export type PhotoMaterialId = `builtin:product-photo-${ColourName}`;
+export type TintMaterialId = `builtin:product-tint-${ColourName}`;
+export const photoMaterial = (colour: ColourName): PhotoMaterialId => `builtin:product-photo-${colour}`;
+export const tintMaterial = (colour: ColourName): TintMaterialId => `builtin:product-tint-${colour}`;
+
+/** `photo` = the product photo as a texture (UV 0-1 over the part); `tint` = a plain material in the photo's dominant colour. */
+export type ProductMaterialKind = 'photo' | 'tint';
+const PRODUCT_MATERIAL = /^(photo|tint):([a-z]+)\|([a-z0-9][a-z0-9_-]*:[^\s|]+)$/;
+
+/** Id of a part that shows the photo of `productId` (`photo:<fallback colour>|<product id>`). */
+export const productMaterial = (kind: ProductMaterialKind, colour: ColourName, productId: string): string => `${kind}:${colour}|${productId}`;
+
+/** Parses an id made by `productMaterial`; `undefined` for any other id. */
+export function parseProductMaterial(id: string): { kind: ProductMaterialKind; colour: ColourName; productId: string } | undefined {
+  const m = PRODUCT_MATERIAL.exec(id);
+  if (!m || !Object.hasOwn(COLOUR_HEX, m[2]!)) return undefined;
+  return { kind: m[1] as ProductMaterialKind, colour: m[2] as ColourName, productId: m[3]! };
+}
+
+/**
+ * The per-item id for a generator material: `builtin:product-photo-<c>` / `builtin:product-tint-<c>` become
+ * `productMaterial(...)` when the item is a product (`productId`), anything else is returned unchanged.
+ */
+export function itemMaterialFor(materialId: string, productId: string | undefined): string {
+  if (!productId) return materialId;
+  const m = /^builtin:product-(photo|tint)-([a-z]+)$/.exec(materialId);
+  return m && Object.hasOwn(COLOUR_HEX, m[2]!) ? productMaterial(m[1] as ProductMaterialKind, m[2] as ColourName, productId) : materialId;
+}
+
+export type ItemMaterialId = (typeof ITEM_MATERIALS)[keyof typeof ITEM_MATERIALS] | FabricMaterialId | CeramicMaterialId | PhotoMaterialId | TintMaterialId | typeof SHEER_MATERIAL;
 
 /** The semantic slots of a generator part and the material each uses by default. */
 export const ITEM_SLOTS = {
@@ -150,6 +185,8 @@ function colourSpecs(): Record<string, ItemMaterialSpec> {
     out[fabricMaterial('velvet', c)] = { color, roughness: 0.62, metalness: 0 };
     out[fabricMaterial('leather', c)] = { color, roughness: 0.42, metalness: 0 };
     out[ceramicMaterial(c)] = { color, roughness: 0.1, metalness: 0 };
+    out[photoMaterial(c)] = { color, roughness: 0.92, metalness: 0, texture: { slug: 'fabric-weave-grey', scale: 0.5 } };
+    out[tintMaterial(c)] = { color, roughness: 0.7, metalness: 0 };
   }
   out[SHEER_MATERIAL] = { color: '#f4f0e6', roughness: 1, metalness: 0, opacity: 0.45 };
   return out;

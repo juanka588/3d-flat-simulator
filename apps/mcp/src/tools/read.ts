@@ -3,7 +3,17 @@ import { z } from 'zod';
 import { toolError, toolOk } from '../errors';
 import { buildMaterialListing, buildSummary, effectiveSessionLighting } from '../readModel';
 import { READ, fetchScene, obj, parseArgs } from './common';
+import { roomPlan } from '../reference/views';
 import type { ToolDef } from './registry';
+
+/** Zones, views and layout intent for close-the-gap; a room the geometry cannot read just has none. */
+function roomPlanSafe(scene: Parameters<typeof roomPlan>[0], roomId: string): Partial<ReturnType<typeof roomPlan>> {
+  try {
+    return roomPlan(scene, roomId);
+  } catch {
+    return {};
+  }
+}
 
 /**
  * Read tools (M4.4). They only GET from the scene server (never POST) and are annotated read-only.
@@ -19,7 +29,7 @@ export const RealDate = LightingView.shape.date.refine((d) => {
 }, 'not a real calendar date');
 
 const SummaryArgs = z.strictObject({ detail: z.enum(['brief', 'full']).optional() });
-const DescribeArgs = z.strictObject({ roomId: z.string().min(1).max(64), date: RealDate.optional() });
+const DescribeArgs = z.strictObject({ roomId: z.string().min(1).max(64), date: RealDate.optional(), plan: z.boolean().optional() });
 const MaterialsArgs = z.strictObject({ query: z.string().max(80).optional(), category: z.enum(MATERIAL_CATEGORIES).optional() });
 
 export function readTools(): ToolDef[] {
@@ -62,6 +72,7 @@ export function readTools(): ToolDef[] {
         {
           roomId: { type: 'string', description: 'Room id (see list_rooms).' },
           date: { type: 'string', description: 'Local date YYYY-MM-DD at the flat; default: the session lighting date.' },
+          plan: { type: 'boolean', description: 'Add zones, camera views and the layout intent (close the gap).' },
         },
         ['roomId'],
       ),
@@ -81,7 +92,7 @@ export function readTools(): ToolDef[] {
           const near = nearestIds(a.data.roomId, ids);
           return toolError('unknown_room', `no room "${a.data.roomId}"`, `Did you mean ${near.map((x) => `"${x}"`).join(', ')}? Rooms: ${ids.join(', ')}.`);
         }
-        return toolOk({ ok: true, ...d, rev, ...(ctx.session.lampMode !== 'scene' ? { lampMode: ctx.session.lampMode, note: `lights[].on is forced ${ctx.session.lampMode === 'allOn' ? 'on' : 'off'} by the session lamp mode (set_sun_time lamps "scene" to follow the flat)` } : {}) });
+        return toolOk({ ok: true, ...d, ...(a.data.plan ? roomPlanSafe(scene, a.data.roomId) : {}), rev, ...(ctx.session.lampMode !== 'scene' ? { lampMode: ctx.session.lampMode, note: `lights[].on is forced ${ctx.session.lampMode === 'allOn' ? 'on' : 'off'} by the session lamp mode (set_sun_time lamps "scene" to follow the flat)` } : {}) });
       },
     },
     {

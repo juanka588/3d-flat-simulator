@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { Generator } from '@flat/scene';
-import { ITEM_MATERIALS, fabricMaterial } from '../materials/item-materials';
+import { ITEM_MATERIALS, fabricMaterial, photoMaterial } from '../materials/item-materials';
 import { Kit, boxAnchors, colourParam, metres } from './kit';
 
 /** Rugs (CG4: shapes and patterns built from geometry, so they stay deterministic and need no texture). */
@@ -19,6 +19,8 @@ const rugParams = z.strictObject({
     .enum(['border', 'plain', 'stripes', 'checker'])
     .default('border')
     .describe('Pattern built from geometry (no image): "border" (field with an edge band), "plain", "stripes" or "checker" (round rugs: concentric rings for both). Defaults to "border".'),
+  h: metres('Thickness of the rug (the pile).', RUG_THICKNESS, 0.004, 0.06),
+  photo: z.boolean().default(false).describe('Show the product photo (cropped to its centre) as the top of a rectangular or runner rug, when one is available; otherwise the colour. Defaults to false.'),
   colour: colourParam('the rug field'),
   accent: colourParam('the pattern (border band, stripes, checks, fringe)'),
 });
@@ -29,12 +31,14 @@ export const rug: Generator<RugParams> = {
   label: 'Flat rug, 1.2 cm thick: rectangular, round or runner, with a border, stripes or checks',
   category: 'rug',
   params: rugParams,
-  describeParams: ({ w, d }) => ({ dims: { w, d, h: RUG_THICKNESS }, anchors: boxAnchors(w, d, RUG_THICKNESS), clearance: {} }),
-  generate({ w, d, shape, pattern, colour, accent }) {
+  describeParams: ({ w, d, h }) => ({ dims: { w, d, h }, anchors: boxAnchors(w, d, h), clearance: {} }),
+  generate({ w, d, h, shape, pattern, photo, colour, accent }) {
     const kit = new Kit();
     const field = colour ? fabricMaterial('weave', colour) : ITEM_MATERIALS.bedding;
     const band = accent ? fabricMaterial('weave', accent) : ITEM_MATERIALS.rug;
-    const T = RUG_THICKNESS;
+    const T = h;
+    const b1 = T * 0.67; // under-layer of the patterns
+    const b2 = T * 0.84;
     if (shape === 'round') {
       const rx = w / 2;
       const rz = d / 2;
@@ -43,14 +47,14 @@ export const rug: Generator<RugParams> = {
       } else if (pattern === 'border') {
         const b = Math.min(0.06, rx / 4, rz / 4);
         const f = 1 - b / Math.min(rx, rz);
-        kit.prism(band, 0, 0, 0, rx, rz, 0.008, 32);
-        kit.lathe(band, 0, 0, rx, rz, [[1, 0.008], [1, T], [f, T], [f, 0.008]], 32);
-        kit.prism(field, 0, 0.008, 0, rx * f, rz * f, T, 32);
+        kit.prism(band, 0, 0, 0, rx, rz, b1, 32);
+        kit.lathe(band, 0, 0, rx, rz, [[1, b1], [1, T], [f, T], [f, b1]], 32);
+        kit.prism(field, 0, b1, 0, rx * f, rz * f, T, 32);
       } else {
         // concentric rings in 2 mm steps: outer band, field, inner band
-        kit.prism(band, 0, 0, 0, rx, rz, 0.008, 32);
-        kit.prism(field, 0, 0.008, 0, rx * 0.8, rz * 0.8, 0.01, 32);
-        kit.prism(band, 0, 0.01, 0, rx * 0.55, rz * 0.55, T, 32);
+        kit.prism(band, 0, 0, 0, rx, rz, b1, 32);
+        kit.prism(field, 0, b1, 0, rx * 0.8, rz * 0.8, b2, 32);
+        kit.prism(band, 0, b2, 0, rx * 0.55, rz * 0.55, T, 32);
       }
       return kit.build();
     }
@@ -77,35 +81,39 @@ export const rug: Generator<RugParams> = {
         }
       }
     }
-    if (pattern === 'border') {
+    if (photo) {
+      // the photo lies on a slab in the colour of the rug (the colour shows at the edge and where no photo is available)
+      kit.box(field, x0, 0, z0, x1, T - 0.0004, z1, 0);
+      kit.topFace(photoMaterial(colour ?? 'cream'), x0, z0, x1, z1, T);
+    } else if (pattern === 'border') {
       const b = Math.min(0.06, (x1 - x0) / 4, (z1 - z0) / 4);
-      kit.box(band, x0, 0, z0, x1, 0.008, z1);
-      kit.box(field, x0 + b, 0.008, z0 + b, x1 - b, T, z1 - b);
-      kit.box(band, x0, 0.008, z0, x1, T, z0 + b);
-      kit.box(band, x0, 0.008, z1 - b, x1, T, z1);
-      kit.box(band, x0, 0.008, z0 + b, x0 + b, T, z1 - b);
-      kit.box(band, x1 - b, 0.008, z0 + b, x1, T, z1 - b);
+      kit.box(band, x0, 0, z0, x1, b1, z1);
+      kit.box(field, x0 + b, b1, z0 + b, x1 - b, T, z1 - b);
+      kit.box(band, x0, b1, z0, x1, T, z0 + b);
+      kit.box(band, x0, b1, z1 - b, x1, T, z1);
+      kit.box(band, x0, b1, z0 + b, x0 + b, T, z1 - b);
+      kit.box(band, x1 - b, b1, z0 + b, x1, T, z1 - b);
     } else if (pattern === 'plain') {
       kit.box(field, x0, 0, z0, x1, T, z1);
     } else if (pattern === 'stripes') {
-      kit.box(field, x0, 0, z0, x1, 0.008, z1);
+      kit.box(field, x0, 0, z0, x1, b1, z1);
       const across = alongX ? z1 - z0 : x1 - x0;
       const n = Math.max(3, Math.min(25, Math.round(across / 0.18))) | 1; // odd: both edges are the same colour
       for (let i = 0; i < n; i++) {
         const u0 = i / n;
         const u1 = (i + 1) / n;
         const m = i % 2 === 0 ? band : field;
-        if (alongX) kit.box(m, x0, 0.008, z0 + u0 * (z1 - z0), x1, T, z0 + u1 * (z1 - z0));
-        else kit.box(m, x0 + u0 * (x1 - x0), 0.008, z0, x0 + u1 * (x1 - x0), T, z1);
+        if (alongX) kit.box(m, x0, b1, z0 + u0 * (z1 - z0), x1, T, z0 + u1 * (z1 - z0));
+        else kit.box(m, x0 + u0 * (x1 - x0), b1, z0, x0 + u1 * (x1 - x0), T, z1);
       }
     } else {
-      kit.box(field, x0, 0, z0, x1, 0.008, z1);
+      kit.box(field, x0, 0, z0, x1, b1, z1);
       const nx = Math.max(2, Math.min(10, Math.round((x1 - x0) / 0.3)));
       const nz = Math.max(2, Math.min(10, Math.round((z1 - z0) / 0.3)));
       for (let i = 0; i < nx; i++) {
         for (let k = 0; k < nz; k++) {
           const m = (i + k) % 2 === 0 ? band : field;
-          kit.box(m, x0 + (i / nx) * (x1 - x0), 0.008, z0 + (k / nz) * (z1 - z0), x0 + ((i + 1) / nx) * (x1 - x0), T, z0 + ((k + 1) / nz) * (z1 - z0));
+          kit.box(m, x0 + (i / nx) * (x1 - x0), b1, z0 + (k / nz) * (z1 - z0), x0 + ((i + 1) / nx) * (x1 - x0), T, z0 + ((k + 1) / nz) * (z1 - z0));
         }
       }
     }

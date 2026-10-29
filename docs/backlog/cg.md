@@ -6,6 +6,16 @@ User decisions: pluggable image provider, local Flux first; asset gaps → searc
 
 Status: CG0 spike done; CG1 to CG4 implemented (CG4: `record_reference`, `match_reference`, `gap_report`, descriptor-driven generators, concept items); CG5 implemented (`score_against_reference`, critic role, prompt `close_the_gap`, sidecar `/aesthetic`); CG7 runner implemented (`design-flat.mjs --close-gap`, validated with `--dry` only; the real run waits for the user).
 
+### Multi-view, zones, layout intent (CG8)
+- A target is a room or a zone (`sejour:living`, `sejour:kitchen`, `sdb`). Each has named views (cameras) derived from the geometry in
+  `apps/mcp/src/reference/views.ts` (media wall, balcony doors, wide diagonal, kitchen front/side, focus/reverse), overridable with
+  `Room.views` in the scene. `describe_room {plan:true}` lists zones, views and the layout intent.
+- One reference and descriptor per view (hero n=2, others n=1: ~90 s per image on the Mac); `score_against_reference {all:true}` renders
+  every view and aggregates by view weight, diff lines tagged `[view]`, "accept gap" lines last.
+- The layout is decided from the room before any image (sofa facing the media wall via `at` + `facing`, landings kept free); the pieces it
+  fixes are scored for presence only. The runner keeps the best scored iteration (per-iteration scene snapshots), chains targets and
+  writes `final-scene.flat.json`; `--publish <url>` backs up and PUTs it (opt-in).
+
 ### The loop (per room, orchestrated by a new MCP prompt `close_the_gap {roomId, styleId, iterations}`)
 1. **Intent.** Run `describe_room` plus the style file; the lead writes a short design brief.
 2. **Control passes** of the current room from 1–2 fixed cameras: depth, normals, edge/line art, an **ID/segmentation

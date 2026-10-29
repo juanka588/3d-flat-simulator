@@ -180,6 +180,11 @@ exports[`snapshots (the contract) > prompts/list 1`] = `
         "required": true,
       },
       {
+        "description": "Floor zone to work on (living, kitchen); default: all zones.",
+        "name": "zone",
+        "required": false,
+      },
+      {
         "description": "Most score-and-fix rounds, 1-6 (default 3).",
         "name": "iterations",
         "required": false,
@@ -190,7 +195,7 @@ exports[`snapshots (the contract) > prompts/list 1`] = `
         "required": false,
       },
     ],
-    "description": "One room: generate a reference image, read it, furnish with real products, then score our render against it and fix, until the gain is under 0.02. Ends with the gap report, the bill of materials and a labelled visualisation.",
+    "description": "One room or zone: decide the layout, generate a reference per camera view, read them, furnish with real products, then score our render against all views and fix, keeping the best iteration. Ends with the gap report, the bill of materials and a labelled visualisation.",
     "icons": undefined,
     "name": "close_the_gap",
     "title": "Close the gap to a generated reference",
@@ -4174,6 +4179,10 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "description": "Local date YYYY-MM-DD at the flat; default: the session lighting date.",
           "type": "string",
         },
+        "plan": {
+          "description": "Add zones, camera views and the layout intent (close the gap).",
+          "type": "boolean",
+        },
         "roomId": {
           "description": "Room id (see list_rooms).",
           "type": "string",
@@ -4473,7 +4482,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "openWorldHint": false,
       "readOnlyHint": true,
     },
-    "description": "Real products and library models that look like a part of a reference image ({jobId,index} or {path}; box in pixels) or like a text. Returns id, score, price, dims, has3d and a 160px photo each. Products are placeable; assets are shapes for place_item mesh. Needs the image service.",
+    "description": "Real products and library models like a crop of a reference image (box in px) or a text. Returns id, score, price, dims, has3d, 160px photo. Products are placeable; assets are shapes for place_item mesh. Needs the image service.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -5315,7 +5324,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "openWorldHint": false,
       "readOnlyHint": true,
     },
-    "description": "AI image of a room in a style (eye level). reference: photoreal target that follows our walls, windows and doors; match real products to it. visualisation: photo-style edit of our current render. Labelled, never an asset. About 90 s per image: if not done after waitS, call again with the jobId.",
+    "description": "AI image of a room in a style. reference: photoreal target that follows our walls, windows and doors. visualisation: photo-style edit of our render. Labelled, never an asset. ~90 s per image: if not done after waitS, call again with jobId.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -5335,8 +5344,13 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "description": "As in render_view (walk camera).",
         },
         "jobId": {
-          "description": "Collect a job that was still running.",
           "maxLength": 64,
+          "minLength": 1,
+          "type": "string",
+        },
+        "layout": {
+          "description": "Layout in words; default: the room's intent.",
+          "maxLength": 500,
           "minLength": 1,
           "type": "string",
         },
@@ -5350,13 +5364,11 @@ exports[`snapshots (the contract) > tools/list 1`] = `
         },
         "n": {
           "default": 1,
-          "description": "reference only.",
           "maximum": 4,
           "minimum": 1,
           "type": "integer",
         },
         "roomId": {
-          "description": "Required unless jobId.",
           "maxLength": 64,
           "minLength": 1,
           "type": "string",
@@ -5367,7 +5379,12 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "type": "integer",
         },
         "styleId": {
-          "description": "Required unless jobId.",
+          "maxLength": 40,
+          "minLength": 1,
+          "type": "string",
+        },
+        "view": {
+          "description": "View id from describe_room.",
           "maxLength": 40,
           "minLength": 1,
           "type": "string",
@@ -5390,7 +5407,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "openWorldHint": false,
       "readOnlyHint": true,
     },
-    "description": "Store your reading of a reference image as a descriptor (exact shape: prompt reference_reader). Validated with located errors. Each item gets a plan position from our depth. Next: match_reference.",
+    "description": "Store your reading of a reference image (shape: prompt reference_reader). Validated; items get plan positions from our depth.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -5427,7 +5444,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "openWorldHint": false,
       "readOnlyHint": true,
     },
-    "description": "Per recorded item: top real products (text + CLIP, photo of the best, price, has3d), a fit verdict good|approx|none with reasons (shape, colour, size, missing), and suggestGenerator, a CONCEPT stand-in (not purchasable; place_item concept:true).",
+    "description": "Per recorded item: top real products (text + CLIP, photo, price, has3d), verdict good|approx|none with reasons, and suggestGenerator, a CONCEPT stand-in (place_item concept:true).",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -5466,7 +5483,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "openWorldHint": false,
       "readOnlyHint": true,
     },
-    "description": "Per item: target, best real match, the gap, the concept alternative and a search term. Markdown plus JSON; saved to saveTo or the design output folder.",
+    "description": "Per item: target, best match, gap, concept alternative, search term. Markdown + JSON; saved to saveTo or the design folder.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -5498,10 +5515,13 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "openWorldHint": false,
       "readOnlyHint": true,
     },
-    "description": "Score our room against a reference image, rendered from its camera: palette ΔE per role, layout IoU (needs record_reference), CLIP, aesthetic; overall 0-1; diff list.",
+    "description": "Score our room against a reference, from its camera: palette, layout IoU (record_reference first), CLIP, aesthetic; overall 0-1; diff list. all: every view of the room, weighted.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
+        "all": {
+          "type": "boolean",
+        },
         "index": {
           "maximum": 3,
           "minimum": 0,
@@ -5511,7 +5531,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "type": "string",
         },
         "pose": {
-          "description": "As render_view. Default: the reference camera.",
+          "description": "As render_view.",
           "type": "object",
         },
         "roomId": {

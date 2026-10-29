@@ -111,14 +111,29 @@ export interface BuiltPrompt {
   roomType: RoomType;
 }
 
+/** What a multi-view reference adds to the prompt (see `reference/views.ts`). */
+export interface ReferenceExtras {
+  /** `kitchen`: the kitchen zone of a larger room, drawn with the kitchen template. */
+  zone?: 'kitchen' | undefined;
+  /** The open kitchen is in the picture of a living view: do not forbid it. */
+  kitchenVisible?: boolean | undefined;
+  /** What the camera looks at (words only). */
+  viewHint?: string | undefined;
+  /** The layout decided from the room, in plain words: the picture shows it, the camera does not decide it. */
+  layout?: string | undefined;
+}
+
 /** Text-to-image prompt for the control-guided reference. */
-export function buildReferencePrompt(meta: StyleMeta, roomType: RoomType): BuiltPrompt {
-  const t = ROOM_TEMPLATES[roomType] ?? ROOM_TEMPLATES.other;
+export function buildReferencePrompt(meta: StyleMeta, roomType: RoomType, extra: ReferenceExtras = {}): BuiltPrompt {
+  const kitchenZone = extra.zone === 'kitchen';
+  const t = ROOM_TEMPLATES[kitchenZone ? 'kitchen' : roomType] ?? ROOM_TEMPLATES.other;
   const forms = t.useForms ? meta.forms.filter((f) => !(roomType === 'bedroom' || roomType === 'office' ? SEATING.test(f) : false)) : [];
   const textiles = t.textiles ? meta.textiles.filter((x) => t.textiles!.test(x)) : [];
   const parts = [
-    `Professional interior design photograph of ${t.subject}, ${meta.name} style: ${lc(meta.summary).replace(/\.$/, '')}.`,
+    `Professional interior design photograph of ${kitchenZone ? 'the open kitchen of a flat' : t.subject}${extra.kitchenVisible && !kitchenZone ? ' with an open kitchen in the background' : ''}, ${meta.name} style: ${lc(meta.summary).replace(/\.$/, '')}.`,
     `It contains ${t.furnishings}.`,
+    extra.viewHint ?? '',
+    extra.layout ?? '',
     `Palette: ${paletteWords(meta).join(', ')}.`,
     `Materials: ${clip(meta.materials, 4)}.`,
     forms.length ? `Shapes: ${clip(forms, 3)}.` : '',
@@ -127,7 +142,8 @@ export function buildReferencePrompt(meta: StyleMeta, roomType: RoomType): Built
     `Lighting: ${tone(meta.lighting.kelvin)}, ${clip(meta.lighting.layers, 2)}.`,
     'Photorealistic, natural materials, sharp focus, shot on a 24 mm lens, architectural magazine quality. The room keeps exactly the layout, walls, windows and doors of the line drawing.',
   ].filter(Boolean);
-  const avoid = [t.avoid, ...meta.avoid.slice(0, 3).map(lc)].join(', ');
+  const avoidBase = extra.kitchenVisible && !kitchenZone ? t.avoid.replace(/,?\s*kitchen counter/, '') : t.avoid;
+  const avoid = [avoidBase, ...meta.avoid.slice(0, 3).map(lc)].filter(Boolean).join(', ');
   return { prompt: parts.join(' '), negativePrompt: `${BASE_NEGATIVE}, ${avoid}`, roomType };
 }
 

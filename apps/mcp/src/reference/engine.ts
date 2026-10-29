@@ -18,6 +18,10 @@ export interface StoredReference {
   index: number;
   roomId?: string | undefined;
   styleId?: string | undefined;
+  /** The named view (and its zone and weight) the image was made for, when it was. */
+  view?: string | undefined;
+  zone?: string | undefined;
+  weight?: number | undefined;
   descriptor: ReferenceDescriptor;
   /** Plan hints by item id (from our depth), or why there are none. */
   plan: Record<string, PlanHint | null>;
@@ -41,6 +45,12 @@ export function putReference(r: StoredReference): void {
 }
 export const getReference = (jobId: string, index: number): StoredReference | undefined => store.get(referenceKey(jobId, index));
 export const clearReferences = (): void => store.clear();
+/** The latest recorded reference of each view of a room's zone (the target set that is scored together). */
+export function referencesOfRoom(roomId: string, zone: string | undefined): StoredReference[] {
+  const byView = new Map<string, StoredReference>();
+  for (const r of store.values()) if (r.roomId === roomId && r.view && (zone === undefined || r.zone === zone)) byView.set(r.view, r);
+  return [...byView.values()];
+}
 
 // -- matcher -------------------------------------------------------------------------------------------------------------
 

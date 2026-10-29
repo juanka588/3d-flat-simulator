@@ -1,5 +1,6 @@
 import type { Dims } from '../primitives';
 import type { ProductCategory } from '../products';
+import { colourFromWords } from './colour-words';
 
 // ---------------------------------------------------------------------------------------------
 // Default parametric shape per product category
@@ -9,15 +10,31 @@ type Params = Record<string, number | string | boolean>;
 const foldName = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
 /** Product names of a kitchen island (French and English). */
 const ISLAND_NAME = /\b(ilot|island)\b/;
+/** Product names of a sheer curtain (voile). */
+const SHEER_NAME = /\b(voilage|voile|sheer|transparent)/;
+/** Kind of lamp a product name and height suggest: hanging, wall, floor or table. */
+function lampKind(words: string, h: number): 'hanging' | 'wall' | 'floor' | 'table' {
+  if (/suspension|pendant|plafonnier|ceiling/.test(words)) return 'hanging';
+  if (/applique|wall/.test(words)) return 'wall';
+  if (/lampadaire|floor|liseuse|standing/.test(words)) return 'floor';
+  return h >= 1 ? 'floor' : 'table';
+}
+/** Product names of a kitchen sink unit and of a pedestal basin. */
+const SINK_NAME = /\b(evier|sink)\b/;
+const PEDESTAL_NAME = /colonne|pedestal|pied/;
 const clampInt = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, Math.round(v)));
 
 /**
  * The generator and params that best stand for a product of `category` at exact `dims` (D6), or `undefined`
- * for categories without a sensible parametric shape (lamp, appliance, decor, other). The params are NOT
+ * for categories without a sensible parametric shape (appliance, decor, other). `name` and `colour` (the chosen variant) give the colour. The params are NOT
  * validated here; `resolveMesh` checks them against the registry.
  */
-export function defaultParametricFor(category: ProductCategory, dims: Dims, name?: string): { generator: string; params: Params } | undefined {
+export function defaultParametricFor(category: ProductCategory, dims: Dims, name?: string, colour?: string): { generator: string; params: Params } | undefined {
   const { w, d, h } = dims;
+  // Colour of the stand-in (a palette name from the product's colour words); absent when the words name none.
+  const named = colourFromWords(name, colour);
+  const tint: Params = named !== undefined ? { colour: named } : {};
+  const words = name !== undefined ? foldName(name) : '';
   switch (category) {
     case 'bed':
       return { generator: 'bed', params: { w, l: d, h, headboard: true } };
@@ -44,9 +61,23 @@ export function defaultParametricFor(category: ProductCategory, dims: Dims, name
     case 'sofa':
       return { generator: 'sofa', params: { w, d, h, seats: clampInt((w - 0.3) / 0.65, 1, 6) } };
     case 'rug':
-      return { generator: 'rug', params: { w, d } };
+      return { generator: 'rug', params: { w, d, h, photo: true, ...tint } };
     case 'mirror':
-      return { generator: 'mirror', params: { w, h } };
+      return { generator: 'mirror', params: { w, d, h } };
+    case 'cushion':
+      return { generator: 'cushion', params: { w, d, h, photo: true, ...tint } };
+    case 'throw':
+      return { generator: 'throwBlanket', params: { w, d, h, photo: true, ...tint } };
+    case 'curtain':
+      return { generator: 'curtains', params: { w, d, h, sheer: SHEER_NAME.test(words), tint: true, ...tint } };
+    case 'frame':
+      return { generator: 'frame', params: { w, d, h, photo: true, ...tint } };
+    case 'plant':
+      return { generator: 'plant', params: { w, d, h, ...tint } };
+    case 'vase':
+      return { generator: 'vase', params: { w, d, h, tint: true, ...tint } };
+    case 'lamp':
+      return { generator: 'lamp', params: { w, d, h, kind: lampKind(words, h), tint: true, ...tint } };
     case 'wall_cabinet':
       return { generator: 'kitchenWall', params: { w, d, h, doors: clampInt(w / 0.45, 1, 4) } };
     case 'kitchen':
@@ -62,21 +93,24 @@ export function defaultParametricFor(category: ProductCategory, dims: Dims, name
     case 'tall_cabinet':
     case 'appliance_housing':
       return { generator: 'wardrobe', params: { w, d, h, doors: clampInt(w / 0.5, 1, 8), doorType: 'hinged' } };
-    case 'lamp':
     case 'washbasin':
+      // The washbasin generator only covers bathroom sizes; anything else (a tall column, a wall basin) is a plain cabinet.
+      if (w >= 0.3 && w <= 1.8 && d >= 0.3 && d <= 0.8 && h >= 0.6 && h <= 1) {
+        return { generator: 'washbasin', params: { kind: SINK_NAME.test(words) ? 'sink' : PEDESTAL_NAME.test(words) ? 'pedestal' : 'vanity', w, d, h, ...tint } };
+      }
+      return { generator: 'sideboard', params: { w, d, h, doors: clampInt(w / 0.6, 0, 4), drawers: 0 } };
     case 'towel_rail':
-    case 'bath_accessory':
-    case 'shower_curtain':
+      return { generator: 'wallFitting', params: { w, d, h, kind: 'rail', ...tint } };
     case 'hook':
+      return { generator: 'wallFitting', params: { w, d, h, kind: 'hook', ...tint } };
+    case 'bath_accessory':
+      return { generator: 'wallFitting', params: { w, d, h, kind: 'accessory', ...tint } };
+    case 'shower_curtain':
+      return { generator: 'curtains', params: { w, d, h, sheer: false, panels: 1, tint: true, ...tint } };
     case 'storage':
+      return { generator: 'basket', params: { w, d, h, ...tint } };
     case 'appliance':
     case 'decor':
-    case 'curtain':
-    case 'plant':
-    case 'vase':
-    case 'frame':
-    case 'cushion':
-    case 'throw':
     case 'other':
       return undefined;
   }

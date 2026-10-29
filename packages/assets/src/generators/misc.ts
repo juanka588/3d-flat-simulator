@@ -16,6 +16,7 @@ export const MIRROR_DEPTH = 0.03;
 const mirrorParams = z.strictObject({
   w: metres('Width of the mirror including its frame.', 0.6, 0.2, 2),
   h: metres('Height of the mirror including its frame.', 1.6, 0.2, 2.4),
+  d: metres('Depth of the mirror including its frame.', MIRROR_DEPTH, 0.005, 0.15),
   frame: metres('Width of the frame border.', 0.03, 0.005, 0.1),
   finish: finish('wood'),
 });
@@ -26,17 +27,16 @@ export const mirror: Generator<MirrorParams> = {
   label: 'Framed mirror, 3 cm deep (hang it with the item elevation, mount "wall")',
   category: 'mirror',
   params: mirrorParams,
-  describeParams: ({ w, h }) => ({ dims: { w, d: MIRROR_DEPTH, h }, anchors: boxAnchors(w, MIRROR_DEPTH, h), clearance: { front: 0.3, back: 0 } }),
-  generate({ w, h, frame, finish: f }) {
+  describeParams: ({ w, d, h }) => ({ dims: { w, d, h }, anchors: boxAnchors(w, d, h), clearance: { front: 0.3, back: 0 } }),
+  generate({ w, d, h, frame, finish: f }) {
     const kit = new Kit();
     const mat = finishMaterial(f);
-    const d = MIRROR_DEPTH;
     const fr = Math.min(frame, w / 2 - 0.01, h / 2 - 0.01);
     kit.box(mat, -w / 2, 0, -d / 2, -w / 2 + fr, h, d / 2);
     kit.box(mat, w / 2 - fr, 0, -d / 2, w / 2, h, d / 2);
     kit.box(mat, -w / 2 + fr, 0, -d / 2, w / 2 - fr, fr, d / 2);
     kit.box(mat, -w / 2 + fr, h - fr, -d / 2, w / 2 - fr, h, d / 2);
-    kit.box(ITEM_MATERIALS.mirror, -w / 2 + fr, fr, -d / 2 + 0.005, w / 2 - fr, h - fr, d / 2 - 0.008);
+    kit.box(ITEM_MATERIALS.mirror, -w / 2 + fr, fr, -d / 2 + Math.min(0.005, d / 4), w / 2 - fr, h - fr, d / 2 - Math.min(0.008, d / 3));
     return kit.build();
   },
 };

@@ -6,10 +6,12 @@ import { bed, bookshelf, chair, desk, sofa, table } from './living';
 import { mirror, tv } from './misc';
 import { RUG_THICKNESS, rug } from './rug';
 import { curtains, pendant } from './soft';
+import { basket, wallFitting } from './fittings';
+import { cushion, frame, lamp, plant, throwBlanket, vase } from './standins';
 
 export { GENERATOR_OWNER_ID } from './kit';
 export { MIRROR_DEPTH } from './misc';
 export { RUG_THICKNESS };
 
 /** Every parametric generator, in id order (D6: 15 furniture generators plus the TV, then the fixed bathroom and kitchen ware). */
-export const ALL_GENERATORS: readonly AnyGenerator[] = [bathtub, bed, bookshelf, chair, cooktop, curtains, desk, fridge, island, kitchenBase, kitchenWall, mirror, nightstand, pendant, rug, sideboard, sofa, table, toilet, tv, tvUnit, wardrobe, washbasin];
+export const ALL_GENERATORS: readonly AnyGenerator[] = [basket, bathtub, bed, bookshelf, chair, cooktop, curtains, cushion, desk, frame, fridge, island, kitchenBase, kitchenWall, lamp, mirror, nightstand, pendant, plant, rug, sideboard, sofa, table, throwBlanket, toilet, tv, tvUnit, vase, wallFitting, wardrobe, washbasin];

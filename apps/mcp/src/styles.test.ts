@@ -226,7 +226,7 @@ describe('critic role and close_the_gap (CG5)', () => {
     expect(text).toContain('1800 EUR');
     expect(text).toContain('at most 4 iterations');
     expect(text).toContain('less than 0.02');
-    const order = ['1. Checkpoint', '2. Reference', '3. Read it BEFORE', '4. Finishes and lighting', '5. Furniture', '6. `validate_layout`', '7. Score', '8. Repeat', '9. Finish', '10. Report'];
+    const order = ['1. Checkpoint', '2. Layout first', '3. References', '4. Read each BEFORE', '5. Finishes and lighting', '6. Furniture', '7. `validate_layout`', '8. Score', '9. Repeat', '10. Finish', '11. Report'];
     const at = order.map((o) => text.indexOf(o));
     expect(at.every((i) => i >= 0), JSON.stringify(at)).toBe(true);
     expect([...at].sort((a, b) => a - b)).toEqual(at);

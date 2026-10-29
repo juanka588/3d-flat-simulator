@@ -80,15 +80,16 @@ export function registerStylePrompts(server: McpServer): void {
     'close_the_gap',
     {
       title: 'Close the gap to a generated reference',
-      description: 'One room: generate a reference image, read it, furnish with real products, then score our render against it and fix, until the gain is under 0.02. Ends with the gap report, the bill of materials and a labelled visualisation.',
+      description: 'One room or zone: decide the layout, generate a reference per camera view, read them, furnish with real products, then score our render against all views and fix, keeping the best iteration. Ends with the gap report, the bill of materials and a labelled visualisation.',
       argsSchema: z.object({
         roomId: z.string().max(64).describe('Room id.'),
         styleId: styleIdArg,
+        zone: z.string().max(40).optional().describe('Floor zone to work on (living, kitchen); default: all zones.'),
         iterations: z.string().regex(/^[1-6]$/).optional().describe('Most score-and-fix rounds, 1-6 (default 3).'),
         budgetEur: budgetArg,
       }),
     },
-    (args) => ({ messages: closeTheGapMessages({ roomId: args.roomId, styleId: args.styleId, iterations: num(args.iterations), budgetEur: num(args.budgetEur) }) }),
+    (args) => ({ messages: closeTheGapMessages({ roomId: args.roomId, styleId: args.styleId, zone: args.zone, iterations: num(args.iterations), budgetEur: num(args.budgetEur) }) }),
   );
   server.registerPrompt(
     'list_styles',

@@ -125,6 +125,52 @@ describe('layout', () => {
     expect(diffList({ layout: r })).toEqual(['missing: jute rug (rug, importance 4)', expect.stringMatching(/^misplaced: floor lamp/), 'extra: armchair (armchair)']);
   });
 
+  it('with match results the list puts the actionable first and moves gaps with no match to the end', () => {
+    const tgt = [
+      { id: 'cushion', category: 'cushion', subtype: 'green velvet cushion', box: [10, 10, 20, 20] as Box, importance: 2 },
+      { id: 'sideboard', category: 'sideboard', subtype: 'low sideboard', box: [30, 10, 60, 30] as Box, importance: 4 },
+      { id: 'mirror', category: 'mirror', subtype: 'floor mirror', box: [70, 10, 80, 60] as Box, importance: 3 },
+      { id: 'bust', category: 'other', subtype: 'marble bust', box: [80, 70, 90, 90] as Box, importance: 5 },
+    ];
+    const r = compareLayouts(tgt, [], size);
+    const palette = comparePalettes(
+      [{ lab: hexToLab('#a8b5a0'), hex: '#a8b5a0', area: 0.6 }, { lab: hexToLab('#3a3a3a'), hex: '#3a3a3a', area: 0.4 }],
+      [{ lab: hexToLab('#c9a9a6'), hex: '#c9a9a6', area: 0.6 }, { lab: hexToLab('#3a3a3a'), hex: '#3a3a3a', area: 0.4 }],
+      [{ hex: '#a8b5a0', role: 'wall', areaPct: 60 }, { hex: '#3a3a3a', role: 'floor', areaPct: 40 }],
+    );
+    const matches = new Map([
+      ['cushion', { verdict: 'none' as const, concept: false }],
+      ['sideboard', { verdict: 'good' as const, concept: true }],
+      ['mirror', { verdict: 'approx' as const, concept: true }],
+      ['bust', { verdict: 'none' as const, concept: false }],
+    ]);
+    const without = diffList({ layout: r, palette });
+    expect(without[0]).toMatch(/^missing: marble bust/); // the old order: by importance, whatever can be done about it
+    const list = diffList({ layout: r, palette, matches });
+    // urgent palette, then what a product can fix (by importance), then the rest; the gaps to accept last
+    expect(list[0]).toMatch(/^wall palette ΔE/);
+    expect(list[1]).toMatch(/^missing: low sideboard .*-> good real product/);
+    expect(list[2]).toMatch(/^missing: floor mirror .*-> approx real product/);
+    expect(list.slice(-2).every((l) => l.startsWith('accept gap'))).toBe(true);
+    expect(list.slice(-2).map((l) => l.split(':')[1]!.trim().split(' (')[0])).toEqual(['marble bust', 'green velvet cushion']);
+    expect(list.some((l) => l.startsWith('missing: marble bust'))).toBe(false);
+    // a stand-in is worth it only from importance 4
+    expect(diffList({ layout: r, matches: new Map([['cushion', { verdict: 'none' as const, concept: true }]]) }).find((l) => /cushion/.test(l))).toMatch(/^accept gap/);
+  });
+
+  it('pieces the layout intent fixes count for presence only and are never misplaced', () => {
+    const tgt = [{ id: 'sofa', category: 'sofa', subtype: 'sofa', box: [200, 100, 300, 200] as Box, importance: 5 }];
+    const ours = [{ id: 'i-sofa', category: 'sofa', name: 'KIVIK', box: [10, 10, 60, 60] as Box, pixels: 900 }];
+    expect(compareLayouts(tgt, ours, size).score).toBe(0);
+    const fixed = compareLayouts(tgt, ours, size, new Set(['sofa']));
+    expect(fixed.score).toBe(1);
+    expect(fixed.intentFixed).toEqual(['sofa']);
+    // absent: still missing
+    expect(compareLayouts(tgt, [], size, new Set(['sofa'])).missing).toHaveLength(1);
+    const moved = compareLayouts(tgt, ours, size);
+    expect(diffList({ layout: moved, intentCategories: new Set(['sofa']) })).toEqual([]);
+  });
+
   it('a perfect layout scores 1 and an empty room scores 0', () => {
     const same = target.map((t) => ({ id: `o-${t.id}`, category: t.category, name: t.subtype, box: t.box, pixels: 100 }));
     expect(compareLayouts(target, same, size).score).toBe(1);

@@ -218,13 +218,26 @@ export interface LayoutResult {
   misplaced: { id: string; category: string; subtype: string; importance: number; bestIou: number }[];
   /** Our items that match no target item. */
   extra: { id: string; category: string; name: string }[];
+  /** Target items scored for presence only (the layout intent decides where they go): ids. */
+  intentFixed?: string[];
 }
 
 /** A pair of boxes of one category counts as the same item from this IoU on. */
 export const MATCH_IOU = 0.1;
 const EXTRA_PENALTY = 0.03;
 
-export function compareLayouts(target: RefItem[], ours: OurItem[], size: { width: number; height: number }): LayoutResult {
+export function compareLayouts(targetIn: RefItem[], ours: OurItem[], size: { width: number; height: number }, intentCategories?: ReadonlySet<string>): LayoutResult {
+  // Pieces whose place the layout intent decides count when our room has one of that category, wherever the image drew it.
+  const intentFixed: string[] = [];
+  const taken = new Set<string>();
+  const target = targetIn.map((t) => {
+    if (!intentCategories?.has(t.category)) return t;
+    const mine = ours.filter((o) => o.category === t.category && !taken.has(o.id)).sort((a, b) => b.pixels - a.pixels)[0];
+    if (!mine) return t;
+    taken.add(mine.id);
+    intentFixed.push(t.id);
+    return { ...t, box: mine.box };
+  });
   const pairs: { t: number; o: number; iou: number }[] = [];
   target.forEach((t, ti) =>
     ours.forEach((o, oi) => {
@@ -273,7 +286,7 @@ export function compareLayouts(target: RefItem[], ours: OurItem[], size: { width
     const ob = ours.filter((o) => o.category === c);
     return { category: c, iou: round(unionIou(tb.map((t) => t.box), ob.map((o) => o.box), size)), target: tb.length, ours: ob.length };
   });
-  return { score: round(clamp01(base - EXTRA_PENALTY * extra.length), 4), perCategory, matched, missing, misplaced, extra };
+  return { score: round(clamp01(base - EXTRA_PENALTY * extra.length), 4), perCategory, matched, missing, misplaced, extra, ...(intentFixed.length ? { intentFixed } : {}) };
 }
 
 // -- instance boxes ------------------------------------------------------------------------------------------------------
@@ -319,23 +332,55 @@ export interface DiffInput {
   layout?: LayoutResult | undefined;
   clip?: { cosine: number } | undefined;
   aesthetic?: { ours: number; target: number } | undefined;
+  /**
+   * What the matcher found per target item (match_reference), when it ran. With it the list puts what can be fixed first and
+   * moves "missing" items that have no real match and no stand-in to the end, marked "accept gap".
+   */
+  matches?: ReadonlyMap<string, { verdict: 'good' | 'approx' | 'none'; concept: boolean }> | undefined;
+  /** Categories the layout intent fixes (their position comes from the room, not from the image): never reported as misplaced. */
+  intentCategories?: ReadonlySet<string> | undefined;
 }
 
 /** ΔE at which a role is listed; layout items above this importance lead the list. */
 export const ROLE_DE_REPORT = 8;
+/** ΔE from which a palette fault outranks every layout item. */
+export const ROLE_DE_URGENT = 12;
+/** A concept stand-in is worth placing from this importance. */
+export const CONCEPT_MIN_IMPORTANCE = 4;
 
-/** Short, ordered fixes' raw material: "wall palette ΔE 18 (target sage #A8B5A0)", "missing: rug (importance 4)", "extra: armchair". */
+/**
+ * Short, ordered fixes' raw material: "wall palette ΔE 18 (target sage #A8B5A0)", "missing: rug (importance 4)", "extra: armchair".
+ * Without `matches` the order is: missing, misplaced, palette, extra, look. With them: urgent palette, then the layout items that
+ * a product or a stand-in can fix, then the rest of the palette, extras and the look, and last the gaps to accept.
+ */
 export function diffList(d: DiffInput): string[] {
-  const out: string[] = [];
-  const missing = [...(d.layout?.missing ?? [])].sort((a, b) => b.importance - a.importance);
-  for (const m of missing) out.push(`missing: ${m.subtype} (${m.category}, importance ${m.importance})`);
-  const misplaced = [...(d.layout?.misplaced ?? [])].sort((a, b) => b.importance - a.importance);
-  for (const m of misplaced) out.push(`misplaced: ${m.subtype} (${m.category}, importance ${m.importance}, overlap ${m.bestIou} with the target spot)`);
   const roles = [...(d.palette?.roles ?? [])].filter((r) => r.deltaE >= ROLE_DE_REPORT).sort((a, b) => b.deltaE * b.areaPct - a.deltaE * a.areaPct);
-  for (const r of roles) out.push(`${r.role} palette ΔE ${Math.round(r.deltaE)} (target ${r.targetHex}, ours ${r.oursHex})`);
-  if (!d.palette?.roles.length && d.palette && d.palette.meanDeltaE >= ROLE_DE_REPORT) out.push(`palette ΔE ${Math.round(d.palette.meanDeltaE)} overall (main target colours ${d.palette.pairs.slice(0, 3).map((p) => p.target.hex).join(' ')})`);
-  for (const e of d.layout?.extra ?? []) out.push(`extra: ${e.name || e.category} (${e.category})`);
-  if (d.clip && d.clip.cosine < 0.6) out.push(`overall look differs from the target (CLIP similarity ${round(d.clip.cosine, 2)})`);
-  if (d.aesthetic && d.aesthetic.ours < d.aesthetic.target - 0.5) out.push(`aesthetic score ${round(d.aesthetic.ours, 1)} vs target ${round(d.aesthetic.target, 1)}`);
-  return out;
+  const roleLine = (r: (typeof roles)[number]) => `${r.role} palette ΔE ${Math.round(r.deltaE)} (target ${r.targetHex}, ours ${r.oursHex})`;
+  const overall = !d.palette?.roles.length && d.palette && d.palette.meanDeltaE >= ROLE_DE_REPORT ? [`palette ΔE ${Math.round(d.palette.meanDeltaE)} overall (main target colours ${d.palette.pairs.slice(0, 3).map((p) => p.target.hex).join(' ')})`] : [];
+  const extra = (d.layout?.extra ?? []).map((e) => `extra: ${e.name || e.category} (${e.category})`);
+  const look: string[] = [];
+  if (d.clip && d.clip.cosine < 0.6) look.push(`overall look differs from the target (CLIP similarity ${round(d.clip.cosine, 2)})`);
+  if (d.aesthetic && d.aesthetic.ours < d.aesthetic.target - 0.5) look.push(`aesthetic score ${round(d.aesthetic.ours, 1)} vs target ${round(d.aesthetic.target, 1)}`);
+  const byImportance = <T extends { importance: number }>(xs: T[] | undefined) => [...(xs ?? [])].sort((a, b) => b.importance - a.importance);
+  const fixed = d.intentCategories;
+  const misplaced = byImportance(d.layout?.misplaced).filter((m) => !fixed?.has(m.category));
+  const line = (kind: string, m: { subtype: string; category: string; importance: number }, tail = '') => `${kind}: ${m.subtype} (${m.category}, importance ${m.importance}${tail})`;
+  const overlap = (m: { bestIou: number }) => `, overlap ${m.bestIou} with the target spot`;
+
+  if (!d.matches) {
+    return [...byImportance(d.layout?.missing).map((m) => line('missing', m)), ...misplaced.map((m) => line('misplaced', m, overlap(m))), ...roles.map(roleLine), ...overall, ...extra, ...look];
+  }
+  const verdictOf = (id: string) => d.matches!.get(id);
+  const actionable = (m: { id: string; importance: number }) => {
+    const v = verdictOf(m.id);
+    return v ? v.verdict !== 'none' || (v.concept && m.importance >= CONCEPT_MIN_IMPORTANCE) : true;
+  };
+  const how = (id: string) => {
+    const v = verdictOf(id);
+    return v ? (v.verdict !== 'none' ? ` -> ${v.verdict} real product from match_reference` : ' -> concept stand-in') : '';
+  };
+  const missing = byImportance(d.layout?.missing);
+  const fixable = [...missing.filter(actionable).map((m) => line('missing', m, how(m.id))), ...misplaced.filter(actionable).map((m) => line('misplaced', m, overlap(m)))];
+  const accept = [...missing, ...misplaced].filter((m) => !actionable(m)).map((m) => `accept gap: ${m.subtype} (${m.category}, importance ${m.importance}): no real match and no stand-in worth placing; do not chase it`);
+  return [...roles.filter((r) => r.deltaE >= ROLE_DE_URGENT).map(roleLine), ...fixable, ...roles.filter((r) => r.deltaE < ROLE_DE_URGENT).map(roleLine), ...overall, ...extra, ...look, ...accept];
 }

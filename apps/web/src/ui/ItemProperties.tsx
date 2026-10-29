@@ -22,7 +22,7 @@ export type MeshBadge = {
 };
 
 /** The mesh source badge (real / lookalike / parametric / offline), from the model controller's stats. */
-export function meshBadge(source: string | undefined, offline: boolean, dimsWarning?: DimsWarning, opts: { loading?: boolean; reason?: string } = {}): MeshBadge {
+export function meshBadge(source: string | undefined, offline: boolean, dimsWarning?: DimsWarning, opts: { loading?: boolean; reason?: string; product?: boolean } = {}): MeshBadge {
   const why = opts.reason ? ` Why: ${opts.reason}.` : '';
   const base = ((): MeshBadge => {
     if (offline && source !== 'placeholder') return { kind: 'offline', label: 'offline', title: `The real model needs the local scene server; a stand-in shape at the exact size is drawn.${why}` };
@@ -35,6 +35,9 @@ export function meshBadge(source: string | undefined, offline: boolean, dimsWarn
       case 'lookalike':
         return { kind: 'lookalike', label: 'lookalike', title: `A similar library model scaled to the exact size.${why}` };
       case 'parametric':
+        if (opts.product) {
+          return { kind: 'parametric', label: 'no 3D model', title: `The shop has no 3D model of this product, so a generated stand-in at its exact size, in its colours (and its photo when the local server has one), is drawn. It is still the real product and price; only the shape is approximated.${why}` };
+        }
         return { kind: 'parametric', label: 'parametric', title: `A generated shape at the exact size.${why}` };
       default:
         return { kind: 'loading', label: 'loading', title: 'The model is loading.' };
@@ -45,10 +48,10 @@ export function meshBadge(source: string | undefined, offline: boolean, dimsWarn
   return { ...base, warning, title: `${base.title} ${warning}` };
 }
 
-export function useMeshBadge(itemId: string): MeshBadge {
+export function useMeshBadge(itemId: string, product = false): MeshBadge {
   useModelRevision();
   const stats = modelStats();
-  return meshBadge(stats.sources[itemId], stats.offline.includes(itemId), stats.warnings.find((w) => w.itemId === itemId)?.warning, { loading: stats.loading.includes(itemId), ...(stats.reasons[itemId] !== undefined ? { reason: stats.reasons[itemId] } : {}) });
+  return meshBadge(stats.sources[itemId], stats.offline.includes(itemId), stats.warnings.find((w) => w.itemId === itemId)?.warning, { loading: stats.loading.includes(itemId), product, ...(stats.reasons[itemId] !== undefined ? { reason: stats.reasons[itemId] } : {}) });
 }
 
 /** What `validateLayout` says about one item. */
@@ -84,7 +87,7 @@ export function ItemProperties({ scene, item }: { scene: Scene; item: Item }) {
   const dispatch = useSceneStore((s) => s.dispatch);
   const select = useViewStore((s) => s.select);
   const mode = useSyncStore((s) => s.mode);
-  const badge = useMeshBadge(item.id);
+  const badge = useMeshBadge(item.id, item.product !== undefined);
   const p = item.product;
   const builtIn = isBuiltIn(item);
   const dims = itemDims(item);

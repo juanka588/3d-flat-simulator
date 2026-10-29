@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { Generator } from '@flat/scene';
-import { ITEM_MATERIALS, SHEER_MATERIAL, ceramicMaterial, fabricMaterial } from '../materials/item-materials';
+import { ITEM_MATERIALS, SHEER_MATERIAL, ceramicMaterial, fabricMaterial, tintMaterial } from '../materials/item-materials';
 import { Kit, boxAnchors, colourParam, metres } from './kit';
 
 /** Curtains and the pendant lamp (CG4): soft furnishings and lighting shapes that descriptors ask for and the shops rarely give as 3D. */
@@ -12,13 +12,14 @@ import { Kit, boxAnchors, colourParam, metres } from './kit';
 const curtainParams = z.strictObject({
   w: metres('Width of the rail (the curtain hangs under it).', 1.6, 0.5, 6),
   h: metres('Length from the top of the rail to the hem (floor length is the room height minus a few cm).', 2.4, 0.8, 3),
-  d: metres('Depth of the pleats and of the rail brackets (front to back).', 0.08, 0.03, 0.15),
+  d: metres('Depth of the pleats and of the rail brackets (front to back).', 0.08, 0.01, 0.15),
   pleats: z.number().int().min(1).max(20).default(8).describe('Folds per panel, whole number 1-20. More folds read as a fuller curtain. Defaults to 8.'),
   panels: z
     .union([z.literal(1), z.literal(2)])
     .default(2)
     .describe('1 = one panel across the whole rail, 2 = a pair drawn to the two sides (the middle 20% open). Defaults to 2.'),
   sheer: z.boolean().default(false).describe('A translucent voile instead of an opaque fabric. Defaults to false.'),
+  tint: z.boolean().default(false).describe('Colour an opaque curtain with the dominant colour of the product photo when one is available, else the colour. Defaults to false.'),
   colour: colourParam('an opaque curtain (default natural linen)'),
 });
 type CurtainParams = z.infer<typeof curtainParams>;
@@ -29,14 +30,15 @@ export const curtains: Generator<CurtainParams> = {
   category: 'curtain',
   params: curtainParams,
   describeParams: ({ w, d, h }) => ({ dims: { w, d, h }, anchors: boxAnchors(w, d, h), clearance: { front: 0.2, back: 0 } }),
-  generate({ w, d, h, pleats, panels, sheer, colour }) {
+  generate({ w, d, h, pleats, panels, sheer, tint, colour }) {
     const kit = new Kit();
-    const fabric = sheer ? SHEER_MATERIAL : colour ? fabricMaterial('weave', colour) : ITEM_MATERIALS.bedding;
+    const fabric = sheer ? SHEER_MATERIAL : tint ? tintMaterial(colour ?? 'cream') : colour ? fabricMaterial('weave', colour) : ITEM_MATERIALS.bedding;
     const tf = Math.min(0.012, d / 4);
     // the rail, and brackets that reach back to the wall (-d/2)
-    kit.box(ITEM_MATERIALS.metal, -w / 2, h - 0.02, -0.01, w / 2, h, 0.01);
-    kit.box(ITEM_MATERIALS.metal, -w / 2, h - 0.025, -d / 2, -w / 2 + 0.02, h, 0.0105);
-    kit.box(ITEM_MATERIALS.metal, w / 2 - 0.02, h - 0.025, -d / 2, w / 2, h, 0.0105);
+    const rz = Math.min(0.01, d / 2);
+    kit.box(ITEM_MATERIALS.metal, -w / 2, h - 0.02, -rz, w / 2, h, rz);
+    kit.box(ITEM_MATERIALS.metal, -w / 2, h - 0.025, -d / 2, -w / 2 + 0.02, h, Math.min(0.0105, d / 2));
+    kit.box(ITEM_MATERIALS.metal, w / 2 - 0.02, h - 0.025, -d / 2, w / 2, h, Math.min(0.0105, d / 2));
     const pw = panels === 1 ? w : w * 0.4;
     const spans: [number, number][] = panels === 1 ? [[-w / 2, w / 2]] : [[-w / 2, -w / 2 + pw], [w / 2 - pw, w / 2]];
     const top = h - 0.025;

@@ -173,6 +173,28 @@ export const FloorZone = z.strictObject({
 });
 export type FloorZone = z.infer<typeof FloorZone>;
 
+/**
+ * A camera preference for reference images and scoring (close-the-gap): where to look and from where. Views are derived from the
+ * room geometry; a hint with the same `id` as a derived view replaces it, others are added. Aim with `point` (plan point to look at),
+ * `facing` (wall id, opening id, compass point or degrees) or stand exactly with `position` + `headingDeg`.
+ */
+export const RoomView = z.strictObject({
+  id: Id,
+  /** Floor zone (or the room's main zone) the view belongs to; default: the main zone. */
+  zone: Id.optional(),
+  label: NameString().optional(),
+  facing: z.union([Id, z.number().min(-360).max(360)]).optional(),
+  point: Vec2.optional(),
+  position: Vec2.optional(),
+  headingDeg: z.number().min(-360).max(360).optional(),
+  /** Preferred distance from `point` to the eye, metres. */
+  standoff: z.number().min(1).max(12).optional(),
+  fovDeg: z.number().min(30).max(120).optional(),
+  /** Share of the room's score (weights are renormalised). */
+  weight: z.number().min(0).max(1).optional(),
+});
+export type RoomView = z.infer<typeof RoomView>;
+
 export const Room = z.strictObject({
   id: Id,
   name: NameString(),
@@ -193,6 +215,8 @@ export const Room = z.strictObject({
   ceilingMaterial: Id.optional(),
   /** Floor-to-ceiling height; defaults to the lowest wall bounding the room. */
   ceilingHeight: z.number().positive().optional(),
+  /** Camera preferences for reference images and scoring; see `RoomView`. */
+  views: z.array(RoomView).max(8).optional(),
 });
 export type Room = z.infer<typeof Room>;
 

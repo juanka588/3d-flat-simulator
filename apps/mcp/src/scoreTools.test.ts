@@ -232,3 +232,81 @@ describe('score_against_reference', () => {
     expect(b.skipped?.map((s: { metric: string }) => s.metric)).toEqual(expect.arrayContaining(['palette', 'clip']));
   });
 });
+
+describe('several views of one room', () => {
+  const gen = async (client: Client, args: Record<string, unknown>) => json(await client.callTool({ name: 'generate_reference', arguments: { roomId: 'ch1', styleId: 'japandi', ...args } }));
+  beforeEach(() => {
+    setImageProvider(new FakeImageProvider({ path: targetFile }));
+    setControlImageSource({ async getControlImages() { return { canny: { provenance: 'pass', data: TINY_PNG_B64, mimeType: 'image/png' } }; } });
+  });
+
+  it('generate_reference takes a view: its camera, zone and weight travel with the job; an unknown view lists the real ones', async () => {
+    const { client } = await connect({}, undefined, { renderer: fakeRenderer([]) as never });
+    setImageProvider(new FakeImageProvider({ path: targetFile }));
+    setControlImageSource({ async getControlImages() { return { canny: { provenance: 'pass', data: TINY_PNG_B64, mimeType: 'image/png' } }; } });
+    const g = await gen(client, { view: 'reverse' });
+    expect(g).toMatchObject({ ok: true, view: 'reverse', zone: 'main', mode: 'reference' });
+    expect(g.weight).toBeGreaterThan(0);
+    expect(g.prompt).toMatch(/Layout|camera/);
+    const bad = await gen(client, { view: 'nope' });
+    expect(bad.code).toBe('unknown_entity');
+    expect(bad.hint ?? bad.message).toMatch(/windows, reverse|Views: windows/);
+  });
+
+  it('score all: every recorded view is rendered from its own camera, aggregated by weight, diff tagged by view, best scene kept', async () => {
+    const calls: { spec: { pose?: { headingDeg?: number } } }[] = [];
+    const out = join(tmp, 'multi');
+    process.env['FLAT_DESIGN_OUT'] = out;
+    const { client } = await connect({}, undefined, { renderer: fakeRenderer(calls) as never });
+    setImageScorer(new FakeImageScorer());
+    const a = await gen(client, { view: 'windows' });
+    const b = await gen(client, { view: 'reverse', seed: 2 });
+    for (const j of [a.jobId, b.jobId]) expect((await record(client, j as string)).isError).toBeFalsy();
+    calls.length = 0;
+    const r = await score(client, { jobId: a.jobId, all: true });
+    expect(r.isError).toBeFalsy();
+    const body = json(r);
+    expect(body.views.map((v: { view: string }) => v.view).sort()).toEqual(['reverse', 'windows']);
+    expect(body.views.reduce((acc: number, v: { weight: number }) => acc + v.weight, 0)).toBeCloseTo(1, 2);
+    // one render per view, each from that view's camera (they differ)
+    expect(new Set(calls.map((c) => c.spec.pose?.headingDeg)).size).toBe(2);
+    // the same fault in both views is one line tagged with both; the overall is the weighted mean
+    expect(body.diff.some((d: string) => /^\[(windows,reverse|reverse,windows)\] /.test(d))).toBe(true);
+    const weighted = body.views.reduce((acc: number, v: { overall: number; weight: number }) => acc + v.overall * v.weight, 0);
+    expect(body.overall).toBeCloseTo(weighted, 3);
+    expect((r.content as { type: string }[]).filter((c) => c.type === 'image')).toHaveLength(2);
+    // the iteration keeps what was scored: the scene, a render and target per view
+    const dir = join(out, 'iterations', 'iter-01');
+    expect(JSON.parse(readFileSync(join(dir, 'scene.flat.json'), 'utf8')).rooms.length).toBeGreaterThan(3);
+    for (const v of ['windows', 'reverse']) {
+      expect(existsSync(join(dir, 'views', v, 'render.png'))).toBe(true);
+      expect(existsSync(join(dir, 'views', v, 'target.png'))).toBe(true);
+    }
+    expect(JSON.parse(readFileSync(join(dir, 'score.json'), 'utf8')).views).toHaveLength(2);
+    // descriptors are kept per view for the runner
+    expect(existsSync(join(out, 'views', 'windows.descriptor.json'))).toBe(true);
+    // a second aggregated call is iteration 2 with an improvement figure
+    expect(json(await score(client, { jobId: a.jobId, all: true })).iteration).toBe(2);
+  });
+
+  it('all with a single recorded view behaves as one view', async () => {
+    const { client } = await connect({}, undefined, { renderer: fakeRenderer([]) as never });
+    setImageScorer(new FakeImageScorer());
+    const a = await gen(client, { view: 'windows' });
+    await record(client, a.jobId as string);
+    const body = json(await score(client, { jobId: a.jobId, all: true }));
+    expect(body.views).toBeUndefined();
+    expect(body.scores.palette.roles).toBeDefined();
+  });
+
+  it('describe_room with plan lists zones, views and the layout; without it the answer is unchanged', async () => {
+    const { client } = await connect();
+    const plain = json(await client.callTool({ name: 'describe_room', arguments: { roomId: 'sejour' } }));
+    expect(plain.views).toBeUndefined();
+    const plan = json(await client.callTool({ name: 'describe_room', arguments: { roomId: 'sejour', plan: true } }));
+    expect(plan.zones.map((z: { id: string }) => z.id)).toEqual(['living', 'kitchen']);
+    expect(plan.views.map((v: { id: string }) => v.id)).toEqual(['media', 'windows', 'wide', 'kitchen', 'kitchen-side']);
+    expect(plan.layout[0].text).toMatch(/sofa/);
+  });
+});
+

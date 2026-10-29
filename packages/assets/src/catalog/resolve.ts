@@ -100,7 +100,7 @@ export function resolveMesh(item: Pick<Item, 'assetId' | 'dims' | 'product' | 'p
     } else {
       const candidates: { generator: string; params: Record<string, unknown> }[] = [];
       if (mesh?.kind === 'parametric') candidates.push({ generator: mesh.generator, params: mesh.params });
-      const fallback = category && claimed ? defaultParametricFor(category, claimed, item.product?.name) : undefined;
+      const fallback = category && claimed ? defaultParametricFor(category, claimed, item.product?.name, item.product?.colour) : undefined;
       if (fallback) candidates.push(fallback);
       for (const c of candidates) {
         const g = ctx.generators.get(c.generator);
