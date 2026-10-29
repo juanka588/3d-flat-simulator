@@ -11,6 +11,7 @@ Milestones, user stories and acceptance criteria. The overall roadmap (M0–M9) 
 | M4 | MCP server v1: read scene, finishes, lighting, `render_view` | ✅ done (approved 2026-10-27) [m4.md](m4.md) |
 | M5 | Product-grounded assets (parametric, CC0, 3D-FUTURE local, retailer spike) + placement solver | ✅ accepted 2026-10-28 (QA fixes, fixtures, floor zones, lighting grids, LLM whole-flat design demo) [m5.md](m5.md) |
 | M5R | Rendering realism: PBR furniture finishes, environment light, contact shadows and wall creases, bevelled generators, AWB, then the hero `models-hd/` tier | 🚧 steps 1 (rendering) and 2 (43 HD models) done; soft-item generators, model memory, real-GPU CI pending [m5r.md](m5r.md) |
+| CG | Close the gap: geometry-conditioned reference images, product photos to the model, image matching, scoring + iteration, gap report, photo + labelled visualisation | 🚧 CG0 spike in progress [cg.md](cg.md) |
 | M6 | Blueprint image → Scene JSON (vision LLM + trace tool) | ⏳ |
 | M7 | Inspiration image → design descriptors → MCP instruction plan | ⏳ |
 | M8 | Autonomous furnishing under constraints, variants | ⏳ |
