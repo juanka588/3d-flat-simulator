@@ -1,10 +1,68 @@
 /* global process */
-import { mkdtempSync, readFileSync, readdirSync } from 'node:fs';
+import { mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { parseRoomSpec, parseViewsArg, pickBest, publishScene, selectViews } from './close-gap.mjs';
+import { memoryPreflight, parseRoomSpec, parseViewsArg, pickBest, publishScene, referenceImagesByView, referenceTiming, renderWithRetry, selectViews } from './close-gap.mjs';
+
+describe('close-gap runner: memory, timing and render retries', () => {
+  const mem = (over) => ({ memory: { availableGb: 50, swapUsedGb: 0, pressure: 'normal', ...over }, queue: { queued: 0, running: null } });
+
+  it('memory preflight: fine, tight (warns), hopeless (refuses unless forced), unknown', () => {
+    expect(memoryPreflight(mem())).toEqual({ problems: [], warnings: [] });
+    const tight = memoryPreflight(mem({ availableGb: 40 }));
+    expect(tight.problems).toEqual([]);
+    expect(tight.warnings.join()).toMatch(/Tight memory/);
+    const bad = memoryPreflight(mem({ availableGb: 15, swapUsedGb: 10.6 }));
+    expect(bad.problems.join()).toMatch(/Not enough free memory.*--force-memory/);
+    const forced = memoryPreflight(mem({ availableGb: 15 }), { force: true });
+    expect(forced.problems).toEqual([]);
+    expect(forced.warnings.join()).toMatch(/going on anyway/);
+    expect(memoryPreflight(mem({ pressure: 'critical' })).problems).toHaveLength(1);
+    expect(memoryPreflight(mem({ swapUsedGb: 10.6, availableGb: 46 })).warnings.join()).toMatch(/swap is in use/);
+    expect(memoryPreflight({ queue: { running: 'abc' } }).warnings.join()).toMatch(/does not report its memory/);
+    expect(memoryPreflight({ ...mem(), queue: { queued: 0, running: 'abc' } }).warnings.join()).toMatch(/busy with another job/);
+  });
+
+  it('times generate_reference and shouts when an image takes more than 3x the expected 90 s', () => {
+    const ok = referenceTiming(JSON.stringify({ images: [{ seconds: 92, loadS: 20, stepsS: 60 }], timings: { runS: 95 } }), 100_000);
+    expect(ok).toMatchObject({ images: 1, perImageS: 92, wallS: 100, loadS: 20, stepsS: 60 });
+    expect(ok.message).toBeUndefined();
+    const slow = referenceTiming(`${JSON.stringify({ images: [{ seconds: 600 }, { seconds: 700 }], sidecarWarnings: ['swap'] })}\nREFERENCE IMAGE`, 1_300_000);
+    expect(slow.perImageS).toBe(650);
+    expect(slow.message).toMatch(/650 s per image against about 90 s expected \(7\.2x\).*swap/);
+    expect(referenceTiming('not json', 1)).toBeUndefined();
+  });
+
+  it('a render that times out or hits the rate limit is retried, and only a persistent failure is returned', async () => {
+    const waits = [];
+    const sleepFn = async (ms) => void waits.push(ms);
+    const img = { content: [{ type: 'image', data: 'x' }] };
+    const replies = [{ isError: true, structuredContent: { code: 'rate_limited', retryAfterMs: 2000 } }, { isError: true, structuredContent: { code: 'render_timeout' } }, img];
+    const r = await renderWithRetry(async () => replies.shift(), {}, { sleepFn });
+    expect(r).toBe(img);
+    expect(waits).toEqual([2300, 10_000]);
+    const always = { isError: true, structuredContent: { code: 'render_timeout' } };
+    let calls = 0;
+    const failed = await renderWithRetry(async () => (calls++, always), {}, { sleepFn, max: 3 });
+    expect(failed).toBe(always);
+    expect(calls).toBe(3);
+    // an error that is not transient is not retried
+    let n = 0;
+    await renderWithRetry(async () => (n++, { isError: true, structuredContent: { code: 'unknown_room' } }), {}, { sleepFn });
+    expect(n).toBe(1);
+  });
+
+  it('partial runs: reference images are found per view', () => {
+    const dir = mkdtempSync(join(process.env.TMPDIR || tmpdir(), 'refs-test-'));
+    writeFileSync(join(dir, 'reference-0123456789abcdef.json'), JSON.stringify({ view: 'media', images: [{ file: '/x/a.png' }] }));
+    writeFileSync(join(dir, 'reference-fedcba9876543210.json'), JSON.stringify({ view: 'wide', images: [{ file: '/x/b.png' }] }));
+    writeFileSync(join(dir, 'visualisation-0123456789abcdef.json'), JSON.stringify({ view: 'media', images: [{ file: '/x/v.png' }] }));
+    expect(referenceImagesByView(dir)).toEqual({ media: '/x/a.png', wide: '/x/b.png' });
+    expect(referenceImagesByView(join(dir, 'nope'))).toEqual({});
+  });
+});
 
 describe('close-gap runner helpers', () => {
   it('parses room and room:zone specs', () => {

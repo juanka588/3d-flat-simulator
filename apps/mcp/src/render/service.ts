@@ -6,6 +6,7 @@ import type { McpSession, RenderMeta, Renderer } from '../tools/registry';
 import { RenderError } from './errors';
 import { BrowserRenderer, clampSize, sharedRenderer, type RendererOptions } from './browserRenderer';
 import { effectiveSessionLighting } from '../readModel';
+import { sidecarBusyProbe } from '../imagegen/sidecarBusy';
 import { resolveLighting, resolvePose } from './resolve';
 import type { ModelSource, PassesPayload } from './pageSession';
 
@@ -207,5 +208,5 @@ export function sharedMcpRenderer(flat: FlatApi, config: RendererOptions & { ren
 }
 
 function sharedBrowser(config: RendererOptions & { renderChannel?: 'chrome' | undefined }): BrowserRenderer {
-  return sharedRenderer({ webUrl: config.webUrl, renderChannel: config.renderChannel ?? config.channel, log: config.log });
+  return sharedRenderer({ webUrl: config.webUrl, renderChannel: config.renderChannel ?? config.channel, log: config.log, sidecarBusy: config.sidecarBusy ?? sidecarBusyProbe() });
 }

@@ -15,6 +15,7 @@ from . import __version__
 from .config import Config
 from .clip import ClipError, ClipService, MAX_TOP_K, SOURCES, mask_from_ids, prepare_crop
 from .jobs import JobQueue
+from .memstat import headroom_warning, read_memory
 from .models import MODELS, downloaded
 from .validate import ValidationError, parse_edit, parse_generate, resolve_image
 
@@ -75,7 +76,13 @@ def mflux_version() -> str | None:
         return None
 
 
-def health(cfg: Config, queue: JobQueue, info: dict[str, Any] | None = None, clip: ClipService | None = None) -> dict[str, Any]:
+def unload_policy(cfg: Config) -> str:
+    if cfg.unload_after is None:
+        return "never (the model stays resident between jobs)" if cfg.backend == "diffusers" else "never needed (mflux runs one process per image: nothing stays resident)"
+    return "after each job" if cfg.unload_after == 0 else f"after {cfg.unload_after:g} s idle"
+
+
+def health(cfg: Config, queue: JobQueue, info: dict[str, Any] | None = None, clip: ClipService | None = None, mem: dict[str, Any] | None = None) -> dict[str, Any]:
     """`info` is what the backend learned at start-up: gpu, settings, fit, loaded() (diffusers only)."""
     info = info or {}
     stats = queue.stats()
@@ -98,6 +105,10 @@ def health(cfg: Config, queue: JobQueue, info: dict[str, Any] | None = None, cli
             for m in MODELS.values()
         ],
         "memGb": memory_gb(),
+        "memory": mem if mem is not None else read_memory(),
+        "resident": resident_report(cfg, queue, running[0].spec.model if running else None),
+        "unload": unload_policy(cfg),
+        "lastJob": queue.last_job,
         "maxSide": cfg.max_side,
         "queue": stats,
         "downloadsAllowed": cfg.allow_download,
@@ -108,6 +119,13 @@ def health(cfg: Config, queue: JobQueue, info: dict[str, Any] | None = None, cli
     if clip is not None:
         out["clip"] = clip.status()
     return out
+
+
+def resident_report(cfg: Config, queue: JobQueue, running_model: str | None) -> dict[str, Any]:
+    """What the sidecar holds in memory right now. At most one generation model: mflux has a process per image (so only while a job
+    runs), diffusers frees the other model before loading one. `estGb` is the measured peak of that model."""
+    model = queue.resident() or running_model
+    return {"models": [model] if model else [], "estGb": MODELS[model].peak_gb if model else 0.0, "holdsBetweenJobs": queue.resident() is not None}
 
 
 def _open(path: Path) -> Any:

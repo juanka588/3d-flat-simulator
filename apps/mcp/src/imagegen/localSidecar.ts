@@ -42,9 +42,11 @@ interface RemoteJob {
   jobId: string;
   status: JobState;
   progress: number;
-  images: { path: string; seed: number; seconds: number; peakGb?: number | null }[];
+  images: { path: string; seed: number; seconds: number; peakGb?: number | null; loadS?: number; stepsS?: number }[];
   error?: string;
   queuePosition?: number;
+  timings?: Record<string, number>;
+  warnings?: string[];
 }
 
 const TERMINAL = new Set<JobState>(['done', 'error', 'cancelled']);
@@ -173,6 +175,8 @@ export class LocalSidecarProvider implements ImageProvider {
       images: j.status === 'done' ? await this.materialise(j) : [],
       ...(j.error ? { error: j.error } : {}),
       ...(j.queuePosition !== undefined ? { queuePosition: j.queuePosition } : {}),
+      ...(j.timings ? { timings: j.timings } : {}),
+      ...(j.warnings?.length ? { warnings: j.warnings } : {}),
     };
     return out;
   }
@@ -196,7 +200,7 @@ export class LocalSidecarProvider implements ImageProvider {
       } catch {
         preview = undefined; // no Pillow on the sidecar: the tool reports the file path only
       }
-      images.push({ path, seed: img.seed, seconds: img.seconds, peakGb: img.peakGb ?? null, preview });
+      images.push({ path, seed: img.seed, seconds: img.seconds, peakGb: img.peakGb ?? null, ...(img.loadS !== undefined ? { loadS: img.loadS } : {}), ...(img.stepsS !== undefined ? { stepsS: img.stepsS } : {}), preview });
     }
     this.materialised.set(j.jobId, images);
     return images;

@@ -34,6 +34,7 @@
     "models:contact-sheet": "node scripts/models/contact-sheet.mjs",
     "models:local": "node scripts/models/local.mjs",
     "mcp:demo:design": "node scripts/mcp-demo/design-flat.mjs",
+    "mcp:views-sheet": "node scripts/mcp-demo/views-sheet.mjs",
     "site:context": "tsx packages/site/src/node/cli.ts",
     "imagegen": "uv run --directory tools/imagegen --extra mflux --extra clip python -m imagegen serve",
     "imagegen:index": "uv run --directory tools/imagegen --extra mflux --extra clip python -m imagegen index",

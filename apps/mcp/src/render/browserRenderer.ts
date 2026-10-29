@@ -56,7 +56,24 @@ export interface RendererOptions {
   idleMs?: number;
   /** Renders in flight (running + waiting) before `render_unavailable` "busy". */
   maxQueue?: number;
+  /**
+   * Tells whether the image sidecar is generating right now. A generation peaks at ~38 GB: Chromium starting next to it on a 64 GB
+   * machine swaps and the start times out. So a render first WAITS (up to `drainMaxMs`) for the sidecar queue to drain, and when it
+   * is still busy afterwards the browser start gets `BUSY_COLD_FACTOR` times the cold budget. Never throws (a failed probe is "idle").
+   */
+  sidecarBusy?: (() => Promise<boolean>) | undefined;
+  /** Longest wait for the sidecar to go idle before rendering anyway (default `DRAIN_MAX_MS`). */
+  drainMaxMs?: number;
+  /** Cold-start retries after a timeout, each with twice the previous budget (default 1). */
+  coldRetries?: number;
+  /** How often the sidecar is probed while waiting (default 2 s). */
+  drainPollMs?: number;
 }
+
+/** Wait for the image sidecar to go idle at most this long (FLAT_RENDER_DRAIN_MAX_S overrides, 0 disables the wait). */
+export const DRAIN_MAX_MS = 5 * 60_000;
+/** Multiplier of the cold budget when the sidecar is still generating. */
+export const BUSY_COLD_FACTOR = 3;
 
 export const IDLE_MS = 10 * 60_000;
 /** Default budget of a cold render. */
@@ -93,6 +110,11 @@ export class BrowserRenderer {
   private readonly distDir: string;
   private readonly webUrl: string | undefined;
   private idle: NodeJS.Timeout | undefined;
+  private readonly sidecarBusy: (() => Promise<boolean>) | undefined;
+  private readonly drainMaxMs: number;
+  private readonly drainPollMs: number;
+  private readonly coldRetries: number;
+  private readonly log: NonNullable<RendererOptions['log']>;
 
   constructor(opts: RendererOptions = {}) {
     this.distDir = opts.distDir ?? DEFAULT_DIST;
@@ -102,6 +124,12 @@ export class BrowserRenderer {
     this.coldTimeoutMs = Math.max(this.timeoutMs, opts.coldTimeoutMs ?? COLD_TIMEOUT_MS * factor);
     this.idleMs = opts.idleMs ?? IDLE_MS;
     this.queue = new SerialQueue(opts.maxQueue ?? 3);
+    this.sidecarBusy = opts.sidecarBusy;
+    const envDrain = process.env['FLAT_RENDER_DRAIN_MAX_S'];
+    this.drainMaxMs = opts.drainMaxMs ?? (envDrain !== undefined && envDrain !== '' && Number.isFinite(Number(envDrain)) ? Math.max(0, Number(envDrain)) * 1000 : DRAIN_MAX_MS);
+    this.drainPollMs = opts.drainPollMs ?? 2000;
+    this.coldRetries = Math.max(0, opts.coldRetries ?? 1);
+    this.log = opts.log ?? defaultLog;
     this.session = new PageSession({ distDir: this.distDir, webUrl: this.webUrl, channel: opts.channel, log: opts.log ?? defaultLog });
   }
 
@@ -127,17 +155,52 @@ export class BrowserRenderer {
       });
   }
 
+  /** Waits for the image sidecar to go idle (bounded). Returns true when it is still generating afterwards. */
+  private async waitForSidecar(): Promise<boolean> {
+    if (!this.sidecarBusy) return false;
+    const probe = () => this.sidecarBusy!().catch(() => false);
+    if (!(await probe())) return false;
+    const until = Date.now() + this.drainMaxMs;
+    this.log('info', `render: waiting for the image sidecar to finish its job (at most ${Math.round(this.drainMaxMs / 1000)} s) so the two memory peaks do not overlap`);
+    while (Date.now() < until) {
+      await new Promise((ok) => setTimeout(ok, Math.min(this.drainPollMs, Math.max(1, until - Date.now()))));
+      if (!(await probe())) return false;
+    }
+    this.log('warn', 'render: the image sidecar is still busy; rendering anyway with a longer browser-start budget');
+    return true;
+  }
+
   private async run(req: RenderRequest): Promise<RenderOutput> {
     clearTimeout(this.idle);
     const started = performance.now();
+    const busy = await this.waitForSidecar();
     const cold = !this.session.isWarm;
     // The browser start has its own budget; the render's budget (plus the time it may wait for models) only starts once the page is up.
     const renderBudget = this.timeoutMs + (req.modelWaitMs ?? 0);
-    let budget = cold ? this.coldTimeoutMs : renderBudget;
-    let deadline = started + budget;
+    let coldBudget = this.coldTimeoutMs * (busy ? BUSY_COLD_FACTOR : 1);
+    let budget = cold ? coldBudget : renderBudget;
+    let deadline = performance.now() + budget;
+    let startAttempts = 0;
+    let starting = false;
     try {
       if (cold) {
-        await this.within(this.session.warmUp(req.size), this.coldTimeoutMs);
+        starting = true;
+        // A cold Chromium start under load can time out without anything being wrong: retry once, with twice the budget.
+        for (;;) {
+          startAttempts++;
+          try {
+            await this.within(this.session.warmUp(req.size), coldBudget);
+            break;
+          } catch (e) {
+            if (!(e instanceof SessionError && e.kind === 'timeout')) throw e;
+            budget = coldBudget;
+            if (startAttempts > this.coldRetries) throw e;
+            this.log('warn', `render: the browser start took longer than ${Math.round(coldBudget / 1000)} s; retrying with a fresh browser and twice the budget`);
+            await this.session.discard();
+            coldBudget *= 2;
+          }
+        }
+        starting = false;
         budget = renderBudget;
         deadline = performance.now() + renderBudget;
       }
@@ -174,7 +237,7 @@ export class BrowserRenderer {
           await this.session.discard();
           throw new RenderError(
             'render_timeout',
-            `the ${cold && budget === this.coldTimeoutMs ? 'browser start' : 'render'} took longer than ${Math.round(budget / 1000)} s`,
+            `the ${starting ? 'browser start' : 'render'} took longer than ${Math.round(budget / 1000)} s${starting && startAttempts > 1 ? ` (last of ${startAttempts} attempts)` : ''}`,
             `${cold ? 'Retry: the first render starts Chromium and loads the viewer, which can be slow on a cold machine (the phases are logged on stderr). ' : 'Retry with a smaller size. '}${diag.length ? `Page log: ${diag.join(' | ')}` : ''}`.trim(),
           );
         }
@@ -214,11 +277,11 @@ export class BrowserRenderer {
 let shared: { key: string; renderer: BrowserRenderer } | undefined;
 
 /** One renderer per process (and config): the browser stays warm across tool calls. */
-export function sharedRenderer(config: { webUrl?: string | undefined; renderChannel?: 'chrome' | undefined; log?: RendererOptions['log'] }): BrowserRenderer {
+export function sharedRenderer(config: { webUrl?: string | undefined; renderChannel?: 'chrome' | undefined; log?: RendererOptions['log']; sidecarBusy?: RendererOptions['sidecarBusy'] }): BrowserRenderer {
   const key = `${config.webUrl ?? ''}|${config.renderChannel ?? ''}`;
   if (!shared || shared.key !== key) {
     void shared?.renderer.close();
-    shared = { key, renderer: new BrowserRenderer({ webUrl: config.webUrl, channel: config.renderChannel, log: config.log }) };
+    shared = { key, renderer: new BrowserRenderer({ webUrl: config.webUrl, channel: config.renderChannel, log: config.log, sidecarBusy: config.sidecarBusy }) };
   }
   return shared.renderer;
 }

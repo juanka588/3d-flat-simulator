@@ -109,7 +109,9 @@ def cmd_serve(args: argparse.Namespace) -> int:
         runner = MfluxRunner(cfg)
     if cfg.host not in ("127.0.0.1", "localhost", "::1") and not cfg.token:
         print(f"[imagegen] WARNING: bound to {cfg.host} without IMAGEGEN_TOKEN: anything that can reach the port can use the GPU", file=sys.stderr)
-    queue = JobQueue(runner)
+    queue = JobQueue(runner, cfg.unload_after)
+    if cfg.unload_after is not None and cfg.backend == "mflux":
+        print("[imagegen] IMAGEGEN_UNLOAD_AFTER has no effect with the mflux backend: it runs one process per image and holds no model between images", file=sys.stderr)
     srv = make_server(cfg, queue, info, ClipService(cfg, allow_download=allow))
     print(f"[imagegen] {cfg.backend} backend listening on http://{cfg.host}:{cfg.port} (HF cache {cfg.hf_home}, out {cfg.out_dir})", file=sys.stderr, flush=True)
     try:

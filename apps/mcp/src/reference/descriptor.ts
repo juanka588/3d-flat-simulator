@@ -127,6 +127,76 @@ export const DESCRIPTOR_EXAMPLE: ReferenceDescriptor = {
   decor: ['folded towels on a stool', 'dried flowers in a vase'],
 };
 
+// -- lenient reading of a model-authored descriptor -------------------------------------------------------------------------
+
+type Rec = Record<string, unknown>;
+const isRec = (v: unknown): v is Rec => typeof v === 'object' && v !== null && !Array.isArray(v);
+
+/** Cuts a string to `max` characters, ending on an ellipsis. */
+export function truncateText(s: string, max: number): string {
+  const t = s.trim();
+  return t.length <= max ? t : `${t.slice(0, max - 1).trimEnd()}…`;
+}
+
+/**
+ * A model writes the descriptor from a picture and often runs a few characters over a free-text limit ("style" at 80, "shape" at
+ * 120): the real run lost a whole WC session to `style: expected string to have <=80 characters`. So over-long FREE-TEXT fields are
+ * truncated and over-long lists of free text are cut, with a note per change, before the strict schema runs. Structural fields (ids,
+ * categories, hex colours, boxes, dimensions, relations, importance, the number of items or palette entries) are never touched:
+ * a wrong one is still an error, and says which.
+ */
+export function softenDescriptor(raw: unknown): { value: unknown; notes: string[] } {
+  const notes: string[] = [];
+  if (!isRec(raw)) return { value: raw, notes };
+  const text = (o: Rec, key: string, max: number, path: string) => {
+    const v = o[key];
+    if (typeof v === 'string' && v.trim().length > max) {
+      notes.push(`${path}: shortened from ${v.trim().length} to ${max} characters`);
+      o[key] = truncateText(v, max);
+    }
+  };
+  const list = (o: Rec, key: string, maxItems: number, maxText: number, path: string) => {
+    const v = o[key];
+    if (!Array.isArray(v)) return;
+    if (v.length > maxItems) {
+      notes.push(`${path}: kept the first ${maxItems} of ${v.length} entries`);
+      o[key] = v.slice(0, maxItems);
+    }
+    (o[key] as unknown[]).forEach((x, i) => {
+      if (typeof x === 'string' && x.trim().length > maxText) {
+        notes.push(`${path}/${i}: shortened from ${x.trim().length} to ${maxText} characters`);
+        (o[key] as unknown[])[i] = truncateText(x, maxText);
+      }
+    });
+  };
+  const d = structuredClone(raw) as Rec;
+  text(d, 'style', 80, 'descriptor/style');
+  if (Array.isArray(d['palette'])) d['palette'].forEach((p, i) => isRec(p) && text(p, 'role', 24, `descriptor/palette/${i}/role`));
+  if (isRec(d['materials'])) {
+    text(d['materials'], 'floor', 60, 'descriptor/materials/floor');
+    text(d['materials'], 'walls', 60, 'descriptor/materials/walls');
+    list(d['materials'], 'accents', 8, 60, 'descriptor/materials/accents');
+  }
+  if (isRec(d['lighting'])) {
+    text(d['lighting'], 'mood', 60, 'descriptor/lighting/mood');
+    list(d['lighting'], 'fixtures', 10, 80, 'descriptor/lighting/fixtures');
+  }
+  list(d, 'decor', 20, 80, 'descriptor/decor');
+  if (Array.isArray(d['items'])) {
+    d['items'].forEach((it, i) => {
+      if (!isRec(it)) return;
+      const at = `descriptor/items/${i}`;
+      text(it, 'subtype', 80, `${at}/subtype`);
+      text(it, 'shape', 120, `${at}/shape`);
+      text(it, 'colour', 40, `${at}/colour`);
+      text(it, 'material', 60, `${at}/material`);
+      list(it, 'searchTerms', 4, 60, `${at}/searchTerms`);
+      if (isRec(it['placementHint'])) text(it['placementHint'], 'wall', 24, `${at}/placementHint/wall`);
+    });
+  }
+  return { value: d, notes };
+}
+
 /** The item as a short phrase for logs, searches and reports: "freestanding bathtub (white, glossy ceramic)". */
 export function itemPhrase(it: DescriptorItem): string {
   return `${it.subtype} (${it.colour}, ${it.material})`;

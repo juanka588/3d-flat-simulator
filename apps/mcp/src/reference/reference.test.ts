@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { GENERATORS, cameraFromMatrixWorld } from '@flat/scene';
 import '@flat/assets';
-import { DESCRIPTOR_EXAMPLE, ReferenceDescriptor, type DescriptorItem } from './descriptor';
+import { DESCRIPTOR_EXAMPLE, ReferenceDescriptor, softenDescriptor, type DescriptorItem } from './descriptor';
 import { cameraOfPayload, decodePng16Gray, planHintOf, sampleDepthM } from './depth';
 import { buildGapReport, gapMarkdown, matchItems, searchPhrases, type MatchPorts } from './engine';
 import { PARISIAN_BATHROOM, encodePng16Gray, floorAndWallDepth } from './fixtures';
@@ -31,6 +31,26 @@ describe('ReferenceDescriptor schema', () => {
     expect(messages({ ...base, items: [{ ...base.items[0], importance: 9 }] })[0]).toMatch(/^items\/0\/importance/);
     expect(messages({ ...base, items: [{ ...base.items[0], category: 'bathtub' }] })[0]).toMatch(/^items\/0\/category/);
     expect(messages({ ...base, items: [{ ...base.items[0], approxDims: { w: 0, d: 1, h: 1 } }] })[0]).toMatch(/^items\/0\/approxDims\/w/);
+  });
+
+  it('softenDescriptor shortens over-long free text and lists (with notes) and leaves structure alone', () => {
+    const base = structuredClone(PARISIAN_BATHROOM);
+    const long = 'x'.repeat(95);
+    const raw = { ...base, style: long, lighting: { ...base.lighting, mood: 'm'.repeat(70), fixtures: Array.from({ length: 12 }, (_, i) => `lamp ${i}`) }, decor: ['d'.repeat(100)], items: [{ ...base.items[0], shape: 's'.repeat(130), searchTerms: ['a', 'b', 'c', 'd', 'e'] }] };
+    expect(check(raw).success).toBe(false); // strict on its own
+    const { value, notes } = softenDescriptor(raw);
+    const parsed = check(value);
+    expect(parsed.success, JSON.stringify(parsed.error?.issues)).toBe(true);
+    expect((value as { style: string }).style).toHaveLength(80);
+    expect((value as { style: string }).style.endsWith('…')).toBe(true);
+    expect(notes).toEqual(expect.arrayContaining(['descriptor/style: shortened from 95 to 80 characters', 'descriptor/lighting/fixtures: kept the first 10 of 12 entries', 'descriptor/items/0/shape: shortened from 130 to 120 characters', 'descriptor/items/0/searchTerms: kept the first 4 of 5 entries']));
+    // the input is not modified, and a descriptor that fits yields no notes
+    expect((raw as { style: string }).style).toHaveLength(95);
+    expect(softenDescriptor(base).notes).toEqual([]);
+    // structural problems are still errors
+    expect(check(softenDescriptor({ ...base, palette: [{ hex: 'red', role: 'r'.repeat(40), areaPct: 10 }] }).value).success).toBe(false);
+    expect(check(softenDescriptor({ ...base, items: [] }).value).success).toBe(false);
+    expect(softenDescriptor('nope').value).toBe('nope');
   });
 
   it('checks the box, unique ids, near-item references and the palette total', () => {

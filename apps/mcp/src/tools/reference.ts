@@ -61,8 +61,11 @@ export interface JobMeta {
   zone?: string;
   weight?: number;
   layout?: string;
+  /** Why fewer candidates than asked were made (time budget, slow machine). */
+  budgetNote?: string;
 }
 const jobs = new Map<string, JobMeta>();
+const countedJobs = new Set<string>();
 /** What a job was asked for (this process only); `record_reference` uses its room and camera. */
 export const getJobMeta = (id: string): JobMeta | undefined => jobs.get(id);
 export const SIZE_OF_REFERENCE = SIZE;
@@ -70,6 +73,34 @@ const remember = (id: string, m: JobMeta) => {
   jobs.set(id, m);
   if (jobs.size > 50) jobs.delete(jobs.keys().next().value as string);
 };
+
+// -- time budget of the reference phase ------------------------------------------------------------------------------------------
+
+/** About how long one image takes on the Mac backend (Qwen + canny, 1024x768, 8 steps). */
+export const EXPECTED_S_PER_IMAGE = 90;
+const refClock: { firstAt: number | undefined; seconds: number; images: number } = { firstAt: undefined, seconds: 0, images: 0 };
+export const resetReferenceClock = (): void => {
+  Object.assign(refClock, { firstAt: undefined, seconds: 0, images: 0 });
+};
+
+/**
+ * The runner (or the user) sets `FLAT_REFERENCE_BUDGET_S`, the time the reference phase may take from the first `generate_reference`
+ * of this process. The second real run spent its whole hour on references and scored nothing. So: past 40% of the budget, or when
+ * images come out more than 3x slower than expected (the machine is swapping), more candidates are cut to one; past the budget no
+ * new reference is started and the model is told to score what it has.
+ */
+export function referenceBudget(n: number, env: Record<string, string | undefined> = process.env, now = Date.now()): { n: number; note?: string; refuse?: string } {
+  const budget = Number(env['FLAT_REFERENCE_BUDGET_S']);
+  if (!Number.isFinite(budget) || budget <= 0) return { n };
+  refClock.firstAt ??= now;
+  const elapsed = (now - refClock.firstAt) / 1000;
+  if (elapsed >= budget) return { n, refuse: `the reference time budget (${Math.round(budget / 60)} min) is used up: no more reference images. Record and score the ones you have (at least one scored iteration is required), then finish.` };
+  const avg = refClock.images ? refClock.seconds / refClock.images : 0;
+  if (n > 1 && (elapsed >= 0.4 * budget || avg >= 3 * EXPECTED_S_PER_IMAGE)) {
+    return { n: 1, note: `n reduced to 1: ${avg >= 3 * EXPECTED_S_PER_IMAGE ? `images take ${Math.round(avg)} s each (expected ${EXPECTED_S_PER_IMAGE} s), the machine is slow` : `${Math.round(elapsed / 60)} of ${Math.round(budget / 60)} reference minutes are used`}` };
+  }
+  return { n };
+}
 
 function providerFailure(e: unknown): CallToolResult {
   if (e instanceof ControlsUnavailableError) return toolError('not_implemented', e.message, 'Use mode "visualisation" (needs only a render), or wait for the render_passes tool; describe_room and render_view still work.');
@@ -139,6 +170,15 @@ function resultFor(status: JobStatus, meta: JobMeta | undefined, providerId: str
   }
   const images: GeneratedImage[] = status.images.slice(0, 4);
   saveForRunner(status, meta);
+  // wall time per image, for the budget and for a loud warning when the machine is swapping
+  const perImage = images.length ? images.reduce((a, i) => a + i.seconds, 0) / images.length : 0;
+  if (!countedJobs.has(status.jobId) && images.length) {
+    countedJobs.add(status.jobId);
+    refClock.seconds += images.reduce((a, i) => a + i.seconds, 0);
+    refClock.images += images.length;
+  }
+  const slow = perImage > 3 * EXPECTED_S_PER_IMAGE ? `SLOW: ${Math.round(perImage)} s per image against about ${EXPECTED_S_PER_IMAGE} s expected (more than 3x). The machine is probably swapping: ${(status.warnings ?? []).join('; ') || 'close other apps, check the image service memory in /health'}.` : undefined;
+  const report = { ...(status.timings ? { timings: status.timings } : {}), ...(slow ? { slow } : {}), ...(status.warnings?.length ? { sidecarWarnings: status.warnings } : {}) };
   const content: CallToolResult['content'] = [];
   const skipped: string[] = [];
   for (const img of images) {
@@ -154,7 +194,8 @@ function resultFor(status: JobStatus, meta: JobMeta | undefined, providerId: str
       label,
       kind: meta?.mode ?? 'reference',
       ...base,
-      images: images.map((i) => ({ path: i.path, seed: i.seed, seconds: i.seconds, ...(i.peakGb != null ? { peakGb: i.peakGb } : {}) })),
+      images: images.map((i) => ({ path: i.path, seed: i.seed, seconds: i.seconds, ...(i.peakGb != null ? { peakGb: i.peakGb } : {}), ...(i.loadS !== undefined ? { loadS: i.loadS } : {}), ...(i.stepsS !== undefined ? { stepsS: i.stepsS } : {}) })),
+      ...report,
       ...(skipped.length ? { note: `no preview for ${skipped.length} image(s) (too large or unavailable); open the files at "path"` } : {}),
     },
     content,
@@ -217,11 +258,13 @@ async function generateReference(ctx: ToolContext, args: Record<string, unknown>
     // A source installed with setControlImageSource wins (tests); otherwise the CG1 render passes of this server's renderer.
     const source = getControlImageSource();
     const ctrl = await (source === unavailableControls ? passControlSource(ctx.renderer ?? sharedMcpRenderer(ctx.flat, { webUrl: ctx.config.webUrl, renderChannel: ctx.config.renderChannel, log: ctx.config.log })) : source).getControlImages({ scene, roomId: a.roomId, pose, size: { ...SIZE } });
+    const budget = referenceBudget(a.n);
+    if (budget.refuse) return toolError('rate_limited', budget.refuse, 'Call record_reference and score_against_reference with the references you already have.');
     const status = await provider.generate(
-      { prompt: built.prompt, negativePrompt: built.negativePrompt, seed, n: a.n, width: SIZE.width, height: SIZE.height, model: 'qwen-cn', controls: [{ type: 'canny', image: ctrl.canny, strength: 1.0 }] },
+      { prompt: built.prompt, negativePrompt: built.negativePrompt, seed, n: budget.n, width: SIZE.width, height: SIZE.height, model: 'qwen-cn', controls: [{ type: 'canny', image: ctrl.canny, strength: 1.0 }] },
       { waitMs },
     );
-    const meta: JobMeta = { mode: 'reference', roomId: a.roomId, styleId: a.styleId, roomType: room.type, prompt: built.prompt, negativePrompt: built.negativePrompt, seed, pose, ...viewMeta, ...(layout ? { layout } : {}) };
+    const meta: JobMeta = { mode: 'reference', roomId: a.roomId, styleId: a.styleId, roomType: room.type, prompt: built.prompt, negativePrompt: built.negativePrompt, seed, pose, ...viewMeta, ...(layout ? { layout } : {}), ...(budget.note ? { budgetNote: budget.note } : {}) };
     remember(status.jobId, meta);
     return resultFor(status, meta, provider.id);
   } catch (e) {

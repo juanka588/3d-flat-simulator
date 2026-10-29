@@ -33,6 +33,8 @@ class ModelSpec:
     quantize: int | None
     default_size: tuple[int, int]
     licence: str
+    #: Peak memory of one job measured on an M4 Max with mflux (CG0): what must be available to avoid paging.
+    peak_gb: float = 0.0
 
 
 MODELS: dict[str, ModelSpec] = {
@@ -47,6 +49,7 @@ MODELS: dict[str, ModelSpec] = {
         quantize=8,
         default_size=(1024, 768),
         licence="Qwen-Image Apache-2.0; mflux ControlNet (Fun-Controlnet-Union): Qwen RESEARCH LICENSE, non-commercial; diffusers ControlNet (InstantX): see README",
+        peak_gb=38.0,
     ),
     "klein-edit": ModelSpec(
         id="klein-edit",
@@ -59,6 +62,7 @@ MODELS: dict[str, ModelSpec] = {
         quantize=None,
         default_size=(1024, 768),
         licence="Apache-2.0 (4B)",
+        peak_gb=25.0,
     ),
 }
 

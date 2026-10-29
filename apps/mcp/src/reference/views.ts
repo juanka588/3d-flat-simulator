@@ -1,4 +1,4 @@
-import { distanceToSegment, footprintOf, itemDims, openingFrame, pointInPolygon, polygonArea, rotationFacing, type Item, type Opening, type Room, type RoomView, type Scene, type Vec2, type WalkPose } from '@flat/scene';
+import { distanceToSegment, doorSwingPolygon, footprintOf, itemDims, openingFrame, pointInPolygon, polygonArea, rotationFacing, type Item, type Opening, type Room, type RoomView, type Scene, type Vec2, type WalkPose } from '@flat/scene';
 import { walkPoseInRoom } from '@flat/scene';
 
 /**
@@ -50,6 +50,8 @@ export interface ViewSpec {
   sees: string[];
   /** One sentence for the image prompt about what is in the picture (never coordinates). */
   promptHint: string;
+  /** Does the camera see the room's main fittings, clear of walls and of the open door leaf? Set for bathrooms and WCs. */
+  checks?: ViewChecks;
 }
 
 export interface LayoutIntent {
@@ -299,6 +301,181 @@ function seesZone(pose: WalkPose, zones: ZoneInfo[]): string[] {
     .map((z) => z.id);
 }
 
+// -- does the camera see what it is for? ---------------------------------------------------------------------------------------
+
+/** Aspect of the reference images (1024 x 768): decides the vertical field of view. */
+const ASPECT = 4 / 3;
+
+interface Solid {
+  a: Vec2;
+  b: Vec2;
+  half: number;
+}
+
+/** Wall pieces that block the eye and the body: every wall minus its door and passage spans (windows stay solid at eye height). */
+function solidWalls(scene: Scene): Solid[] {
+  const out: Solid[] = [];
+  for (const w of scene.walls) {
+    const len = len2(w.start, w.end);
+    if (len < 1e-6) continue;
+    const d = unit(sub(w.end, w.start));
+    const cuts: [number, number][] = [];
+    for (const o of scene.openings) {
+      if (o.wallId !== w.id || (o.type !== 'door' && o.type !== 'passage')) continue;
+      cuts.push([o.offset - o.width / 2, o.offset + o.width / 2]);
+    }
+    cuts.sort((p, q) => p[0] - q[0]);
+    let at = 0;
+    for (const [c0, c1] of cuts) {
+      if (c0 > at + 1e-6) out.push({ a: add(w.start, mul(d, at)), b: add(w.start, mul(d, c0)), half: w.thickness / 2 });
+      at = Math.max(at, c1);
+    }
+    if (at < len - 1e-6) out.push({ a: add(w.start, mul(d, at)), b: w.end, half: w.thickness / 2 });
+  }
+  return out;
+}
+const len2 = (a: Vec2, b: Vec2) => Math.hypot(b[0] - a[0], b[1] - a[1]);
+
+/** Open door leaves as segments (hinge to free end): the viewer draws them open at 90 degrees. */
+function doorLeaves(scene: Scene): [Vec2, Vec2][] {
+  const out: [Vec2, Vec2][] = [];
+  for (const o of scene.openings) {
+    if (o.type !== 'door' || o.glazed) continue;
+    const f = openingFrame(scene, o);
+    if (!f) continue;
+    const poly = doorSwingPolygon(f, o);
+    out.push([poly[0]!, poly[poly.length - 1]!]);
+  }
+  return out;
+}
+
+function segmentsCross(p: Vec2, q: Vec2, a: Vec2, b: Vec2): boolean {
+  const o = (x: Vec2, y: Vec2, z: Vec2) => (y[0] - x[0]) * (z[1] - x[1]) - (y[1] - x[1]) * (z[0] - x[0]);
+  return o(p, q, a) * o(p, q, b) < 0 && o(a, b, p) * o(a, b, q) < 0;
+}
+
+/** True when the floor-plan line from `a` to `b` stays in rooms and doorways (no wall, no open door leaf) up to `stop` metres before `b`. */
+function sightClear(scene: Scene, leaves: [Vec2, Vec2][], a: Vec2, b: Vec2, stop = 0.2): boolean {
+  const total = len2(a, b);
+  if (leaves.some(([h, e]) => segmentsCross(a, b, h, e))) return false;
+  const steps = Math.max(1, Math.floor((total - stop) / 0.04));
+  const doorways = scene.openings.filter((o) => o.type === 'door' || o.type === 'passage').map((o) => ({ o, f: openingFrame(scene, o) })).filter((x) => x.f);
+  for (let k = 0; k <= steps; k++) {
+    const p = add(a, mul(sub(b, a), (k / steps) * Math.max(0, (total - stop) / total)));
+    if (scene.rooms.some((r) => pointInPolygon(p, r.polygon, 0.02))) continue;
+    const inDoorway = doorways.some(({ o, f }) => {
+      const v = sub(p, f!.centre);
+      return Math.abs(v[0] * f!.dir[0] + v[1] * f!.dir[1]) <= o.width / 2 - 0.02 && Math.abs(v[0] * f!.left[0] + v[1] * f!.left[1]) <= f!.wall.thickness / 2 + 0.05;
+    });
+    if (!inDoorway) return false;
+  }
+  return true;
+}
+
+export interface ViewChecks {
+  ok: boolean;
+  /** Ids of the fittings in the picture (frustum and line of sight). */
+  seen: string[];
+  /** Share (0 to 1) of the target's sample points that are in the picture. */
+  share: number;
+  /** Why the first choice was replaced, when it was. */
+  fallback?: string;
+}
+
+/** Sample points of an item: the corners and centre of its footprint at half height and at the top. */
+function samplePoints(i: Item): { p: Vec2; z: number }[] {
+  const d = itemDims(i);
+  const base = i.elevation ?? 0;
+  const corners = footprintOf(i.position, i.rotation, { w: d.w, d: d.d });
+  const flat: Vec2[] = [...corners, [i.position[0], i.position[1]]];
+  return flat.flatMap((p) => [{ p, z: base + d.h * 0.5 }, { p, z: base + d.h }]);
+}
+
+/** Share of the item's sample points that a camera at `pose` sees: inside both field-of-view limits and with a clear line of sight. */
+export function itemVisibility(scene: Scene, pose: WalkPose, item: Item, leaves: [Vec2, Vec2][] = doorLeaves(scene)): number {
+  const half = (pose.fovDeg * DEG) / 2;
+  const vHalf = Math.atan(Math.tan(half) / ASPECT);
+  const pts = samplePoints(item);
+  let seen = 0;
+  for (const { p, z } of pts) {
+    const v = sub(p, pose.position);
+    const dist = len(v);
+    if (dist < 0.3) continue;
+    const diff = Math.abs(((headingOf(v) - pose.headingDeg + 540) % 360) - 180) * DEG;
+    if (diff > half - 2 * DEG) continue;
+    if (Math.abs(Math.atan2(z - pose.eyeHeight, dist)) > vHalf - 2 * DEG) continue;
+    if (!sightClear(scene, leaves, pose.position, p)) continue;
+    seen++;
+  }
+  return seen / pts.length;
+}
+
+/** Fittings a bathroom view is for, main one first: locked sanitary ware of the room (toilet, bath, shower, basin ...). */
+export function bathFittings(scene: Scene, room: Room): Item[] {
+  const rank = (i: Item) => {
+    const s = `${i.id} ${i.assetId}`;
+    return /toilet|wc/i.test(s) ? 0 : /bath/i.test(s) ? 1 : /shower|douche/i.test(s) ? 2 : /basin|vanity|vasque/i.test(s) ? 3 : 9;
+  };
+  return scene.items
+    .filter((i) => (i.roomId === undefined || i.roomId === room.id) && Boolean(i.locked) && pointInPolygon(i.position, room.polygon, 0.3) && rank(i) < 9)
+    .sort((a, b) => rank(a) - rank(b));
+}
+
+/** Distance from the eye to the nearest wall surface (door spans excluded). */
+const wallClearance = (solids: Solid[], p: Vec2) => solids.reduce((m, s) => Math.min(m, distanceToSegment(p, s.a, s.b) - s.half), Infinity);
+
+/**
+ * A camera in or just outside the door of a small room, aimed at its fittings, wide (90 to 100 degrees), clear of the walls and of the
+ * open door leaf, with every candidate checked for what it sees. Returns the best one that sees the main fitting, else undefined.
+ */
+export function doorwayPose(scene: Scene, roomId: string, fittings: Item[], opts: { fovDeg?: number } = {}): { pose: WalkPose; checks: ViewChecks } | undefined {
+  const room = roomOf(scene, roomId);
+  const main = fittings[0];
+  if (!main) return undefined;
+  const solids = solidWalls(scene);
+  const leaves = doorLeaves(scene);
+  const fov = opts.fovDeg ?? 95;
+  let best: { pose: WalkPose; score: number; seen: string[]; share: number } | undefined;
+  for (const edge of roomEdges(scene, room)) {
+    for (const o of edge.openings) {
+      if (o.type === 'window') continue;
+      const lateralDir: Vec2 = [-o.inward[1], o.inward[0]];
+      for (let t = -1.3; t <= 0.45 + 1e-9; t += 0.05) {
+        for (let s = -0.3; s <= 0.3 + 1e-9; s += 0.1) {
+          const p = add(add(o.centre, mul(o.inward, t)), mul(lateralDir, s));
+          if (Math.abs(t) <= 0.2) {
+            if (Math.abs(s) > o.width / 2 - 0.12) continue;
+          } else if (t > 0) {
+            if (!pointInPolygon(p, room.polygon, 0) || distToPolygonEdges(p, room.polygon) < 0.2) continue;
+          } else if (!scene.rooms.some((r) => r.id !== room.id && pointInPolygon(p, r.polygon, 0.2))) continue;
+          if (wallClearance(solids, p) < 0.25) continue;
+          if (leaves.some(([h, e]) => distanceToSegment(p, h, e) < 0.3)) continue;
+          // aim at the middle of what is to be seen (main fitting weighted double), then check it all
+          const wsum = fittings.length + 1;
+          const aim: Vec2 = [(main.position[0] * 2 + fittings.slice(1).reduce((a, i) => a + i.position[0], 0)) / wsum, (main.position[1] * 2 + fittings.slice(1).reduce((a, i) => a + i.position[1], 0)) / wsum];
+          const headingDeg = r1(headingOf(sub(aim, p)));
+          const pose: WalkPose = { mode: 'walk', position: pt(p), eyeHeight: EYE, headingDeg, pitchDeg: 0, fovDeg: fov };
+          const shares = fittings.map((i) => itemVisibility(scene, pose, i, leaves));
+          if (shares[0]! < 0.75) continue;
+          // near the door (the fitting looks bigger), not behind the open leaf, and the other fittings in the picture too
+          const halfFov = (fov * DEG) / 2;
+          const leafInView = leaves.some(([h, e]) => [h, e].some((q) => len(sub(q, p)) < 3 && Math.abs(((headingOf(sub(q, p)) - headingDeg + 540) % 360) - 180) * DEG < halfFov + 3 * DEG));
+          const score = shares[0]! * 3 + shares.slice(1).reduce((a, v) => a + v, 0) - 0.3 * Math.max(0, -t) - 0.2 * Math.abs(s) - (leafInView ? 0.8 : 0);
+          if (!best || score > best.score + 1e-9) best = { pose, score, seen: fittings.filter((_, k) => shares[k]! >= 0.5).map((i) => i.id), share: shares[0]! };
+        }
+      }
+    }
+  }
+  if (!best) return undefined;
+  return { pose: best.pose, checks: { ok: true, seen: best.seen, share: r2(best.share) } };
+}
+
+function checkView(scene: Scene, pose: WalkPose, fittings: Item[]): ViewChecks {
+  const leaves = doorLeaves(scene);
+  const shares = fittings.map((i) => itemVisibility(scene, pose, i, leaves));
+  return { ok: (shares[0] ?? 0) >= 0.5, seen: fittings.filter((_, k) => shares[k]! >= 0.5).map((i) => i.id), share: r2(shares[0] ?? 0) };
+}
+
 // -- views -----------------------------------------------------------------------------------------------------------------
 
 export interface ViewOpts {
@@ -398,6 +575,46 @@ function mainViews(scene: Scene, room: Room, zones: ZoneInfo[], zone: ZoneInfo, 
   return views.slice(0, count);
 }
 
+const SMALL_ROOM_M2 = 4.5;
+
+/**
+ * Bathrooms and WCs: the cameras are for the fittings. A small room (under 4.5 m2, a WC) gets ONE wide camera at its door looking in
+ * at the main fitting; a bigger one keeps the derived views, each checked for seeing the fittings and replaced by the doorway camera
+ * when it does not. `checks` on each view says what it sees.
+ */
+function bathroomViews(scene: Scene, room: Room, zones: ZoneInfo[], zone: ZoneInfo, derived: ViewSpec[]): ViewSpec[] | undefined {
+  const fittings = bathFittings(scene, room);
+  if (!fittings.length) return undefined;
+  const names = fittings.map((i) => i.id).join(', ');
+  const doorway = (id: string, why?: string): ViewSpec | undefined => {
+    const d = doorwayPose(scene, room.id, fittings);
+    if (!d) return undefined;
+    return { id, zone: zone.id, label: 'from the doorway', faces: `${fittings[0]!.id} (${names})`, weight: 0, hero: false, pose: d.pose, sees: seesZone(d.pose, zones), promptHint: `The camera stands in the doorway and looks into the small room at ${fittings[0]!.id}${fittings.length > 1 ? ' and the other fittings' : ''}; the walls of the line drawing close the picture.`, checks: { ...d.checks, ...(why ? { fallback: why } : {}) } };
+  };
+  if (zone.areaM2 < SMALL_ROOM_M2) {
+    const v = doorway('main');
+    if (v) return [v];
+    return undefined;
+  }
+  const out: ViewSpec[] = [];
+  for (const v of derived) {
+    const c = checkView(scene, v.pose, fittings);
+    if (c.ok) out.push({ ...v, checks: c });
+    else if (!out.some((x) => x.id === 'doorway')) {
+      const d = doorway('doorway', `${v.id} saw ${c.seen.length ? c.seen.join(', ') : 'none of the fittings'} (${Math.round(c.share * 100)}% of ${fittings[0]!.id})`);
+      out.push(d ?? { ...v, checks: c });
+    } else if (!out.some((x) => x.id === 'inside')) {
+      // a second picture from inside the room, wide, aimed at the main fitting from the far side
+      const main = fittings[0]!;
+      const aim: Vec2 = [main.position[0], main.position[1]];
+      const pose = standPose(scene, room.id, aim, { from: unit(sub(zone.centre, aim)), standoff: 3, spread: 90, minD: 0.9, fovDeg: 90, ignore: new Set(fittings.map((i) => i.id)) });
+      const ic = pose ? checkView(scene, pose, fittings) : undefined;
+      if (pose && ic?.ok) out.push({ id: 'inside', zone: zone.id, label: 'from inside, wide', faces: `${main.id} (${names})`, weight: 0, hero: false, pose, sees: seesZone(pose, zones), promptHint: `A wide view from inside the room towards ${main.id} and the other fittings.`, checks: { ...ic, fallback: `${v.id} saw ${Math.round(c.share * 100)}% of ${main.id}` } });
+    }
+  }
+  return out;
+}
+
 function kitchenViews(scene: Scene, room: Room, zones: ZoneInfo[], zone: ZoneInfo, count: number): ViewSpec[] {
   const fit = scene.items.filter((i) => zone.fittings.includes(i.id));
   const aim: Vec2 = fit.length ? [fit.reduce((a, i) => a + i.position[0], 0) / fit.length, fit.reduce((a, i) => a + i.position[1], 0) / fit.length] : zone.centre;
@@ -441,7 +658,13 @@ export function roomViews(scene: Scene, roomId: string, opts: ViewOpts = {}): Vi
   for (const zone of zones) {
     if (wanted && wanted.id !== zone.id) continue;
     const n = Math.max(1, opts.perZone ?? defaultViewCount(zone, room));
-    const views = (zone.kind === 'kitchen' ? kitchenViews(scene, room, zones, zone, 9) : mainViews(scene, room, zones, zone, 9)).slice(0, n);
+    let derived = zone.kind === 'kitchen' ? kitchenViews(scene, room, zones, zone, 9) : mainViews(scene, room, zones, zone, 9);
+    if (zone.kind === 'main' && room.type === 'bathroom') derived = bathroomViews(scene, room, zones, zone, derived) ?? derived;
+    if (zone.kind === 'kitchen') {
+      const fit = scene.items.filter((i) => zone.fittings.includes(i.id) && !/wall|hood/i.test(i.assetId));
+      if (fit.length) derived = derived.map((v) => ({ ...v, checks: checkView(scene, v.pose, fit) }));
+    }
+    const views = derived.slice(0, n);
     for (const h of room.views ?? []) {
       const hz = h.zone ? (findZone(zones, h.zone)?.id ?? h.zone) : zones.find((z) => z.kind === 'main')?.id;
       if (hz !== zone.id) continue;
@@ -584,7 +807,7 @@ export function roomPlan(scene: Scene, roomId: string) {
   const views = roomViews(scene, roomId);
   return {
     zones: zones.map((z) => ({ id: z.id, kind: z.kind, areaM2: z.areaM2, ...(z.fittings.length ? { fittings: z.fittings } : {}) })),
-    views: views.map((v) => ({ id: v.id, zone: v.zone, label: v.label, faces: v.faces, weight: v.weight, hero: v.hero, eye: v.pose.position, headingDeg: v.pose.headingDeg, fovDeg: v.pose.fovDeg, sees: v.sees })),
+    views: views.map((v) => ({ ...(v.checks ? { checks: v.checks } : {}), id: v.id, zone: v.zone, label: v.label, faces: v.faces, weight: v.weight, hero: v.hero, eye: v.pose.position, headingDeg: v.pose.headingDeg, fovDeg: v.pose.fovDeg, sees: v.sees })),
     layout: zones.map((z) => {
       const l = layoutIntent(scene, roomId, z.id);
       return { zone: z.id, text: l.text, place: l.place, ...(l.circulation.length ? { circulation: l.circulation } : {}) };

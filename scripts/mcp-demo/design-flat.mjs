@@ -35,6 +35,7 @@
  *   Needs the image service (`pnpm imagegen`, CLIP indexes from `pnpm imagegen:index`): checked first, with instructions.
  *   --dry runs it end to end with a scripted fake model, the FakeImageProvider and a fake image service (output .tmp/design-closegap-dry/).
  *   Output: .tmp/design-closegap/<style>/<room>/ (contact-sheet.png, score-curve.png, target.png, gap-report.md, bom.md, final.png, ...).
+ *   --force-memory  go on although the image service reports too little free memory (the preflight refuses below ~23 GB available).
  *   --no-render   skip the final renders
  *   --list-styles
  *
@@ -561,6 +562,7 @@ if (CLOSE_GAP) {
     root: process.env.FLAT_CLOSEGAP_OUT,
     claude: CLAUDE,
     skipPrereqs: args.has('--skip-prereqs'),
+    forceMemory: args.has('--force-memory'),
     noVisualisation: args.has('--no-visualisation'),
     viewsSpec: VIEWS_ARG,
     resume: RESUME,

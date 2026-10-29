@@ -60,6 +60,9 @@ export interface GeneratedImage {
   seed: number;
   seconds: number;
   peakGb?: number | null | undefined;
+  /** Sidecar timings of this image: seconds before the first step (model load, text encoding) and in the denoising steps. */
+  loadS?: number | undefined;
+  stepsS?: number | undefined;
   /** A size-capped JPEG for the model to look at; absent when the provider could not make one. */
   preview?: { data: string; mimeType: 'image/jpeg' | 'image/png' } | undefined;
 }
@@ -76,6 +79,9 @@ export interface JobStatus {
   error?: string | undefined;
   /** Jobs ahead of this one when queued. */
   queuePosition?: number | undefined;
+  /** Sidecar wall times of the job (queuedS, runS, loadS, stepsS) and what it noticed (low memory headroom). */
+  timings?: Record<string, number> | undefined;
+  warnings?: string[] | undefined;
 }
 
 export interface WaitOptions {

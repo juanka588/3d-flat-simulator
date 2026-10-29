@@ -1,7 +1,7 @@
 import { pointInPolygon, type Scene } from '@flat/scene';
 import { describe, expect, it } from 'vitest';
 import { charmeScene } from '../testing/mockFlatApi';
-import { layoutIntent, roomPlan, roomViews, roomZones } from './views';
+import { bathFittings, doorwayPose, itemVisibility, layoutIntent, roomPlan, roomViews, roomZones } from './views';
 
 /** Views, zones and layout intent derived from the geometry of the Charme fixture (séjour / cuisine, sdb, chambres). */
 
@@ -55,10 +55,11 @@ describe('views', () => {
     }
   });
 
-  it('every eye stands inside the room, off the walls', () => {
+  it('every eye stands inside the room, off the walls (doorway views of fitted bathrooms stand at the door, checked)', () => {
     for (const room of scene.rooms) {
       if (room.type === 'balcony') continue;
       for (const view of roomViews(scene, room.id)) {
+        if (view.checks?.ok && /doorway|main/.test(view.id) && room.type === 'bathroom') continue;
         expect(pointInPolygon(view.pose.position, room.polygon, 1e-6), `${room.id}/${view.id}`).toBe(true);
         expect(Number.isFinite(view.pose.headingDeg)).toBe(true);
       }
@@ -128,5 +129,47 @@ describe('layout intent', () => {
     expect(plan.views).toHaveLength(5);
     expect(plan.layout.map((l) => l.zone)).toEqual(['living', 'kitchen']);
     expect(JSON.stringify(plan).length / 4).toBeLessThan(2200);
+  });
+});
+
+describe('views of small rooms are checked for what they see', () => {
+  const room = (id: string) => scene.rooms.find((r) => r.id === id)!;
+
+  it('the WC (1.28 x 1.54 m) gets one wide camera at its door that sees the toilet, outside the room and clear of the walls', () => {
+    const v = roomViews(scene, 'wc');
+    expect(v.map((x) => x.id)).toEqual(['main']);
+    const m = v[0]!;
+    expect(m.pose.fovDeg).toBeGreaterThanOrEqual(90);
+    expect(m.pose.fovDeg).toBeLessThanOrEqual(100);
+    expect(m.checks).toMatchObject({ ok: true, seen: ['wc-toilet'] });
+    expect(m.checks!.share).toBeGreaterThanOrEqual(0.75);
+    const toilet = scene.items.find((i) => i.id === 'wc-toilet')!;
+    expect(itemVisibility(scene, m.pose, toilet)).toBeGreaterThanOrEqual(0.75);
+    // at the door or outside it, not inside the 1.28 m room staring at a corner
+    expect(m.pose.position[0]).toBeLessThan(room('wc').polygon[0]![0]);
+  });
+
+  it('a camera that stares into a wall corner does not see the toilet; the doorway one does', () => {
+    const toilet = bathFittings(scene, room('wc'));
+    expect(toilet.map((i) => i.id)).toEqual(['wc-toilet']);
+    const corner = { mode: 'walk' as const, position: [9.17, 5.69] as [number, number], eyeHeight: 1.55, headingDeg: 29, pitchDeg: 0, fovDeg: 70 };
+    expect(itemVisibility(scene, corner, toilet[0]!)).toBeLessThan(0.5);
+    expect(doorwayPose(scene, 'wc', toilet)?.checks.ok).toBe(true);
+  });
+
+  it('every sdb view sees the bath and says so; no duplicate ids', () => {
+    const v = roomViews(scene, 'sdb');
+    expect(v.length).toBeGreaterThanOrEqual(1);
+    for (const x of v) {
+      expect(x.checks?.ok).toBe(true);
+      expect(x.checks!.seen).toContain('sdb-bathtub');
+    }
+    expect(new Set(v.map((x) => x.id)).size).toBe(v.length);
+  });
+
+  it('kitchen views carry a check; describe_room exposes it; bedrooms are untouched', () => {
+    for (const x of roomViews(scene, 'sejour', { zone: 'kitchen' })) expect(x.checks).toMatchObject({ ok: true });
+    expect(roomPlan(scene, 'wc').views[0]).toMatchObject({ id: 'main', checks: { ok: true } });
+    expect(roomViews(scene, 'ch1').every((x) => x.checks === undefined)).toBe(true);
   });
 });

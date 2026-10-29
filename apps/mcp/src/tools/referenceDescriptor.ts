@@ -7,7 +7,7 @@ import type { CallToolResult } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import { toolError, toolOk } from '../errors';
 import { ImageMatchError, getImageMatcher } from '../imagegen';
-import { ReferenceDescriptor } from '../reference/descriptor';
+import { ReferenceDescriptor, softenDescriptor } from '../reference/descriptor';
 import { cameraOfPayload, decodePng16Gray, planHintOf, type PlanHint } from '../reference/depth';
 import { buildGapReport, gapMarkdown, getReference, matchItems, putReference, type ItemMatch, type MatchPorts, type StoredReference } from '../reference/engine';
 import type { Candidate } from '../reference/rank';
@@ -91,12 +91,14 @@ const recordReference: ToolDef = {
   group: 'read',
   mutatesScene: false,
   async handler(ctx, args) {
-    const p = parseArgs(RecordArgs, args);
+    // a model-authored descriptor is read leniently: over-long free text is shortened (and the result says so), the structure stays strict
+    const soft = softenDescriptor(args['descriptor']);
+    const p = parseArgs(RecordArgs, soft.notes.length ? { ...args, descriptor: soft.value } : args);
     if (!p.ok) return p.result;
     const a = p.data;
     const meta = getJobMeta(a.jobId);
     const roomId = meta?.roomId ?? a.roomId;
-    const warnings: string[] = [];
+    const warnings: string[] = soft.notes.length ? [`accepted with shortened text: ${soft.notes.join('; ')}`] : [];
     const size = SIZE_OF_REFERENCE;
     for (const it of a.descriptor.items) {
       if (it.box[2] > size.width + 1 || it.box[3] > size.height + 1) warnings.push(`item "${it.id}": box goes beyond the ${size.width}x${size.height} image`);

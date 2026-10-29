@@ -42,8 +42,36 @@ const TINY_PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYP
 // Prerequisites
 // ---------------------------------------------------------------------------------------------
 
+/** Peak memory of one generation job (GB, measured on an M4 Max); a Chromium + MCP + scene server + claude need about 6 GB more. */
+export const MODEL_PEAK_GB = 38;
+const OTHERS_GB = 6;
+
+/**
+ * Can the machine run a generation now without paging? `health` is the sidecar's /health (its `memory` is the memory of the
+ * machine the sidecar runs on). The second real run swapped (10.6 GB of swap) and a 90 s image took 30 min. Refuses (a problem) only
+ * when it is hopeless: less than 60% of the peak available, or critical pressure; `force` turns that into a warning.
+ */
+export function memoryPreflight(health, { force = false, peakGb = MODEL_PEAK_GB } = {}) {
+  const problems = [];
+  const warnings = [];
+  const m = health?.memory;
+  if (!m || typeof m.availableGb !== 'number') {
+    warnings.push('The image service does not report its memory (older version): restart it once to get the memory preflight. A generation peaks at about 38 GB.');
+    return { problems, warnings };
+  }
+  const need = peakGb + OTHERS_GB;
+  const facts = `${m.availableGb} GB available, swap used ${m.swapUsedGb ?? '?'} GB, pressure ${m.pressure ?? '?'}; a job peaks at ~${peakGb} GB and the browser, MCP and claude need ~${OTHERS_GB} GB more`;
+  const hopeless = m.availableGb < peakGb * 0.6 || m.pressure === 'critical';
+  if (hopeless) (force ? warnings : problems).push(`Not enough free memory for the image model (${facts}). Close other apps (or the old headless browsers) and retry${force ? ' (--force-memory: going on anyway)' : ', or pass --force-memory'}.`);
+  else if (m.availableGb < need) warnings.push(`Tight memory (${facts}): expect paging and slow images; close other apps first.`);
+  else if (m.pressure === 'warn') warnings.push(`Memory pressure is "warn" (${facts}).`);
+  if ((m.swapUsedGb ?? 0) > 4 && m.availableGb < need + 10) warnings.push(`${m.swapUsedGb} GB of swap is in use already (the last heavy run?): a new generation may page.`);
+  if (health.queue?.running || (health.queue?.queued ?? 0) > 0) warnings.push('The image service is busy with another job: the first reference will wait behind it (and renders wait for it too).');
+  return { problems, warnings };
+}
+
 /** What a real run needs, checked before any model money is spent. Returns { problems, warnings, info }. */
-export async function checkPrerequisites({ imagegenUrl, token, dry, claude }) {
+export async function checkPrerequisites({ imagegenUrl, token, dry, claude, forceMemory = false }) {
   const problems = [];
   const warnings = [];
   const info = [];
@@ -75,7 +103,12 @@ export async function checkPrerequisites({ imagegenUrl, token, dry, claude }) {
     problems.push(`The image service is not reachable at ${imagegenUrl} (${e.message}). Start it in another terminal with \`pnpm imagegen\` (first time: \`pnpm imagegen:setup --download\`), or set IMAGEGEN_URL / IMAGEGEN_TOKEN.`);
   }
   if (health) {
-    info.push(`image service ${imagegenUrl}: backend ${health.backend ?? '?'}${health.gpu?.name ? `, ${health.gpu.name}` : ''}`);
+    info.push(`image service ${imagegenUrl}: backend ${health.backend ?? '?'}${health.gpu?.name ? `, ${health.gpu.name}` : ''}${health.memory?.availableGb !== undefined ? `; memory ${health.memory.availableGb} GB available, swap ${health.memory.swapUsedGb} GB, pressure ${health.memory.pressure}` : ''}${health.unload ? `; unload: ${health.unload}` : ''}`);
+    if (!dry) {
+      const mem = memoryPreflight(health, { force: forceMemory });
+      problems.push(...mem.problems);
+      warnings.push(...mem.warnings);
+    }
     if (!dry) {
       const usable = (health.models ?? []).some((m) => m.downloaded);
       if (health.ready === false || !usable) problems.push('The image service has no generation model downloaded. Run `pnpm imagegen:setup --download` (about 60 GB) or point IMAGEGEN_HF_HOME at a cache that has them.');
@@ -367,10 +400,41 @@ async function labelVisualisation(src, file) {
 
 
 
+/** view id -> the first reference image generated for it (from the `reference-<job>.json` files the MCP writes), for partial runs. */
+export function referenceImagesByView(refDir) {
+  const found = {};
+  if (!existsSync(refDir)) return found;
+  for (const f of readdirSync(refDir).filter((x) => /^reference-[0-9a-f]+\.json$/.test(x)).sort()) {
+    const j = jsonIn(join(refDir, f));
+    const img = j?.images?.[0]?.file;
+    if (j?.view && img && !found[j.view]) found[j.view] = img;
+  }
+  return found;
+}
+
 function findLatest(dir, re) {
   if (!existsSync(dir)) return undefined;
   const hits = readdirSync(dir).filter((f) => re.test(f)).sort();
   return hits.length ? join(dir, hits[hits.length - 1]) : undefined;
+}
+
+/**
+ * What a finished generate_reference tells about speed: seconds per image (the sidecar's own wall time), load and step times when
+ * it reported them, and a loud message when an image took more than 3x the expected ~90 s (the machine is swapping).
+ */
+export function referenceTiming(text, wallMs, expectedS = 90) {
+  let j;
+  try {
+    j = JSON.parse(text.slice(0, text.indexOf('\n') > 0 ? text.indexOf('\n') : undefined));
+  } catch {
+    return undefined;
+  }
+  const imgs = Array.isArray(j?.images) ? j.images : [];
+  if (!imgs.length) return undefined;
+  const perImage = imgs.reduce((a, i) => a + (i.seconds ?? 0), 0) / imgs.length;
+  const out = { images: imgs.length, perImageS: Math.round(perImage), wallS: Math.round(wallMs / 1000), ...(imgs[0].loadS !== undefined ? { loadS: imgs[0].loadS } : {}), ...(imgs[0].stepsS !== undefined ? { stepsS: imgs[0].stepsS } : {}), ...(j.timings ? { sidecar: j.timings } : {}) };
+  if (perImage > 3 * expectedS) out.message = `WARNING: ${Math.round(perImage)} s per image against about ${expectedS} s expected (${(perImage / expectedS).toFixed(1)}x): the machine is swapping or overloaded.${j.sidecarWarnings?.length ? ` Sidecar: ${j.sidecarWarnings.join('; ')}` : ''}`;
+  return out;
 }
 
 /** Runs the claude CLI session; returns { result, calls, usage, turns, stderr }. */
@@ -422,7 +486,7 @@ async function runClaude({ request, serverUrl, mcpEnv, maxUsd, timeoutMs, claude
       }
       for (const b of ev.message?.content ?? []) {
         if (b.type === 'text' && b.text.trim()) log(`  [model] ${b.text.trim().slice(0, 400).replace(/\n/g, ' ')}`);
-        if (b.type === 'tool_use') uses.set(b.id, { name: b.name.replace(/^mcp__flat__/, ''), input: b.input ?? {} });
+        if (b.type === 'tool_use') uses.set(b.id, { name: b.name.replace(/^mcp__flat__/, ''), input: b.input ?? {}, at: Date.now() });
       }
     } else if (ev.type === 'user') {
       for (const b of ev.message?.content ?? []) {
@@ -431,8 +495,10 @@ async function runClaude({ request, serverUrl, mcpEnv, maxUsd, timeoutMs, claude
         if (!use) continue;
         const parts = Array.isArray(b.content) ? b.content : [{ type: 'text', text: String(b.content ?? '') }];
         const text = parts.filter((p) => p.type === 'text').map((p) => p.text).join('\n');
-        calls.push({ name: use.name, input: use.input, error: Boolean(b.is_error), text: text.slice(0, 600) });
-        log(`  ${use.name}${b.is_error ? ` -> ERROR ${text.slice(0, 160)}` : ''}${parts.some((p) => p.type === 'image') ? ' (image)' : ''}`);
+        const ms = Date.now() - use.at;
+        const timing = use.name === 'generate_reference' ? referenceTiming(text, ms) : undefined;
+        calls.push({ name: use.name, input: use.input, error: Boolean(b.is_error), ms, ...(timing ? { timing } : {}), text: text.slice(0, 600) });
+        log(`  ${use.name}${b.is_error ? ` -> ERROR ${text.slice(0, 160)}` : ''}${parts.some((p) => p.type === 'image') ? ' (image)' : ''}${ms > 20_000 ? ` [${Math.round(ms / 1000)} s]` : ''}${timing?.message ? `\n  ${timing.message}` : ''}`);
       }
     } else if (ev.type === 'result') result = ev;
   };
@@ -471,6 +537,25 @@ async function runClaude({ request, serverUrl, mcpEnv, maxUsd, timeoutMs, claude
 // ---------------------------------------------------------------------------------------------
 
 const SIZE = { width: 1024, height: 768 };
+
+/**
+ * One render_view call that survives what is not the render's fault: the per-minute limit (wait and retry) and a cold or loaded
+ * browser (`render_timeout`, `render_unavailable`: retried after a pause, the MCP also retries the browser start itself). Only a
+ * failure that persists through `max` attempts is returned as the failure. `call(args)` is the MCP callTool; `sleepFn` is injectable.
+ */
+export async function renderWithRetry(call, args, { max = 4, sleepFn = sleep, log = () => {} } = {}) {
+  let r;
+  for (let attempt = 1; attempt <= max; attempt++) {
+    r = await call(args);
+    if ((r.content ?? []).some((p) => p.type === 'image')) return r;
+    const code = r.structuredContent?.code;
+    if (attempt === max || !['rate_limited', 'render_timeout', 'render_unavailable'].includes(code)) break;
+    const wait = code === 'rate_limited' ? (r.structuredContent.retryAfterMs ?? 3000) + 300 : 5000 * attempt;
+    log(`render ${code} (attempt ${attempt}/${max}): retrying in ${Math.round(wait / 1000)} s`);
+    await sleepFn(wait);
+  }
+  return r;
+}
 const walkPose = (v) => ({ mode: 'walk', position: v.eye, eyeHeight: 1.55, headingDeg: v.headingDeg, pitchDeg: 0, fovDeg: v.fovDeg });
 const safeName = (s) => String(s).replace(/[^a-zA-Z0-9_-]/g, '_');
 const jsonIn = (file) => {
@@ -496,7 +581,9 @@ export async function runRoom(o) {
   const dataDir = mkdtempSync(join(process.env.TMPDIR || tmpdir(), 'flat-closegap-'));
   const server = await startServer(dataDir, { FLAT_PROVIDERS: providers, FLAT_ENV_FILE: '/dev/null' });
   log(`scene server ${server.url} (data ${dataDir}), providers ${providers}; caps $${o.maxUsd}, ${o.maxMinutes} min; out ${out}`);
-  const mcpEnv = { FLAT_DESIGN_OUT: out, IMAGEGEN_URL: o.imagegenUrl, ...(process.env.IMAGEGEN_TOKEN ? { IMAGEGEN_TOKEN: process.env.IMAGEGEN_TOKEN } : {}), ...(process.env.FLAT_SCORE_WEIGHTS ? { FLAT_SCORE_WEIGHTS: process.env.FLAT_SCORE_WEIGHTS } : {}) };
+  // The reference phase may use 40% of the target's time: past that the MCP cuts candidates to one, past all of it no new image starts.
+  const refBudgetS = Math.round(o.maxMinutes * 60 * 0.4);
+  const mcpEnv = { FLAT_DESIGN_OUT: out, IMAGEGEN_URL: o.imagegenUrl, ...(o.dry ? {} : { FLAT_REFERENCE_BUDGET_S: String(refBudgetS) }), ...(process.env.IMAGEGEN_TOKEN ? { IMAGEGEN_TOKEN: process.env.IMAGEGEN_TOKEN } : {}), ...(process.env.FLAT_SCORE_WEIGHTS ? { FLAT_SCORE_WEIGHTS: process.env.FLAT_SCORE_WEIGHTS } : {}) };
   let reader;
   const started = Date.now();
   const putScene = async (text) => {
@@ -520,7 +607,7 @@ export async function runRoom(o) {
     log(`views: ${views.map((v) => `${v.id} (${v.weight})`).join(', ')}`);
 
     const render = async (v, file) => {
-      const r = await call('render_view', { view: 'walk', roomId: o.roomId, pose: walkPose(v), preset: 'day', size: SIZE, waitForModelsS: o.dry ? 5 : 120 });
+      const r = await renderWithRetry((a) => call('render_view', a), { view: 'walk', roomId: o.roomId, pose: walkPose(v), preset: 'day', size: SIZE, waitForModelsS: o.dry ? 5 : 120 }, { log });
       const img = (r.content ?? []).find((p) => p.type === 'image');
       if (!img) throw new Error(`render of view ${v.id} failed: ${textOf(r).slice(0, 300)}`);
       mkdirSync(join(file, '..'), { recursive: true });
@@ -539,7 +626,8 @@ export async function runRoom(o) {
 
     const prompt = await reader.client.getPrompt({ name: 'close_the_gap', arguments: { roomId: o.roomId, styleId: o.styleId, iterations: String(o.iterations), ...(o.zone ? { zone: o.zone } : {}), ...(o.budget ? { budgetEur: String(o.budget) } : {}) } });
     const restrict = o.viewsSpec ? `\n\nUse only these views of the zone: ${views.map((v) => v.id).join(', ')} (the first is the hero).` : '';
-    const request = `Use only the flat's MCP tools. The design output folder is already set: call gap_report without saveTo. Show nothing but the tools' pictures; you cannot open files.\n\n${prompt.messages.map((m) => (m.content.type === 'text' ? m.content.text : '')).join('\n\n')}${restrict}`;
+    const timeBox = o.dry ? '' : `\n\nTime box (the controller enforces it): this target has ${o.maxMinutes} minutes in total. The reference images must be finished within ${Math.round(refBudgetS / 60)} minutes: if an image takes much longer than 90 s the machine is struggling, so use n 1 for every view (also the hero), do not regenerate or wait for extra candidates, and go on. After that time generate_reference refuses new references. You MUST reach at least one scored iteration (score_against_reference) before the end: record the descriptors, place the essentials and score, then improve if time is left.`;
+    const request = `Use only the flat's MCP tools. The design output folder is already set: call gap_report without saveTo. Show nothing but the tools' pictures; you cannot open files.\n\n${prompt.messages.map((m) => (m.content.type === 'text' ? m.content.text : '')).join('\n\n')}${restrict}${timeBox}`;
     writeFileSync(join(out, 'prompt.md'), request);
 
     const calls = [];
@@ -666,9 +754,14 @@ export async function runRoom(o) {
     // ---- what the session left behind, per view ----
     const refDir = join(out, 'references');
     const targets = {};
+    const rawRefs = referenceImagesByView(refDir);
     for (const v of views) {
       const d = jsonIn(join(out, 'views', `${v.id}.descriptor.json`)) ?? (views.length === 1 ? jsonIn(join(out, 'descriptor.json')) : undefined);
-      if (!d) continue;
+      if (!d) {
+        // stopped before this view was read: the contact sheet still shows the reference image that was generated for it
+        if (rawRefs[v.id] && existsSync(rawRefs[v.id])) copyFileSync(rawRefs[v.id], join(out, 'views', v.id, 'target.png'));
+        continue;
+      }
       targets[v.id] = d;
       const f = join(refDir, `reference-${d.jobId}-${d.index}.png`);
       if (existsSync(f)) copyFileSync(f, join(out, 'views', v.id, 'target.png'));
@@ -737,6 +830,9 @@ export async function runRoom(o) {
       file: join(out, 'contact-sheet.png'),
     });
 
+    const refCalls = calls.filter((c) => c.timing);
+    const referenceTimings = refCalls.length ? { calls: refCalls.length, images: refCalls.reduce((a, c) => a + c.timing.images, 0), meanPerImageS: Math.round(refCalls.reduce((a, c) => a + c.timing.perImageS * c.timing.images, 0) / Math.max(1, refCalls.reduce((a, c) => a + c.timing.images, 0))), slowCalls: refCalls.filter((c) => c.timing.message).length } : null;
+    if (referenceTimings) log(`reference images: ${referenceTimings.images} in ${referenceTimings.calls} call(s), mean ${referenceTimings.meanPerImageS} s per image${referenceTimings.slowCalls ? `, ${referenceTimings.slowCalls} call(s) were more than 3x slower than expected` : ''}`);
     const costUsd = result?.total_cost_usd ?? 0;
     const errors = calls.filter((c) => c.error).length;
     const minutes = Number(((Date.now() - started) / 60000).toFixed(1));
@@ -776,6 +872,7 @@ export async function runRoom(o) {
       errors,
       minutes,
       timedOut,
+      referenceTimings,
       tokens: usage,
       iterations: iters.length,
       overall: iters.map((i) => i.overall),
@@ -854,7 +951,7 @@ export async function closeGapMain(o) {
       return 2;
     }
     if (!o.skipPrereqs) {
-      const pre = await checkPrerequisites({ imagegenUrl, token: process.env.IMAGEGEN_TOKEN, dry: o.dry, claude: o.claude });
+      const pre = await checkPrerequisites({ imagegenUrl, token: process.env.IMAGEGEN_TOKEN, dry: o.dry, claude: o.claude, forceMemory: o.forceMemory });
       for (const i of pre.info) console.log(`ok: ${i}`);
       for (const w of pre.warnings) console.log(`WARNING: ${w}`);
       if (pre.problems.length) {

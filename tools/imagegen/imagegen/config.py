@@ -39,6 +39,14 @@ class Config:
     max_body_bytes: int = 48 * 1024 * 1024
     #: Longest image edge accepted (IMAGEGEN_MAX_SIDE; the diffusers profile sets it from the VRAM).
     max_side: int = 1536
+    #: Free the generation model from memory: None keeps it resident (diffusers) between jobs; 0 frees it as soon as a job ends and
+    #: nothing else is queued; N > 0 frees it after N idle seconds (IMAGEGEN_UNLOAD_AFTER=job|<seconds>|never). The mflux backend
+    #: runs one process per image, so it holds no model between images whatever this says; the setting matters for diffusers.
+    unload_after: float | None = None
+    #: mflux memory knobs, both off by default (not measured here): IMAGEGEN_LOW_RAM=1 passes `--low-ram` (less memory, slower),
+    #: IMAGEGEN_MLX_CACHE_GB=N passes `--mlx-cache-limit-gb N` (caps MLX's buffer cache without the full low-RAM mode).
+    low_ram: bool = False
+    mlx_cache_gb: float | None = None
     #: Default steps for qwen-cn when the request gives none (None: the model's own default).
     steps: int | None = None
     #: CG3 similarity index. The catalogue folder (gitignored, personal use) holds `photos/` and `catalog.json`; its index is
@@ -65,6 +73,22 @@ def env_get(e: dict[str, str], key: str) -> str | None:
     return v.strip() if v and v.strip() else None
 
 
+def parse_unload_after(value: str | None) -> float | None:
+    """`job` / `each` / `0` -> 0 (after every job); a number -> that many idle seconds; empty / `never` / `off` -> None."""
+    v = (value or "").strip().lower()
+    if v in ("", "never", "off", "no", "false", "keep"):
+        return None
+    if v in ("job", "each", "now", "always", "true", "on", "yes"):
+        return 0.0
+    try:
+        n = float(v)
+    except ValueError:
+        raise SystemExit(f"IMAGEGEN_UNLOAD_AFTER must be 'job', a number of idle seconds or 'never' (got {value!r})") from None
+    if n < 0:
+        raise SystemExit("IMAGEGEN_UNLOAD_AFTER must not be negative")
+    return n
+
+
 def from_env(env: dict[str, str] | None = None) -> Config:
     e = dict(os.environ if env is None else env)
     base = Config()
@@ -86,6 +110,9 @@ def from_env(env: dict[str, str] | None = None) -> Config:
         token=env_get(e, "IMAGEGEN_TOKEN"),
         bin_dir=Path(e["IMAGEGEN_BIN_DIR"]).expanduser().resolve() if env_get(e, "IMAGEGEN_BIN_DIR") else None,
         max_side=int(env_get(e, "IMAGEGEN_MAX_SIDE") or base.max_side),
+        unload_after=parse_unload_after(env_get(e, "IMAGEGEN_UNLOAD_AFTER")),
+        low_ram=(env_get(e, "IMAGEGEN_LOW_RAM") or "").lower() in ("1", "true", "yes", "on"),
+        mlx_cache_gb=float(env_get(e, "IMAGEGEN_MLX_CACHE_GB")) if env_get(e, "IMAGEGEN_MLX_CACHE_GB") else None,
         steps=int(env_get(e, "IMAGEGEN_STEPS")) if env_get(e, "IMAGEGEN_STEPS") else None,
         catalog_dir=Path(e["IMAGEGEN_CATALOG_DIR"]).expanduser().resolve() if env_get(e, "IMAGEGEN_CATALOG_DIR") else base.catalog_dir,
         hd_dirs=tuple(_paths(e.get("IMAGEGEN_HD_DIRS"))) or base.hd_dirs,

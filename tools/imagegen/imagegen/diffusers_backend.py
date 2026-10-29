@@ -97,12 +97,25 @@ class DiffusersRunner:
         self.lightning_active = settings.lightning
 
     # -- loading -------------------------------------------------------------------------------------------------
+    def resident(self) -> str | None:
+        """The model held in memory between jobs (at most one: `_get` frees the other before loading)."""
+        return self._name
+
+    def unload(self) -> None:
+        """Frees the model (IMAGEGEN_UNLOAD_AFTER): the next job pays the load again."""
+        if self._name is not None:
+            self.log(f"[imagegen] unloading {self._name}")
+        self._unload()
+
     def _unload(self) -> None:
         self._pipe, self._name = None, None
         gc.collect()
-        import torch
-
-        torch.cuda.empty_cache()
+        try:
+            import torch
+        except ImportError:  # unit tests run without torch
+            return
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
     def _load_qwen(self) -> Any:
         import torch
@@ -161,7 +174,9 @@ class DiffusersRunner:
 
         spec = job.spec
         self.cfg.out_dir.mkdir(parents=True, exist_ok=True)
+        t_load = time.time()
         pipe = self._get(spec.model)
+        load_s = time.time() - t_load
         steps = spec.steps
         if spec.model == "qwen-cn" and not self.lightning_active and steps == 8:  # LoRA missing: the undistilled base needs ~30
             steps = 30
@@ -202,5 +217,7 @@ class DiffusersRunner:
             path = self.cfg.out_dir / f"{job.id}-s{seed}.png"
             out.save(path)
             peak = round(torch.cuda.max_memory_allocated() / 1e9, 1)
-            job.images.append(ImageResult(str(path), seed, time.time() - t0, peak))
+            wall = time.time() - t0
+            # the load happened once, before the first image; later images of the job reuse the resident pipeline
+            job.images.append(ImageResult(str(path), seed, wall + (load_s if i == 0 else 0.0), peak, load_s if i == 0 else 0.0, wall))
             job.progress = (i + 1) / spec.n

@@ -112,6 +112,18 @@ describe('score_against_reference', () => {
     expect(t.description!.length).toBeLessThan(330);
   });
 
+  it('record_reference accepts over-long free text (shortened, with a note) but still rejects structural errors', async () => {
+    const { client } = await connect({}, undefined, { renderer: fakeRenderer([]) as never });
+    const jobId = await reference(client);
+    const long = { ...descriptor, style: 'french parisian, warm, bright and a little bit too wordy for the field it is written in, really long' };
+    const r = await client.callTool({ name: 'record_reference', arguments: { jobId, descriptor: long } });
+    expect(r.isError).toBeFalsy();
+    expect(json(r).warnings.join(' ')).toMatch(/descriptor\/style: shortened from \d+ to 80 characters/);
+    const bad = await client.callTool({ name: 'record_reference', arguments: { jobId, descriptor: { ...long, palette: [{ hex: 'red', role: 'walls', areaPct: 10 }] } } });
+    expect(bad.isError).toBe(true);
+    expect(json(bad).message).toMatch(/palette\/0\/hex/);
+  });
+
   it('scores palette, layout, CLIP and aesthetic, returns the diff list and our render', async () => {
     const calls: unknown[] = [];
     const { client } = await connect({}, undefined, { renderer: fakeRenderer(calls) as never });
