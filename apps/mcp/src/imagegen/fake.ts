@@ -1,3 +1,4 @@
+import { existsSync, readFileSync } from 'node:fs';
 import {
   ImageProviderError,
   type EditRequest,
@@ -28,7 +29,12 @@ export class FakeImageProvider implements ImageProvider {
   private n = 0;
   private readonly jobs = new Map<string, { req: { n: number; seed: number }; polls: number }>();
 
+  /** `path`: a real PNG every image points at (the dry run of the design runner; the metrics read it). Default: a made-up path and a 1x1 preview. */
+  constructor(private readonly opts: { path?: string } = {}) {}
+
   private image(seed: number): GeneratedImage {
+    const p = this.opts.path;
+    if (p && existsSync(p)) return { path: p, seed, seconds: 0.1, peakGb: null, preview: { data: readFileSync(p).toString('base64'), mimeType: 'image/png' } };
     return { path: `/fake/out/img-s${seed}.png`, seed, seconds: 0.1, peakGb: null, preview: { data: TINY_PNG_B64, mimeType: 'image/png' } };
   }
 

@@ -168,6 +168,35 @@ exports[`snapshots (the contract) > prompts/list 1`] = `
   },
   {
     "_meta": undefined,
+    "arguments": [
+      {
+        "description": "Room id.",
+        "name": "roomId",
+        "required": true,
+      },
+      {
+        "description": "Style id, e.g. "french-parisian". Run list_styles or read styles://list for the ids.",
+        "name": "styleId",
+        "required": true,
+      },
+      {
+        "description": "Most score-and-fix rounds, 1-6 (default 3).",
+        "name": "iterations",
+        "required": false,
+      },
+      {
+        "description": "Total furniture budget in EUR, TTC prices (e.g. "6000"). Default: the style's budgetHint.",
+        "name": "budgetEur",
+        "required": false,
+      },
+    ],
+    "description": "One room: generate a reference image, read it, furnish with real products, then score our render against it and fix, until the gain is under 0.02. Ends with the gap report, the bill of materials and a labelled visualisation.",
+    "icons": undefined,
+    "name": "close_the_gap",
+    "title": "Close the gap to a generated reference",
+  },
+  {
+    "_meta": undefined,
     "arguments": undefined,
     "description": "The available styles (id, name, summary) and roles, to choose from for design_flat_in_style.",
     "icons": undefined,
@@ -4301,7 +4330,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "openWorldHint": false,
       "readOnlyHint": true,
     },
-    "description": "Real products and library models that look like a part of a reference image (image {jobId,index} from generate_reference, or {path}; box in pixels) or like a text. Returns productId/assetId, score, price, dims, has3d and a 160px photo each. Products are placeable; assets are shapes for place_item mesh. Needs the image service.",
+    "description": "Real products and library models that look like a part of a reference image ({jobId,index} or {path}; box in pixels) or like a text. Returns id, score, price, dims, has3d and a 160px photo each. Products are placeable; assets are shapes for place_item mesh. Needs the image service.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -5094,7 +5123,6 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "idempotentHint": true,
       "openWorldHint": false,
       "readOnlyHint": true,
-      "title": "Render control passes",
     },
     "description": "Control images of a render_view camera: clean colour, depth (16-bit mm PNG), normals, ids (class mask), instances (entity mask + legend), edges (structure only), edgesItems, camera JSON. Inline images max 768 px; saveTo: full-size files.",
     "inputSchema": {
@@ -5143,9 +5171,8 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "idempotentHint": false,
       "openWorldHint": false,
       "readOnlyHint": true,
-      "title": "Generate a reference image",
     },
-    "description": "AI image of a room in a style (eye-level view). reference: photoreal target that follows our walls, windows and doors; pick real products to match it. visualisation: photo-style edit of our current render. Labelled, never an asset. About 90 s per reference image: if not done after waitS you get a jobId; call again with it.",
+    "description": "AI image of a room in a style (eye level). reference: photoreal target that follows our walls, windows and doors; match real products to it. visualisation: photo-style edit of our current render. Labelled, never an asset. About 90 s per image: if not done after waitS, call again with the jobId.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -5229,13 +5256,12 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "type": "object",
         },
         "index": {
-          "description": "Default 0.",
           "maximum": 3,
           "minimum": 0,
           "type": "integer",
         },
         "jobId": {
-          "description": "jobId of generate_reference.",
+          "description": "From generate_reference.",
           "type": "string",
         },
         "roomId": {
@@ -5263,7 +5289,6 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "additionalProperties": false,
       "properties": {
         "index": {
-          "description": "Default 0.",
           "maximum": 3,
           "minimum": 0,
           "type": "integer",
@@ -5276,7 +5301,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "type": "array",
         },
         "jobId": {
-          "description": "jobId of generate_reference.",
+          "description": "From generate_reference.",
           "type": "string",
         },
         "thumbs": {
@@ -5303,13 +5328,12 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "additionalProperties": false,
       "properties": {
         "index": {
-          "description": "Default 0.",
           "maximum": 3,
           "minimum": 0,
           "type": "integer",
         },
         "jobId": {
-          "description": "jobId of generate_reference.",
+          "description": "From generate_reference.",
           "type": "string",
         },
         "saveTo": {
@@ -5323,6 +5347,41 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "type": "object",
     },
     "name": "gap_report",
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": true,
+    },
+    "description": "Score our room against a reference image, rendered from its camera: palette ΔE per role, layout IoU (needs record_reference), CLIP, aesthetic; overall 0-1; diff list.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "index": {
+          "maximum": 3,
+          "minimum": 0,
+          "type": "integer",
+        },
+        "jobId": {
+          "type": "string",
+        },
+        "pose": {
+          "description": "As render_view. Default: the reference camera.",
+          "type": "object",
+        },
+        "roomId": {
+          "description": "Only for images not made here.",
+          "type": "string",
+        },
+      },
+      "required": [
+        "jobId",
+      ],
+      "type": "object",
+    },
+    "name": "score_against_reference",
   },
   {
     "annotations": {

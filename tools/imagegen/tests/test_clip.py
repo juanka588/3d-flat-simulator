@@ -132,6 +132,48 @@ class ClipIndexTests(unittest.TestCase):
         self.assertEqual(out.getpixel((2, 2)), (255, 255, 255))
         self.assertEqual(out.getpixel((out.width // 2, out.height // 2)), COLOURS["red"])
 
+    def test_aesthetic_route(self) -> None:
+        import base64
+        import io
+
+        from imagegen.aesthetic import AestheticScorer
+
+        scorer = AestheticScorer(self.cfg, embedder=FakeEmbedder(), linear=([1.0, 0.0, 0.0, 0.0], 0.5))
+        srv = make_server(replace(self.cfg, port=0), JobQueue(_NoRunner()), None, self.svc, scorer)
+        port = srv.server_address[1]
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+
+        def b64(rgb: tuple[int, int, int]) -> str:
+            buf = io.BytesIO()
+            Image.new("RGB", (32, 32), rgb).save(buf, "PNG")
+            return base64.b64encode(buf.getvalue()).decode()
+
+        def call(body: dict) -> tuple[int, dict]:
+            req = urllib.request.Request(f"http://127.0.0.1:{port}/aesthetic", data=json.dumps(body).encode(), method="POST", headers={"Content-Type": "application/json"})
+            try:
+                with urllib.request.urlopen(req) as r:
+                    return r.status, json.loads(r.read())
+            except urllib.error.HTTPError as e:
+                return e.code, json.loads(e.read())
+
+        try:
+            st, r = call({"images": [b64(COLOURS["red"]), b64(COLOURS["black"])]})
+            self.assertEqual(st, 200)
+            self.assertGreater(r["scores"][0], r["scores"][1])  # linear on the red channel
+            self.assertIn("MIT", r["licence"])
+            self.assertEqual(call({"images": []})[0], 400)
+            self.assertEqual(call({"images": ["/etc/passwd"]})[0], 400)
+        finally:
+            srv.shutdown()
+            srv.server_close()
+
+    def test_aesthetic_weights_missing(self) -> None:
+        from imagegen.aesthetic import AestheticScorer
+
+        with self.assertRaises(ClipError) as e:
+            AestheticScorer(self.cfg, embedder=FakeEmbedder()).score([Image.new("RGB", (8, 8))])
+        self.assertEqual(e.exception.code, "model_missing")
+
     def test_http_routes(self) -> None:
         srv = make_server(replace(self.cfg, port=0), JobQueue(_NoRunner()), None, self.svc)
         port = srv.server_address[1]

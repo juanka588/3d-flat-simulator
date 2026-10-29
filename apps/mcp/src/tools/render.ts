@@ -247,11 +247,10 @@ export function renderTools(): ToolDef[] {
     },
     {
       name: 'render_passes',
-      title: 'Render control passes',
       description:
         'Control images of a render_view camera: clean colour, depth (16-bit mm PNG), normals, ids (class mask), instances (entity mask + legend), edges (structure only), edgesItems, camera JSON. Inline images max 768 px; saveTo: full-size files.',
       inputSchema: passesSchema(),
-      annotations: { ...READ, title: 'Render control passes' },
+      annotations: READ,
       group: 'render',
       mutatesScene: false,
       handler: renderPassesTool,

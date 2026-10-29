@@ -1,3 +1,5 @@
+import { parseScoreWeights, type ScoreWeights } from './score/metrics';
+
 /**
  * Configuration of the MCP server, read once from the environment (never from tool arguments).
  *
@@ -17,6 +19,7 @@
  * | `FLAT_MCP_SEARCHES_PER_MIN` | `20` | `search_products` calls per minute (they may reach a retailer) |
  * | `FLAT_MCP_PRODUCT_GETS_PER_MIN` | `60` | `get_product` calls per minute |
  * | `FLAT_MCP_TIMEOUT_MS` | `10000` | per request to the scene server |
+ * | `FLAT_SCORE_WEIGHTS` | `palette=0.3,layout=0.3,clip=0.3,aesthetic=0.1` | weights of `score_against_reference` (renormalised over the metrics available) |
  */
 
 export interface McpLimits {
@@ -45,6 +48,8 @@ export interface McpConfig {
   limits: McpLimits;
   /** Per-request timeout to the scene server, ms. */
   requestTimeoutMs: number;
+  /** Weights of the overall score of `score_against_reference` (CG5). */
+  scoreWeights?: ScoreWeights;
   /** Diagnostics; writes to stderr only (stdout is the JSON-RPC channel on stdio). */
   log: (level: 'info' | 'warn' | 'error', message: string) => void;
 }
@@ -85,6 +90,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
       productGetsPerMinute: num(env.FLAT_MCP_PRODUCT_GETS_PER_MIN, DEFAULT_LIMITS.productGetsPerMinute),
     },
     requestTimeoutMs: num(env.FLAT_MCP_TIMEOUT_MS, 10_000),
+    scoreWeights: parseScoreWeights(env.FLAT_SCORE_WEIGHTS).weights,
     log: stderrLog,
     ...overrides,
   };

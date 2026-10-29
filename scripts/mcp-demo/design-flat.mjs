@@ -23,6 +23,13 @@
  * the fixture; --fresh strips furniture and lights that are not in the fixture). Output: .tmp/design-variants/<style>/ and
  * .tmp/design-variants/compare.md + contact-sheet.png. The cap (--max-usd, --max-minutes) applies to EACH run.
  *   --dry     no model, no cost: a scripted fake session that calls a few tools (use it to test the harness; offline mock providers)
+ *
+ * Close the gap (CG7, scripts/mcp-demo/close-gap.mjs): per room, a generated reference image, then furnish, score, fix, repeat.
+ *   pnpm mcp:demo:design -- --close-gap --style japandi --rooms sejour,sdb,ch1 --iterations 3 [--budget 2500]
+ *   Caps per room: --max-usd (default 8), --max-minutes (default 45); in total: --max-total-usd (default per-room cap x rooms).
+ *   Needs the image service (`pnpm imagegen`, CLIP indexes from `pnpm imagegen:index`): checked first, with instructions.
+ *   --dry runs it end to end with a scripted fake model, the FakeImageProvider and a fake image service (output .tmp/design-closegap-dry/).
+ *   Output: .tmp/design-closegap/<style>/<room>/ (contact-sheet.png, score-curve.png, target.png, gap-report.md, bom.md, final.png, ...).
  *   --no-render   skip the final renders
  *   --list-styles
  *
@@ -35,6 +42,7 @@ import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { closeGapMain } from './close-gap.mjs';
 import { ROOT, cleanEnv, connectLikeClaudeCode, mcpCommand, startServer } from './lib.mjs';
 
 const argv = process.argv.slice(2);
@@ -56,6 +64,9 @@ const STYLE = opt('--style');
 const VARIANTS = opt('--variants')?.split(',').map((s) => s.trim()).filter(Boolean);
 const PARALLEL = Math.max(1, Number(opt('--parallel') || 1));
 const BUDGET = opt('--budget');
+const CLOSE_GAP = args.has('--close-gap');
+const ROOMS_ARG = opt('--rooms')?.split(',').map((x) => x.trim()).filter(Boolean);
+const ITERATIONS = Math.max(1, Math.min(6, Number(opt('--iterations') || 3)));
 const CLAUDE = process.env.CLAUDE_BIN || 'claude';
 /** The name of Claude Code's subagent tool (`Task` in older versions). */
 const AGENT_TOOL = process.env.FLAT_DESIGN_AGENT_TOOL || 'Agent';
@@ -512,6 +523,36 @@ if (TEAM && !STYLE && !VARIANTS) {
   console.error('--team needs --style <id> or --variants a,b,c');
   process.exit(2);
 }
+if (CLOSE_GAP) {
+  const rooms = ROOMS_ARG?.length ? ROOMS_ARG : ['sejour'];
+  const known = new Set(ROOMS);
+  const unknown = rooms.filter((r) => !known.has(r));
+  if (!STYLE) {
+    console.error('--close-gap needs --style <id> (see --list-styles)');
+    process.exit(2);
+  }
+  if (unknown.length) {
+    console.error(`unknown room(s) ${unknown.join(', ')}. The Charme flat has: ${ROOMS.join(', ')}`);
+    process.exit(2);
+  }
+  const perRoomUsd = Number(opt('--max-usd') || process.env.FLAT_CLOSEGAP_MAX_USD || 8);
+  const code = await closeGapMain({
+    styleId: STYLE,
+    rooms,
+    iterations: ITERATIONS,
+    budget: BUDGET,
+    dry: DRY,
+    maxUsd: perRoomUsd,
+    maxTotalUsd: opt('--max-total-usd') ? Number(opt('--max-total-usd')) : undefined,
+    maxMinutes: Number(opt('--max-minutes') || process.env.FLAT_CLOSEGAP_TIMEOUT_MIN || 45),
+    root: process.env.FLAT_CLOSEGAP_OUT,
+    claude: CLAUDE,
+    skipPrereqs: args.has('--skip-prereqs'),
+    noVisualisation: args.has('--no-visualisation'),
+  });
+  process.exit(code);
+}
+
 const base = { resume: RESUME, fresh: FRESH, team: TEAM, dry: DRY, mock: MOCK, noRender: NO_RENDER, budget: BUDGET };
 
 if (VARIANTS?.length) {

@@ -118,8 +118,11 @@ def _open(path: Path) -> Any:
     return im
 
 
-def make_server(cfg: Config, queue: JobQueue, info: dict[str, Any] | None = None, clip: ClipService | None = None) -> ThreadingHTTPServer:
+def make_server(cfg: Config, queue: JobQueue, info: dict[str, Any] | None = None, clip: ClipService | None = None, aesthetic: Any = None) -> ThreadingHTTPServer:
+    from .aesthetic import AestheticScorer
+
     clip = clip or ClipService(cfg, allow_download=cfg.allow_download)
+    aesthetic = aesthetic or AestheticScorer(cfg, allow_download=cfg.allow_download)
 
     def image_path(value: Any, key: str) -> Path:
         """A path / base64 (resolve_image) or `{jobId, index}` of a finished job of this sidecar."""
@@ -150,6 +153,17 @@ def make_server(cfg: Config, queue: JobQueue, info: dict[str, Any] | None = None
             raise ValidationError("images and texts must be lists (texts: strings of 1 to 300 characters)")
         pics = [prepare_crop(_open(image_path(v, f"images[{i}]"))) for i, v in enumerate(images)]
         return clip.embed(pics, texts)
+
+    def do_aesthetic(b: dict[str, Any]) -> dict[str, Any]:
+        for k in b:
+            if k != "images":
+                raise ValidationError(f"unknown field {k}", k)
+        images = b.get("images")
+        if not isinstance(images, list) or not 1 <= len(images) <= 8:
+            raise ValidationError("images must be a list of 1 to 8 images", "images")
+        pics = [_open(image_path(v, f"images[{i}]")).convert("RGB") for i, v in enumerate(images)]
+        with clip._lock:
+            return aesthetic.score(pics)
 
     def do_build(b: dict[str, Any]) -> dict[str, Any]:
         for k in b:
@@ -207,7 +221,7 @@ def make_server(cfg: Config, queue: JobQueue, info: dict[str, Any] | None = None
         out = clip.query(q, top_k, list(SOURCES) if src == "all" else [src], cat, mp)
         return {**out, "prep": mode or ["plain"]}
 
-    ROUTES = {"/embed": do_embed, "/index/build": do_build, "/index/query": do_query}
+    ROUTES = {"/embed": do_embed, "/aesthetic": do_aesthetic, "/index/build": do_build, "/index/query": do_query}
 
     class Handler(BaseHTTPRequestHandler):
         server_version = "flat-imagegen"

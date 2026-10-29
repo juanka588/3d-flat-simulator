@@ -31,7 +31,7 @@
   timeouts. A warm render on the runner still takes about 6 s (not explained).
 - **Style prompts:** the library is done (`apps/mcp/styles/`, `docs/styles.md`). `--style`, `--team` and `--variants`
   were validated with `--dry` only. **The user asked not to run team/variant sessions yet.**
-- **Local IKEA catalogue:** built (400 products, 275 with 3D) in the gitignored `apps/server/local-assets/ikea-fr/`.
+- **Local IKEA catalogue:** built (600 products, 398 with 3D; default cap 600 since 2026-10-29) in the gitignored `apps/server/local-assets/ikea-fr/`.
   Refresh with `pnpm catalog:build --refresh-prices`.
 - **Backlog after the refactor:** M5R leftovers (textured soft-item generators: rugs, cushions, throws, curtains;
   texture LOD; a real-GPU check in CI), then M6 (blueprint image → Scene JSON; cadastre footprint as a constraint),

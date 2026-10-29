@@ -1,6 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
-import { referenceReaderMessages, bodySections, designFlatMessages, designFlatTeamMessages, findRole, findStyle, library, rolesJson, rolesListMarkdown, roomSpecialistMessages, styleListMarkdown, styleMarkdown, styleCard } from './styles';
+import { closeTheGapMessages, referenceReaderMessages, bodySections, designFlatMessages, designFlatTeamMessages, findRole, findStyle, library, rolesJson, rolesListMarkdown, roomSpecialistMessages, styleListMarkdown, styleMarkdown, styleCard } from './styles';
 
 /**
  * Style library exposure: prompts `design_flat_in_style`, `design_flat_team`, `room_specialist`, `list_styles`
@@ -75,6 +75,20 @@ export function registerStylePrompts(server: McpServer): void {
       }),
     },
     (args) => ({ messages: referenceReaderMessages({ jobId: args.jobId, index: num(args.index), roomId: args.roomId, styleId: args.styleId }) }),
+  );
+  server.registerPrompt(
+    'close_the_gap',
+    {
+      title: 'Close the gap to a generated reference',
+      description: 'One room: generate a reference image, read it, furnish with real products, then score our render against it and fix, until the gain is under 0.02. Ends with the gap report, the bill of materials and a labelled visualisation.',
+      argsSchema: z.object({
+        roomId: z.string().max(64).describe('Room id.'),
+        styleId: styleIdArg,
+        iterations: z.string().regex(/^[1-6]$/).optional().describe('Most score-and-fix rounds, 1-6 (default 3).'),
+        budgetEur: budgetArg,
+      }),
+    },
+    (args) => ({ messages: closeTheGapMessages({ roomId: args.roomId, styleId: args.styleId, iterations: num(args.iterations), budgetEur: num(args.budgetEur) }) }),
   );
   server.registerPrompt(
     'list_styles',

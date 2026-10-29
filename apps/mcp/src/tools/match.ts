@@ -66,9 +66,8 @@ export function matchTools(): ToolDef[] {
   return [
     {
       name: 'match_crop',
-      title: 'Find products that look like a crop',
       description:
-        'Real products and library models that look like a part of a reference image (image {jobId,index} from generate_reference, or {path}; box in pixels) or like a text. Returns productId/assetId, score, price, dims, has3d and a 160px photo each. Products are placeable; assets are shapes for place_item mesh. Needs the image service.',
+        'Real products and library models that look like a part of a reference image ({jobId,index} or {path}; box in pixels) or like a text. Returns id, score, price, dims, has3d and a 160px photo each. Products are placeable; assets are shapes for place_item mesh. Needs the image service.',
       inputSchema: obj({
         image: { type: 'object', description: '{jobId,index} or {path}.' },
         box: { type: 'array', items: num, minItems: 4, maxItems: 4, description: '[x0,y0,x1,y1] px; default whole image.' },

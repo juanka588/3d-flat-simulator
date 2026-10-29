@@ -9,7 +9,7 @@
  *   --no-seeds           skip the built-in list of products from the design sessions
  *   --refresh-prices     update price and availability of the existing entries only (one page read each)
  *   --per-query N        results kept per query (default 12)
- *   --max-products N     catalogue size cap (default 400)
+ *   --max-products N     catalogue size cap (default 600)
  *   --max-age-days N     entries younger than this are fresh and skipped (default 30)
  *   --no-photos          do not download photos
  *   --texture-max N      longest texture side kept in the GLBs (default 1024)

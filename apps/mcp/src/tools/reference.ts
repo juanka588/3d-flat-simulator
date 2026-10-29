@@ -1,3 +1,5 @@
+import { copyFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import type { CameraPose, RoomType } from '@flat/scene';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import { z } from 'zod';
@@ -86,6 +88,30 @@ function rateLimited(ctx: ToolContext): CallToolResult | undefined {
   return t.ok ? undefined : toolError('rate_limited', `more than ${ctx.limits.rendersPerMinute} renders per minute`, `Wait ${t.retryAfterMs} ms and retry.`, { retryAfterMs: t.retryAfterMs });
 }
 
+/**
+ * The design runner sets FLAT_DESIGN_OUT (a trusted operator setting): every finished image is copied to `references/` with its
+ * prompt, so the run folder holds the candidates, the chosen target and the labelled visualisation. Never fails the call.
+ */
+function saveForRunner(status: JobStatus, meta: JobMeta | undefined): void {
+  const out = process.env['FLAT_DESIGN_OUT'];
+  if (!out || status.status !== 'done') return;
+  try {
+    const dir = join(resolve(out), 'references');
+    mkdirSync(dir, { recursive: true });
+    const mode = meta?.mode ?? 'reference';
+    const files = status.images.map((img, i) => {
+      const file = join(dir, `${mode}-${status.jobId}-${i}.png`);
+      if (existsSync(img.path)) copyFileSync(img.path, file);
+      return { file, seed: img.seed, seconds: img.seconds };
+    });
+    const { pose: _pose, ...shown } = meta ?? ({} as Partial<JobMeta>);
+    void _pose;
+    writeFileSync(join(dir, `${mode}-${status.jobId}.json`), `${JSON.stringify({ jobId: status.jobId, mode, ...shown, images: files }, null, 2)}\n`);
+  } catch {
+    // saving is a convenience of the runner
+  }
+}
+
 function resultFor(status: JobStatus, meta: JobMeta | undefined, providerId: string): CallToolResult {
   const label = meta?.mode === 'visualisation' ? VISUALISATION_LABEL : REFERENCE_LABEL;
   const { pose: _pose, ...shownMeta } = meta ?? ({} as Partial<JobMeta>);
@@ -104,6 +130,7 @@ function resultFor(status: JobStatus, meta: JobMeta | undefined, providerId: str
     });
   }
   const images: GeneratedImage[] = status.images.slice(0, 4);
+  saveForRunner(status, meta);
   const content: CallToolResult['content'] = [];
   const skipped: string[] = [];
   for (const img of images) {
@@ -189,11 +216,10 @@ export function referenceTools(): ToolDef[] {
   return [
     {
       name: 'generate_reference',
-      title: 'Generate a reference image',
       description:
-        'AI image of a room in a style (eye-level view). reference: photoreal target that follows our walls, windows and doors; pick real products to match it. visualisation: photo-style edit of our current render. Labelled, never an asset. About 90 s per reference image: if not done after waitS you get a jobId; call again with it.',
+        'AI image of a room in a style (eye level). reference: photoreal target that follows our walls, windows and doors; match real products to it. visualisation: photo-style edit of our current render. Labelled, never an asset. About 90 s per image: if not done after waitS, call again with the jobId.',
       inputSchema: inputSchema(),
-      annotations: { ...READ, idempotentHint: false, title: 'Generate a reference image' },
+      annotations: { ...READ, idempotentHint: false},
       group: 'render',
       mutatesScene: false,
       handler: generateReference,

@@ -22,7 +22,7 @@ import { LOCAL_SKU, LocalCatalogFile, LocalEntry, emptyCatalog, type Availabilit
  */
 
 const DAY = 86_400_000;
-export const DEFAULTS = { perQuery: 12, maxProducts: 400, maxAgeDays: LOCAL_STALE_DAYS, round: 4 } as const;
+export const DEFAULTS = { perQuery: 12, maxProducts: 600, maxAgeDays: LOCAL_STALE_DAYS, round: 4 } as const;
 const PHOTO_PX = 320;
 const PHOTO_MAX_BYTES = 2 * 1024 * 1024;
 const SAVE_EVERY = 5;

@@ -41,6 +41,9 @@ Live check (opt-in, needs the weights and the local catalogue; prints the top 5 
 IMAGEGEN_LIVE=1 uv run --directory tools/imagegen --extra clip python -m unittest tests.test_clip_live -v
 ```
 
+- `POST /embed {images?:[path|base64|{jobId,index}], texts?:[...]}` -> `{model, dim, images:[[...]], texts:[[...]]}` (L2-normalised CLIP vectors; CG5 uses it for the image cosine of our render and the reference).
+- `POST /aesthetic {images:[path|base64|{jobId,index}] (1..8)}` -> `{model, licence, scores:[...]}` (CG5). The LAION aesthetic predictor: one linear layer (512 to 1) on the **OpenAI ViT-B/32** CLIP embedding (a second, 0.6 GB CLIP model next to the LAION-2B one, because the predictor was trained on those embeddings). Roughly 1 to 10; 5 is an average photo. Licences, read from the upstream files: `LAION-AI/aesthetic-predictor` is **MIT** (Copyright 2022 LAION AI; the 3 KB weights `sa_0_4_vit_b_32_linear.pth` are in that repo), open_clip and the OpenAI ViT-B/32 weights are MIT. Nothing is fetched unless the sidecar runs with `--download` / `IMAGEGEN_ALLOW_DOWNLOAD=true`; without the weights the route answers `model_missing` (409) and the MCP skips the aesthetic score with a note.
+
 ### Safety
 
 - Binds `127.0.0.1` (the Docker image binds `0.0.0.0` inside the container; compose publishes it on `127.0.0.1` only).

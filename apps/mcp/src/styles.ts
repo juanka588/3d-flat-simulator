@@ -266,8 +266,8 @@ export const RoleMetaSchema = z.strictObject({
   name: text(60),
   kind: z.literal('role'),
   summary: text(240),
-  /** `lead` coordinates; `specialist` works inside one room at a time; `reader` (CG4) reads a reference image into a descriptor and never edits the flat. */
-  type: z.enum(['lead', 'specialist', 'reader']),
+  /** `lead` coordinates; `specialist` works inside one room at a time; `reader` (CG4) reads a reference image into a descriptor and never edits the flat; `critic` (CG5) compares our render with the reference and answers with fixes. */
+  type: z.enum(['lead', 'specialist', 'reader', 'critic']),
   /** Room ids of the Charme flat this specialist usually handles (the lead may pass others). */
   rooms: z.array(z.string().regex(/^[a-z][a-z0-9_]*$/)).max(4),
   /** Sections of the style body this role receives (besides Tone, Principles, Do, Don't). */
@@ -428,6 +428,43 @@ export function referenceReaderMessages(args: { jobId?: string | undefined; inde
   const shape = `The descriptor to record (this is the exact shape; the example is for another room):\n\n${JSON.stringify(DESCRIPTOR_EXAMPLE, null, 1)}\n\nCall: ${call}`;
   const assignment = `Your assignment: read ${target} into a descriptor, record it, match it to real products and write the gap report.${style ? ` The design style is "${style.meta.name}": judge how far the image keeps to it, but describe what you see.` : ''}`;
   return [msg(role.body), msg(shape), msg(assignment)];
+}
+
+export interface CloseTheGapArgs {
+  roomId: string;
+  styleId: string;
+  iterations?: number | undefined;
+  budgetEur?: number | undefined;
+}
+
+/** Score gain below which another iteration is not worth it. */
+export const CLOSE_GAP_EPSILON = 0.02;
+
+/**
+ * `close_the_gap` (CG5): the loop that takes ONE room from a generated reference image to a furnished scene, scoring and fixing
+ * until the gain per iteration is below epsilon. The shared base, the style, the critic rubric and the loop.
+ */
+export function closeTheGapMessages(args: CloseTheGapArgs) {
+  const { base } = library();
+  const style = findStyle(args.styleId);
+  const critic = findRole('critic');
+  const room = oneLine(args.roomId);
+  const n = Math.max(1, Math.min(6, Math.round(args.iterations ?? 3)));
+  const budget = args.budgetEur !== undefined ? `Furniture budget for this room: ${args.budgetEur} EUR TTC (\`budgetEur\` ${args.budgetEur} in \`validate_layout\`); existing locked furniture counts 0.` : 'No budget was given: keep the room modest and state the total at the end.';
+  const loop = `Your commission: bring the room "${room}" as close as you can to a photoreal reference image in the style "${style.meta.name}", with real products. You act as the artist AND, at the judging steps, as the critic (rubric above). ${budget} Work in this order and keep the user informed in one line per step.
+
+1. Checkpoint. \`describe_room\` for "${room}", then \`checkpoint\` named "before-close-gap".
+2. Reference. \`generate_reference\` {roomId "${room}", styleId "${args.styleId}", n 2 (3 if the first two are poor), mode reference}. The first call returns after waitS: if it has a jobId and is not done, call again with the jobId until it is. Pick ONE image with the critic's selection scores and say which. Its jobId and index are the target for every later call.
+3. Read it BEFORE you furnish. Follow the reference reader role and the descriptor shape above (they are text, not tools) and call \`record_reference\` {jobId, index, descriptor}; fix exactly the fields it reports.
+4. Finishes and lighting from the descriptor: \`material_define\` for the wall, floor and accent colours of its palette, then \`room_set_wall_finish\`, \`room_set_floor\`, \`room_set_ceiling\` as needed (finishes only on structural walls), and \`light_update\` / emitting lamps for its mood and kelvin.
+5. Furniture. \`match_reference\` {jobId, index}. Place the \`good\` and \`approx\` real products with \`get_placement_options\` and \`place_item\` (one batch, \`preview: true\` first), at the positions the plan hints give. Use a CONCEPT shape (\`place_item\` with \`concept\` true, the suggested generator) only where the verdict is \`none\` AND the item's importance is 4 or more. Everything else stays out and goes to the gap report.
+6. \`validate_layout\` for "${room}": no violations, within budget. Fix, then continue.
+7. Score. \`score_against_reference\` {jobId, index}: it renders our room from the reference camera and returns the scores, the diff list and our render. Look at both pictures. As the critic, write the prioritised fix list (rubric above) and apply the fixes with the tools it names, then validate again.
+8. Repeat from step 7 for at most ${n} iterations (score, critic, fix). Stop earlier when the overall score improves by less than ${CLOSE_GAP_EPSILON} over the previous iteration, or is 0.85 or more. Do not regenerate the reference; never undo the work of an iteration that scored lower without saying why.
+9. Finish. \`gap_report\` {jobId, index} (saveTo the design output folder when one is given); \`get_bill_of_materials\` for the room: real products with prices first, then the concept items listed apart and labelled "stand-in, not for sale", with the total of the real products only; \`render_view\` of the room from the reference camera (honest render, probe lighting); and \`generate_reference\` with mode visualisation for "${room}": that picture is AI-edited from our render and must be shown labelled as a visualisation, never as the result.
+10. Report in under 200 words: the style and the chosen reference, the score of each iteration (overall and the weakest metric), what changed in each, the gaps that remain and why (shape, colour, size, no product), the budget used, and the undo path (\`restore_checkpoint\` "before-close-gap").`;
+  const reader = referenceReaderMessages({ roomId: args.roomId, styleId: args.styleId }).slice(0, 2);
+  return [msg(base), msg(`${styleCard(style)}\n\n${style.body}`), msg(critic.body), ...reader, msg(loop)];
 }
 
 export function leadRole(): Role {

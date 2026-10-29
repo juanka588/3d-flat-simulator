@@ -33,7 +33,7 @@ const RecordArgs = z.strictObject({
 const MatchArgs = z.strictObject({ ...JobRef, itemIds: z.array(z.string().min(1).max(40)).min(1).max(30).optional(), thumbs: z.boolean().default(true) });
 const GapArgs = z.strictObject({ ...JobRef, saveTo: z.string().min(1).max(300).optional() });
 
-const refSchema = { jobId: { type: 'string', description: 'jobId of generate_reference.' }, index: { type: 'integer', minimum: 0, maximum: 3, description: 'Default 0.' } };
+const refSchema = { jobId: { type: 'string', description: 'From generate_reference.' }, index: { type: 'integer', minimum: 0, maximum: 3 } };
 
 // -- record_reference ----------------------------------------------------------------------------------------------------
 
@@ -60,6 +60,21 @@ async function planHints(ctx: ToolContext, roomId: string, descriptor: Reference
     return { plan, status: 'ok' };
   } catch (e) {
     return none(e instanceof RenderError || e instanceof Error ? e.message : String(e));
+  }
+}
+
+/** The design runner sets FLAT_DESIGN_OUT (a trusted operator setting): the descriptor of the target is kept as `descriptor.json` (and per image). */
+function saveDescriptor(ref: StoredReference): void {
+  const out = process.env['FLAT_DESIGN_OUT'];
+  if (!out) return;
+  try {
+    const dir = resolve(out);
+    mkdirSync(dir, { recursive: true });
+    const body = `${JSON.stringify({ jobId: ref.jobId, index: ref.index, roomId: ref.roomId, styleId: ref.styleId, planStatus: ref.planStatus, plan: ref.plan, descriptor: ref.descriptor }, null, 2)}\n`;
+    writeFileSync(join(dir, 'descriptor.json'), body);
+    writeFileSync(join(dir, `descriptor-${ref.jobId}-${ref.index}.json`), body);
+  } catch {
+    // saving is a convenience of the runner
   }
 }
 
@@ -90,6 +105,7 @@ const recordReference: ToolDef = {
     } else ({ plan, status } = await planHints(ctx, roomId, a.descriptor, meta?.pose));
     const stored: StoredReference = { jobId: a.jobId, index: a.index, ...(roomId ? { roomId } : {}), ...(meta?.styleId ? { styleId: meta.styleId } : {}), descriptor: a.descriptor, plan, planStatus: status };
     putReference(stored);
+    saveDescriptor(stored);
     return toolOk({
       ok: true,
       jobId: a.jobId,

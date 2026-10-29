@@ -1,7 +1,9 @@
 import type { CameraPose, Scene } from '@flat/scene';
 import { GeminiImageProvider, OpenAIImageProvider } from './apiProviders';
 import { LocalSidecarProvider, DEFAULT_SIDECAR_URL } from './localSidecar';
+import { FakeImageProvider } from './fake';
 import { SidecarMatcher, type ImageMatcher } from './match';
+import { SidecarScorer, type ImageScorer } from './similarity';
 import type { ImageInput, ImageProvider } from './types';
 
 /**
@@ -67,6 +69,9 @@ export function providerFromEnv(env: Record<string, string | undefined> = proces
       return new OpenAIImageProvider(env);
     case 'gemini':
       return new GeminiImageProvider(env);
+    case 'fake':
+      // The dry run of the design runner (`design-flat.mjs --close-gap --dry`): canned images, no sidecar. `IMAGEGEN_FAKE_IMAGE` = a PNG file to return.
+      return new FakeImageProvider(env.IMAGEGEN_FAKE_IMAGE ? { path: env.IMAGEGEN_FAKE_IMAGE } : {});
     default:
       return new LocalSidecarProvider({ ...(env.IMAGEGEN_URL ? { url: env.IMAGEGEN_URL } : {}), token: env.IMAGEGEN_TOKEN });
   }
@@ -86,4 +91,16 @@ export const setImageMatcher = (m: ImageMatcher | undefined): void => {
 /** The index lives in the local sidecar; there is no hosted variant (catalogue photos never leave this machine). */
 export function getImageMatcher(env: Record<string, string | undefined> = process.env): ImageMatcher {
   return matcherOverride ?? (matcherCached ??= new SidecarMatcher(env.IMAGEGEN_URL?.trim() || DEFAULT_SIDECAR_URL, env.IMAGEGEN_TOKEN || undefined));
+}
+
+// -- whole-image scoring (CG5) ---------------------------------------------------------------------------------------
+
+let scorerOverride: ImageScorer | undefined;
+let scorerCached: ImageScorer | undefined;
+export const setImageScorer = (s: ImageScorer | undefined): void => {
+  scorerOverride = s;
+};
+/** CLIP embeddings and the aesthetic predictor live in the local sidecar (our renders and reference images only; no hosted variant). */
+export function getImageScorer(env: Record<string, string | undefined> = process.env): ImageScorer {
+  return scorerOverride ?? (scorerCached ??= new SidecarScorer(env.IMAGEGEN_URL?.trim() || DEFAULT_SIDECAR_URL, env.IMAGEGEN_TOKEN || undefined));
 }

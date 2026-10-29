@@ -2,14 +2,14 @@ import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { BASE_FILE, designFlatMessages, designFlatTeamMessages, estimateTokens, findStyle, LEAD_ONLY_TOOLS, library, loadRoles, loadStyles, messagesText, parseRoleFile, parseStyleFile, parseYamlSubset, roomSpecialistMessages, STYLES_DIR, StyleError } from './styles';
+import { BASE_FILE, closeTheGapMessages, designFlatMessages, designFlatTeamMessages, estimateTokens, findStyle, LEAD_ONLY_TOOLS, library, loadRoles, loadStyles, messagesText, parseRoleFile, parseStyleFile, parseYamlSubset, roomSpecialistMessages, STYLES_DIR, StyleError } from './styles';
 import { styleResourceUris } from './stylesMcp';
 import { allTools } from './tools';
 import { connect } from './testing/inproc';
 
 const toolNames = new Set(allTools().map((t) => t.name));
 /** Backticked words that are arguments, relations or response fields, not tools. */
-const NOT_TOOLS = new Set(['living-kitchen', 'bedroom', 'bathroom-wc', 'office-gaming', 'entry', 'outdoor-balcony', 'lighting', 'preview', 'render', 'label', 'on', 'grid', 'lighting_plan', 'other', 'against_wall', 'in_corner', 'centered_in', 'next_to', 'under_window', 'wall_mounted', 'ceiling_hung', 'free', 'good', 'approx', 'none', 'concept', 'true', 'decor']);
+const NOT_TOOLS = new Set(['living-kitchen', 'bedroom', 'bathroom-wc', 'office-gaming', 'entry', 'outdoor-balcony', 'lighting', 'preview', 'render', 'label', 'on', 'grid', 'lighting_plan', 'other', 'against_wall', 'in_corner', 'centered_in', 'next_to', 'under_window', 'wall_mounted', 'ceiling_hung', 'free', 'good', 'approx', 'none', 'concept', 'true', 'decor', 'reference_reader', 'materials', 'missing', 'misplaced']);
 const backticked = (text: string) => [...text.matchAll(/`([a-z][a-z0-9_]*)`/g)].map((m) => m[1]!).filter((w) => !NOT_TOOLS.has(w));
 const unknownTools = (text: string) => [...new Set(backticked(text))].filter((w) => !toolNames.has(w));
 
@@ -110,7 +110,7 @@ describe('bad style files fail with clear messages', () => {
 describe('roles', () => {
   const roles = loadRoles();
   it('has the lead artist and the room specialists', () => {
-    expect(roles.map((r) => r.meta.id).sort()).toEqual(['bathroom-wc', 'bedroom', 'entry', 'lead-artist', 'lighting', 'living-kitchen', 'office-gaming', 'outdoor-balcony', 'reference-reader']);
+    expect(roles.map((r) => r.meta.id).sort()).toEqual(['bathroom-wc', 'bedroom', 'critic', 'entry', 'lead-artist', 'lighting', 'living-kitchen', 'office-gaming', 'outdoor-balcony', 'reference-reader']);
     expect(roles.filter((r) => r.meta.type === 'lead')).toHaveLength(1);
   });
 
@@ -196,6 +196,68 @@ describe('composition', () => {
     expect(unknownTools(lead + spec)).toEqual([]);
     expect(() => roomSpecialistMessages({ role: 'lead-artist', styleId: 'japandi' })).toThrow(/lead artist/);
     expect(() => roomSpecialistMessages({ role: 'plumber', styleId: 'japandi' })).toThrow(/unknown role/);
+  });
+});
+
+describe('critic role and close_the_gap (CG5)', () => {
+  const MUTATING = ['place_item', 'item_move', 'item_remove', 'batch', 'material_define', 'room_set_wall_finish', 'room_set_floor', 'room_set_ceiling', 'light_add', 'light_update', 'light_remove'];
+
+  it('the critic only reads, scores and looks; it names the concrete actions of a fix', () => {
+    const critic = loadRoles().find((r) => r.meta.type === 'critic')!;
+    expect(critic.meta.id).toBe('critic');
+    expect(critic.meta.tools).toEqual(expect.arrayContaining(['score_against_reference', 'match_reference', 'render_view']));
+    expect(critic.meta.tools.filter((t) => MUTATING.includes(t))).toEqual([]);
+    for (const topic of ['Palette', 'Materials', 'Key items present', 'Scale and proportion', 'Composition', 'Lighting mood', 'Clutter', 'Achievability']) expect(critic.body).toContain(topic);
+    for (const action of ['room_set_wall_finish', 'place_item', 'match_reference', 'light_update', 'item_move']) expect(critic.body).toContain(`\`${action}\``);
+    expect(critic.body).toMatch(/concept/);
+    expect(estimateTokens(critic.body)).toBeLessThan(1500);
+  });
+
+  it('composes base + style + critic + the loop, in the order of the spec', () => {
+    const msgs = closeTheGapMessages({ roomId: 'sdb', styleId: 'japandi', iterations: 4, budgetEur: 1800 });
+    expect(msgs).toHaveLength(6);
+    expect(messagesText(msgs)).toContain('Role: reference reader');
+    expect(messagesText(msgs)).toContain('The descriptor to record');
+    const text = messagesText(msgs);
+    expect(text).toContain('How to work with the flat MCP server');
+    expect(text).toContain('Style card: Japandi');
+    expect(text).toContain('Role: critic');
+    expect(text).toContain('the room "sdb"');
+    expect(text).toContain('1800 EUR');
+    expect(text).toContain('at most 4 iterations');
+    expect(text).toContain('less than 0.02');
+    const order = ['1. Checkpoint', '2. Reference', '3. Read it BEFORE', '4. Finishes and lighting', '5. Furniture', '6. `validate_layout`', '7. Score', '8. Repeat', '9. Finish', '10. Report'];
+    const at = order.map((o) => text.indexOf(o));
+    expect(at.every((i) => i >= 0), JSON.stringify(at)).toBe(true);
+    expect([...at].sort((a, b) => a - b)).toEqual(at);
+    // the flow of tools
+    const flow = ['checkpoint', 'generate_reference', 'record_reference', 'material_define', 'match_reference', 'place_item', 'score_against_reference', 'gap_report', 'get_bill_of_materials', 'render_view'].map((n) => text.indexOf(`\`${n}\``, text.indexOf('1. Checkpoint')));
+    expect(flow.every((i) => i >= 0), JSON.stringify(flow)).toBe(true);
+    expect([...flow].sort((a, b) => a - b)).toEqual(flow);
+    // the rules: the descriptor is recorded before furnishing, concepts only for importance 4+ and verdict none, honest render + labelled visualisation
+    expect(text).toMatch(/BEFORE you furnish/);
+    expect(text).toMatch(/verdict is `none` AND the item's importance is 4 or more/);
+    expect(text).toMatch(/mode visualisation/);
+    expect(text).toMatch(/never as the result/);
+    expect(text).toMatch(/concept items listed apart/);
+    expect(unknownTools(text)).toEqual([]);
+    expect(estimateTokens(text)).toBeLessThan(6000);
+  });
+
+  it('clamps the iterations, defaults to 3 and handles a missing budget', () => {
+    expect(messagesText(closeTheGapMessages({ roomId: 'sdb', styleId: 'japandi' }))).toMatch(/at most 3 iterations[\s\S]*No budget was given|No budget was given[\s\S]*at most 3 iterations/);
+    expect(messagesText(closeTheGapMessages({ roomId: 'sdb', styleId: 'japandi', iterations: 99 }))).toContain('at most 6 iterations');
+    expect(() => closeTheGapMessages({ roomId: 'sdb', styleId: 'baroque' })).toThrow(/unknown style/);
+  });
+
+  it('is an MCP prompt', async () => {
+    const { client } = await connect();
+    expect((await client.listPrompts()).prompts.map((p) => p.name)).toContain('close_the_gap');
+    const p = await client.getPrompt({ name: 'close_the_gap', arguments: { roomId: 'sejour', styleId: 'scandinavian', iterations: '2', budgetEur: '2500' } });
+    const text = messagesText(p.messages as never);
+    expect(text).toContain('at most 2 iterations');
+    expect(text).toContain('the room "sejour"');
+    await expect(client.getPrompt({ name: 'close_the_gap', arguments: { roomId: 'sejour', styleId: 'scandinavian', iterations: '9' } })).rejects.toThrow();
   });
 });
 
