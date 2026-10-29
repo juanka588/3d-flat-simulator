@@ -313,7 +313,7 @@ export function validateScene(scene: Scene): ValidationResult {
       });
     }
     // Legacy builtin:* items and locked existing furniture (e.g. built-in placards) have no product by design.
-    if (!builtin && !item.locked && !item.product && !item.productRef) {
+    if (!builtin && !item.locked && !item.concept && !item.product && !item.productRef) {
       warnings.push({
         code: 'missing_product',
         message: `item "${item.id}" is not backed by a product (no price, link or exact dimensions); place real products from search_products`,

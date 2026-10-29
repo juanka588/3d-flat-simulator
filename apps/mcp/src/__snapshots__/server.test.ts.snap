@@ -139,6 +139,35 @@ exports[`snapshots (the contract) > prompts/list 1`] = `
   },
   {
     "_meta": undefined,
+    "arguments": [
+      {
+        "description": "jobId of generate_reference.",
+        "name": "jobId",
+        "required": false,
+      },
+      {
+        "description": "Image number in that job, 0-3 (default 0).",
+        "name": "index",
+        "required": false,
+      },
+      {
+        "description": "Room the image shows.",
+        "name": "roomId",
+        "required": false,
+      },
+      {
+        "description": "Style the image was made for.",
+        "name": "styleId",
+        "required": false,
+      },
+    ],
+    "description": "Reads one reference image (generate_reference) into the structured descriptor, records it (record_reference), matches real products (match_reference) and writes the gap report (gap_report).",
+    "icons": undefined,
+    "name": "reference_reader",
+    "title": "Read a reference image into a descriptor",
+  },
+  {
+    "_meta": undefined,
     "arguments": undefined,
     "description": "The available styles (id, name, summary) and roles, to choose from for design_flat_in_style.",
     "icons": undefined,
@@ -3482,6 +3511,10 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "description": "Accept hanging a heavy (over 15 kg) wall product on a non-structural wall.",
               "type": "boolean",
             },
+            "concept": {
+              "description": "true = generated CONCEPT shape, no productId: give generator + params. Not purchasable, labelled, 0 in the budget. Only when no real product fits.",
+              "type": "boolean",
+            },
             "dressing": {
               "description": "Bed frames only. Default true: the picture shows a mattress, duvet and pillows on the frame (a visual dressing: the mattress is NOT part of the product, not in the bill of materials; buy one separately). false draws the bare frame.",
               "type": "boolean",
@@ -3491,6 +3524,10 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "maximum": 10,
               "minimum": 0,
               "type": "number",
+            },
+            "generator": {
+              "description": "With concept: generator id (suggestGenerator).",
+              "type": "string",
             },
             "mesh": {
               "$ref": "#/$defs/mesh",
@@ -3503,6 +3540,10 @@ exports[`snapshots (the contract) > tools/list 1`] = `
                 "wall",
               ],
               "type": "string",
+            },
+            "params": {
+              "description": "With concept: generator params.",
+              "type": "object",
             },
             "position": {
               "description": "Explicit plan position [x, y] of the item centre, metres. Use this OR relation.",
@@ -3535,7 +3576,6 @@ exports[`snapshots (the contract) > tools/list 1`] = `
             },
           },
           "required": [
-            "productId",
             "roomId",
           ],
           "type": "object",
@@ -3841,11 +3881,17 @@ exports[`snapshots (the contract) > tools/list 1`] = `
         "acknowledgeHeavyPartition": {
           "$ref": "#/$defs/placement/properties/acknowledgeHeavyPartition",
         },
+        "concept": {
+          "$ref": "#/$defs/placement/properties/concept",
+        },
         "dressing": {
           "$ref": "#/$defs/placement/properties/dressing",
         },
         "elevation": {
           "$ref": "#/$defs/placement/properties/elevation",
+        },
+        "generator": {
+          "$ref": "#/$defs/placement/properties/generator",
         },
         "ifRev": {
           "description": "Apply only if the flat is at this rev (or preview baseRev), else stale_scene.",
@@ -3876,6 +3922,9 @@ exports[`snapshots (the contract) > tools/list 1`] = `
         },
         "mount": {
           "$ref": "#/$defs/placement/properties/mount",
+        },
+        "params": {
+          "$ref": "#/$defs/placement/properties/params",
         },
         "position": {
           "$ref": "#/$defs/placement/properties/position",
@@ -5163,6 +5212,117 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "type": "object",
     },
     "name": "generate_reference",
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true,
+    },
+    "description": "Store your reading of a reference image as a descriptor (exact shape: prompt reference_reader). Validated with located errors. Each item gets a plan position from our depth. Next: match_reference.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "descriptor": {
+          "description": "style, palette, materials, lighting, items[], decor[].",
+          "type": "object",
+        },
+        "index": {
+          "description": "Default 0.",
+          "maximum": 3,
+          "minimum": 0,
+          "type": "integer",
+        },
+        "jobId": {
+          "description": "jobId of generate_reference.",
+          "type": "string",
+        },
+        "roomId": {
+          "description": "Only for images not made here.",
+          "type": "string",
+        },
+      },
+      "required": [
+        "jobId",
+        "descriptor",
+      ],
+      "type": "object",
+    },
+    "name": "record_reference",
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true,
+    },
+    "description": "Per recorded item: top real products (text + CLIP, photo of the best, price, has3d), a fit verdict good|approx|none with reasons (shape, colour, size, missing), and suggestGenerator, a CONCEPT stand-in (not purchasable; place_item concept:true).",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "index": {
+          "description": "Default 0.",
+          "maximum": 3,
+          "minimum": 0,
+          "type": "integer",
+        },
+        "itemIds": {
+          "description": "Default all.",
+          "items": {
+            "type": "string",
+          },
+          "type": "array",
+        },
+        "jobId": {
+          "description": "jobId of generate_reference.",
+          "type": "string",
+        },
+        "thumbs": {
+          "description": "Default true.",
+          "type": "boolean",
+        },
+      },
+      "required": [
+        "jobId",
+      ],
+      "type": "object",
+    },
+    "name": "match_reference",
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": true,
+    },
+    "description": "Per item: target, best real match, the gap, the concept alternative and a search term. Markdown plus JSON; saved to saveTo or the design output folder.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "index": {
+          "description": "Default 0.",
+          "maximum": 3,
+          "minimum": 0,
+          "type": "integer",
+        },
+        "jobId": {
+          "description": "jobId of generate_reference.",
+          "type": "string",
+        },
+        "saveTo": {
+          "description": "Directory under the working dir.",
+          "type": "string",
+        },
+      },
+      "required": [
+        "jobId",
+      ],
+      "type": "object",
+    },
+    "name": "gap_report",
   },
   {
     "annotations": {

@@ -6,7 +6,7 @@ import { makeScene } from '../test-util';
 import type { MeshData } from '@flat/scene';
 import { GENERATORS, createGeneratorRegistry, type AnyGenerator } from '@flat/scene';
 import { buildItems } from '../meshes/build-items';
-import { ITEM_MATERIALS } from '../materials/item-materials';
+import { ITEM_MATERIALS, ITEM_MATERIAL_SPECS } from '../materials/item-materials';
 import { ALL_GENERATORS } from './index';
 import { assertGeneratorsRegistered, registerGenerators } from '../register';
 
@@ -50,7 +50,7 @@ function expectSound(g: AnyGenerator, rawParams: Record<string, unknown>) {
   expect(mesh.owners.reduce((n, o) => n + o.count, 0)).toBe(triangles);
   const materials = new Set(mesh.groups.map((m) => m.materialId));
   expect(materials.size).toBeLessThanOrEqual(MAX_MATERIALS);
-  for (const m of materials) expect(Object.values(ITEM_MATERIALS)).toContain(m);
+  for (const m of materials) expect(Object.keys(ITEM_MATERIAL_SPECS)).toContain(m);
   return mesh;
 }
 
@@ -75,19 +75,19 @@ function hash(mesh: MeshData): string {
 }
 
 describe('generator registry', () => {
-  it('registers the 15 furniture generators, the TV and the fixed bathroom / kitchen ware in the process-wide registry', () => {
+  it('registers the furniture generators, the TV, the fixed bathroom / kitchen ware and the CG4 curtains and pendant in the process-wide registry', () => {
     expect(GENERATORS.list().map((g) => g.id)).toEqual(
-      ['bathtub', 'bed', 'bookshelf', 'chair', 'cooktop', 'desk', 'fridge', 'island', 'kitchenBase', 'kitchenWall', 'mirror', 'nightstand', 'rug', 'sideboard', 'sofa', 'table', 'toilet', 'tv', 'tvUnit', 'wardrobe', 'washbasin'],
+      ['bathtub', 'bed', 'bookshelf', 'chair', 'cooktop', 'curtains', 'desk', 'fridge', 'island', 'kitchenBase', 'kitchenWall', 'mirror', 'nightstand', 'pendant', 'rug', 'sideboard', 'sofa', 'table', 'toilet', 'tv', 'tvUnit', 'wardrobe', 'washbasin'],
     );
-    expect(ALL_GENERATORS).toHaveLength(21);
+    expect(ALL_GENERATORS).toHaveLength(23);
   });
   it('registerGenerators is idempotent and fills any registry', () => {
     const r = createGeneratorRegistry();
     registerGenerators(r);
     registerGenerators(r);
-    expect(r.list()).toHaveLength(21);
+    expect(r.list()).toHaveLength(23);
     registerGenerators();
-    expect(GENERATORS.list()).toHaveLength(21);
+    expect(GENERATORS.list()).toHaveLength(23);
   });
   it('assertGeneratorsRegistered passes on the process-wide registry and names what is missing otherwise', () => {
     expect(() => assertGeneratorsRegistered()).not.toThrow();
@@ -173,6 +173,7 @@ describe('generator geometry snapshot (determinism across versions)', () => {
         "bookshelf": "0fc035283a17",
         "chair": "5938bcd59be5",
         "cooktop": "25fad467c88c",
+        "curtains": "687236717fb3",
         "desk": "33b3f0f692b5",
         "fridge": "4a989acb1d4d",
         "island": "55908420f6f3",
@@ -180,6 +181,7 @@ describe('generator geometry snapshot (determinism across versions)', () => {
         "kitchenWall": "0cfbd2b6c08b",
         "mirror": "9f58ba728e26",
         "nightstand": "17cb49fdb6c2",
+        "pendant": "6b40fd1ba1b4",
         "rug": "e729b46333e0",
         "sideboard": "21e5c1283a52",
         "sofa": "b950d0047d92",

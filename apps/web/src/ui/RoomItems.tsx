@@ -39,6 +39,7 @@ export function RoomItems({ scene }: { scene: Scene }) {
                   {l.name}
                 </button>
                 <span className="line-price">{l.price}</span>
+                {l.concept && <span className="badge badge-concept" title="A generated shape that stands for something no real product matched. Not purchasable, not in the total.">concept</span>}
                 {l.locked && <span className="badge badge-locked">locked</span>}
                 {l.stale && <span className="badge badge-warn" title="Price older than 30 days">stale</span>}
                 {l.noProduct && !l.existing && <span className="badge badge-warn">no product</span>}
@@ -51,6 +52,11 @@ export function RoomItems({ scene }: { scene: Scene }) {
       <p className="flat-total" data-testid="flat-total">
         <strong>Flat total</strong> <span>{formatPrice(view.totalEur, 'EUR')} TTC</span>
       </p>
+      {view.concept > 0 && (
+        <p className="hint" data-testid="concept-note">
+          {view.concept} concept item{view.concept === 1 ? '' : 's'} (generated shapes, not products): not purchasable and not in the total.
+        </p>
+      )}
       {(view.missingPrice > 0 || view.mixedCurrency) && (
         <p className="hint">
           {view.missingPrice > 0 ? `${view.missingPrice} item${view.missingPrice === 1 ? ' has' : 's have'} no price. ` : ''}

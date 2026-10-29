@@ -1,3 +1,4 @@
+import { DESCRIPTOR_EXAMPLE } from './reference/descriptor';
 import { readdirSync, readFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -265,8 +266,8 @@ export const RoleMetaSchema = z.strictObject({
   name: text(60),
   kind: z.literal('role'),
   summary: text(240),
-  /** `lead` coordinates; `specialist` works inside one room at a time. */
-  type: z.enum(['lead', 'specialist']),
+  /** `lead` coordinates; `specialist` works inside one room at a time; `reader` (CG4) reads a reference image into a descriptor and never edits the flat. */
+  type: z.enum(['lead', 'specialist', 'reader']),
   /** Room ids of the Charme flat this specialist usually handles (the lead may pass others). */
   rooms: z.array(z.string().regex(/^[a-z][a-z0-9_]*$/)).max(4),
   /** Sections of the style body this role receives (besides Tone, Principles, Do, Don't). */
@@ -298,7 +299,7 @@ export function parseRoleFile(file: string, source: string): Role {
   const stem = name.replace(/\.md$/, '');
   if (parsed.success) {
     if (parsed.data.id !== stem) problems.push(`id: "${parsed.data.id}" must equal the file name "${stem}"`);
-    if (parsed.data.type === 'specialist') for (const t of parsed.data.tools) if ((LEAD_ONLY_TOOLS as readonly string[]).includes(t)) problems.push(`tools: a specialist may not use "${t}" (lead only)`);
+    if (parsed.data.type !== 'lead') for (const t of parsed.data.tools) if ((LEAD_ONLY_TOOLS as readonly string[]).includes(t)) problems.push(`tools: a non-lead role may not use "${t}" (lead only)`);
   }
   const headings = [...parts.body.matchAll(/^## (.+?)\s*$/gm)].map((m) => m[1]!);
   for (const required of ROLE_SECTIONS) if (!headings.includes(required)) problems.push(`body: missing the section "## ${required}"`);
@@ -416,6 +417,17 @@ export interface TeamArgs {
 
 export function specialists(): Role[] {
   return library().roles.filter((r) => r.meta.type === 'specialist');
+}
+
+/** `reference_reader` (CG4): the reader role, the descriptor shape and the assignment. */
+export function referenceReaderMessages(args: { jobId?: string | undefined; index?: number | undefined; roomId?: string | undefined; styleId?: string | undefined }) {
+  const role = findRole('reference-reader');
+  const style = args.styleId ? findStyle(args.styleId) : undefined;
+  const target = args.jobId ? `the reference image ${oneLine(args.jobId)} #${args.index ?? 0}${args.roomId ? ` of room "${oneLine(args.roomId)}"` : ''}` : 'the reference image the user shows you (a generate_reference result)';
+  const call = args.jobId ? `record_reference {"jobId":"${oneLine(args.jobId)}","index":${args.index ?? 0},"descriptor":{...}}` : 'record_reference {"jobId":"<jobId>","index":0,"descriptor":{...}}';
+  const shape = `The descriptor to record (this is the exact shape; the example is for another room):\n\n${JSON.stringify(DESCRIPTOR_EXAMPLE, null, 1)}\n\nCall: ${call}`;
+  const assignment = `Your assignment: read ${target} into a descriptor, record it, match it to real products and write the gap report.${style ? ` The design style is "${style.meta.name}": judge how far the image keeps to it, but describe what you see.` : ''}`;
+  return [msg(role.body), msg(shape), msg(assignment)];
 }
 
 export function leadRole(): Role {

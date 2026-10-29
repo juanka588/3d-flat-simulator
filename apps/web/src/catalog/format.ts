@@ -14,8 +14,9 @@ export function registerLibraryNames(assets: readonly { id: string; name: string
 const isGeneratedId = (id: string): boolean => /^item-\d+$/.test(id) || /^[0-9A-Z]{26}$/.test(id);
 
 /** What to call an item: its product name, else its generator / library / built-in name, else its id. */
-export function itemName(item: Pick<Item, 'id' | 'assetId' | 'product' | 'mesh'>): string {
+export function itemName(item: Pick<Item, 'id' | 'assetId' | 'product' | 'mesh'> & { concept?: boolean | undefined }): string {
   if (item.product) return item.product.name;
+  if (item.concept && item.mesh?.kind === 'parametric') return `Concept ${generatorTitleById(item.mesh.generator).toLowerCase()}`;
   if (item.mesh?.kind === 'parametric') {
     const title = generatorTitleById(item.mesh.generator);
     // A hand-written id (a fixture's "kitchen-cooktop-cui") says more than the generic title; generated ULIDs say nothing.
@@ -61,7 +62,7 @@ export interface RoomTotal {
   name: string;
   itemCount: number;
   totalEur: number;
-  lines: { itemId: string; name: string; price: string; locked: boolean; existing: boolean; stale: boolean; noProduct: boolean }[];
+  lines: { itemId: string; name: string; price: string; locked: boolean; existing: boolean; stale: boolean; noProduct: boolean; concept: boolean }[];
 }
 
 export interface BomView {
@@ -71,6 +72,8 @@ export interface BomView {
   mixedCurrency: boolean;
   missingPrice: number;
   stale: number;
+  /** Generated concept shapes (not products): listed apart, never priced, never in the total. */
+  concept: number;
 }
 
 /** The room item list with its price totals (TTC; existing furniture counts 0, a locked product keeps its price), from the pure bill of materials. */
@@ -85,18 +88,19 @@ export function bomView(scene: Scene, bom: BillOfMaterials): BomView {
     rooms.push({
       roomId: id,
       name: names.get(id) ?? 'Outside rooms',
-      itemCount: lines.length,
+      itemCount: lines.filter((l) => !l.concept).length,
       totalEur: bom.byRoom[id]?.totalEur ?? 0,
       lines: lines.map((l) => ({
         itemId: l.itemId,
         name: itemNames.get(l.itemId) ?? l.name,
-        price: l.existing ? formatPrice(0, 'EUR') : l.unitPrice !== undefined ? formatPrice(l.unitPrice, l.currency) : '–',
+        price: l.concept ? 'concept' : l.existing ? formatPrice(0, 'EUR') : l.unitPrice !== undefined ? formatPrice(l.unitPrice, l.currency) : '–',
         locked: l.locked,
         existing: l.existing,
         stale: l.stale,
-        noProduct: l.productId === undefined,
+        noProduct: l.productId === undefined && !l.concept,
+        concept: l.concept,
       })),
     });
   }
-  return { rooms, totalEur: bom.totalEur, itemCount: bom.lines.length, mixedCurrency: bom.mixedCurrency, missingPrice: bom.missingPrice.length, stale: bom.stale.length };
+  return { rooms, totalEur: bom.totalEur, itemCount: bom.lines.length, mixedCurrency: bom.mixedCurrency, missingPrice: bom.missingPrice.length, stale: bom.stale.length, concept: bom.concept.count };
 }

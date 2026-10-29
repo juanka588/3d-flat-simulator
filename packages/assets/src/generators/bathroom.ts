@@ -1,13 +1,14 @@
 import { z } from 'zod';
 import type { Generator } from '@flat/scene';
-import { ITEM_MATERIALS } from '../materials/item-materials';
+import { ITEM_MATERIALS, ceramicMaterial } from '../materials/item-materials';
 import { cabinet } from './cabinets';
-import { Kit, boxAnchors, metres } from './kit';
+import { Kit, boxAnchors, colourParam, metres } from './kit';
 
 /** Fixed sanitary ware: bathtub, toilet and washbasin / sink unit. Item frame as in `kit.ts` (front +z, back against the wall). */
 
 /** Sanitary ware is glazed ceramic; the cabinet carcass of a vanity or sink unit is lacquered. */
-const W = ITEM_MATERIALS.ceramic;
+const CERAMIC = ITEM_MATERIALS.ceramic;
+const W = CERAMIC;
 const CARCASS = ITEM_MATERIALS.white;
 const METAL = ITEM_MATERIALS.metal;
 
@@ -20,6 +21,12 @@ const bathtubParams = z.strictObject({
   d: metres('Width of the bathtub (front to back).', 0.7, 0.6, 1),
   h: metres('Overall height including the taps; the rim is 4 cm lower.', 0.58, 0.4, 0.7),
   tapEnd: z.enum(['left', 'right']).default('right').describe('Which end of the tub carries the taps, seen from the front. Defaults to "right".'),
+  shape: z
+    .enum(['rect', 'oval', 'freestanding'])
+    .default('rect')
+    .describe('"rect" is the built-in alcove tub, "oval" an elliptical tub, "freestanding" a slipper-shaped island tub (taps on the rim). Defaults to "rect".'),
+  feet: z.boolean().default(false).describe('Stand the tub on feet (about 8-10 cm): clawfoot or raised look. Defaults to false.'),
+  colour: colourParam('the tub shell (glazed)'),
 });
 type BathtubParams = z.infer<typeof bathtubParams>;
 
@@ -29,14 +36,54 @@ export const bathtub: Generator<BathtubParams> = {
   category: 'other',
   params: bathtubParams,
   describeParams: ({ w, d, h }) => ({ dims: { w, d, h }, anchors: boxAnchors(w, d, h), clearance: { front: 0.6, back: 0 } }),
-  generate({ w, d, h, tapEnd }) {
+  generate({ w, d, h, tapEnd, shape, feet, colour }) {
     const kit = new Kit();
+    const W = colour ? ceramicMaterial(colour) : CERAMIC;
     const rim = h - 0.04;
-    const t = 0.05;
-    const floor = 0.16;
     const s = tapEnd === 'right' ? 1 : -1;
+    if (shape !== 'rect') {
+      // Oval and freestanding: a lathe shell (smooth ellipse, wall 5 cm at the sides, thicker at the ends), a floor, taps on the rim.
+      const rx = w / 2;
+      const rz = d / 2;
+      const y0 = shape === 'freestanding' ? (feet ? 0.1 : 0.04) : feet ? 0.08 : 0;
+      const floorY = y0 + 0.16;
+      const inner = 1 - 0.05 / Math.min(rx, rz);
+      const profile: [number, number][] =
+        shape === 'freestanding' ? [[0.8, y0], [1, y0 + 0.2], [1, rim], [inner, rim], [inner, floorY], [0, floorY]] : [[1, y0], [1, rim], [inner, rim], [inner, floorY], [0, floorY]];
+      kit.lathe(W, 0, 0, rx, rz, profile, 32);
+      if (feet) {
+        for (const sx of [-1, 1]) {
+          for (const sz of [-1, 1]) {
+            const fx = sx * rx * 0.6;
+            const fz = sz * rz * 0.55;
+            kit.box(METAL, fx - 0.03, 0, fz - 0.03, fx + 0.03, y0 + 0.02, fz + 0.03);
+          }
+        }
+      } else if (y0 > 0) {
+        kit.prism(W, 0, 0, 0, rx * 0.75, rz * 0.7, y0 + 0.01);
+      }
+      const tx = s * rx * 0.7;
+      const zEdge = rz * Math.sqrt(1 - 0.49);
+      kit.box(METAL, tx - 0.025, rim, -zEdge + 0.005, tx + 0.025, h, -zEdge + 0.055);
+      kit.box(METAL, tx - 0.012, rim, -zEdge + 0.055, tx + 0.012, rim + 0.025, -zEdge + 0.16);
+      const drain = -s * rx * 0.55;
+      kit.box(METAL, drain - 0.03, floorY, -0.03, drain + 0.03, floorY + 0.004, 0.03);
+      return kit.build();
+    }
+    const y0 = feet ? 0.08 : 0;
+    const t = 0.05;
+    const floor = y0 + 0.16;
     const deck = 0.14; // the tap end is a wide deck
-    kit.box(W, -w / 2, 0, -d / 2, w / 2, floor, d / 2);
+    if (feet) {
+      for (const sx of [-1, 1]) {
+        for (const sz of [-1, 1]) {
+          const fx = sx < 0 ? -w / 2 + 0.08 : w / 2 - 0.08 - 0.05;
+          const fz = sz < 0 ? -d / 2 + 0.08 : d / 2 - 0.08 - 0.05;
+          kit.box(METAL, fx, 0, fz, fx + 0.05, y0 + 0.01, fz + 0.05);
+        }
+      }
+    }
+    kit.box(W, -w / 2, y0, -d / 2, w / 2, floor, d / 2);
     kit.box(W, -w / 2, floor, -d / 2, w / 2, rim, -d / 2 + t); // back
     kit.box(W, -w / 2, floor, d / 2 - t, w / 2, rim, d / 2); // front
     const end = (side: number, thick: number) => (side > 0 ? [w / 2 - thick, w / 2] : [-w / 2, -w / 2 + thick]) as [number, number];
@@ -99,6 +146,12 @@ const washbasinParams = z.strictObject({
   w: metres('Overall width.', 0.7, 0.3, 1.8),
   d: metres('Overall depth (front to back).', 0.45, 0.3, 0.8),
   h: metres('Overall height to the top of the basin rim, worktop or tap.', 0.85, 0.6, 1),
+  basin: z
+    .enum(['vessel', 'integrated'])
+    .optional()
+    .describe('Vanity only. "vessel": a bowl standing on the top. "integrated": the basin is moulded into the ceramic top. Omitted: the classic low oval basin.'),
+  shape: z.enum(['round', 'rect']).optional().describe('Vanity only, with basin: the basin outline, "round" (oval) or "rect". Omitted: round.'),
+  colour: colourParam('the ceramic (basin, pedestal and vanity top)'),
 });
 type WashbasinParams = z.infer<typeof washbasinParams>;
 
@@ -108,8 +161,9 @@ export const washbasin: Generator<WashbasinParams> = {
   category: 'other',
   params: washbasinParams,
   describeParams: ({ w, d, h }) => ({ dims: { w, d, h }, anchors: boxAnchors(w, d, h), clearance: { front: 0.6, back: 0 } }),
-  generate({ kind, w, d, h }) {
+  generate({ kind, w, d, h, basin, shape, colour }) {
     const kit = new Kit();
+    const W = colour ? ceramicMaterial(colour) : CERAMIC;
     if (kind === 'pedestal') {
       const rimT = 0.035;
       const bowl = 0.07;
@@ -165,8 +219,44 @@ export const washbasin: Generator<WashbasinParams> = {
     kit.box(W, -w / 2, bodyH, -d / 2, w / 2, bodyH + 0.04, d / 2); // ceramic vanity top
     const rx = Math.min(0.22, w / 2 - 0.04);
     const rz = Math.min(0.17, d / 2 - 0.04);
-    kit.prism(W, 0, bodyH + 0.04, 0.02, rx, rz, h);
-    kit.box(METAL, -0.012, bodyH + 0.04, -d / 2 + 0.02, 0.012, h - 0.03, -d / 2 + 0.05);
+    const top = bodyH + 0.04;
+    if (basin === undefined) {
+      kit.prism(W, 0, top, 0.02, rx, rz, h);
+      kit.box(METAL, -0.012, top, -d / 2 + 0.02, 0.012, h - 0.03, -d / 2 + 0.05);
+      return kit.build();
+    }
+    const round = shape !== 'rect';
+    const cz = 0.02;
+    if (basin === 'vessel') {
+      // a bowl on the top (wall 1.5 cm, floor 3 cm), tap behind it
+      if (round) {
+        const inner = Math.max(0.05, 1 - 0.015 / Math.min(rx, rz));
+        kit.lathe(W, 0, cz, rx, rz, [[1, top], [1, h], [inner, h], [inner, top + 0.03], [0, top + 0.03]], 24);
+      } else {
+        const t = 0.015;
+        kit.box(W, -rx, top, cz - rz, rx, top + 0.03, cz + rz);
+        kit.box(W, -rx, top + 0.03, cz - rz, -rx + t, h, cz + rz);
+        kit.box(W, rx - t, top + 0.03, cz - rz, rx, h, cz + rz);
+        kit.box(W, -rx + t, top + 0.03, cz - rz, rx - t, h, cz - rz + t);
+        kit.box(W, -rx + t, top + 0.03, cz + rz - t, rx - t, h, cz + rz);
+      }
+      kit.box(METAL, -0.012, top, -d / 2 + 0.02, 0.012, Math.min(h, top + 0.12), -d / 2 + 0.05);
+      return kit.build();
+    }
+    // integrated: the basin is moulded into the top; a tall mixer reaches the overall height
+    if (round) {
+      const inner = Math.max(0.05, 1 - 0.02 / Math.min(rx, rz));
+      kit.lathe(W, 0, cz, rx, rz, [[1, top], [1, top + 0.025], [inner, top + 0.025], [inner, top + 0.005], [0, top + 0.005]], 24);
+    } else {
+      const t = 0.02;
+      kit.box(W, -rx, top, cz - rz, rx, top + 0.005, cz + rz);
+      kit.box(W, -rx, top + 0.005, cz - rz, -rx + t, top + 0.025, cz + rz);
+      kit.box(W, rx - t, top + 0.005, cz - rz, rx, top + 0.025, cz + rz);
+      kit.box(W, -rx + t, top + 0.005, cz - rz, rx - t, top + 0.025, cz - rz + t);
+      kit.box(W, -rx + t, top + 0.005, cz + rz - t, rx - t, top + 0.025, cz + rz);
+    }
+    kit.box(METAL, -0.012, top, -d / 2 + 0.02, 0.012, h, -d / 2 + 0.05);
+    kit.box(METAL, -0.012, h - 0.025, -d / 2 + 0.05, 0.012, h - 0.003, -d / 2 + 0.12);
     return kit.build();
   },
 };

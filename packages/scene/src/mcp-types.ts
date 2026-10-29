@@ -207,6 +207,8 @@ export const RoomItemDescription = z.strictObject({
   mount: z.enum(['floor', 'wall', 'ceiling']),
   /** Existing furniture the designer plans around. */
   locked: z.boolean(),
+  /** A generated concept shape, not a product (never purchasable, listed apart in the bill). */
+  concept: z.literal(true).optional(),
   /** Where the shape comes from: the provider's model, a library lookalike, a parametric generator, a builtin asset or a placeholder box. */
   mesh: z.enum(['provider', 'lookalike', 'parametric', 'builtin', 'placeholder']),
   /** Plan position [x, y] of the item origin (footprint centre). */

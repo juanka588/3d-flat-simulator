@@ -4,7 +4,7 @@ Problem: LLM designs are valid (real products, clean layouts) but look poor next
 
 User decisions: pluggable image provider, local Flux first; asset gaps → search harder (text + image similarity), tune parametric generators, gap report (no image-to-3D for now); final output = honest 3D render **and** a labelled photoreal visualisation; team/variant/CG end-to-end runs only when the user asks.
 
-Status: CG0 spike in progress.
+Status: CG0 spike done; CG1 to CG4 implemented (CG4: `record_reference`, `match_reference`, `gap_report`, descriptor-driven generators, concept items); CG5 next.
 
 ### The loop (per room, orchestrated by a new MCP prompt `close_the_gap {roomId, styleId, iterations}`)
 1. **Intent.** Run `describe_room` plus the style file; the lead writes a short design brief.

@@ -260,7 +260,7 @@ function roomItems(scene: Scene, room: Room): RoomItemDescription[] {
     if (roomOfBox(ctx, box)?.room.id !== room.id) continue;
     const item = scene.items[box.index]!;
     const builtin = isBuiltinAsset(item.assetId) ? BUILTIN_ASSETS[item.assetId] : undefined;
-    const name = item.product?.name ?? builtin?.name ?? item.id;
+    const name = item.product?.name ?? builtin?.name ?? (item.concept && item.mesh?.kind === 'parametric' ? `Concept ${item.mesh.generator} (generated)` : item.id);
     const ref = item.productRef ?? (item.product ? { provider: item.product.provider, sku: item.product.sku } : undefined);
     out.push({
       id: item.id,
@@ -271,6 +271,7 @@ function roomItems(scene: Scene, room: Room): RoomItemDescription[] {
       dims: { w: r3(box.dims.w), d: r3(box.dims.d), h: r3(box.dims.h) },
       mount: box.mount,
       locked: box.locked,
+      ...(item.concept ? { concept: true as const, note: 'CONCEPT shape (generated, not a product): not purchasable, not in the budget' } : {}),
       mesh: item.mesh?.kind ?? (builtin ? 'builtin' : 'placeholder'),
       position: [r2(item.position[0]), r2(item.position[1])],
       rotationDeg: r2(item.rotation),

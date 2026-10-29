@@ -98,6 +98,12 @@ const sameDims = (a: { w: number; d: number; h: number }, b: { w: number; d: num
  */
 function consistencyErrors(item: Item, path: string): CommandError[] {
   const p = item.product;
+  if (item.concept === true) {
+    // A concept shape has no product: its generator must accept the params and make exactly the dims it claims.
+    if (item.mesh?.kind !== 'parametric' || item.dims === undefined) return [err('precondition_failed', `${path}/mesh`, 'a concept item needs a parametric mesh and its dims', 'use place_item with concept:true and a generator')];
+    const check = checkParametricMesh(item.mesh, item.dims);
+    return check.status === 'ok' || check.status === 'unknown_generator' ? [] : [err('precondition_failed', `${path}/mesh`, 'the concept generator does not accept these params or does not make these dims', 'use place_item with concept:true: it takes the dims from the generator')];
+  }
   if (p === undefined) {
     return [err('precondition_failed', `${path}/product`, 'a product snapshot is required (a productRef alone is not enough)', 'use place_item: it reads the product record from the server')];
   }
@@ -120,7 +126,7 @@ function consistencyErrors(item: Item, path: string): CommandError[] {
 function place(scene: Scene, cmd: Extract<ItemLeaf, { type: 'item.place' }>, ctx: Ctx): ItemOutcome {
   const draft = cmd.item;
   if (!ctx.trusted) {
-    if (ctx.author.kind !== 'user' && draft.product === undefined && draft.productRef === undefined) {
+    if (ctx.author.kind !== 'user' && draft.concept !== true && draft.product === undefined && draft.productRef === undefined) {
       return fail(
         err(
           'precondition_failed',

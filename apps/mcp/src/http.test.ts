@@ -57,8 +57,8 @@ describe('streamable HTTP (M4.2)', () => {
     const inproc = await connect();
     const strip = (tools: { name: string; description?: string; annotations?: unknown; inputSchema: unknown }[]) => tools.map((t) => ({ name: t.name, description: t.description, annotations: t.annotations, inputSchema: t.inputSchema }));
     expect(strip((await over.listTools()).tools)).toEqual(strip((await inproc.client.listTools()).tools));
-    expect((await over.listTools()).tools.length).toBe(41);
-    expect((await over.listPrompts()).prompts.map((p) => p.name)).toEqual(['apply_style', 'furnish_room', 'design_flat_in_style', 'design_flat_team', 'room_specialist', 'list_styles']);
+    expect((await over.listTools()).tools.length).toBe(44);
+    expect((await over.listPrompts()).prompts.map((p) => p.name)).toEqual(['apply_style', 'furnish_room', 'design_flat_in_style', 'design_flat_team', 'room_specialist', 'reference_reader', 'list_styles']);
     expect((await over.listResources()).resources.filter((r) => !r.uri.startsWith('styles://'))).toHaveLength(5);
     await over.close();
   });
@@ -212,7 +212,7 @@ describe('streamable HTTP (M4.2)', () => {
     it('passes with the right token (any scheme casing) and healthz stays open', async () => {
       const { http, base } = await serve({ token: TOKEN });
       const client = await mcpClient(http.url, { authorization: `Bearer ${TOKEN}` });
-      expect((await client.listTools()).tools.length).toBe(41);
+      expect((await client.listTools()).tools.length).toBe(44);
       await client.close();
       expect((await fetch(`${base}/mcp`, { method: 'POST', headers: { ...MCP_HEADERS, authorization: `bearer ${TOKEN}` }, body: INIT })).status).toBe(200);
       expect((await fetch(`${base}/healthz`)).status).toBe(200);

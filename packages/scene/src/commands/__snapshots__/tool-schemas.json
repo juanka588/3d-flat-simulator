@@ -1312,6 +1312,10 @@
               "description": "Existing furniture the designer must plan around (only the user may set it). Optional.",
               "type": "boolean"
             },
+            "concept": {
+              "description": "A generated concept shape, not a product (no productRef or product; needs a parametric mesh). Set by place_item concept:true.",
+              "type": "boolean"
+            },
             "relation": {
               "anyOf": [
                 {
@@ -3784,6 +3788,10 @@
                 },
                 "locked": {
                   "description": "Existing furniture the designer must plan around (only the user may set it). Optional.",
+                  "type": "boolean"
+                },
+                "concept": {
+                  "description": "A generated concept shape, not a product (no productRef or product; needs a parametric mesh). Set by place_item concept:true.",
                   "type": "boolean"
                 },
                 "relation": {

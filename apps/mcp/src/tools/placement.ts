@@ -6,8 +6,10 @@ import {
   applyCommand,
   bedDressingOf,
   billOfMaterials,
+  GENERATORS,
   checkParametricMesh,
   defaultParametricFor,
+  roomCeilingHeight,
   makeEnvelope,
   meshAssetId,
   nearestIds,
@@ -74,7 +76,11 @@ const RoomId = z.string().min(1).max(64);
 /** One thing to place. Strict: a price, a name or dims are rejected as unknown keys. */
 const Entry = z
   .strictObject({
-    productId: ProductId,
+    productId: ProductId.optional(),
+    /** CONCEPT item (CG4): a generated parametric shape instead of a product. Not purchasable, labelled, kept out of the budget. */
+    concept: z.literal(true).optional(),
+    generator: z.string().min(1).max(40).optional(),
+    params: z.record(z.string(), z.union([z.number(), z.string(), z.boolean()])).optional(),
     roomId: RoomId,
     relation: Relation.optional(),
     position: Vec2.optional(),
@@ -89,6 +95,14 @@ const Entry = z
     acknowledgeHeavyPartition: z.boolean().optional(),
   })
   .superRefine((e, ctx) => {
+    if (e.concept) {
+      if (e.productId) ctx.addIssue({ code: 'custom', path: ['productId'], message: 'a concept item is not a product: give generator (and params), not productId' });
+      if (!e.generator) ctx.addIssue({ code: 'custom', path: ['generator'], message: 'concept:true needs a generator id (suggest_generator in match_reference, or search_assets)' });
+      if (e.variantSku || e.mesh) ctx.addIssue({ code: 'custom', path: ['mesh'], message: 'a concept item takes generator + params, not mesh or variantSku' });
+    } else {
+      if (!e.productId) ctx.addIssue({ code: 'custom', path: ['productId'], message: 'productId is required (real products only; for a generated stand-in pass concept:true with generator)' });
+      if (e.generator || e.params) ctx.addIssue({ code: 'custom', path: ['generator'], message: 'generator and params are only for concept:true items' });
+    }
     if (e.relation && e.position) ctx.addIssue({ code: 'custom', path: ['position'], message: 'give either relation or position, not both' });
     if (!e.relation && !e.position) ctx.addIssue({ code: 'custom', path: ['relation'], message: 'give a relation (against_wall, in_corner, ...) or a position [x, y]' });
   });
@@ -114,6 +128,9 @@ const MESH_REF = { $ref: '#/$defs/mesh' };
 const DEFS = () => ({ relation: jsonSchema(Relation), mesh: jsonSchema(MeshSource) });
 
 const ENTRY_PROPS: Json = {
+  concept: { type: 'boolean', description: 'true = generated CONCEPT shape, no productId: give generator + params. Not purchasable, labelled, 0 in the budget. Only when no real product fits.' },
+  generator: { type: 'string', description: 'With concept: generator id (suggestGenerator).' },
+  params: { type: 'object', description: 'With concept: generator params.' },
   productId: { type: 'string', description: 'productId returned by search_products or get_product in this session, "<provider>:<sku>".' },
   roomId: { type: 'string', description: 'Room to place in (list_rooms).' },
   relation: { ...RELATION_REF, description: 'Where, in designer terms (against_wall, in_corner, centered_in, facing, next_to, under_window, on). The server finds the exact position and rotation. Use this OR position. In items[], "$0" as the itemId of next_to or on (targetId of facing) means the item entry 0 of the same call places.' },
@@ -126,7 +143,7 @@ const ENTRY_PROPS: Json = {
   variantSku: { type: 'string', description: 'A variants[].sku from get_product (another colour or size).' },
   acknowledgeHeavyPartition: { type: 'boolean', description: 'Accept hanging a heavy (over 15 kg) wall product on a non-structural wall.' },
 };
-const ENTRY_REQUIRED = ['productId', 'roomId'];
+const ENTRY_REQUIRED = ['roomId'];
 
 // ---------------------------------------------------------------------------------------------
 // Shared helpers
@@ -306,6 +323,67 @@ function parametric(generator: string, params: Record<string, number | string | 
   }
 }
 
+
+// ---------------------------------------------------------------------------------------------
+// Concept items (CG4): a generated shape instead of a product
+// ---------------------------------------------------------------------------------------------
+
+/** Where generated shapes that hang are fixed by default. */
+const CONCEPT_MOUNT: Readonly<Record<string, 'wall' | 'ceiling'>> = { mirror: 'wall', curtains: 'wall', tv: 'wall', pendant: 'ceiling' };
+
+/**
+ * A concept item: the generator and its params give the exact dims; the solver places it like any item. It carries NO product,
+ * so it has no price, no link and cannot be bought; `concept: true` marks it for the UI and the bill of materials.
+ */
+function conceptItem(working: Scene, entry: Entry, at: string, index: number | undefined): { ok: true; item: Json & { roomId: string; position: [number, number]; rotation: number; elevation: number }; name: string; rationale: string[] } | { ok: false; result: CallToolResult } {
+  const g = GENERATORS.get(entry.generator!);
+  if (!g) return { ok: false, result: toolError('invalid_command', `unknown generator "${entry.generator}"${at}`, `Generators: ${GENERATORS.list().map((x) => x.id).join(', ')} (search_assets).`, { errors: [{ code: 'invalid_command', path: 'generator', message: 'unknown generator' }] }) };
+  const parsed = g.params.safeParse(entry.params ?? {});
+  if (!parsed.success) {
+    const issues = parsed.error.issues.map((i) => `${i.path.join('.') || 'params'}: ${i.message}`);
+    return { ok: false, result: toolError('invalid_command', `invalid parameters for generator "${g.id}"${at}: ${issues.join('; ')}`, 'See the parameter ranges in search_assets.', { errors: issues.map((m) => ({ code: 'invalid_command', path: 'params', message: m })) }) };
+  }
+  const dims = g.describeParams(parsed.data).dims;
+  const room = unknownRoom(working, entry.roomId);
+  if (room) return { ok: false, result: room };
+  const roomObj = working.rooms.find((r) => r.id === entry.roomId)!;
+  const ceiling = roomCeilingHeight(working, roomObj);
+  const rel = entryRelation(entry);
+  if (!rel.ok) return { ok: false, result: rel.result };
+  const mount = rel.relation.kind === 'on' ? 'floor' : (entry.mount ?? CONCEPT_MOUNT[g.id] ?? 'floor');
+  if (mount === 'floor' && entry.elevation !== undefined && entry.elevation > 0 && rel.relation.kind !== 'on') {
+    return { ok: false, result: toolError('invalid_command', `elevation is only for wall or ceiling shapes; the ${g.id} concept stands on the floor${at}`, 'Remove elevation, or pass mount "wall".') };
+  }
+  const defaultElevation = mount === 'ceiling' ? Math.max(0, ceiling - dims.h) : mount === 'wall' ? (g.id === 'curtains' ? Math.max(0, ceiling - dims.h - 0.05) : 0.9) : 0;
+  const elevation = mount === 'floor' ? undefined : (entry.elevation ?? defaultElevation);
+  const solved = solvePlacement(working, {
+    roomId: entry.roomId,
+    dims,
+    mount,
+    ...(elevation !== undefined ? { elevation } : {}),
+    category: g.category,
+    relation: rel.relation,
+    ...(rel.rotation !== undefined ? { rotation: rel.rotation } : {}),
+    maxCandidates: 3,
+  });
+  const label = `Concept ${g.id} (generated)`;
+  if (!solved.ok) return { ok: false, result: placementRefused(label, solved.violations, solved.candidates, index) };
+  const { placement } = solved;
+  const item = {
+    assetId: `param:${g.id}`,
+    position: placement.position,
+    rotation: placement.rotation,
+    elevation: placement.elevation,
+    roomId: placement.roomId,
+    mount,
+    dims: { w: dims.w, d: dims.d, h: dims.h },
+    mesh: { kind: 'parametric', generator: g.id, params: entry.params ?? {} },
+    concept: true,
+    relation: placement.relation,
+  };
+  return { ok: true, item: item as never, name: label, rationale: [...solved.rationale, 'concept shape: not a product, not purchasable'] };
+}
+
 // ---------------------------------------------------------------------------------------------
 // get_placement_options
 // ---------------------------------------------------------------------------------------------
@@ -426,7 +504,7 @@ const getBillOfMaterials: ToolDef = {
       scene = { ...scene, items: scene.items.filter((i) => mine.has(i.id)) };
     }
     const bom = billOfMaterials(scene, { now });
-    const nameless = bom.lines.filter((l) => l.productId === undefined);
+    const nameless = bom.lines.filter((l) => l.productId === undefined && !l.concept);
     return toolOk({
       ok: true,
       rev: sc.data.rev,
@@ -447,6 +525,7 @@ const getBillOfMaterials: ToolDef = {
         ...(g.stale ? { stale: true } : {}),
       })),
       ...(scene.items.some((i) => bedDressingOf(i)) ? { notes: ['Bed frames are listed without a mattress: the mattress, duvet and pillows in the pictures are a visual dressing, not part of this bill. Add a mattress separately.'] } : {}),
+      ...(bom.concept.count ? { concept: { count: bom.concept.count, itemIds: bom.concept.itemIds, byRoom: bom.concept.byRoom, note: 'CONCEPT shapes (generated stand-ins, not products): not purchasable, 0 EUR, not in totalEur or byRoom. Replace them with real products when one fits.' } } : {}),
       ...(nameless.length ? { withoutProduct: nameless.map((l) => ({ itemId: l.itemId, name: l.name, locked: l.locked })) } : {}),
       byRoom: bom.byRoom,
       ...(bom.stale.length ? { stale: bom.stale } : {}),
@@ -477,7 +556,9 @@ function placeSchema(): Json {
 
 interface PlacedInfo {
   name: string;
-  productId: string;
+  /** Absent for a concept item. */
+  productId?: string;
+  concept?: true;
   price: number;
   currency: string;
   roomId: string;
@@ -571,14 +652,27 @@ async function placeItem(ctx: ToolContext, args: Json): Promise<CallToolResult> 
     const backref = resolveBackRefs(raw, placedIds, at);
     if (!backref.ok) return backref.result;
     const entry = backref.entry;
-    const loaded = await loadSeenProduct(ctx, entry.productId);
+    if (entry.concept) {
+      const made = conceptItem(working, entry, at, entries.length > 1 ? index : undefined);
+      if (!made.ok) return made.result;
+      const cmd = { type: 'item.place', item: made.item } as unknown as Command;
+      commands.push(cmd);
+      const step = applyCommand(working, makeEnvelope(cmd, { id: ctx.clock.newId(), ts: ctx.clock.now(), author: ctx.author }), { rev: base.rev });
+      if (!step.ok) return commandErrors(step.errors, base.rev);
+      working = step.scene;
+      placedIds.push(step.changed.items?.[0] ?? working.items.at(-1)?.id ?? '');
+      placed.push({ name: made.name, concept: true, price: 0, currency: 'EUR', roomId: made.item.roomId, position: made.item.position, rotation: made.item.rotation, elevation: made.item.elevation, mesh: 'concept (generated, not a product)', rationale: made.rationale });
+      continue;
+    }
+    const productId = entry.productId!;
+    const loaded = await loadSeenProduct(ctx, productId);
     if (!loaded.ok) return loaded.result;
     const prep = prepare(loaded.data, entry.variantSku);
     if (!prep.ok) return prep.result;
     const room = unknownRoom(working, entry.roomId);
     if (room) return room;
     const { record, variant, dims } = prep.data;
-    if (!record.priceTtc) return toolError('invalid_command', `product ${entry.productId} has a non-TTC price and cannot be placed${at}`, 'Budgets count TTC prices only; pick another product.');
+    if (!record.priceTtc) return toolError('invalid_command', `product ${productId} has a non-TTC price and cannot be placed${at}`, 'Budgets count TTC prices only; pick another product.');
     const mounted = effectiveMount(record, entry);
     if (!mounted.ok) return toolError('invalid_command', `${mounted.message}${at}`, 'Remove mount (and elevation), or pick a product that hangs (shelf, mirror, lamp, wall cabinet).', { errors: [{ code: 'invalid_command', path: 'mount', message: 'cannot be hung' }] });
     prep.data.mount = mounted.mount;
@@ -602,7 +696,7 @@ async function placeItem(ctx: ToolContext, args: Json): Promise<CallToolResult> 
     const { placement } = solved;
     const productRef = { provider: record.provider, sku: record.sku };
     const item = {
-      assetId: mesh.mesh ? meshAssetId(mesh.mesh, productRef) : entry.productId,
+      assetId: mesh.mesh ? meshAssetId(mesh.mesh, productRef) : productId,
       position: placement.position,
       rotation: placement.rotation,
       elevation: placement.elevation,
@@ -626,7 +720,7 @@ async function placeItem(ctx: ToolContext, args: Json): Promise<CallToolResult> 
     const lamp = working.lights.find((l) => l.id === step.changed.lights[0] && l.itemId !== undefined);
     placed.push({
       name: snapshot.name,
-      productId: entry.productId,
+      productId: productId,
       price: snapshot.price,
       currency: snapshot.currency,
       roomId: placement.roomId,

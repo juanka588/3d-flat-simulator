@@ -46,7 +46,47 @@ export const ITEM_MATERIALS = {
   enamel: 'builtin:furniture-enamel',
 } as const;
 
-export type ItemMaterialId = (typeof ITEM_MATERIALS)[keyof typeof ITEM_MATERIALS];
+/**
+ * Named colours of the descriptor-driven finishes (CG4). A closed palette keeps meshes deterministic and the material ids a
+ * finite set the viewer, the thumbnails and the tests all know; a descriptor colour is mapped to the nearest name
+ * (`nearestColourName`, in apps/mcp).
+ */
+export const COLOUR_HEX = {
+  white: '#f1efe9',
+  cream: '#e8dfc9',
+  beige: '#cdbb9f',
+  sand: '#c2a97f',
+  grey: '#8a949b',
+  charcoal: '#45484d',
+  black: '#1f2023',
+  blue: '#5f84a8',
+  navy: '#27374f',
+  green: '#587a56',
+  sage: '#9aab8a',
+  terracotta: '#b9684a',
+  rust: '#9a4f33',
+  pink: '#d4a3a0',
+  mustard: '#c9a13a',
+  brown: '#6d4c37',
+} as const;
+export type ColourName = keyof typeof COLOUR_HEX;
+export const COLOUR_NAMES = Object.keys(COLOUR_HEX) as [ColourName, ...ColourName[]];
+
+/** Upholstery looks: a woven fabric (library weave texture), a plain velvet and a leather. */
+export const FABRIC_KINDS = ['weave', 'velvet', 'leather'] as const;
+export type FabricKind = (typeof FABRIC_KINDS)[number];
+
+export type FabricMaterialId = `builtin:furniture-${FabricKind}-${ColourName}`;
+export type CeramicMaterialId = `builtin:furniture-ceramic-${ColourName}`;
+
+/** Material id of a coloured upholstery: `fabricMaterial('velvet', 'green')`. */
+export const fabricMaterial = (kind: FabricKind, colour: ColourName): FabricMaterialId => `builtin:furniture-${kind}-${colour}`;
+/** Material id of coloured glazed ceramic (bath, basin). */
+export const ceramicMaterial = (colour: ColourName): CeramicMaterialId => `builtin:furniture-ceramic-${colour}`;
+/** A translucent curtain fabric. */
+export const SHEER_MATERIAL = 'builtin:furniture-sheer' as const;
+
+export type ItemMaterialId = (typeof ITEM_MATERIALS)[keyof typeof ITEM_MATERIALS] | FabricMaterialId | CeramicMaterialId | typeof SHEER_MATERIAL;
 
 /** The semantic slots of a generator part and the material each uses by default. */
 export const ITEM_SLOTS = {
@@ -72,12 +112,14 @@ export interface ItemMaterialSpec {
   color: string;
   roughness: number;
   metalness: number;
+  /** Below 1: drawn see-through (sheer curtains). */
+  opacity?: number;
   /** A CC0 library texture (colour, normal and roughness maps) laid on the part; UVs are in metres, so `scale` is a real-world size. */
   texture?: ItemMaterialTexture;
 }
 
 /** Suggested look of every item material (`MeshStandardMaterial` colour / roughness / metalness, optional texture). */
-export const ITEM_MATERIAL_SPECS: Readonly<Record<ItemMaterialId, ItemMaterialSpec>> = {
+const BASE_SPECS: Readonly<Record<(typeof ITEM_MATERIALS)[keyof typeof ITEM_MATERIALS], ItemMaterialSpec>> = {
   'builtin:tv-body': { color: '#2b2c2f', roughness: 0.45, metalness: 0.3 },
   'builtin:tv-screen': { color: '#08090b', roughness: 0.06, metalness: 0.2 },
   'builtin:placeholder': { color: '#d048d0', roughness: 0.8, metalness: 0 },
@@ -98,3 +140,19 @@ export const ITEM_MATERIAL_SPECS: Readonly<Record<ItemMaterialId, ItemMaterialSp
   'builtin:furniture-glass': { color: '#0b0c0f', roughness: 0.04, metalness: 0.3 },
   'builtin:furniture-enamel': { color: '#f1f1ee', roughness: 0.28, metalness: 0 },
 };
+
+/** The coloured upholstery, ceramic and sheer variants, generated from the palette (colour steers the shared library texture). */
+function colourSpecs(): Record<string, ItemMaterialSpec> {
+  const out: Record<string, ItemMaterialSpec> = {};
+  for (const c of COLOUR_NAMES) {
+    const color = COLOUR_HEX[c];
+    out[fabricMaterial('weave', c)] = { color, roughness: 0.92, metalness: 0, texture: { slug: 'fabric-weave-grey', scale: 0.5 } };
+    out[fabricMaterial('velvet', c)] = { color, roughness: 0.62, metalness: 0 };
+    out[fabricMaterial('leather', c)] = { color, roughness: 0.42, metalness: 0 };
+    out[ceramicMaterial(c)] = { color, roughness: 0.1, metalness: 0 };
+  }
+  out[SHEER_MATERIAL] = { color: '#f4f0e6', roughness: 1, metalness: 0, opacity: 0.45 };
+  return out;
+}
+
+export const ITEM_MATERIAL_SPECS: Readonly<Record<ItemMaterialId, ItemMaterialSpec>> = { ...BASE_SPECS, ...colourSpecs() } as Record<ItemMaterialId, ItemMaterialSpec>;

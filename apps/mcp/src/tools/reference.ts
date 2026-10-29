@@ -1,4 +1,4 @@
-import type { RoomType } from '@flat/scene';
+import type { CameraPose, RoomType } from '@flat/scene';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import { toolError, toolOk } from '../errors';
@@ -41,7 +41,7 @@ function inputSchema(): Record<string, unknown> {
 }
 
 /** What a job was asked for, kept so a later `jobId` call can label its result. */
-interface JobMeta {
+export interface JobMeta {
   mode: 'reference' | 'visualisation';
   roomId: string;
   styleId: string;
@@ -49,8 +49,13 @@ interface JobMeta {
   prompt: string;
   negativePrompt: string;
   seed: number;
+  /** The camera of the room view the image was made from (reference mode): the depth of the same pose gives the positions. */
+  pose?: CameraPose;
 }
 const jobs = new Map<string, JobMeta>();
+/** What a job was asked for (this process only); `record_reference` uses its room and camera. */
+export const getJobMeta = (id: string): JobMeta | undefined => jobs.get(id);
+export const SIZE_OF_REFERENCE = SIZE;
 const remember = (id: string, m: JobMeta) => {
   jobs.set(id, m);
   if (jobs.size > 50) jobs.delete(jobs.keys().next().value as string);
@@ -83,7 +88,9 @@ function rateLimited(ctx: ToolContext): CallToolResult | undefined {
 
 function resultFor(status: JobStatus, meta: JobMeta | undefined, providerId: string): CallToolResult {
   const label = meta?.mode === 'visualisation' ? VISUALISATION_LABEL : REFERENCE_LABEL;
-  const base = { provider: providerId, jobId: status.jobId, ...(meta ?? {}) };
+  const { pose: _pose, ...shownMeta } = meta ?? ({} as Partial<JobMeta>);
+  void _pose;
+  const base = { provider: providerId, jobId: status.jobId, ...shownMeta };
   if (status.status === 'error') return toolError('render_failed', status.error ?? 'image generation failed', 'Retry once with another seed; if it keeps failing check the image service log.');
   if (status.status === 'cancelled') return toolError('render_failed', 'the image job was cancelled', 'Start a new generate_reference.');
   if (status.status !== 'done') {
@@ -170,7 +177,7 @@ async function generateReference(ctx: ToolContext, args: Record<string, unknown>
       { prompt: built.prompt, negativePrompt: built.negativePrompt, seed, n: a.n, width: SIZE.width, height: SIZE.height, model: 'qwen-cn', controls: [{ type: 'canny', image: ctrl.canny, strength: 1.0 }] },
       { waitMs },
     );
-    const meta: JobMeta = { mode: 'reference', roomId: a.roomId, styleId: a.styleId, roomType: room.type, prompt: built.prompt, negativePrompt: built.negativePrompt, seed };
+    const meta: JobMeta = { mode: 'reference', roomId: a.roomId, styleId: a.styleId, roomType: room.type, prompt: built.prompt, negativePrompt: built.negativePrompt, seed, pose };
     remember(status.jobId, meta);
     return resultFor(status, meta, provider.id);
   } catch (e) {

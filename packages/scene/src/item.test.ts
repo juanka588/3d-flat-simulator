@@ -200,4 +200,16 @@ describe('legacy compatibility', () => {
     expect(codes(load([legacy]))).not.toContain('missing_product');
     expect(codes(load([{ id: 'y', assetId: 'custom:thing', position: [0, 0] }]))).toEqual(expect.arrayContaining(['unknown_asset', 'missing_product']));
   });
+
+  it('CG4: a concept item is a generated shape, not a product (no product, a parametric mesh, no missing_product warning)', () => {
+    const concept = { id: 'c', assetId: 'param:chair', position: [1, 1], concept: true, mesh: { kind: 'parametric', generator: 'chair', params: {} } };
+    expect(errors([concept])).toEqual([]);
+    expect(codes(load([concept]))).not.toContain('missing_product');
+    expect(load([concept]).items[0]!.concept).toBe(true);
+    expect(errors([{ ...concept, product: snap, productRef: { provider: 'mock', sku: bed.sku } }]).join()).toMatch(/concept item is not a product/);
+    expect(errors([{ ...concept, mesh: undefined }]).join()).toMatch(/concept item needs a parametric mesh/);
+    expect(errors([{ ...concept, mesh: { kind: 'lookalike', assetId: 'x' } }]).join()).toMatch(/parametric mesh/);
+    // round-trips through the serializer
+    expect(JSON.parse(serializeScene(load([concept]))).items[0].concept).toBe(true);
+  });
 });

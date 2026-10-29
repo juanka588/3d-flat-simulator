@@ -82,6 +82,7 @@ export const ItemDraft = ItemBase.extend({
   clearance: ClearanceD.describe('Free space wanted around the item, in metres per side. Optional.').optional(),
   dressing: ItemBase.shape.dressing.describe('Bed frames only: false draws the frame bare, without the visual mattress, duvet and pillows (which are not bought). Optional; place_item sets it.'),
   locked: ItemBase.shape.locked.describe('Existing furniture the designer must plan around (only the user may set it). Optional.'),
+  concept: ItemBase.shape.concept.describe('A generated concept shape, not a product (no productRef or product; needs a parametric mesh). Set by place_item concept:true.'),
   relation: Relation.describe('The placement intent that put the item here (as returned by place_item). Optional.').optional(),
 }).superRefine(checkItemRules);
 export type ItemDraft = z.input<typeof ItemDraft>;

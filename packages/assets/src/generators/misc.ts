@@ -4,7 +4,7 @@ import { ITEM_MATERIALS } from '../materials/item-materials';
 import { tvDims } from '@flat/scene';
 import { Kit, boxAnchors, finish, finishMaterial, metres } from './kit';
 
-/** Mirror, rug and the wall-mounted TV. */
+/** Mirror and the wall-mounted TV (rugs: rug.ts). */
 
 // ---------------------------------------------------------------------------------------------
 // Mirror
@@ -37,38 +37,6 @@ export const mirror: Generator<MirrorParams> = {
     kit.box(mat, -w / 2 + fr, 0, -d / 2, w / 2 - fr, fr, d / 2);
     kit.box(mat, -w / 2 + fr, h - fr, -d / 2, w / 2 - fr, h, d / 2);
     kit.box(ITEM_MATERIALS.mirror, -w / 2 + fr, fr, -d / 2 + 0.005, w / 2 - fr, h - fr, d / 2 - 0.008);
-    return kit.build();
-  },
-};
-
-// ---------------------------------------------------------------------------------------------
-// Rug
-// ---------------------------------------------------------------------------------------------
-
-/** Thickness of a rug, in metres. */
-export const RUG_THICKNESS = 0.012;
-
-const rugParams = z.strictObject({
-  w: metres('Width of the rug.', 2, 0.3, 6),
-  d: metres('Depth of the rug.', 1.4, 0.3, 6),
-});
-type RugParams = z.infer<typeof rugParams>;
-
-export const rug: Generator<RugParams> = {
-  id: 'rug',
-  label: 'Flat rug, 1.2 cm thick, with a border',
-  category: 'rug',
-  params: rugParams,
-  describeParams: ({ w, d }) => ({ dims: { w, d, h: RUG_THICKNESS }, anchors: boxAnchors(w, d, RUG_THICKNESS), clearance: {} }),
-  generate({ w, d }) {
-    const kit = new Kit();
-    const b = Math.min(0.06, w / 4, d / 4);
-    kit.box(ITEM_MATERIALS.rug, -w / 2, 0, -d / 2, w / 2, 0.008, d / 2);
-    kit.box(ITEM_MATERIALS.bedding, -w / 2 + b, 0.008, -d / 2 + b, w / 2 - b, RUG_THICKNESS, d / 2 - b);
-    kit.box(ITEM_MATERIALS.rug, -w / 2, 0.008, -d / 2, w / 2, RUG_THICKNESS, -d / 2 + b);
-    kit.box(ITEM_MATERIALS.rug, -w / 2, 0.008, d / 2 - b, w / 2, RUG_THICKNESS, d / 2);
-    kit.box(ITEM_MATERIALS.rug, -w / 2, 0.008, -d / 2 + b, -w / 2 + b, RUG_THICKNESS, d / 2 - b);
-    kit.box(ITEM_MATERIALS.rug, w / 2 - b, 0.008, -d / 2 + b, w / 2, RUG_THICKNESS, d / 2 - b);
     return kit.build();
   },
 };

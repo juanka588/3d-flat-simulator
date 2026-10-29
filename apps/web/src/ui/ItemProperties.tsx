@@ -182,7 +182,12 @@ export function ItemProperties({ scene, item }: { scene: Scene; item: Item }) {
               Locked
             </span>
           )}
-          {!p && !builtIn && (
+          {item.concept && (
+            <span className="badge badge-concept" data-testid="badge-concept" title="A generated shape that stands for something no real product matched. Not purchasable, not in the budget.">
+              concept
+            </span>
+          )}
+          {!p && !builtIn && !item.concept && (
             <span className="badge badge-warn" data-testid="badge-no-product" title="A library shape: it has no price and no link.">
               no product
             </span>

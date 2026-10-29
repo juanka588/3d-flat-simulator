@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { Generator } from '@flat/scene';
-import { ITEM_MATERIALS } from '../materials/item-materials';
-import { FRONT, HANDLE, Kit, addFronts, boxAnchors, count, finish, finishMaterial, metres } from './kit';
+import { FABRIC_KINDS, ITEM_MATERIALS, fabricMaterial } from '../materials/item-materials';
+import { FRONT, HANDLE, Kit, addFronts, boxAnchors, colourParam, count, finish, finishMaterial, metres } from './kit';
 
 /** Shelves, tables, seating and beds. */
 
@@ -148,6 +148,16 @@ const sofaParams = z.strictObject({
   d: metres('Overall depth of the sofa (front to back).', 0.95, 0.6, 1.4),
   h: metres('Overall height of the sofa up to the top of the backrest.', 0.85, 0.7, 1.1),
   seats: count('Number of seat cushions (1 = armchair).', 3, 1, 6),
+  arms: z
+    .enum(['track', 'rolled', 'none'])
+    .default('track')
+    .describe('Arm style: "track" (straight, square), "rolled" (padded, rounded top) or "none" (armless). Defaults to "track".'),
+  legs: z
+    .enum(['metal', 'wood', 'block', 'none'])
+    .default('metal')
+    .describe('Leg style: "metal" (short steel), "wood" (taller timber), "block" (recessed plinth) or "none" (sits on the floor). Defaults to "metal".'),
+  fabric: z.enum(FABRIC_KINDS).optional().describe('Upholstery look with a colour: "weave" (woven), "velvet" or "leather". Omitted: the standard woven grey.'),
+  colour: colourParam('the upholstery'),
 });
 type SofaParams = z.infer<typeof sofaParams>;
 
@@ -157,25 +167,38 @@ export const sofa: Generator<SofaParams> = {
   category: 'sofa',
   params: sofaParams,
   describeParams: ({ w, d, h }) => ({ dims: { w, d, h }, anchors: boxAnchors(w, d, h), clearance: { front: 0.7, back: 0 } }),
-  generate({ w, d, h, seats }) {
+  generate({ w, d, h, seats, arms, legs, fabric, colour }) {
     const kit = new Kit();
-    const leg = 0.1;
-    const arm = Math.min(0.16, w / 5);
+    const leg = legs === 'metal' ? 0.1 : legs === 'wood' ? 0.16 : legs === 'block' ? 0.05 : 0;
+    const arm = arms === 'none' ? 0 : Math.min(arms === 'rolled' ? 0.2 : 0.16, w / 5);
     const backT = Math.min(0.22, d / 3);
     const seatTop = Math.min(0.5, h * 0.6);
     const armTop = Math.min(h, seatTop + 0.15);
-    const F = ITEM_MATERIALS.fabric;
+    const F = colour || fabric ? fabricMaterial(fabric ?? 'weave', colour ?? 'grey') : ITEM_MATERIALS.fabric;
     // Legs.
-    for (const sx of [-1, 1]) {
-      for (const sz of [-1, 1]) {
-        const x0 = sx < 0 ? -w / 2 + 0.05 : w / 2 - 0.05 - 0.04;
-        const z0 = sz < 0 ? -d / 2 + 0.05 : d / 2 - 0.05 - 0.04;
-        kit.box(ITEM_MATERIALS.metal, x0, 0, z0, x0 + 0.04, leg, z0 + 0.04);
+    if (legs === 'block') {
+      kit.box(ITEM_MATERIALS.dark, -w / 2 + 0.06, 0, -d / 2 + 0.06, w / 2 - 0.06, leg + 0.001, d / 2 - 0.06);
+    } else if (legs !== 'none') {
+      const t = legs === 'wood' ? 0.05 : 0.04;
+      for (const sx of [-1, 1]) {
+        for (const sz of [-1, 1]) {
+          const x0 = sx < 0 ? -w / 2 + 0.05 : w / 2 - 0.05 - t;
+          const z0 = sz < 0 ? -d / 2 + 0.05 : d / 2 - 0.05 - t;
+          kit.box(legs === 'wood' ? ITEM_MATERIALS.wood : ITEM_MATERIALS.metal, x0, 0, z0, x0 + t, leg, z0 + t);
+        }
       }
     }
     kit.box(F, -w / 2, leg, -d / 2, w / 2, seatTop - 0.12, d / 2); // base
-    kit.box(F, -w / 2, leg, -d / 2, -w / 2 + arm, armTop, d / 2); // arms
-    kit.box(F, w / 2 - arm, leg, -d / 2, w / 2, armTop, d / 2);
+    if (arms === 'track') {
+      kit.box(F, -w / 2, leg, -d / 2, -w / 2 + arm, armTop, d / 2); // arms
+      kit.box(F, w / 2 - arm, leg, -d / 2, w / 2, armTop, d / 2);
+    } else if (arms === 'rolled') {
+      const roll = Math.min(0.09, armTop - leg - 0.02);
+      for (const [x0, x1] of [[-w / 2, -w / 2 + arm], [w / 2 - arm, w / 2]] as const) {
+        kit.box(F, x0, leg, -d / 2, x1, armTop - roll, d / 2);
+        kit.box(F, x0, armTop - roll, -d / 2, x1, armTop, d / 2, 0.03);
+      }
+    }
     kit.box(F, -w / 2 + arm, leg, -d / 2, w / 2 - arm, h, -d / 2 + backT); // backrest
     const cw = (w - 2 * arm) / seats;
     for (let i = 0; i < seats; i++) {
@@ -234,7 +257,13 @@ const bedParams = z.strictObject({
   w: metres('Width of the bed frame (a 160 cm double bed is 1.6 wide).', 1.6, 0.7, 2.4),
   l: metres('Length of the bed frame, head to foot (the item depth).', 2, 1.6, 2.4),
   h: metres('Overall height: the headboard top, or the pillow top when there is no headboard.', 0.9, 0.6, 1.6),
-  headboard: z.boolean().default(true).describe('Add a headboard at the back (-z). Defaults to true.'),
+  headboard: z.boolean().default(true).describe('Add a headboard at the back (-z); its top is the overall height h. Defaults to true.'),
+  headboardStyle: z
+    .enum(['panel', 'slatted', 'upholstered'])
+    .default('panel')
+    .describe('Headboard: "panel" (timber board), "slatted" (vertical slats) or "upholstered" (thick padded board, see upholstery). Defaults to "panel".'),
+  upholstery: colourParam('an upholstered headboard (default grey)'),
+  linen: colourParam('the mattress cover, duvet and pillows'),
 });
 type BedParams = z.infer<typeof bedParams>;
 
@@ -248,11 +277,13 @@ export const bed: Generator<BedParams> = {
     anchors: [...boxAnchors(w, l, h), { name: 'head-centre', position: [0, h, -l / 2] }],
     clearance: { front: 0.6, left: 0.6, right: 0.6, back: 0 },
   }),
-  generate({ w, l, h, headboard }) {
+  generate({ w, l, h, headboard, headboardStyle, upholstery, linen }) {
     const kit = new Kit();
     const leg = 0.12;
     const frameTop = 0.26;
     const mt = headboard ? Math.min(0.55, h - 0.2) : h - 0.1;
+    const hbT = headboardStyle === 'upholstered' ? 0.1 : headboardStyle === 'slatted' ? 0.04 : 0.06;
+    const linenMat = linen ? fabricMaterial('weave', linen) : ITEM_MATERIALS.bedding;
     for (const sx of [-1, 1]) {
       for (const sz of [-1, 1]) {
         const x0 = sx < 0 ? -w / 2 : w / 2 - 0.06;
@@ -261,14 +292,26 @@ export const bed: Generator<BedParams> = {
       }
     }
     kit.box(ITEM_MATERIALS.wood, -w / 2, leg, -l / 2, w / 2, frameTop, l / 2);
-    kit.box(ITEM_MATERIALS.bedding, -w / 2 + 0.02, frameTop, -l / 2 + (headboard ? 0.07 : 0.02), w / 2 - 0.02, mt, l / 2 - 0.02);
-    if (headboard) kit.box(ITEM_MATERIALS.wood, -w / 2, leg, -l / 2, w / 2, h, -l / 2 + 0.06);
+    kit.box(linenMat, -w / 2 + 0.02, frameTop, -l / 2 + (headboard ? hbT + 0.01 : 0.02), w / 2 - 0.02, mt, l / 2 - 0.02);
+    if (headboard) {
+      if (headboardStyle === 'upholstered') {
+        kit.box(fabricMaterial('weave', upholstery ?? 'grey'), -w / 2, leg, -l / 2, w / 2, h, -l / 2 + hbT, 0.035);
+      } else if (headboardStyle === 'slatted') {
+        kit.box(ITEM_MATERIALS.wood, -w / 2, h - 0.06, -l / 2, w / 2, h, -l / 2 + hbT); // top rail
+        kit.box(ITEM_MATERIALS.wood, -w / 2, leg, -l / 2, w / 2, leg + 0.06, -l / 2 + hbT); // bottom rail
+        const slats = Math.max(3, Math.min(22, Math.round(w / 0.1)));
+        const pitch = w / slats;
+        for (let i = 0; i < slats; i++) kit.box(ITEM_MATERIALS.wood, -w / 2 + i * pitch + pitch * 0.15, leg + 0.06, -l / 2, -w / 2 + (i + 1) * pitch - pitch * 0.15, h - 0.06, -l / 2 + hbT, 0);
+      } else {
+        kit.box(ITEM_MATERIALS.wood, -w / 2, leg, -l / 2, w / 2, h, -l / 2 + hbT);
+      }
+    }
     const pillows = w >= 1.3 ? 2 : 1;
     const pw = Math.min(0.6, (w - 0.1) / pillows - 0.04);
-    const z0 = -l / 2 + (headboard ? 0.1 : 0.05);
+    const z0 = -l / 2 + (headboard ? hbT + 0.04 : 0.05);
     for (let i = 0; i < pillows; i++) {
       const cx = ((i + 0.5) / pillows - 0.5) * (w - 0.04);
-      kit.box(ITEM_MATERIALS.bedding, cx - pw / 2, mt, z0, cx + pw / 2, mt + 0.1, z0 + 0.35);
+      kit.box(linenMat, cx - pw / 2, mt, z0, cx + pw / 2, mt + 0.1, z0 + 0.35);
     }
     return kit.build();
   },

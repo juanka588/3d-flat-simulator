@@ -123,6 +123,19 @@ export const DEFAULT_QUERIES: readonly QuerySpec[] = [
   Q('table haute bar', 'table'),
   Q('lampe à poser', 'lamp'),
   Q('fauteuil de bureau', 'chair'),
+  // Coverage (CG4): the bathroom and kitchen items the CG3 matcher found missing from the local catalogue ('miroir salle de bain' and 'suspension cuisine' were already listed above).
+  Q('meuble sous vasque'),
+  Q('vasque'),
+  Q('armoire de toilette'),
+  Q('porte-serviettes'),
+  Q('robinet'),
+  Q('crédence'),
+  Q('tabouret', 'chair'),
+  Q('accessoires salle de bain'),
+  Q('rideau de douche', 'curtain'),
+  Q('tapis de bain', 'rug'),
+  Q('plantes', 'plant'),
+  Q('luminaires salle de bain', 'lamp'),
 ];
 
 /**

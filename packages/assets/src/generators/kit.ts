@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { MeshBuilder } from '@flat/scene';
 import type { GeneratorAnchor, MeshData } from '@flat/scene';
-import { ITEM_MATERIALS } from '../materials/item-materials';
+import { COLOUR_NAMES, ITEM_MATERIALS } from '../materials/item-materials';
 
 type Vec3 = [number, number, number];
 
@@ -236,6 +236,74 @@ export class Kit {
   }
 
   /**
+   * A surface of revolution about the vertical axis through `(cx, cz)`: `profile` is a path of `[f, y]` points (`f` the
+   * radius as a share of `rx` / `rz`, 0 to 1; `y` metres). Travel the path so that the outside of the surface is on the
+   * right (up the outer wall, then inward across a top, then down an inner wall) and the normals come out outward. The
+   * sides are smooth around, hard between profile segments. `segments` must be a multiple of 4 so that the widest ring
+   * reaches `cx +- rx` and `cz +- rz` exactly (exact bounding boxes). Used for bowls, tubs, globes and domes.
+   */
+  lathe(material: string, cx: number, cz: number, rx: number, rz: number, profile: readonly (readonly [number, number])[], segments = 24): void {
+    if (rx < 1e-9 || rz < 1e-9 || profile.length < 2) return;
+    const b = this.b;
+    const n = segments;
+    const R = (rx + rz) / 2;
+    for (let k = 0; k + 1 < profile.length; k++) {
+      const [f0, y0] = profile[k]!;
+      const [f1, y1] = profile[k + 1]!;
+      if (f0 < 1e-9 && f1 < 1e-9) continue;
+      const dr = (f1 - f0) * R;
+      const dy = y1 - y0;
+      const len = Math.hypot(dr, dy);
+      if (len < 1e-12) continue;
+      const nr = dy / len;
+      const ny = -dr / len;
+      for (let i = 0; i < n; i++) {
+        const a0 = (2 * Math.PI * i) / n;
+        const a1 = (2 * Math.PI * (i + 1)) / n;
+        const rim = (a: number): Vec3 => {
+          const hx = Math.cos(a) / rx;
+          const hz = Math.sin(a) / rz;
+          const l = Math.hypot(hx, hz);
+          return [(hx / l) * nr, ny, (hz / l) * nr];
+        };
+        const at = (f: number, y: number, a: number): Vec3 => [cx + rx * f * Math.cos(a), y, cz + rz * f * Math.sin(a)];
+        const girth = 2 * Math.PI * Math.sqrt((rx * rx + rz * rz) / 2);
+        const u0 = (girth * i) / n;
+        const u1 = (girth * (i + 1)) / n;
+        const c00 = { p: at(f0, y0, a0), nrm: rim(a0), uv: [u0, y0] as [number, number] };
+        const c01 = { p: at(f1, y1, a0), nrm: rim(a0), uv: [u0, y1] as [number, number] };
+        const c11 = { p: at(f1, y1, a1), nrm: rim(a1), uv: [u1, y1] as [number, number] };
+        const c10 = { p: at(f0, y0, a1), nrm: rim(a1), uv: [u1, y0] as [number, number] };
+        // an apex (radius 0) makes the quad a triangle
+        const corners = f0 < 1e-9 ? [c00, c01, c11] : f1 < 1e-9 ? [c00, c01, c10] : [c00, c01, c11, c10];
+        const ids = corners.map((c) => b.vertex(c.p, c.nrm, c.uv));
+        const tris = corners.length === 4 ? [[0, 1, 2], [0, 2, 3]] : [[0, 1, 2]];
+        for (const [p, q, r] of tris as [number, number, number][]) {
+          const pa = corners[p]!.p;
+          const pb = corners[q]!.p;
+          const pc = corners[r]!.p;
+          const u: Vec3 = [pb[0] - pa[0], pb[1] - pa[1], pb[2] - pa[2]];
+          const w: Vec3 = [pc[0] - pa[0], pc[1] - pa[1], pc[2] - pa[2]];
+          const g: Vec3 = [u[1] * w[2] - u[2] * w[1], u[2] * w[0] - u[0] * w[2], u[0] * w[1] - u[1] * w[0]];
+          const sum = [0, 1, 2].map((m) => corners[p]!.nrm[m]! + corners[q]!.nrm[m]! + corners[r]!.nrm[m]!);
+          const outward = g[0] * sum[0]! + g[1] * sum[1]! + g[2] * sum[2]! > 0;
+          if (outward) b.triangle(ids[p]!, ids[q]!, ids[r]!, material, OWNER);
+          else b.triangle(ids[p]!, ids[r]!, ids[q]!, material, OWNER);
+        }
+      }
+    }
+  }
+
+  /**
+   * An upright elliptic tube (an open bowl without a floor): outer radii `rx, rz`, wall thickness `t` (as a share of the
+   * smaller radius, so the wall is thicker at the ends of a long oval), from `y0` to `y1`, with a rim on top.
+   */
+  ring(material: string, cx: number, cz: number, rx: number, rz: number, t: number, y0: number, y1: number, segments = 24): void {
+    const inner = Math.max(0.05, 1 - t / Math.min(rx, rz));
+    this.lathe(material, cx, cz, rx, rz, [[1, y0], [1, y1], [inner, y1], [inner, y0]], segments);
+  }
+
+  /**
    * A horizontal slab `[x0,x1] x [z0,z1]` from `y0` to `y1` with rectangular `holes` (each `[x0, z0, x1, z1]`, inside the
    * slab and not overlapping each other), built as a grid of boxes around the holes.
    */
@@ -360,3 +428,10 @@ export function addFronts(kit: Kit, s: FrontsSpec): void {
     }
   }
 }
+
+/** An optional named colour of the descriptor-driven finishes (CG4). Absent: the generator keeps its built-in material. */
+export const colourParam = (what: string) =>
+  z
+    .enum(COLOUR_NAMES)
+    .optional()
+    .describe(`Colour of ${what}: ${COLOUR_NAMES.join(', ')}. Omitted: the standard finish.`);

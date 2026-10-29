@@ -1,6 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
-import { bodySections, designFlatMessages, designFlatTeamMessages, findRole, findStyle, library, rolesJson, rolesListMarkdown, roomSpecialistMessages, styleListMarkdown, styleMarkdown, styleCard } from './styles';
+import { referenceReaderMessages, bodySections, designFlatMessages, designFlatTeamMessages, findRole, findStyle, library, rolesJson, rolesListMarkdown, roomSpecialistMessages, styleListMarkdown, styleMarkdown, styleCard } from './styles';
 
 /**
  * Style library exposure: prompts `design_flat_in_style`, `design_flat_team`, `room_specialist`, `list_styles`
@@ -61,6 +61,20 @@ export function registerStylePrompts(server: McpServer): void {
       }),
     },
     (args) => ({ messages: roomSpecialistMessages({ role: args.role, roomId: args.roomId, styleId: args.styleId, brief: args.brief, budgetEur: num(args.budgetEur) }) }),
+  );
+  server.registerPrompt(
+    'reference_reader',
+    {
+      title: 'Read a reference image into a descriptor',
+      description: 'Reads one reference image (generate_reference) into the structured descriptor, records it (record_reference), matches real products (match_reference) and writes the gap report (gap_report).',
+      argsSchema: z.object({
+        jobId: z.string().max(64).optional().describe('jobId of generate_reference.'),
+        index: z.string().regex(/^[0-3]$/).optional().describe('Image number in that job, 0-3 (default 0).'),
+        roomId: z.string().max(64).optional().describe('Room the image shows.'),
+        styleId: z.string().max(40).optional().describe('Style the image was made for.'),
+      }),
+    },
+    (args) => ({ messages: referenceReaderMessages({ jobId: args.jobId, index: num(args.index), roomId: args.roomId, styleId: args.styleId }) }),
   );
   server.registerPrompt(
     'list_styles',

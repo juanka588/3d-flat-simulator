@@ -9,7 +9,7 @@ import { connect } from './testing/inproc';
 
 const toolNames = new Set(allTools().map((t) => t.name));
 /** Backticked words that are arguments, relations or response fields, not tools. */
-const NOT_TOOLS = new Set(['living-kitchen', 'bedroom', 'bathroom-wc', 'office-gaming', 'entry', 'outdoor-balcony', 'lighting', 'preview', 'render', 'label', 'on', 'grid', 'lighting_plan']);
+const NOT_TOOLS = new Set(['living-kitchen', 'bedroom', 'bathroom-wc', 'office-gaming', 'entry', 'outdoor-balcony', 'lighting', 'preview', 'render', 'label', 'on', 'grid', 'lighting_plan', 'other', 'against_wall', 'in_corner', 'centered_in', 'next_to', 'under_window', 'wall_mounted', 'ceiling_hung', 'free', 'good', 'approx', 'none', 'concept', 'true', 'decor']);
 const backticked = (text: string) => [...text.matchAll(/`([a-z][a-z0-9_]*)`/g)].map((m) => m[1]!).filter((w) => !NOT_TOOLS.has(w));
 const unknownTools = (text: string) => [...new Set(backticked(text))].filter((w) => !toolNames.has(w));
 
@@ -110,7 +110,7 @@ describe('bad style files fail with clear messages', () => {
 describe('roles', () => {
   const roles = loadRoles();
   it('has the lead artist and the room specialists', () => {
-    expect(roles.map((r) => r.meta.id).sort()).toEqual(['bathroom-wc', 'bedroom', 'entry', 'lead-artist', 'lighting', 'living-kitchen', 'office-gaming', 'outdoor-balcony']);
+    expect(roles.map((r) => r.meta.id).sort()).toEqual(['bathroom-wc', 'bedroom', 'entry', 'lead-artist', 'lighting', 'living-kitchen', 'office-gaming', 'outdoor-balcony', 'reference-reader']);
     expect(roles.filter((r) => r.meta.type === 'lead')).toHaveLength(1);
   });
 
@@ -125,6 +125,10 @@ describe('roles', () => {
         expect(r.meta.tools, r.file).toContain('describe_room');
       }
     }
+    // the reader never edits the flat
+    const reader = roles.find((r) => r.meta.type === 'reader')!;
+    expect(reader.meta.tools).toEqual(expect.arrayContaining(['record_reference', 'match_reference', 'gap_report']));
+    expect(reader.meta.tools.filter((t) => ['place_item', 'item_move', 'item_remove', 'batch'].includes(t))).toEqual([]);
     const lead = roles.find((r) => r.meta.type === 'lead')!;
     expect(lead.meta.tools).toContain('checkpoint');
     expect(lead.body).toMatch(/ONE `checkpoint`/);
@@ -136,7 +140,7 @@ describe('roles', () => {
 
   it('a specialist asking for a lead-only tool is refused', () => {
     const src = readFileSync(join(STYLES_DIR, 'roles', 'entry.md'), 'utf8').replace('  - get_scene_summary', '  - undo\n  - get_scene_summary');
-    expect(() => parseRoleFile('entry.md', src)).toThrow(/a specialist may not use "undo"/);
+    expect(() => parseRoleFile('entry.md', src)).toThrow(/a non-lead role may not use "undo"/);
   });
 
   it('a role missing a section fails', () => {

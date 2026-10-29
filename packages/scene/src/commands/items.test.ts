@@ -86,6 +86,11 @@ describe('item.place', () => {
     const refOnly = apply(bare, place({ ...bare1, productRef: { provider: 'mock', sku: 'x' } }), llm);
     expect(!refOnly.ok && refOnly.errors[0]).toMatchObject({ code: 'precondition_failed', path: 'item/product' });
     expect(apply(bare, place({ ...bare1, productRef: { provider: 'mock', sku: 'x' } })).ok).toBe(true);
+    // CG4: a labelled concept shape (parametric, no product) is the one exception
+    const concept = { ...bare1, dims, concept: true, mesh: { kind: 'parametric', generator: 'bed', params: { w: 1.6, l: 2, h: 0.9 } } };
+    for (const kind of ['llm', 'planner'] as const) expect(apply(bare, place(concept), { author: { kind } }).ok).toBe(true);
+    expect(apply(bare, place({ ...concept, mesh: undefined }), llm).ok).toBe(false);
+    expect(apply(bare, place({ ...concept, dims: { w: 3, d: 3, h: 3 } }), llm).ok).toBe(false);
   });
 
   it('a non-user item must agree with its product snapshot (dims within 1 mm, productRef, parametric shape)', () => {

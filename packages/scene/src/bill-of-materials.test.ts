@@ -123,12 +123,33 @@ describe('billOfMaterials', () => {
     const s = build([item('out', [20, 20], { product: productSnapshot(bed, T0) })]);
     expect(billOfMaterials(s).byRoom[BOM_NO_ROOM]).toEqual({ totalEur: bed.price, itemCount: 1 });
     expect(billOfMaterials(s)).toEqual(billOfMaterials(s));
-    expect(billOfMaterials(build([]))).toEqual({ lines: [], bySku: [], totalEur: 0, byRoom: {}, stale: [], missingPrice: [], mixedCurrency: false });
+    expect(billOfMaterials(build([]))).toEqual({ lines: [], bySku: [], totalEur: 0, byRoom: {}, stale: [], missingPrice: [], mixedCurrency: false, concept: { itemIds: [], count: 0, byRoom: {} } });
   });
 
   it('keeps cents exact (no float drift)', () => {
     const cheap = { ...productSnapshot(bed, T0), price: 0.1 };
     const s = build(Array.from({ length: 3 }, (_, i) => item(`c${i}`, [1, 1 + i], { product: cheap })));
     expect(billOfMaterials(s).totalEur).toBe(0.3);
+  });
+
+  it('CG4: concept items are listed apart, cost nothing, never count as missing a price and stay out of the room counts', () => {
+    const concept = (id: string, at: [number, number]) => item(id, at, { concept: true, mesh: { kind: 'parametric', generator: 'rug', params: {} }, assetId: 'param:rug' });
+    const s = build([
+      item('real', [1, 1], { product: productSnapshot(bed, T0), productRef: { provider: 'mock', sku: bed.sku } }),
+      concept('c1', [2, 2]),
+      concept('c2', [6, 2]),
+      item('plain', [3, 3]),
+    ]);
+    const bom = billOfMaterials(s, { now: t0 });
+    expect(bom.totalEur).toBe(bed.price);
+    expect(bom.concept).toEqual({ itemIds: ['c1', 'c2'], count: 2, byRoom: { r1: 1, r2: 1 } });
+    expect(bom.byRoom.r1).toEqual({ totalEur: bed.price, itemCount: 2 }); // the bed and the plain item, not the concept rug
+    expect(bom.byRoom.r2).toBeUndefined();
+    expect(bom.bySku.map((g) => g.productId)).toEqual([`mock:${bed.sku}`]);
+    expect(bom.missingPrice).toEqual(['plain']);
+    expect(bom.lines.filter((l) => l.concept).map((l) => [l.itemId, l.amount, l.existing, l.name])).toEqual([
+      ['c1', 0, false, 'Concept rug (generated)'],
+      ['c2', 0, false, 'Concept rug (generated)'],
+    ]);
   });
 });

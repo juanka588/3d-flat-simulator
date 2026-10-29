@@ -27,6 +27,8 @@ const TITLES: Readonly<Record<string, string>> = {
   washbasin: 'Washbasin',
   cooktop: 'Cooktop',
   fridge: 'Fridge',
+  curtains: 'Curtains',
+  pendant: 'Pendant lamp',
 };
 
 /** The short name of a generator; an unlisted one falls back to the first words of its description. */

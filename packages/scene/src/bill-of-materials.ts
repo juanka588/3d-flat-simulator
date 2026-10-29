@@ -9,7 +9,8 @@ import { pointInPolygon } from './validate';
  * a locked item with no product, such as the built-in placards, or a product whose provider is `existing`) is
  * listed but counts EUR 0. A merely PINNED item (locked, but a purchasable product) keeps its price: locking
  * says "do not move it", not "it is free". Items without a product are listed with no price and counted in
- * `missingPrice` unless existing.
+ * `missingPrice` unless existing. CONCEPT items (generated shapes, `Item.concept`) are never part of the totals: they are listed
+ * apart in `concept` and cost nothing because they cannot be bought.
  */
 
 /** Provider name of a product snapshot that stands for furniture the user already owns (costs nothing). */
@@ -41,6 +42,8 @@ export interface BomLine {
   currency?: string;
   /** Pinned in place (`Item.locked`); says nothing about the price. */
   locked: boolean;
+  /** A generated concept shape (`Item.concept`): not a product, never bought, 0 in the totals, listed apart in `BillOfMaterials.concept`. */
+  concept: boolean;
   /** Existing furniture that costs nothing (`isExistingFurniture`). */
   existing: boolean;
   /** What this line adds to the totals, in its own currency: `unitPrice`, or 0 for existing / unpriced items. */
@@ -81,8 +84,13 @@ export interface BillOfMaterials {
   byRoom: Record<string, { totalEur: number; itemCount: number }>;
   /** Ids of items whose snapshot is stale. */
   stale: string[];
-  /** Ids of non-existing items with no priced product. */
+  /** Ids of non-existing items with no priced product (concept items are not listed: they are not meant to be bought). */
   missingPrice: string[];
+  /**
+   * CONCEPT items (generated shapes that stand for something no real product matched): kept out of `bySku`, `byRoom` and
+   * `totalEur`, so the budget only ever counts real products. `byRoom` is the number of concept items per room id.
+   */
+  concept: { itemIds: string[]; count: number; byRoom: Record<string, number> };
   /** Some priced, non-existing line is not in EUR: `totalEur` leaves it out. */
   mixedCurrency: boolean;
 }
@@ -107,12 +115,21 @@ export function billOfMaterials(scene: Scene, options: { now?: number } = {}): B
   const missingPrice: string[] = [];
   const byRoom: BillOfMaterials['byRoom'] = {};
   const groups = new Map<string, BomSkuGroup>();
+  const concept: BillOfMaterials['concept'] = { itemIds: [], count: 0, byRoom: {} };
   let totalEur = 0;
   let mixedCurrency = false;
 
   for (const item of scene.items) {
     const roomId = item.roomId ?? scene.rooms.find((r) => pointInPolygon(item.position, r.polygon, 1e-6))?.id ?? null;
     const locked = item.locked === true;
+    if (item.concept === true) {
+      lines.push({ itemId: item.id, roomId, name: item.mesh?.kind === 'parametric' ? `Concept ${item.mesh.generator} (generated)` : item.id, locked, concept: true, existing: false, amount: 0, stale: false });
+      concept.itemIds.push(item.id);
+      concept.count += 1;
+      const key = roomId ?? BOM_NO_ROOM;
+      concept.byRoom[key] = (concept.byRoom[key] ?? 0) + 1;
+      continue;
+    }
     const existing = isExistingFurniture(item);
     const p = item.product;
     const isStale = !existing && p !== undefined && !(now - Date.parse(p.snapshotAt) <= STALE_PRICE_DAYS * DAY_MS);
@@ -124,6 +141,7 @@ export function billOfMaterials(scene: Scene, options: { now?: number } = {}): B
       ...(p ? { productId: `${p.provider}:${p.sku}`, url: p.url, unitPrice: p.price, currency: p.currency, snapshotAt: p.snapshotAt } : {}),
       name: p?.name ?? item.id,
       locked,
+      concept: false,
       existing,
       amount,
       stale: isStale,
@@ -156,7 +174,7 @@ export function billOfMaterials(scene: Scene, options: { now?: number } = {}): B
       if (isStale) g.stale = true;
     }
   }
-  return { lines, bySku: [...groups.values()], totalEur, byRoom, stale, missingPrice, mixedCurrency };
+  return { lines, bySku: [...groups.values()], totalEur, byRoom, stale, missingPrice, mixedCurrency, concept };
 }
 
 function round2(v: number): number {

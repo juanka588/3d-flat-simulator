@@ -1316,6 +1316,10 @@ legend {
 .badge-locked {
   background: #e3ecff;
 }
+.badge-concept {
+  background: #fff4d6;
+  border: 1px dashed #b8860b;
+}
 .badge-offline {
   background: #eee;
   border: 1px dashed #888;

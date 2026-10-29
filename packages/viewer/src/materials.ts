@@ -287,7 +287,7 @@ function builtin(id: string): MeshStandardMaterial {
     case BUILTIN_MATERIALS.fallbackWall:
     default: {
       const spec = itemSpec(id);
-      return spec ? new MeshStandardMaterial({ color: spec.color, roughness: spec.roughness, metalness: spec.metalness }) : new MeshStandardMaterial({ color: '#e9e6e0', roughness: 0.95 });
+      return spec ? new MeshStandardMaterial({ color: spec.color, roughness: spec.roughness, metalness: spec.metalness, ...(spec.opacity !== undefined && spec.opacity < 1 ? { transparent: true, opacity: spec.opacity, depthWrite: false, side: DoubleSide } : {}) }) : new MeshStandardMaterial({ color: '#e9e6e0', roughness: 0.95 });
     }
   }
 }

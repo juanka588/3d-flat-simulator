@@ -206,6 +206,12 @@ export const ItemBase = z.strictObject({
   dressing: z.boolean().optional(),
   /** Existing furniture the designer must plan around; only a user may move or remove it. */
   locked: z.boolean().optional(),
+  /**
+   * A CONCEPT item (CG4): a generated parametric shape that stands for something no real product matched. It is NOT a product:
+   * no productRef or product, no price, never purchasable, listed apart in the bill of materials and labelled in the UI.
+   * Needs a parametric `mesh`.
+   */
+  concept: z.boolean().optional(),
   /** The placement intent that put the item here (re-solved or validated when the room changes). */
   relation: Relation.optional(),
 });
@@ -222,6 +228,10 @@ export function checkItemRules(item: ItemFields, ctx: z.RefinementCtx): void {
   }
   if (item.productRef && item.product && (item.productRef.provider !== item.product.provider || item.productRef.sku !== item.product.sku)) {
     issue(['productRef'], `productRef ${item.productRef.provider}:${item.productRef.sku} does not match product ${item.product.provider}:${item.product.sku}`);
+  }
+  if (item.concept === true) {
+    if (item.productRef || item.product) issue(['concept'], 'a concept item is not a product: it has no productRef or product');
+    if (item.mesh?.kind !== 'parametric') issue(['concept'], 'a concept item needs a parametric mesh (a generator with its params)');
   }
   if (item.mesh?.kind === 'provider' && !item.productRef && !item.product) {
     issue(['mesh'], 'a "provider" mesh needs the productRef whose model to use');

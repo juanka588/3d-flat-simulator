@@ -1,6 +1,8 @@
 /* global console, process, Buffer */
 // Writes a Library thumbnail for every parametric generator at its default params:
 //   pnpm assets:thumbs [outDir]        (default apps/web/public/models/thumbs)
+//   pnpm assets:thumbs --variants [outDir]   (CG4: the descriptor-driven variants, default .tmp/param-variants):
+//        <outDir>/<generator>-<n>.webp and a labelled contact sheet variants-sheet.png; nothing under apps/web is touched
 // -> <outDir>/param-<generator>.webp, 128 x 128, transparent, at most 8 KB each. Same tiny software renderer as
 // `pnpm assets:sheet` (orthographic 3/4 view, painter's algorithm, flat shading over SVG, no browser or GPU), run
 // through `tsx` because the generators are TypeScript. Deterministic: re-running changes no byte unless a generator did.
@@ -11,7 +13,9 @@ import { fileURLToPath } from 'node:url';
 import { ALL_GENERATORS, ITEM_MATERIAL_SPECS } from '../../packages/assets/src/index.ts';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
-const outDir = resolve(process.argv[2] ?? join(root, 'apps/web/public/models/thumbs'));
+const VARIANT_MODE = process.argv.includes('--variants');
+const argDir = process.argv.slice(2).find((a) => !a.startsWith('--'));
+const outDir = resolve(argDir ?? join(root, VARIANT_MODE ? '.tmp/param-variants' : 'apps/web/public/models/thumbs'));
 export const MAX_BYTES = 8 * 1024;
 const SIZE = 128;
 const S = SIZE * 3; // rendered at 3x and downsampled for smooth edges
@@ -34,8 +38,8 @@ function shade(hex, k) {
   return `rgb(${v.map((x) => Math.round(Math.min(255, x * k))).join(',')})`;
 }
 
-export function svgOf(gen) {
-  const params = gen.params.parse({});
+export function svgOf(gen, raw = {}) {
+  const params = gen.params.parse(raw);
   const mesh = gen.generate(params);
   const n = mesh.positions.length / 3;
   const pts = Array.from({ length: n }, (_, i) => {
@@ -67,20 +71,73 @@ export function svgOf(gen) {
 }
 
 /** The WebP bytes of one generator's thumbnail, lowering the quality until it fits `MAX_BYTES`. */
-export async function thumbOf(gen) {
-  const raw = await sharp(Buffer.from(svgOf(gen))).resize(SIZE, SIZE, { kernel: 'lanczos3' }).png().toBuffer();
+export async function thumbOf(gen, raw = {}) {
+  const png0 = await sharp(Buffer.from(svgOf(gen, raw))).resize(SIZE, SIZE, { kernel: 'lanczos3' }).png().toBuffer();
   for (let quality = 82; quality >= 30; quality -= 8) {
-    const buf = await sharp(raw).webp({ quality, effort: 6, alphaQuality: 80 }).toBuffer();
+    const buf = await sharp(png0).webp({ quality, effort: 6, alphaQuality: 80 }).toBuffer();
     if (buf.length <= MAX_BYTES) return buf;
   }
   throw new Error(`${gen.id}: thumbnail does not fit ${MAX_BYTES} B`);
 }
 
+/** The CG4 showcase: one entry per descriptor-driven style of the extended generators (label, generator id, params). */
+export const VARIANTS = [
+  ['oval bath', 'bathtub', { shape: 'oval' }],
+  ['freestanding bath on feet', 'bathtub', { shape: 'freestanding', feet: true }],
+  ['alcove bath, black', 'bathtub', { shape: 'rect', colour: 'black' }],
+  ['vessel basin, round', 'washbasin', { basin: 'vessel', shape: 'round' }],
+  ['vessel basin, rect, black', 'washbasin', { basin: 'vessel', shape: 'rect', colour: 'black' }],
+  ['integrated basin, round', 'washbasin', { basin: 'integrated', shape: 'round' }],
+  ['integrated basin, rect', 'washbasin', { basin: 'integrated', shape: 'rect' }],
+  ['sofa rolled arms, velvet green', 'sofa', { arms: 'rolled', legs: 'wood', fabric: 'velvet', colour: 'green' }],
+  ['sofa armless, block base', 'sofa', { arms: 'none', legs: 'block', colour: 'beige' }],
+  ['sofa track arms, leather brown', 'sofa', { arms: 'track', legs: 'metal', fabric: 'leather', colour: 'brown' }],
+  ['bed upholstered headboard', 'bed', { headboardStyle: 'upholstered', upholstery: 'sage', linen: 'cream' }],
+  ['bed slatted headboard', 'bed', { headboardStyle: 'slatted' }],
+  ['bed panel, navy linen', 'bed', { linen: 'navy' }],
+  ['rug round, border', 'rug', { shape: 'round', colour: 'cream', accent: 'terracotta' }],
+  ['rug runner, stripes', 'rug', { shape: 'runner', w: 0.8, d: 2.6, pattern: 'stripes', colour: 'beige', accent: 'navy' }],
+  ['rug checker', 'rug', { pattern: 'checker', colour: 'cream', accent: 'charcoal' }],
+  ['rug round, rings', 'rug', { shape: 'round', pattern: 'stripes', w: 1.6, d: 1.6, colour: 'sand', accent: 'rust' }],
+  ['curtains, opaque pair', 'curtains', { colour: 'sage' }],
+  ['curtains, sheer single', 'curtains', { sheer: true, panels: 1, pleats: 12 }],
+  ['pendant globe', 'pendant', { shape: 'globe' }],
+  ['pendant dome, black', 'pendant', { shape: 'dome', colour: 'black', w: 0.5, h: 1 }],
+  ['pendant cluster', 'pendant', { shape: 'cluster', w: 0.7, h: 1.4 }],
+];
+
+/** A labelled grid of the variants as one PNG (4 columns). */
+async function variantsSheet(rows) {
+  const cols = 4;
+  const cell = 200;
+  const label = 26;
+  const height = Math.ceil(rows.length / cols) * (cell + label);
+  const esc = (t) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  const tiles = await Promise.all(rows.map(async (r) => sharp(await thumbOf(r.gen, r.raw)).resize(cell, cell).png().toBuffer()));
+  const texts = rows.map((r, i) => `<text x="${(i % cols) * cell + cell / 2}" y="${Math.floor(i / cols) * (cell + label) + cell + 17}" font-family="Helvetica,Arial,sans-serif" font-size="13" fill="#222" text-anchor="middle">${esc(r.label)}</text>`);
+  const svg = Buffer.from(`<svg width="${cols * cell}" height="${height}" xmlns="http://www.w3.org/2000/svg">${texts.join('')}</svg>`);
+  return sharp({ create: { width: cols * cell, height, channels: 4, background: '#f4f2ee' } })
+    .composite([...tiles.map((input, i) => ({ input, left: (i % cols) * cell, top: Math.floor(i / cols) * (cell + label) })), { input: svg, left: 0, top: 0 }])
+    .png()
+    .toBuffer();
+}
+
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   mkdirSync(outDir, { recursive: true });
-  for (const gen of ALL_GENERATORS) {
-    const buf = await thumbOf(gen);
-    writeFileSync(join(outDir, `param-${gen.id}.webp`), buf);
-    console.log(`param-${gen.id}.webp  ${buf.length} B`);
+  if (VARIANT_MODE) {
+    const rows = VARIANTS.map(([label, id, raw]) => ({ label, raw, gen: ALL_GENERATORS.find((g) => g.id === id) }));
+    for (const [i, r] of rows.entries()) {
+      const buf = await thumbOf(r.gen, r.raw);
+      writeFileSync(join(outDir, `${r.gen.id}-${String(i + 1).padStart(2, '0')}.webp`), buf);
+      console.log(`${r.gen.id}-${String(i + 1).padStart(2, '0')}.webp  ${buf.length} B  ${r.label}`);
+    }
+    writeFileSync(join(outDir, 'variants-sheet.png'), await variantsSheet(rows));
+    console.log(`variants-sheet.png in ${outDir}`);
+  } else {
+    for (const gen of ALL_GENERATORS) {
+      const buf = await thumbOf(gen);
+      writeFileSync(join(outDir, `param-${gen.id}.webp`), buf);
+      console.log(`param-${gen.id}.webp  ${buf.length} B`);
+    }
   }
 }
