@@ -3,17 +3,14 @@ import type { CatalogLoaderOptions, MeshAsset, MeshCatalog } from '@flat/assets'
 import { viewerConfig } from './config';
 
 /**
- * Where model files come from (M5.12, D2/D4). The pure half (catalog parsing and loading, URL builders) moved to
- * `@flat/assets/library` in step A5a; this file keeps what reads the viewer config (the base path and the server
- * origin) and wraps the moved functions with those defaults. The re-exports are a temporary shim (V8 removes them):
+ * Where model files come from (M5.12, D2/D4). The pure half (catalog parsing and loading, URL builders) lives in
+ * `@flat/assets`; this file keeps what reads the viewer config (the base path and the server origin) and wraps
+ * the functions with those defaults:
  *  - CC0 / CC-BY library models load from `${assetsBase}models/` everywhere (Pages too);
  *  - the HD hero tier loads from `${assetsBase}models-hd/`, only when an item that resolves to one is placed;
  *  - provider models (and the local-only 3D-FUTURE pack) exist ONLY behind the local server, so their URLs are
  *    built only when the viewer is connected to a server. In Pages / Local mode nothing of the kind is ever requested.
  */
-
-export { catalogFromAssets, catalogWithout, fetchCatalogAssets, parseCatalogJson, providerModelUrl, serverMeshUrl } from '@flat/assets';
-export type { CatalogLoaderOptions } from '@flat/assets';
 
 export const modelsBase = (): string => `${viewerConfig.assetsBase}models/`;
 

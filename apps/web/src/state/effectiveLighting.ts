@@ -1,5 +1,5 @@
 import type { Light, LightingView } from '@flat/scene';
-import type { ViewMode } from '../viewer/view-types';
+import type { ViewMode } from '@flat/viewer';
 
 /** Exposure added on top of the user's own while walking with the lights on. */
 export const WALK_LIGHTS_EV = 0.5;

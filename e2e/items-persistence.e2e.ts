@@ -7,7 +7,7 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { findExportViolations } from '../apps/web/src/state/export-guard';
-import { bedGlb } from '../apps/web/src/viewer/synthetic-glb';
+import { bedGlb } from '../packages/viewer/src/testing/synthetic-glb';
 import { charmeFlat, flat, loadScene, openApp, rendered } from './helpers';
 import { openConnected, startServer, WEB_ORIGIN } from './server';
 

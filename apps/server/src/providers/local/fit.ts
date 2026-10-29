@@ -3,7 +3,7 @@ import type { Dims } from '@flat/scene';
 
 /**
  * How well a model's bounding box fits a product's listed size. These are the SAME rules the viewer applies at load time
- * (the distortion maths shared through `@flat/assets` + the quarter-turn retry in `apps/web/src/viewer/model-controller.ts`), run here once
+ * (the distortion maths shared through `@flat/assets` + the quarter-turn retry in `packages/viewer/src/model-controller.ts`), run here once
  * at build time so the catalogue only keeps models that will be drawn without a surprise. A parity test (`fit.test.ts`) pins the two together.
  *
  * Boxes are `[x, y, z]` sizes in metres; item dims are width (x), depth (z), height (y).

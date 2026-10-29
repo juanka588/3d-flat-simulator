@@ -3,8 +3,7 @@ import type { Scene } from '@flat/scene';
 import { useEffect, useMemo, useState } from 'react';
 import { bomView, formatPrice } from '../catalog/format';
 import { useViewStore } from '../state/viewStore';
-import { modelStats } from '../viewer/model-runtime';
-import { useModelRevision } from '../viewer/use-model-revision';
+import { modelStats, useModelRevision } from '@flat/viewer';
 
 /** The clock, ticking once a minute (a price turns stale while the page stays open). */
 function useNow(): number {

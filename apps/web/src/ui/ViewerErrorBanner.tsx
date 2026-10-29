@@ -1,5 +1,5 @@
 import { useSceneStore } from '../state/sceneStore';
-import { useViewerHealth } from '../viewer/viewer-health';
+import { useViewerHealth } from '@flat/viewer';
 import { downloadFlat } from './export-file';
 
 const PART: Record<string, string> = {

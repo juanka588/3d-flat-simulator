@@ -1,5 +1,5 @@
 {
   "extends": "../tsconfig.base.json",
-  "compilerOptions": { "types": ["node"] },
-  "include": ["./*.ts", "../playwright.config.ts"]
+  "compilerOptions": { "types": ["node"], "jsx": "react-jsx" },
+  "include": ["./*.ts", "../playwright.config.ts", "../packages/viewer/src/env.d.ts"]
 }

@@ -2,7 +2,7 @@ import { BufferAttribute, BufferGeometry, Float32BufferAttribute, Mesh } from 't
 import type { Material, Object3D, Texture } from 'three';
 import dracoWasmUrl from 'three/examples/jsm/libs/draco/gltf/draco_decoder.wasm?url';
 import dracoWrapperUrl from 'three/examples/jsm/libs/draco/gltf/draco_wasm_wrapper.js?url';
-import type { Loaded } from './model-cache';
+import type { Loaded } from '@flat/assets';
 import type { Box } from './model-math';
 
 /**

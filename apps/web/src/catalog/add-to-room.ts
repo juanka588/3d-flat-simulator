@@ -1,7 +1,7 @@
 import { solvePlacement } from '@flat/scene';
 import type { Placement, Room, Scene } from '@flat/scene';
 import type { ProductRecord } from '@flat/assets';
-import type { Selection } from '../viewer/view-types';
+import type { Selection } from '@flat/viewer';
 import { committedScene, useSceneStore } from '../state/sceneStore';
 import { useViewStore } from '../state/viewStore';
 import { flashNotice } from './catalogStore';

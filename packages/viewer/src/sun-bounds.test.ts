@@ -6,7 +6,7 @@ import { shadowCasterGeometry } from './derived-geometry';
 import { fitSunForScene } from './sun-bounds';
 import type { V3 } from './sun-fit';
 
-const fixture = (name: string) => readFileSync(new URL(`../../../../packages/scene/fixtures/${name}`, import.meta.url), 'utf8');
+const fixture = (name: string) => readFileSync(new URL(`../../scene/fixtures/${name}`, import.meta.url), 'utf8');
 const loaded = loadSceneText(fixture('charme-3205.flat.json'));
 if (!loaded.ok) throw new Error('fixture does not load');
 const scene = loaded.scene;

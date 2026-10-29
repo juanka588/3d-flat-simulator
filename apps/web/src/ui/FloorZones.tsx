@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { addZoneCommand } from '../catalog/zones';
 import { useSceneStore } from '../state/sceneStore';
 import { useViewStore } from '../state/viewStore';
-import type { Selection } from '../viewer/view-types';
+import type { Selection } from '@flat/viewer';
 
 const m2 = (v: number) => `${v.toFixed(2)} m²`;
 

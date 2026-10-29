@@ -1,6 +1,6 @@
 /**
  * Material ids of built-in item meshes (generators and legacy builtins) and how the viewer should draw
- * them. The viewer (`apps/web/src/viewer/materials.ts`) maps each id to a `MeshStandardMaterial` using
+ * them. The viewer (`packages/viewer/src/materials.ts`) maps each id to a `MeshStandardMaterial` using
  * `ITEM_MATERIAL_SPECS`: a tuned PBR paint (colour / roughness / metalness) or a CC0 library texture from
  * `apps/web/public/materials` (`texture.slug`) whose average colour is steered to `color`.
  *

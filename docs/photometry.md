@@ -147,7 +147,7 @@ numbers in this table are for the physical inputs; the rendered noon exposure is
 readouts (`sunLux`, `ambientLux`). But feeding them straight to three.js gave a bad daytime
 image: exposure keyed on ~87 klx of sun left the shade (hemisphere only 0.3 x 17 klx, tinted
 deep blue and with a colour of luminance ~0.25) crushed to navy while every sun patch clipped.
-Per the "exact geometry, tuned brightness" decision, `apps/web/src/viewer/lighting.ts`
+Per the "exact geometry, tuned brightness" decision, `packages/viewer/src/lighting.ts`
 compresses the daylight dynamic range for the screen (geometry, shadows and patches stay exact):
 
 | Constant | Value | Meaning |
@@ -176,7 +176,7 @@ compresses the daylight dynamic range for the screen (geometry, shadows and patc
 
 ## Shadows, lamps and ambient (web layer)
 
-How `apps/web/src/viewer` turns the lights above into shadows. All numbers were measured on
+How `packages/viewer/src` turns the lights above into shadows. All numbers were measured on
 Charme 3205 with the software renderer used by the e2e suite.
 
 **Sun shadow frustum** (`sun-bounds.ts`, `sun-fit.ts`). The orthographic frustum covers the

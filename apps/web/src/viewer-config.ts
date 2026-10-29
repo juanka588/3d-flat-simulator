@@ -1,6 +1,6 @@
 import { registerLibraryNames } from './catalog/format';
 import { useSyncStore } from './sync/sync-store';
-import { configureViewer } from './viewer/config';
+import { configureViewer } from '@flat/viewer';
 
 /** Wires the viewer to this app: the Vite base path, the connected scene server and the library display names. */
 configureViewer({

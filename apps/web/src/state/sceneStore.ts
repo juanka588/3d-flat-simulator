@@ -14,8 +14,7 @@ import {
   undo as historyUndo,
 } from '@flat/scene';
 import type { LoadResult, ValidationWarning } from '@flat/scene';
-import { adoptSceneIdentity } from '../viewer/scene-identity';
-import { selectionForId } from '../viewer/selection';
+import { adoptSceneIdentity, selectionForId } from '@flat/viewer';
 import { newId } from './ids';
 import { instantToLocal } from './localTime';
 import { useViewStore } from './viewStore';

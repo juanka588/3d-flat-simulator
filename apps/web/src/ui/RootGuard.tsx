@@ -1,7 +1,7 @@
 import { Component } from 'react';
 import type { ReactNode } from 'react';
 import { useSceneStore } from '../state/sceneStore';
-import { messageOf, useViewerHealth } from '../viewer/viewer-health';
+import { messageOf, useViewerHealth } from '@flat/viewer';
 import { downloadFlat } from './export-file';
 
 /** Last resort around the whole app: a crash shows what happened and how to save the flat instead of a blank page. */

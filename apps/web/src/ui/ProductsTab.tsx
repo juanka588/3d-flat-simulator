@@ -8,7 +8,7 @@ import { addToRoom } from '../catalog/add-to-room';
 import { flashNotice, useCatalogStore } from '../catalog/catalogStore';
 import { formatDate, formatDims, formatPrice } from '../catalog/format';
 import { productSource } from '../catalog/place';
-import { RecordCache } from '../catalog/record-cache';
+import { RecordCache } from '@flat/assets';
 import { providerView, personalUseBanner, productsAvailability, noResults, DEV_OFFLINE_HINT, LOCAL_ONLY_HINT, NO_PROVIDER_HINT, SERVER_HINT, SEARCH_MIN_CHARS, SEARCH_DEBOUNCE_MS } from '../catalog/panel-state';
 import { useCardDrag } from '../catalog/use-card-drag';
 import { useProductPhoto } from '../catalog/use-product-photo';

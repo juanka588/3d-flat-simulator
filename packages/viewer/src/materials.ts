@@ -2,11 +2,10 @@ import { BUILTIN_MATERIALS, clampAlbedo, relativeLuminance } from '@flat/scene';
 import { ITEM_MATERIAL_SPECS } from '@flat/assets';
 import type { ItemMaterialId } from '@flat/assets';
 import type { Scene } from '@flat/scene';
-import type { CatalogEntry } from '@flat/assets';
+import type { CatalogEntry, CatalogSource } from '@flat/assets';
 import { Color, DoubleSide, MeshStandardMaterial } from 'three';
 import type { Material, Texture } from 'three';
 import { libraryCatalog } from './catalog';
-import type { CatalogSource } from './catalog';
 import { MAX_ANISOTROPY, disposeSet, instantiateSet, libSlug, textureCache } from './texture-cache';
 import type { Subscription, TextureCache, TextureSet } from './texture-cache';
 

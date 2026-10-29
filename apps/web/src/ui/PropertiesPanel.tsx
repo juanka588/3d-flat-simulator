@@ -2,7 +2,7 @@ import { BUILTIN_ASSETS, polygonArea, roomStats, wallEdgeMaterial, wallStats } f
 import type { Scene } from '@flat/scene';
 import { useId, useState } from 'react';
 import { readPref, writePref } from '../state/prefs';
-import type { Selection } from '../viewer/view-types';
+import type { Selection } from '@flat/viewer';
 import { itemName } from '../catalog/format';
 import { FinishPanel, takesFinish } from './FinishPanel';
 import { FloorZones } from './FloorZones';
