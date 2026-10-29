@@ -1,6 +1,7 @@
 import { MeshAsset } from '@flat/assets';
 import { registerLibraryNames } from './format';
-import { hdModelsBase, modelsBase, parseCatalogJson } from '../viewer/model-env';
+import { hdModelsBase, modelsBase } from '@flat/viewer';
+import { parseCatalogJson } from '@flat/assets';
 
 /** A library model for the Library tab: the asset plus its thumbnail URL. */
 export interface LibraryModel {

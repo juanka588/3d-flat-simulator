@@ -135,7 +135,6 @@ describe('package graph boundaries', () => {
 
   it('apps/web: no viewer/testing outside testHook*.ts, no node entries, no server', async () => {
     await blocked('apps/web/src/ui/X.tsx', "import x from '@flat/viewer/testing';");
-    await blocked('apps/web/src/ui/X.tsx', "import x from '@flat/viewer/internal/model-cache';");
     await blocked('apps/web/src/ui/X.tsx', "import x from '@flat/assets/node';");
     await blocked('apps/web/src/ui/X.tsx', "import x from '@flat/site/node';");
     await blocked('apps/web/src/ui/X.tsx', "import x from '../../../../packages/scene/src/schema';");
@@ -148,11 +147,6 @@ describe('package graph boundaries', () => {
     await blocked('apps/web/src/testHook.ts', "import x from '@flat/assets/node';");
     await blocked('apps/web/src/testHook.ts', "import x from '@flat/server';");
     await blocked('apps/web/src/state/s.ts', "import 'node:fs';");
-  });
-
-  it('apps/web/src/viewer shims (temporary) may re-export @flat/viewer/internal, nothing else may', async () => {
-    await allowed('apps/web/src/viewer/FlatCanvas.ts', "export * from '@flat/viewer/internal/FlatCanvas';");
-    await blocked('apps/web/src/viewer/FlatCanvas.ts', "export * from '@flat/viewer/testing';");
   });
 
   it('no package imports an app', async () => {

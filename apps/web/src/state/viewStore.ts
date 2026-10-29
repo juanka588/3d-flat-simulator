@@ -1,10 +1,8 @@
 import { DEFAULT_LIGHTING } from '@flat/scene';
 import type { CameraPose, LightingView } from '@flat/scene';
 import { create } from 'zustand';
-import { BUILDING_MODES } from '../viewer/view-types';
-import type { BuildingMode, Selection, ViewMode, ViewState } from '../viewer/view-types';
-import type { PersonPlacement } from '../viewer/walk-start';
-import { DEFAULT_PERSON_HEIGHT_CM, clampPersonHeightCm } from '../viewer/walk-camera';
+import { BUILDING_MODES, clampPersonHeightCm, DEFAULT_PERSON_HEIGHT_CM } from '@flat/viewer';
+import type { BuildingMode, PersonPlacement, Selection, ViewMode, ViewState } from '@flat/viewer';
 import { todayIso } from './localTime';
 import { WALK_LIGHTS_KEY } from './effectiveLighting';
 import { readPref, writePref } from './prefs';

@@ -8,7 +8,7 @@ import type { LibraryModel } from '../catalog/library';
 import { defaultParams, paramFields, resolveParams } from '../catalog/param-fields';
 import type { ParamValues } from '../catalog/param-fields';
 import { generatorTitle } from '../catalog/generator-titles';
-import { modelsBase } from '../viewer/model-env';
+import { modelsBase } from '@flat/viewer';
 import { generatorSource, libraryModelSource, libraryMount } from '../catalog/place';
 import { useCardDrag } from '../catalog/use-card-drag';
 

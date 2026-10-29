@@ -10,9 +10,8 @@ import { snapshotOf } from '../catalog/place';
 import { useSceneStore } from '../state/sceneStore';
 import { useViewStore } from '../state/viewStore';
 import { useSyncStore } from '../sync/sync-store';
-import type { DimsWarning } from '../viewer/model-types';
-import { modelStats } from '../viewer/model-runtime';
-import { useModelRevision } from '../viewer/use-model-revision';
+import { modelStats, useModelRevision } from '@flat/viewer';
+import type { DimsWarning } from '@flat/viewer';
 
 export type MeshBadge = {
   kind: 'real' | 'lookalike' | 'parametric' | 'offline' | 'loading' | 'placeholder';

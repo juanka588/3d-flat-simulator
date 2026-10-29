@@ -17,8 +17,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 /**
  * The matrix, one row per ENTRY (a package can have a universal entry and a node-only one). Each row lists the entries
  * it may import. Entry names: `scene`, `assets`, `assets/node`, `site`, `site/node`, `capture`, `viewer`,
- * `viewer/testing`, and the apps `web`, `server`, `mcp`. (`viewer/internal`, the temporary subpath of steps V7/V8, is
- * folded into `viewer` here; the ESLint rules keep it to the web shims.)
+ * `viewer/testing`, and the apps `web`, `server`, `mcp`.
  */
 export const MATRIX = {
   scene: [],

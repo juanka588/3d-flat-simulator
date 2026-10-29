@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest';
 const FORBIDDEN = /from\s+['"](?:\.\.\/)+(?:state|sync|catalog|ui|editor)\b|import\.meta\.env\.BASE_URL/;
 const files = readdirSync(__dirname).filter((f) => /\.tsx?$/.test(f) && !/\.test\.tsx?$/.test(f));
 
-describe('apps/web/src/viewer boundary', () => {
+describe('packages/viewer boundary', () => {
   it('has source files to check', () => expect(files.length).toBeGreaterThan(20));
   it.each(files)('%s imports nothing from the app', (f) => {
     const offending = readFileSync(join(__dirname, f), 'utf8')

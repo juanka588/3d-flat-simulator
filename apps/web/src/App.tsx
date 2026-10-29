@@ -34,9 +34,7 @@ import { useUndoRedoKeys } from './ui/useUndoRedoKeys';
 import { ViewSettings } from './ui/ViewSettings';
 import { ViewerErrorBanner } from './ui/ViewerErrorBanner';
 import { WarningsList } from './ui/WarningsList';
-import { FlatCanvas } from './viewer/FlatCanvas';
-import { sceneKey } from './viewer/scene-identity';
-import { selectionForId } from './viewer/selection';
+import { FlatCanvas, sceneKey, selectionForId } from '@flat/viewer';
 
 /** The catalog (cards, search, parameter forms) is its own chunk: it loads when the sidebar first renders it. */
 const CatalogPanel = lazy(() => import('./ui/CatalogPanel'));

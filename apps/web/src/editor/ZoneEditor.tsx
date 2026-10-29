@@ -4,7 +4,7 @@ import { useEffect, useMemo } from 'react';
 import { BufferGeometry, DoubleSide, Float32BufferAttribute, LineBasicMaterial, MeshBasicMaterial, SphereGeometry } from 'three';
 import type { Scene } from '@flat/scene';
 import { startZoneCornerDrag } from '../catalog/zone-drag';
-import type { Selection } from '../viewer/view-types';
+import type { Selection } from '@flat/viewer';
 
 const COLOR = '#ff9f1a';
 const outlineMaterial = new LineBasicMaterial({ color: COLOR, depthTest: false, transparent: true, toneMapped: false });

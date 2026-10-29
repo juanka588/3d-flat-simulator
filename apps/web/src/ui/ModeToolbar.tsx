@@ -1,5 +1,5 @@
 import { useStructuralOverlay } from '../state/structuralOverlay';
-import type { ViewMode } from '../viewer/view-types';
+import type { ViewMode } from '@flat/viewer';
 import { HistoryButtons } from './HistoryButtons';
 
 const MODES: { id: ViewMode; label: string }[] = [

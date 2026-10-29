@@ -1,4 +1,4 @@
-import { eyeHeightM, MAX_PERSON_HEIGHT_CM, MIN_PERSON_HEIGHT_CM } from '../viewer/walk-camera';
+import { eyeHeightM, MAX_PERSON_HEIGHT_CM, MIN_PERSON_HEIGHT_CM } from '@flat/viewer';
 import { useViewStore } from '../state/viewStore';
 import { useSyncStore } from '../sync/sync-store';
 import { NumberField } from './NumberField';

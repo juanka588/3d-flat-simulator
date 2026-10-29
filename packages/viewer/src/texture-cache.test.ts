@@ -384,7 +384,7 @@ describe('catalog source', () => {
   });
 
   it('serves the viewer (entry) and the Finish panel (all) from one fetch, and retries after a failure', async () => {
-    const json = JSON.parse(readFileSync(resolve(__dirname, '../../public/materials/catalog.json'), 'utf8')) as { id: string }[];
+    const json = JSON.parse(readFileSync(resolve(__dirname, '../../../apps/web/public/materials/catalog.json'), 'utf8')) as { id: string }[];
     let ok = false;
     const fetcher = vi.fn(() => Promise.resolve({ ok, status: ok ? 200 : 503, json: () => Promise.resolve(json) }));
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);

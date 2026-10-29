@@ -6,7 +6,7 @@
  */
 import { expect, test } from '@playwright/test';
 import type { Page, Request } from '@playwright/test';
-import { sofaGlb } from '../apps/web/src/viewer/synthetic-glb';
+import { sofaGlb } from '../packages/viewer/src/testing/synthetic-glb';
 import { charmeFlat, flat, loadScene, openApp, rendered } from './helpers';
 
 const ORIGIN = 'http://models.test';

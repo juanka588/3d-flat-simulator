@@ -3,7 +3,7 @@ import type { MeshCatalog } from '../catalog/mesh-catalog';
 
 /**
  * The model library catalogs (M5.12, D2/D4), without any knowledge of where the app is served from: the callers inject
- * the URLs (the web app derives them from its base path, `apps/web/src/viewer/model-env.ts`).
+ * the URLs (the web app derives them from its base path, `packages/viewer/src/model-env.ts`).
  *  - CC0 / CC-BY library models are committed under `public/models/` and load from `${assetsBase}models/` everywhere (Pages too);
  *  - the HD hero tier (M5R step 2) lives in `public/models-hd/`, only loaded when an item that resolves to one is placed.
  */

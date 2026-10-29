@@ -2,7 +2,7 @@
  * M4.8: `__flat.setCamera` / `setViewport`, deterministic captures, user interaction handing the camera
  * back, and the server view channel ("Follow assistant view"). Desktop chromium only.
  *
- * Heading convention under test (see apps/web/src/viewer/camera-pose.ts): `WalkPose.headingDeg` is
+ * Heading convention under test (see packages/viewer/src/camera-pose.ts): `WalkPose.headingDeg` is
  * clockwise from plan-up; `stats().yawDeg` is the three.js yaw (counter-clockwise positive), so
  * `yawDeg = -headingDeg`, and `stats().headingDeg` reports the clockwise value.
  */

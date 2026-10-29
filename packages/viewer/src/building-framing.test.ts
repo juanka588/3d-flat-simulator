@@ -1,8 +1,8 @@
 import { buildContextMeshes, parseScene } from '@flat/scene';
 import type { Scene, SiteContext } from '@flat/scene';
 import { describe, expect, it } from 'vitest';
-import charme from '../../../../packages/scene/fixtures/charme-3205.flat.json';
-import charmeContext from '../../../../packages/scene/fixtures/charme-3205.context.json';
+import charme from '@flat/scene/fixtures/charme-3205.flat.json';
+import charmeContext from '@flat/scene/fixtures/charme-3205.context.json';
 import { buildingFraming } from './building-framing';
 import { canopyIds, contextGeometries, floorLineSegments, hostIds, storeyHeight, CONTEXT_PALETTE } from './derived-geometry';
 

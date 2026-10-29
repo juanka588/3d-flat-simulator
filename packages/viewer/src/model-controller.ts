@@ -1,8 +1,8 @@
 import { GENERATORS, isBuiltinAsset } from '@flat/scene';
 import type { Item, MeshSource } from '@flat/scene';
-import type { MeshAsset, MeshCatalog, MeshResolveContext, ResolvedMesh } from '@flat/assets';
-import type { Loaded, ModelCache, ModelHandle } from './model-cache';
-import { catalogWithout, libraryModelUrl, providerModelUrl } from './model-env';
+import type { Loaded, MeshAsset, MeshCatalog, MeshResolveContext, ModelCache, ModelHandle, ResolvedMesh } from '@flat/assets';
+import { catalogWithout, providerModelUrl } from '@flat/assets';
+import { libraryModelUrl } from './model-env';
 import { HARD_DIMS_LIMIT, checkDims, rotateBoxY, boxSize, frontRotationY } from './model-math';
 import type { Box, Dims, Front, ModelKind } from './model-math';
 import type { DimsWarning, ModelSource, ModelStats } from './model-types';

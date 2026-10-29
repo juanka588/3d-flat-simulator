@@ -1,8 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { Command, CommandEnvelope } from '@flat/scene';
 import sample from '@flat/scene/fixtures/sample.flat.json';
-import { sceneKey } from '../viewer/scene-identity';
-import { shellFor } from '../viewer/shell-cache';
+import { sceneKey, shellFor } from '@flat/viewer';
 import { committedScene, useSceneStore } from './sceneStore';
 import { useViewStore } from './viewStore';
 

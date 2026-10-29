@@ -3,7 +3,7 @@ import type { Dims } from '@flat/scene';
 /**
  * The pure half of the maths of placing a loaded model in the item frame (no three): how a model's bounding box is
  * rotated to its front, scaled non-uniformly to the item's dims, and how much that distorts it. The viewer
- * (`apps/web/src/viewer/model-math.ts`, which adds the matrices) and the server's catalogue build
+ * (`packages/viewer/src/model-math.ts`, which adds the matrices) and the server's catalogue build
  * (`apps/server/src/providers/local/fit.ts`, which runs the same rules once, offline) share it, so they cannot drift.
  *
  * Frame: origin = footprint centre at the lowest point, +x right, +y up, +z front, dims `w` (x), `h` (y), `d` (z).

@@ -1,9 +1,7 @@
 import type { ApplyResult, CameraPose, Command, LightingView, LoadResult, Scene } from '@flat/scene';
-import type { ProbeStats } from './viewer/probe-runtime';
+import type { ModelStats, ProbeStats, ViewState } from '@flat/viewer';
+import type { Front } from '@flat/assets';
 import type { SunInfo } from './state/sunInfo';
-import type { ModelStats } from './viewer/model-types';
-import type { Front } from './viewer/model-math';
-import type { ViewState } from './viewer/view-types';
 
 export interface FlatStats {
   calls: number;

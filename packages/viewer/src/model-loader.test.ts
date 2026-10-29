@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildGlb, sofaGlb } from './synthetic-glb';
+import { buildGlb, sofaGlb } from './testing/synthetic-glb';
 import { parseGlb } from './model-loader';
 
 const toBuffer = (u: Uint8Array): ArrayBuffer => u.buffer.slice(u.byteOffset, u.byteOffset + u.byteLength) as ArrayBuffer;

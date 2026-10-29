@@ -1,8 +1,7 @@
-import { resolveMesh } from '@flat/assets';
+import { createModelCache, resolveMesh } from '@flat/assets';
 import type { Item } from '@flat/scene';
 import { ModelController } from './model-controller';
 import type { ControllerDeps, ModelStats } from './model-controller';
-import { createModelCache } from './model-cache';
 import { viewerConfig } from './config';
 import { createCatalogLoader, modelOrigin, modelsBase } from './model-env';
 import type { ModelTemplate } from './model-loader';

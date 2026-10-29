@@ -7,7 +7,7 @@ import { sunInfoFor } from '../state/sunInfo';
 import { WALK_LIGHTS_EV } from '../state/effectiveLighting';
 import { useSceneStore } from '../state/sceneStore';
 import { useViewStore } from '../state/viewStore';
-import type { BuildingMode } from '../viewer/view-types';
+import type { BuildingMode } from '@flat/viewer';
 import { NumberField } from './NumberField';
 
 const PRESETS: { id: PresetName; label: string }[] = [

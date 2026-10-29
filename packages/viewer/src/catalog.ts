@@ -2,9 +2,7 @@ import { createCatalogSource as createSource } from '@flat/assets';
 import type { CatalogSource } from '@flat/assets';
 import { viewerConfig } from './config';
 
-// The catalog source itself moved to `@flat/assets` (step A5a, with the base URL injected). This file keeps what reads
-// the viewer config and re-exports the moved names as a temporary shim (V8 removes it).
-export type { CatalogSource, LibraryCatalog } from '@flat/assets';
+// The catalog source itself lives in `@flat/assets` (with the base URL injected). This file keeps what reads the viewer config.
 
 /** Where the library lives: `${assetsBase}materials/` (assetsBase ends with a slash). */
 export const materialsBase = (): string => `${viewerConfig.assetsBase}materials/`;
