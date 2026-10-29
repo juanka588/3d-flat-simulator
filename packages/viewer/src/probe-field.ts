@@ -18,6 +18,28 @@ export interface ProbeField {
 /** Most the key may fall below the open-air light (the exposure rises by this to the power 0.7: about 5x). */
 export const MAX_BOOST_LUX = 10;
 
+/** Largest magnitude a baked value may have: the half-float maximum, so no GPU path (half-float targets, D3D11 or Metal) can overflow to Inf. */
+export const MAX_ATLAS_VALUE = 65504;
+
+/**
+ * Replaces, in place, every NaN with 0 and clamps every +-Inf or out-of-range value to +-`MAX_ATLAS_VALUE`; returns how many values were changed.
+ * A single NaN in a probe's spherical harmonics would otherwise spread through the interpolation to every pixel that samples it (and tone-map to white).
+ */
+export function sanitizeAtlas(data: Float32Array): number {
+  let changed = 0;
+  for (let i = 0; i < data.length; i++) {
+    const v = data[i]!;
+    if (v !== v) {
+      data[i] = 0;
+      changed++;
+    } else if (v > MAX_ATLAS_VALUE || v < -MAX_ATLAS_VALUE) {
+      data[i] = v > 0 ? MAX_ATLAS_VALUE : -MAX_ATLAS_VALUE;
+      changed++;
+    }
+  }
+  return changed;
+}
+
 /** Luminance of linear RGB (Rec. 709). */
 const lum = (r: number, g: number, b: number): number => 0.2126 * r + 0.7152 * g + 0.0722 * b;
 

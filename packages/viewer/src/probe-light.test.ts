@@ -5,6 +5,10 @@ import { luminance } from './lighting';
 import { perfProfileFor, FULL_PROFILE, LOW_PROFILE, RESERVED_TEXTURE_UNITS, shadowLampBudget } from './perf';
 
 describe('bakeSky', () => {
+  it('never produces NaN or Inf from non-finite lighting inputs', () => {
+    const sky = bakeSky({ zenith: [Number.NaN, 0.2, 0.3], horizon: [0.5, Number.POSITIVE_INFINITY, 0.5], ambientIntensity: Number.NaN, sunIntensity: Number.NaN, sunAltitudeDeg: Number.NaN, gain: 10 });
+    for (const v of [...sky.zenith, ...sky.horizon, ...sky.ground]) expect(Number.isFinite(v)).toBe(true);
+  });
   const input = { zenith: [0.2, 0.35, 0.8] as [number, number, number], horizon: [0.6, 0.7, 0.9] as [number, number, number], ambientIntensity: 4000, sunIntensity: 9000, sunAltitudeDeg: 55 };
   it('lights an open horizontal surface with exactly the ambient illuminance (gain 1)', () => {
     const sky = bakeSky({ ...input, gain: 1 });

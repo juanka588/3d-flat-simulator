@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_LIGHTING, loadSceneText } from '@flat/scene';
 import type { LightingView, Scene } from '@flat/scene';
 import charme from '@flat/scene/fixtures/charme-3205.flat.json';
-import { SUN_TO_AMBIENT_RATIO, computeLighting, hemisphereColors, luminance, renderSun, resolveLamps } from './lighting';
+import { EXPOSURE_MAX, EXPOSURE_MIN, SUN_TO_AMBIENT_RATIO, STALE_GRID_MAX_EV, computeLighting, gridLimitedExposure, hemisphereColors, luminance, renderSun, resolveLamps } from './lighting';
 
 const result = loadSceneText(JSON.stringify(charme));
 if (!result.ok) throw new Error('fixture does not load');
@@ -174,5 +174,63 @@ describe('roomLampBounce', () => {
     const single = roomLampBounce(scene, resolveLamps(scene, night({ 'l-cuisine': { on: false } })));
     expect(b.sejour!.lux).toBeGreaterThan(single.sejour!.lux);
     expect(b.wc!.lux).toBeGreaterThan(0);
+  });
+});
+
+describe('exposure across the morning (05:00-10:00)', () => {
+  const dates = ['2026-06-21', '2026-03-21', '2026-12-21'];
+  const sweep = (date: string) => {
+    const out: { time: string; exposure: number; keyLux: number }[] = [];
+    for (let m = 5 * 60; m <= 10 * 60; m += 5) {
+      const time = `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+      const model = computeLighting(scene, view({ date, time, lamps: Object.fromEntries(scene.lights.map((l) => [l.id, { on: false }])) }));
+      if (!model.ok) throw new Error(model.error);
+      out.push({ time, exposure: model.exposure, keyLux: model.keyLux });
+    }
+    return out;
+  };
+
+  it.each(dates)('is bounded, finite and never darker than noon before the light is up (%s)', (date) => {
+    for (const { time, exposure } of sweep(date)) {
+      expect(Number.isFinite(exposure), time).toBe(true);
+      expect(exposure, time).toBeGreaterThanOrEqual(EXPOSURE_MIN);
+      expect(exposure, time).toBeLessThanOrEqual(EXPOSURE_MAX);
+    }
+  });
+
+  it.each(dates)('falls as the day gets brighter and no 5-minute step moves it more than a stop and a half (%s)', (date) => {
+    const rows = sweep(date);
+    for (let i = 1; i < rows.length; i++) {
+      const [a, b] = [rows[i - 1]!, rows[i]!];
+      // Monotonic-ish: the key light only rises in the morning, so the exposure does not rise (small tolerance for the soft sun clip).
+      expect(b.exposure, `${a.time} -> ${b.time}`).toBeLessThanOrEqual(a.exposure * 1.02);
+      expect(Math.abs(Math.log2(b.exposure / a.exposure)), `${a.time} -> ${b.time}`).toBeLessThan(1.5);
+    }
+  });
+
+  it('ignores a non-finite EV compensation instead of failing', () => {
+    const model = computeLighting(scene, view({ exposureEV: Number.NaN }));
+    expect(model.ok).toBe(true);
+  });
+});
+
+describe('gridLimitedExposure', () => {
+  it('leaves the exposure alone without a grid or when the grid is for the same or a darker light', () => {
+    expect(gridLimitedExposure(0.004, 300, null)).toBe(0.004);
+    expect(gridLimitedExposure(0.004, 300, 300)).toBe(0.004);
+    expect(gridLimitedExposure(3e-4, 80_000, 300)).toBe(3e-4);
+  });
+  it('never lets the exposure run more than the allowed stops ahead of a grid baked for a much brighter light (noon grid, sunrise)', () => {
+    const noon = 80_000;
+    const sunrise = 300;
+    const live = 0.37 * Math.pow(sunrise + 0.05, -0.7);
+    const gridExposure = 0.37 * Math.pow(noon + 0.05, -0.7);
+    const shown = gridLimitedExposure(live, sunrise, noon);
+    expect(shown / gridExposure).toBeCloseTo(Math.pow(2, STALE_GRID_MAX_EV), 6);
+    expect(live / gridExposure).toBeGreaterThan(40);
+  });
+  it('ignores a non-finite key', () => {
+    expect(gridLimitedExposure(0.1, Number.NaN, 100)).toBe(0.1);
+    expect(gridLimitedExposure(0.1, 100, Number.POSITIVE_INFINITY)).toBe(0.1);
   });
 });

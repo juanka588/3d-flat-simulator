@@ -177,6 +177,7 @@ export function ProbeGI({ scene, model, context }: { scene: Scene; model: OkMode
     const ambient = model.ambientIntensity;
     const job: BakeJob = {
       key,
+      keyLux: model.keyLux,
       layout,
       settings,
       solids: geometry.solids,

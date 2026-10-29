@@ -13,7 +13,7 @@ export const adaptiveExposure = (): boolean => typeof location !== 'undefined' &
 const ADAPT_TAU_S = 0.35;
 
 /** True when nothing may depend on time: automated pages (tests, headless renders) get the settled exposure on the very frame. */
-const settledAtOnce = (): boolean => typeof navigator !== 'undefined' && (navigator.webdriver === true || (typeof location !== 'undefined' && new URLSearchParams(location.search).has('test')));
+export const settledAtOnce = (): boolean => typeof navigator !== 'undefined' && (navigator.webdriver === true || (typeof location !== 'undefined' && new URLSearchParams(location.search).has('test')));
 
 /**
  * Eye / camera adaptation of the exposure, used with the baked light probes. The old exposure was keyed on the open-air light

@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
-import { charmeFlat, expectLighting, flat, floorPoint, meanLumas, rendered } from './helpers';
+import { charmeFlat, expectLighting, flat, floorPoint, meanLuma, meanLumas, rendered } from './helpers';
 
 /**
  * The baked light probes (viewer/ProbeGI.tsx): the indirect light of the flat. These tests guard the main risk of a probe grid,
@@ -148,4 +148,33 @@ test('no shader fails to compile with the probe grid', async ({ page }) => {
   await page.evaluate(() => window.__flat!.setView({ mode: 'walk' }));
   await rendered(page);
   expect(errors).toEqual([]);
+});
+
+test.describe('probes: the sun rising (the exposure must not run ahead of the displayed grid)', () => {
+  test('sweeping 06:00-08:00 keeps the picture in a sane band, also in the frames before the new bake is shown', async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem('flat.walkLightsOn', '0'));
+    await openProbes(page);
+    await expectLighting(page);
+    await page.evaluate(() => window.__flat!.setView({ mode: 'top' }));
+    await setLighting(page, { date: '2026-06-21', time: '12:00', sunEnabled: true, lamps: onlyLamps([]) });
+    const noon = await meanLuma(page);
+    const settledLumas: number[] = [];
+    for (const time of ['05:50', '07:00', '08:00', '06:00']) {
+      // Change the time but do NOT wait for the bake: after two animation frames the page shows the new light with the previous grid.
+      await page.evaluate((t) => void window.__flat!.setLighting({ time: t }), time);
+      await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+      const stale = await flat(page, (f) => f.probes());
+      const unsettled = await meanLuma(page);
+      await rendered(page);
+      const settled = await meanLuma(page);
+      settledLumas.push(settled);
+      const info = `${time}: stale frame ${unsettled.toFixed(3)} (pending ${stale.pending}), settled ${settled.toFixed(3)}, noon ${noon.toFixed(3)}`;
+      expect(settled, info).toBeGreaterThan(0.05);
+      expect(settled, info).toBeLessThan(0.75);
+      // No flash: a frame drawn with the previous grid is never much brighter than the day it came from or the day it goes to.
+      expect(unsettled, info).toBeLessThan(Math.max(noon, settled) * 1.5 + 0.05);
+    }
+    // The settled morning is smooth: no step between two neighbouring times jumps by more than a factor 2.5 (06:00 is the sunrise).
+    for (let i = 1; i < settledLumas.length; i++) expect(settledLumas[i]! / settledLumas[i - 1]!, `step ${i}: ${settledLumas}`).toBeLessThan(2.5);
+  });
 });

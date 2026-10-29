@@ -51,6 +51,8 @@ export function probeAmbientSplit(ambientIntensity: number, meanRadiance: number
  * E = 2 pi k (lumH / 2 + 0.4 (lumZ - lumH)) for L(h) = k (lumH + (lumZ - lumH) sqrt(h)).
  */
 export function bakeSky(input: { zenith: RGB; horizon: RGB; ambientIntensity: number; sunIntensity: number; sunAltitudeDeg: number; gain?: number }): BakeSky {
+  const finite = (v: number): number => (Number.isFinite(v) ? v : 0);
+  input = { ...input, ambientIntensity: Math.max(0, finite(input.ambientIntensity)), sunIntensity: Math.max(0, finite(input.sunIntensity)), sunAltitudeDeg: finite(input.sunAltitudeDeg), zenith: input.zenith.map(finite) as RGB, horizon: input.horizon.map(finite) as RGB };
   const lumZ = Math.max(luminance(input.zenith), 1e-4);
   const lumH = Math.max(luminance(input.horizon), 1e-4);
   const norm = 2 * Math.PI * (lumH / 2 + 0.4 * (lumZ - lumH));
