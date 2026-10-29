@@ -1,43 +1,38 @@
-# Next session: where we stopped (2026-10-28 evening)
+# Next session: where we stopped (2026-10-29 evening)
+
+## Done today (all on main)
+- CG5 scoring + critic + `close_the_gap`; CG7 runner `--close-gap` (multi-view per zone, `sejour:kitchen` as its own
+  target, layout intent before images, best-iteration restore, chained targets, `final-scene.flat.json`, `--publish`).
+- CG8: wall panelling / dado / cornice, herringbone and chevron parquet; stand-ins for products without 3D (category
+  generators, colour from words and the local product photo, frames show the photo); windowless-room exposure fix.
+- Catalogue: 600 products (398 with 3D), new bathroom and kitchen categories (`catalog:reclassify`, also on read).
+- Run fixes: small-room/bathroom cameras from the doorway (WC now sees the toilet), view checks, lenient
+  `record_reference`, render cold-start retry and wait for the sidecar, reference time budget, sidecar memory and
+  timings in `/health` (restart `pnpm imagegen` to get them).
 
 ## In flight when we stopped
-- **Refactor V7 and V8 (`@flat/viewer` package)** was running in an agent worktree under `.claude/worktrees/agent-a8d88725…`
-  (branch `worktree-agent-a8d88725dabd08689`).
-  - First check whether it finished: `git -C .claude/worktrees/agent-a8d88725dabd08689 status`, and `modules.md`
-    marked V7/V8 done.
-  - If it finished, run the gates and merge: `CI=1 pnpm check`, the web build with `check-no-retailer --worktree`,
-    the bundle within ±1 kB of 581.96 kB, a single three.js `REVISION` in dist, `CI=1 E2E_STATIC=only`, and
-    `MCP_RENDER=1 pnpm test:render`.
-  - If it didn't finish, restart V7/V8 from main using the brief in `docs/architecture/modules.md` §4.
+- **Performance + Android agent** (worktree `.claude/worktrees/agent-a840f312e8b7bba13`, uncommitted). Brief: perf
+  harness vs an older commit, interaction slowness, mobile caps emulation, `?debug=gl` overlay, CI perf budget.
+  User's phone: **Pixel 8, Chrome, GitHub Pages: the neighbour buildings render but the apartment does not**
+  (suspect Mali float-linear textures / shader limits in the flat's materials). If it finished, gate and merge; else
+  resume it with SendMessage or restart from this brief.
 
-## Remaining refactor (docs/architecture/modules.md)
-1. **V7/V8:** `@flat/viewer` (above).
-2. **Step 11, cleanup:** done (see `docs/architecture/modules.md`, "Step 11 record and final state").
-3. **Reuse for the home-management / Home Assistant project (§8):**
-   - **P12:** library builds (tsup or `vite --lib`) for scene, assets and viewer, a `development` export condition,
-     changesets, and a `pnpm pack` consumer smoke test in CI;
-   - **P13:** `@flat/scene/live` (`LiveEntityState`, `Bindings`, `applyLiveState`), and the viewer `liveState`,
-     `bindings`, markers and overlays, plus a `/?live=demo` route;
-   - **P14:** the `<flat-viewer>` custom element (`@flat/viewer/element`) and an HA-style Lit card example;
-   - **P15:** API reports (api-extractor) and a docs page "Embedding the viewer";
-   - also add the hover and fly-to interaction API (see the V6 record: no `onHover` yet).
-
-## Other open items
-- **Lighting:** probes run on real GPUs only. Software GL (CI, MCP, e2e) keeps the legacy per-room path, so the
-  legacy code can't be removed yet. Optional: `?exposure=adapt` eye adaptation (opt-in, burns out orbit/top
-  ground). Photo-mode path tracer (spike option b) not started.
-- **CI:** green. Nightly runs e2e on 8 shards, single worker, low quality; mcp-nightly renders serially. Known
-  local-only flakes under load: `static.e2e.ts:110` (autosave) and some `viewer`/`walk-comfort` navigation
-  timeouts. A warm render on the runner still takes about 6 s (not explained).
-- **Style prompts:** the library is done (`apps/mcp/styles/`, `docs/styles.md`). `--style`, `--team` and `--variants`
-  were validated with `--dry` only. **The user asked not to run team/variant sessions yet.**
-- **Local IKEA catalogue:** built (600 products, 398 with 3D; default cap 600 since 2026-10-29) in the gitignored `apps/server/local-assets/ikea-fr/`.
-  Refresh with `pnpm catalog:build --refresh-prices`.
-- **Backlog after the refactor:** M5R leftovers (textured soft-item generators: rugs, cushions, throws, curtains;
-  texture LOD; a real-GPU check in CI), then M6 (blueprint image → Scene JSON; cadastre footprint as a constraint),
-  M7 (inspiration image → descriptors), M8 (autonomous variants, which the style/team runner prepares), and M9 (budget).
+## Next
+1. Merge the perf/Android work; ask the user to test Pages on the Pixel 8 with `?debug=gl`.
+2. Re-run close-the-gap (run 2 failed because the Mac swapped: the 38 GB image model plus Chromium). Restart the
+   sidecar (`npx -y pnpm@10.34.7 imagegen`, add `-- --download` once for the aesthetic score), close heavy apps, run
+   no agents in parallel, then
+   `npx -y pnpm@10.34.7 mcp:demo:design -- --close-gap --style french-parisian --rooms sejour:living,sejour:kitchen,sdb,wc --iterations 3 --max-usd 6 --max-minutes 60 --publish http://127.0.0.1:8787`
+   (`--publish` backs up the 8787 scene to the output folder, then loads the final scene; the user asked for that).
+   Show the user the contact sheets, scores and gap reports per target.
+3. Known gaps: the open door leaf shows at the edge of doorway views; balcony views are poor; appliance/decor/other
+   products without 3D still render as boxes; `describe_room` doesn't report panelling.
+4. Later: CG6 photo mode (path tracer), M5R leftovers, M6 blueprint parser, M9 budget. Reuse steps P12–P15 skipped.
 
 ## Local environment notes
-- The user's scene server is on 127.0.0.1:8787 (with the local catalogue plus IKEA live) and the web dev server on
-  :5173. Agents must never stop them (see `CLAUDE.md`). Restart the scene server after pulling schema changes.
-- The scratch folder is `.tmp/` (TMPDIR is set in `.claude/settings.local.json`). Use the `ci-fixer` agent for CI.
+- Scene server 127.0.0.1:8787 (tsx watch, reloads on source changes) and web dev :5173: agents never stop them.
+- Image sidecar :8790 is started by the user; its model cache `.tmp/imagegen/hf-cache` is a symlink to
+  `.tmp/cg-spike/hf-cache` (CLIP weights now included). Rebuild the CLIP index after a catalogue change
+  (`pnpm imagegen:index`).
+- Camera sheet for all rooms: `.tmp/views-sheet/views-contact-sheet.png` (`pnpm mcp:views-sheet`).
+- Scratch in `.tmp/`; use the `ci-fixer` agent for CI. Timing tests flake when agents load the machine.
