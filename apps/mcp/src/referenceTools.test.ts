@@ -107,8 +107,9 @@ describe('generate_reference (mode reference)', () => {
     expect(fake.generated).toHaveLength(0);
   });
 
-  it('says so when the render passes are not available yet (default control source)', async () => {
-    const { client } = await connect();
+  it('says so when the renderer cannot draw the render passes (default control source)', async () => {
+    const noPasses = { async render() { return { image: TINY_PNG_B64, mimeType: 'image/png' as const, meta: { warnings: [] } as never }; } };
+    const { client } = await connect({}, undefined, { renderer: noPasses as never });
     setImageProvider(new FakeImageProvider());
     const r = await call(client, { roomId: 'sdb', styleId: 'japandi' });
     expect(r.isError).toBe(true);

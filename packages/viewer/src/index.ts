@@ -29,3 +29,4 @@ export type { ProbeStats } from './probe-runtime';
 export { useModelRevision } from './use-model-revision';
 export { hdModelsBase, modelsBase } from './model-env';
 export { libraryCatalog, thumbUrl } from './catalog';
+export type { PassCamera, PassKind, PassesRequest, PassesResult } from './passes';

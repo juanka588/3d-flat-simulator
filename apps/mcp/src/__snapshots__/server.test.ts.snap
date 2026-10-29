@@ -4669,25 +4669,25 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "readOnlyHint": true,
       "title": "Render the flat",
     },
-    "description": "Render the flat to an image (PNG, or JPEG) to see a change or answer a question about the light: view "room" (overview of one room), "walk" (standing in a room at eye level, optionally facing a compass point, wall or opening), "top" (plan) or "orbit" (the whole flat from above). Choose the time of day with date/time or preset (day, evening, night) and lamps; defaults to the session lighting (set_sun_time), else noon on 21 June. compare: "before_after" adds the previous render of this session as a second image. Takes a few seconds; the first call starts a browser.",
+    "description": "Render the flat to an image (PNG or JPEG): room overview, walk (eye level), top plan or orbit. Light: date/time, preset (day, evening, night), lamps; default: session lighting, else noon 21 June.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
         "compare": {
-          "description": "Also return the flat as it was at the previous render_view of this session, as a second image (same camera and lighting).",
+          "description": "Also return the previous render_view as a second image.",
           "enum": [
             "before_after",
           ],
           "type": "string",
         },
         "date": {
-          "description": "Local date YYYY-MM-DD at the flat. Default: the session date (set_sun_time), else 2026-06-21.",
+          "description": "YYYY-MM-DD. Default: session date, else 2026-06-21.",
           "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
           "type": "string",
         },
         "exposureEV": {
           "default": 0,
-          "description": "Exposure compensation in EV stops, -6 to 6.",
+          "description": "EV stops, -6 to 6.",
           "maximum": 6,
           "minimum": -6,
           "type": "number",
@@ -4705,11 +4705,11 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "type": "number",
             },
           ],
-          "description": "walk only: a compass point N NE E SE S SW W NW (true north), degrees clockwise from plan-up, or the id of a wall or opening of that room to look at (e.g. "door-balcony-sejour"). Default: the room centre.",
+          "description": "walk: compass point, degrees from plan-up, or wall/opening id. Default: room centre.",
         },
         "format": {
           "default": "png",
-          "description": "png (lossless, default) or jpeg (quality 80, smaller).",
+          "description": "png (default) or jpeg.",
           "enum": [
             "png",
             "jpeg",
@@ -4736,14 +4736,14 @@ exports[`snapshots (the contract) > tools/list 1`] = `
             "type": "object",
           },
           "default": {},
-          "description": "Per-lamp overrides keyed by light id, e.g. {"l-sejour":{"on":true,"kelvin":2700}}.",
+          "description": "Per-light overrides by id.",
           "propertyNames": {
             "type": "string",
           },
           "type": "object",
         },
         "pose": {
-          "description": "Advanced: an explicit camera; replaces view/roomId/facing for placement.",
+          "description": "Explicit camera; replaces view, roomId, facing.",
           "oneOf": [
             {
               "additionalProperties": false,
@@ -4895,7 +4895,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           ],
         },
         "preset": {
-          "description": "day: 12:00 sun, lamps off. evening: 20:00 on 21 Dec, lamps on. night: 23:00 no sun, lamps on. Applied before date, time and lamps.",
+          "description": "day: 12:00, lamps off. evening: 20:00 21 Dec. night: 23:00. Applied before date, time, lamps.",
           "enum": [
             "day",
             "evening",
@@ -4904,14 +4904,14 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "type": "string",
         },
         "roomId": {
-          "description": "Required for room and walk. For top and orbit it frames just that room. See list_rooms.",
+          "description": "Required for room and walk.",
           "maxLength": 64,
           "minLength": 1,
           "type": "string",
         },
         "size": {
           "additionalProperties": false,
-          "description": "Pixels. Default 1024x768; the long edge is clamped to 1568.",
+          "description": "Pixels. Default 1024x768; long edge max 1568.",
           "properties": {
             "height": {
               "maximum": 4096,
@@ -4931,13 +4931,13 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "type": "object",
         },
         "time": {
-          "description": "Local time HH:mm at the flat.",
+          "description": "HH:mm.",
           "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
           "type": "string",
         },
         "view": {
           "default": "room",
-          "description": "room: overview of roomId from above; walk: eye level standing in roomId; top: plan view of the flat (or roomId); orbit or flat: the whole flat (or roomId) from 45 degrees.",
+          "description": "room: roomId from above; walk: eye level in roomId; top: plan; orbit/flat: whole flat, 45 degrees.",
           "enum": [
             "room",
             "walk",
@@ -4948,7 +4948,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "type": "string",
         },
         "waitForModelsS": {
-          "description": "Seconds to wait for 3D models still downloading from the shop (default 40). After that the picture is drawn anyway: those items are plain grey boxes and the result lists them in warnings; render again later to see them.",
+          "description": "Seconds to wait for downloading shop models (default 40).",
           "maximum": 300,
           "minimum": 0,
           "type": "number",
@@ -4957,6 +4957,55 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "type": "object",
     },
     "name": "render_view",
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true,
+      "title": "Render control passes",
+    },
+    "description": "Control images of a render_view camera: clean colour, depth (16-bit mm PNG), normals, ids (class mask), instances (entity mask + legend), edges (structure only), edgesItems, camera JSON. Inline images max 768 px; saveTo: full-size files.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "facing": {
+          "description": "As render_view.",
+        },
+        "kinds": {
+          "description": "color depth depthVis normals ids instances edges edgesItems. Default: color depthVis normals ids edges (all with saveTo).",
+          "items": {
+            "type": "string",
+          },
+          "minItems": 1,
+          "type": "array",
+        },
+        "pose": {
+          "description": "As render_view.",
+          "type": "object",
+        },
+        "roomId": {
+          "description": "As render_view.",
+          "type": "string",
+        },
+        "saveTo": {
+          "description": "Directory under the working dir; writes files, returns paths.",
+          "minLength": 1,
+          "type": "string",
+        },
+        "size": {
+          "description": "As render_view.",
+          "type": "object",
+        },
+        "view": {
+          "description": "As render_view.",
+          "type": "string",
+        },
+      },
+      "type": "object",
+    },
+    "name": "render_passes",
   },
   {
     "annotations": {

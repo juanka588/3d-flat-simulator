@@ -26,3 +26,4 @@ export { Clearance, DIM_MAX_M, Dims, HttpUrl, IsoDateTime, ItemMount, PRODUCT_NA
 export * from './products';
 export * from './placement';
 export * from './bill-of-materials';
+export * from './unproject';

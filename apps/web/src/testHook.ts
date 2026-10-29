@@ -13,7 +13,7 @@ import { MAX_VIEWPORT_DPR, MAX_VIEWPORT_PX, MIN_VIEWPORT_PX, parseViewport, useV
 import { activeViewRelay } from './sync/view-relay';
 import { modelStats, selectionForId, selectionForWallFace } from '@flat/viewer';
 import type { ViewState } from '@flat/viewer';
-import { appliedPose, modelsSettled, probeControls, probesSettled, probeStats, setMeshResolverOverride, setModelOriginOverride, setProviderFrontOverride, stepWalker, texturesSettled, textureStats, transformBox, yawToHeadingDeg } from '@flat/viewer/testing';
+import { appliedPose, renderPasses, modelsSettled, probeControls, probesSettled, probeStats, setMeshResolverOverride, setModelOriginOverride, setProviderFrontOverride, stepWalker, texturesSettled, textureStats, transformBox, yawToHeadingDeg } from '@flat/viewer/testing';
 import type { Box } from '@flat/assets';
 import type { FlatStats, FlatTestHook, HistoryInfo } from './test-hook-types';
 import { dragState } from './catalog/placement';
@@ -472,6 +472,22 @@ export function installTestHook(): void {
     capture() {
       // Render synchronously right before reading: no need for preserveDrawingBuffer.
       return renderNow().gl.domElement.toDataURL('image/png');
+    },
+    async passes(request) {
+      await canvasReady;
+      const size = request?.size ? parseViewport(request.size.width, request.size.height, 1) : null;
+      if (request?.size && !size) throw new Error(`invalid passes size: width/height must be ${MIN_VIEWPORT_PX}..${MAX_VIEWPORT_PX} px`);
+      const before = useViewportStore.getState().forced;
+      if (size) useViewportStore.getState().force(size);
+      try {
+        await whenRendered();
+        const { gl, scene, camera } = canvas!();
+        const model = renderedFrame?.scene ?? useSceneStore.getState().scene;
+        if (!model) throw new Error('no scene loaded');
+        return await renderPasses({ gl, scene, camera, model }, request);
+      } finally {
+        if (size) useViewportStore.getState().force(before);
+      }
     },
     async setLighting(partial) {
       await canvasReady;

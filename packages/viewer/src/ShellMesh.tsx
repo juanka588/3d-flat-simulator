@@ -45,6 +45,7 @@ export function ShellMesh({ name, data, materials, castShadow = false, receiveSh
   return (
     <mesh
       name={name}
+      userData={{ owners: data.owners }}
       geometry={geometry}
       renderOrder={renderOrder}
       visible={visible}

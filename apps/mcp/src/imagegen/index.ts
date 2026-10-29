@@ -3,6 +3,7 @@ export { LocalSidecarProvider, DEFAULT_SIDECAR_URL, type LocalSidecarOptions } f
 export { OpenAIImageProvider, GeminiImageProvider, assertOwnImages } from './apiProviders';
 export { FakeImageProvider, TINY_PNG_B64 } from './fake';
 export { buildReferencePrompt, buildVisualisationPrompt, ROOM_TEMPLATES, type BuiltPrompt } from './prompts';
+export { passControlSource } from './passControls';
 export {
   ControlsUnavailableError,
   getControlImageSource,

@@ -53,6 +53,8 @@ export interface PageJob {
   format: 'png' | 'jpeg';
   /** Longest wait (ms) for model downloads; then the items still loading are drawn as placeholders. Absent: wait the page's frame timeout, then fail. */
   modelWaitMs?: number | undefined;
+  /** Also draw the CG1 render passes (`__flat.passes`) of this frame. */
+  passes?: { kinds?: readonly string[] | undefined } | undefined;
 }
 
 /** How the items were drawn: which are still waiting for their model (drawn as grey boxes) and which ended on a stand-in shape, with why. */
@@ -78,6 +80,20 @@ export interface PageOutput {
   /** Pixel statistics of the capture (a blank image never gets here: it fails with `blank`). */
   pixels: PixelStats;
   models: ModelReport;
+  /** `__flat.passes` result (PNG data URLs, legend, camera) when the job asked for passes. */
+  passes?: PassesPayload | undefined;
+}
+
+/** What the page returns for `passes` (see `@flat/viewer/testing` `PassesResult`). */
+export interface PassesPayload {
+  size: { width: number; height: number };
+  /** PNG data URLs by pass kind. */
+  images: Record<string, string>;
+  camera: Record<string, unknown>;
+  depth: Record<string, unknown> | null;
+  legend: { classes: unknown[]; instances: unknown[]; unclassified: string[] } | null;
+  edges: Record<string, unknown> | null;
+  ms: number;
 }
 
 interface Handle {
@@ -141,6 +157,8 @@ const RENDER_SCRIPT = `async (a) => {
   lap('settle');
   let dataUrl = f.capture();
   lap('capture');
+  const passes = a.passes ? await f.passes({ kinds: a.passes.kinds }) : undefined;
+  lap('passes');
   const pngUrl = dataUrl;
   let mimeType = 'image/png';
   if (a.format === 'jpeg') {
@@ -174,6 +192,7 @@ const RENDER_SCRIPT = `async (a) => {
     sun: sun.available ? { available: true, isUp: sun.isUp, altitudeDeg: sun.altitudeDeg, azimuthDeg: sun.azimuthDeg } : { available: false },
     contextLost: !!window.__renderCtxLost,
     models: { loading: ms.loading, sources: ms.sources, reasons: ms.reasons },
+    passes,
   };
 }`;
 
@@ -361,12 +380,12 @@ export class PageSession {
       const mustLoad = job.preview || h.sceneKey !== key;
       const viewport = h.viewport.width !== job.size.width || h.viewport.height !== job.size.height ? job.size : undefined;
       h.models = job.models;
-      const arg = { viewport, modelOrigin: job.models?.origin, modelWaitMs: job.modelWaitMs, scene: mustLoad ? job.scene.scene : undefined, lighting: job.lighting, pose: job.pose, format: job.format };
+      const arg = { viewport, modelOrigin: job.models?.origin, modelWaitMs: job.modelWaitMs, scene: mustLoad ? job.scene.scene : undefined, lighting: job.lighting, pose: job.pose, format: job.format, passes: job.passes };
       // The scene is dirty from the moment we start replacing it until a committed one is in.
       if (mustLoad) h.sceneKey = null;
       type Raw =
         | { error: string }
-        | { timings: Record<string, number>; dataUrl: string; mimeType: 'image/png' | 'image/jpeg'; thumb: { w: number; h: number; rgba: number[] } | { error: string } | null; triangles: number; meshes: string[]; canvasSize: [number, number]; lampsLit: string[]; pose: CameraPose | null; sun: PageOutput['sun']; contextLost: boolean; models: ModelReport };
+        | { timings: Record<string, number>; dataUrl: string; mimeType: 'image/png' | 'image/jpeg'; thumb: { w: number; h: number; rgba: number[] } | { error: string } | null; triangles: number; meshes: string[]; canvasSize: [number, number]; lampsLit: string[]; pose: CameraPose | null; sun: PageOutput['sun']; contextLost: boolean; models: ModelReport; passes?: PassesPayload };
       let r: Raw;
       let pixels: PixelStats | undefined;
       let blank: string | undefined;
@@ -412,6 +431,7 @@ export class PageSession {
           contextLost: false,
           pixels: pixels ?? { stddev: 0, mean: 0, colors: 0, topShare: 1, pixels: 0 },
           models: r.models ?? { loading: [], sources: {}, reasons: {} },
+          ...(r.passes ? { passes: r.passes } : {}),
         },
       };
     } catch (e) {

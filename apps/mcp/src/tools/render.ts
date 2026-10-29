@@ -1,5 +1,7 @@
 import { CameraPose, LightingView, PresetName, RENDER_LIMITS, type RenderSpecInput, type Scene } from '@flat/scene';
 import type { CallToolResult } from '@modelcontextprotocol/server';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { isAbsolute, relative, resolve } from 'node:path';
 import { z } from 'zod';
 import { toolError, toolOk } from '../errors';
 import { RenderError, sharedMcpRenderer } from '../render';
@@ -27,19 +29,19 @@ export type RenderViewResult = RenderMeta & {
 // ---------------------------------------------------------------------------------------------
 
 export const RenderViewArgs = z.strictObject({
-  view: z.enum(['room', 'walk', 'top', 'orbit', 'flat']).default('room').describe('room: overview of roomId from above; walk: eye level standing in roomId; top: plan view of the flat (or roomId); orbit or flat: the whole flat (or roomId) from 45 degrees.'),
-  roomId: z.string().min(1).max(64).optional().describe('Required for room and walk. For top and orbit it frames just that room. See list_rooms.'),
-  facing: z.union([z.string().min(1).max(64), z.number().min(-360).max(360)]).optional().describe('walk only: a compass point N NE E SE S SW W NW (true north), degrees clockwise from plan-up, or the id of a wall or opening of that room to look at (e.g. "door-balcony-sejour"). Default: the room centre.'),
-  pose: CameraPose.optional().describe('Advanced: an explicit camera; replaces view/roomId/facing for placement.'),
-  date: LightingView.shape.date.optional().describe('Local date YYYY-MM-DD at the flat. Default: the session date (set_sun_time), else 2026-06-21.'),
-  time: LightingView.shape.time.optional().describe('Local time HH:mm at the flat.'),
-  preset: PresetName.optional().describe('day: 12:00 sun, lamps off. evening: 20:00 on 21 Dec, lamps on. night: 23:00 no sun, lamps on. Applied before date, time and lamps.'),
-  lamps: LightingView.shape.lamps.optional().describe('Per-lamp overrides keyed by light id, e.g. {"l-sejour":{"on":true,"kelvin":2700}}.'),
-  exposureEV: LightingView.shape.exposureEV.optional().describe('Exposure compensation in EV stops, -6 to 6.'),
-  size: z.strictObject({ width: z.number().int().min(64).max(4096), height: z.number().int().min(64).max(4096) }).optional().describe(`Pixels. Default ${RENDER_LIMITS.defaultWidth}x${RENDER_LIMITS.defaultHeight}; the long edge is clamped to ${RENDER_LIMITS.maxEdgePx}.`),
-  format: z.enum(['png', 'jpeg']).default('png').describe('png (lossless, default) or jpeg (quality 80, smaller).'),
-  waitForModelsS: z.number().min(0).max(300).optional().describe('Seconds to wait for 3D models still downloading from the shop (default 40). After that the picture is drawn anyway: those items are plain grey boxes and the result lists them in warnings; render again later to see them.'),
-  compare: z.enum(['before_after']).optional().describe('Also return the flat as it was at the previous render_view of this session, as a second image (same camera and lighting).'),
+  view: z.enum(['room', 'walk', 'top', 'orbit', 'flat']).default('room').describe('room: roomId from above; walk: eye level in roomId; top: plan; orbit/flat: whole flat, 45 degrees.'),
+  roomId: z.string().min(1).max(64).optional().describe('Required for room and walk.'),
+  facing: z.union([z.string().min(1).max(64), z.number().min(-360).max(360)]).optional().describe('walk: compass point, degrees from plan-up, or wall/opening id. Default: room centre.'),
+  pose: CameraPose.optional().describe('Explicit camera; replaces view, roomId, facing.'),
+  date: LightingView.shape.date.optional().describe('YYYY-MM-DD. Default: session date, else 2026-06-21.'),
+  time: LightingView.shape.time.optional().describe('HH:mm.'),
+  preset: PresetName.optional().describe('day: 12:00, lamps off. evening: 20:00 21 Dec. night: 23:00. Applied before date, time, lamps.'),
+  lamps: LightingView.shape.lamps.optional().describe('Per-light overrides by id.'),
+  exposureEV: LightingView.shape.exposureEV.optional().describe('EV stops, -6 to 6.'),
+  size: z.strictObject({ width: z.number().int().min(64).max(4096), height: z.number().int().min(64).max(4096) }).optional().describe(`Pixels. Default ${RENDER_LIMITS.defaultWidth}x${RENDER_LIMITS.defaultHeight}; long edge max ${RENDER_LIMITS.maxEdgePx}.`),
+  format: z.enum(['png', 'jpeg']).default('png').describe('png (default) or jpeg.'),
+  waitForModelsS: z.number().min(0).max(300).optional().describe('Seconds to wait for downloading shop models (default 40).'),
+  compare: z.enum(['before_after']).optional().describe('Also return the previous render_view as a second image.'),
 });
 export type RenderViewArgs = z.infer<typeof RenderViewArgs>;
 
@@ -138,18 +140,121 @@ export async function renderForWrite(ctx: ToolContext, spec: true | Record<strin
   }
 }
 
+// ---------------------------------------------------------------------------------------------
+// render_passes (CG1)
+// ---------------------------------------------------------------------------------------------
+
+const PASS_KINDS = ['color', 'depth', 'depthVis', 'normals', 'ids', 'instances', 'edges', 'edgesItems'] as const;
+const INLINE_KINDS = ['color', 'depthVis', 'normals', 'ids', 'edges'] as const;
+/** Longest edge of an image returned inline (saved files may be as large as the render limits allow). */
+const INLINE_MAX_EDGE = 768;
+const INLINE_DEFAULT = { width: 768, height: 576 };
+const MAX_INLINE_LEGEND = 60;
+
+export const RenderPassesArgs = RenderViewArgs.pick({ view: true, roomId: true, facing: true, pose: true, size: true }).extend({
+  kinds: z.array(z.enum(PASS_KINDS)).min(1).optional().describe('color depth depthVis normals ids instances edges edgesItems. Default: color depthVis normals ids edges (all with saveTo).'),
+  saveTo: z.string().min(1).optional().describe('Directory under the working dir; writes files, returns paths.'),
+});
+export type RenderPassesArgs = z.infer<typeof RenderPassesArgs>;
+
+function passesSchema(): Record<string, unknown> {
+  const raw = z.toJSONSchema(RenderPassesArgs, { io: 'input', unrepresentable: 'any' }) as { properties: Record<string, Record<string, unknown>> } & Record<string, unknown>;
+  const { $schema: _drop, ...rest } = raw;
+  void _drop;
+  // The camera arguments are those of render_view: spell them once there, not twice in tools/list (token budget).
+  const same = { description: 'As render_view.' };
+  const properties = { ...raw.properties, roomId: { type: 'string', ...same }, facing: { ...same }, pose: { type: 'object', ...same }, size: { type: 'object', ...same }, view: { type: 'string', ...same } };
+  const kinds = (properties as Record<string, { items?: unknown }>)['kinds'];
+  if (kinds?.items) kinds.items = { type: 'string' };
+  return { ...rest, properties };
+}
+
+async function renderPassesTool(ctx: ToolContext, args: Record<string, unknown>): Promise<CallToolResult> {
+  const a = parseArgs(RenderPassesArgs, args);
+  if (!a.ok) return a.result;
+  let dir: string | undefined;
+  if (a.data.saveTo) {
+    dir = resolve(process.cwd(), a.data.saveTo);
+    const rel = relative(process.cwd(), dir);
+    if (rel.startsWith('..') || isAbsolute(rel)) return toolError('invalid_command', 'saveTo must be inside the working directory', `Use a relative path such as ".tmp/passes/sejour". Working directory: ${process.cwd()}`);
+  }
+  const limited = rateLimited(ctx);
+  if (limited) return limited;
+  const kinds = a.data.kinds ?? (dir ? [...PASS_KINDS] : [...INLINE_KINDS]);
+  const { kinds: _k, saveTo: _s, ...rest } = a.data;
+  void _k;
+  void _s;
+  const warnings: string[] = [];
+  let size = rest.size;
+  if (!dir) {
+    const cur = size ?? INLINE_DEFAULT;
+    const long = Math.max(cur.width, cur.height);
+    if (!size || long > INLINE_MAX_EDGE) {
+      const k = Math.min(1, INLINE_MAX_EDGE / long);
+      const capped = { width: Math.round(cur.width * k), height: Math.round(cur.height * k) };
+      if (size) warnings.push(`size reduced to ${capped.width}x${capped.height} for inline images; use saveTo for larger passes`);
+      size = capped;
+    }
+  }
+  try {
+    const spec = toSpec({ ...rest, ...(size ? { size } : {}), format: 'png' } as RenderViewArgs);
+    const r = await renderCall(ctx)(spec, { format: 'png', session: ctx.session, passes: { kinds } });
+    const p = r.passes;
+    if (!p) return toolError('render_unavailable', 'this renderer does not support passes', 'Rebuild the web app (pnpm mcp:setup) so the viewer test hook has passes().');
+    const meta = r.meta;
+    warnings.push(...meta.warnings);
+    const instances = p.legend?.instances ?? [];
+    const legend = p.legend ? { classes: p.legend.classes, instances: dir ? instances : instances.slice(0, MAX_INLINE_LEGEND), unclassified: p.legend.unclassified } : undefined;
+    if (!dir && instances.length > MAX_INLINE_LEGEND) warnings.push(`legend lists only ${MAX_INLINE_LEGEND} of the ${instances.length}; use saveTo for all`);
+    const structured: Record<string, unknown> = { ok: true, view: meta.view, ...(meta.roomId ? { roomId: meta.roomId } : {}), rev: meta.rev, size: p.size, kinds, camera: p.camera, depth: p.depth, ...(legend ? { legend } : {}), edges: p.edges, warnings };
+    if (dir) {
+      await mkdir(dir, { recursive: true });
+      const files: Record<string, string> = {};
+      for (const [k, url] of Object.entries(p.images)) {
+        const file = resolve(dir, `${k}.png`);
+        await writeFile(file, Buffer.from(url.slice(url.indexOf(',') + 1), 'base64'));
+        files[k] = file;
+      }
+      await writeFile(resolve(dir, 'camera.json'), JSON.stringify(p.camera, null, 1));
+      await writeFile(resolve(dir, 'legend.json'), JSON.stringify({ ...p.legend, depth: p.depth, edges: p.edges }, null, 1));
+      files['camera'] = resolve(dir, 'camera.json');
+      files['legend'] = resolve(dir, 'legend.json');
+      return toolOk({ ...structured, files }, [{ type: 'text', text: `Saved ${Object.keys(p.images).join(', ')} + camera.json + legend.json to ${dir}` }, ...captionContent(meta)]);
+    }
+    const content: CallToolResult['content'] = [];
+    for (const [k, url] of Object.entries(p.images)) {
+      content.push({ type: 'text', text: k });
+      content.push({ type: 'image', data: url.slice(url.indexOf(',') + 1), mimeType: 'image/png' });
+    }
+    return toolOk(structured, [...content, ...captionContent(meta)]);
+  } catch (e) {
+    return failure(e);
+  }
+}
+
 export function renderTools(): ToolDef[] {
   return [
     {
       name: 'render_view',
       title: 'Render the flat',
       description:
-        'Render the flat to an image (PNG, or JPEG) to see a change or answer a question about the light: view "room" (overview of one room), "walk" (standing in a room at eye level, optionally facing a compass point, wall or opening), "top" (plan) or "orbit" (the whole flat from above). Choose the time of day with date/time or preset (day, evening, night) and lamps; defaults to the session lighting (set_sun_time), else noon on 21 June. compare: "before_after" adds the previous render of this session as a second image. Takes a few seconds; the first call starts a browser.',
+        'Render the flat to an image (PNG or JPEG): room overview, walk (eye level), top plan or orbit. Light: date/time, preset (day, evening, night), lamps; default: session lighting, else noon 21 June.',
       inputSchema: inputSchema(),
       annotations: { ...READ, title: 'Render the flat' },
       group: 'render',
       mutatesScene: false,
       handler: renderView,
+    },
+    {
+      name: 'render_passes',
+      title: 'Render control passes',
+      description:
+        'Control images of a render_view camera: clean colour, depth (16-bit mm PNG), normals, ids (class mask), instances (entity mask + legend), edges (structure only), edgesItems, camera JSON. Inline images max 768 px; saveTo: full-size files.',
+      inputSchema: passesSchema(),
+      annotations: { ...READ, title: 'Render control passes' },
+      group: 'render',
+      mutatesScene: false,
+      handler: renderPassesTool,
     },
   ];
 }

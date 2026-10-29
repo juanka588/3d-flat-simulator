@@ -2,7 +2,7 @@ import type { RoomType } from '@flat/scene';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import { toolError, toolOk } from '../errors';
-import { ControlsUnavailableError, ImageProviderError, buildReferencePrompt, buildVisualisationPrompt, getControlImageSource, getImageProvider, type GeneratedImage, type JobStatus } from '../imagegen';
+import { ControlsUnavailableError, ImageProviderError, buildReferencePrompt, buildVisualisationPrompt, getControlImageSource, getImageProvider, passControlSource, unavailableControls, type GeneratedImage, type JobStatus } from '../imagegen';
 import { RenderError, resolvePose, sharedMcpRenderer } from '../render';
 import { StyleError, findStyle } from '../styles';
 import { READ, fetchScene, parseArgs } from './common';
@@ -163,7 +163,9 @@ async function generateReference(ctx: ToolContext, args: Record<string, unknown>
     }
 
     const built = buildReferencePrompt(style.meta, room.type);
-    const ctrl = await getControlImageSource().getControlImages({ scene, roomId: a.roomId, pose, size: { ...SIZE } });
+    // A source installed with setControlImageSource wins (tests); otherwise the CG1 render passes of this server's renderer.
+    const source = getControlImageSource();
+    const ctrl = await (source === unavailableControls ? passControlSource(ctx.renderer ?? sharedMcpRenderer(ctx.flat, { webUrl: ctx.config.webUrl, renderChannel: ctx.config.renderChannel, log: ctx.config.log })) : source).getControlImages({ scene, roomId: a.roomId, pose, size: { ...SIZE } });
     const status = await provider.generate(
       { prompt: built.prompt, negativePrompt: built.negativePrompt, seed, n: a.n, width: SIZE.width, height: SIZE.height, model: 'qwen-cn', controls: [{ type: 'canny', image: ctrl.canny, strength: 1.0 }] },
       { waitMs },

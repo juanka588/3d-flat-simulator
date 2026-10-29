@@ -250,10 +250,10 @@ export function App() {
               acceptsKey={itemKeysApply}
               overlays={
                 mode !== 'walk' && (
-                  <>
+                  <group name="editor-overlay">
                     <PlacementLayer scene={scene} selectedId={selection?.kind === 'item' ? selection.entityId : undefined} />
                     <ZoneEditor scene={scene} selection={selection} />
-                  </>
+                  </group>
                 )
               }
               onSelect={select}

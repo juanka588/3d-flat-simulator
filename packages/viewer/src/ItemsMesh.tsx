@@ -165,6 +165,7 @@ export function ItemsMesh({ scene, models, selectedId, onSelect }: ItemsMeshProp
           <mesh
             key={item.id}
             name="item-placeholder"
+            userData={{ itemId: item.id }}
             geometry={unitBox}
             material={placeholderMaterial}
             position={[item.position[0], item.elevation, item.position[1]]}

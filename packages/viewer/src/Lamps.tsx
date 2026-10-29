@@ -158,7 +158,7 @@ function Fixture({ lamp, exposure }: { lamp: LampSpec; exposure: number }) {
   const glow = useGlow(lamp, exposure);
   const [x, y, z] = lamp.position;
   return (
-    <mesh name={`fixture:${lamp.id}`} position={[x, lamp.type === 'point' ? y : y + 0.02, z]} rotation={[0, (lamp.rotation * Math.PI) / 180, 0]} receiveShadow scale={lamp.type === 'area' ? [lamp.width, 1, lamp.depth] : 1} raycast={noRaycast}>
+    <mesh name={`fixture:${lamp.id}`} userData={{ lampType: lamp.type }} position={[x, lamp.type === 'point' ? y : y + 0.02, z]} rotation={[0, (lamp.rotation * Math.PI) / 180, 0]} receiveShadow scale={lamp.type === 'area' ? [lamp.width, 1, lamp.depth] : 1} raycast={noRaycast}>
       {lamp.type === 'point' && <sphereGeometry args={[0.07, 12, 8]} />}
       {lamp.type === 'spot' && <cylinderGeometry args={[0.07, 0.07, 0.04, 16]} />}
       {lamp.type === 'area' && <boxGeometry args={[1, 0.03, 1]} />}

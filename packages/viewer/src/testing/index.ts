@@ -10,3 +10,4 @@ export { probeControls, probeStats, probesSettled } from '../probe-runtime';
 export { textureStats, texturesSettled } from '../texture-cache';
 export { stepWalker } from '../walk-input';
 export * from './synthetic-glb';
+export * from '../passes';

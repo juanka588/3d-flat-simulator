@@ -32,6 +32,8 @@ export interface RenderRequest {
   models?: ModelSource | undefined;
   /** Longest wait (ms) for model downloads; then the items still loading are drawn as placeholder boxes and reported. */
   modelWaitMs?: number | undefined;
+  /** Also draw the render passes (kinds: default all). */
+  passes?: { kinds?: readonly string[] | undefined } | undefined;
 }
 
 export interface RenderOutput extends Omit<PageOutput, 'sceneLoaded' | 'contextLost'> {
@@ -153,6 +155,7 @@ export class BrowserRenderer {
               format: req.format ?? 'png',
               ...(req.models ? { models: req.models } : {}),
               ...(req.modelWaitMs !== undefined ? { modelWaitMs: req.modelWaitMs } : {}),
+              ...(req.passes ? { passes: req.passes } : {}),
             }),
             remaining,
           );

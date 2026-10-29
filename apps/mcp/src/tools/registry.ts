@@ -138,6 +138,8 @@ export interface Renderer {
       session?: Pick<McpSession, 'lighting' | 'lastRenderedRev'>;
       /** Longest wait (ms) for shop models still downloading; then they are drawn as placeholder boxes and named in the warnings. */
       modelWaitMs?: number;
+      /** Also draw the CG1 render passes of this frame (kinds: default all). */
+      passes?: { kinds?: readonly string[] };
     },
   ): Promise<{
     /** Base64 image of the requested view (the "after" image with `compare`). */
@@ -146,6 +148,8 @@ export interface Renderer {
     meta: RenderMeta;
     /** With `compare: 'before_after'`: the "before" image (meta.compare.beforeRev). */
     before?: { image: string; mimeType: RenderMime };
+    /** With `opts.passes`: the passes of the same frame. */
+    passes?: import('../render/pageSession').PassesPayload;
   }>;
 }
 

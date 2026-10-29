@@ -104,6 +104,26 @@ describe.runIf(process.env.MCP_RENDER)('render service (slow: real browser, real
     save('walk-balcon-18h', walk);
   });
 
+  it('render_passes: inline images are capped and consistent; saveTo writes files with a legend and camera', async () => {
+    const passes = renderTools()[1]!;
+    const r = await passes.handler(ctx, { view: 'walk', roomId: 'sejour', facing: 'E', size: { width: 1600, height: 1200 } });
+    expect(r.isError, JSON.stringify(r.content[0])).toBeFalsy();
+    const img = images(r);
+    expect(img).toHaveLength(5);
+    expect(decode(img[0]!).width).toBeLessThanOrEqual(768);
+    expect(data(r).camera).toMatchObject({ type: 'perspective' });
+    expect(data(r).legend.classes.find((c: { class: string }) => c.class === 'wall').pixels).toBeGreaterThan(0);
+    const dir = '.tmp/cg1/mcp-passes';
+    const saved = await passes.handler(ctx, { view: 'walk', roomId: 'ch1', saveTo: dir });
+    expect(saved.isError, JSON.stringify(saved.content[0])).toBeFalsy();
+    expect(images(saved)).toHaveLength(0);
+    const files = data(saved).files as Record<string, string>;
+    expect(Object.keys(files).sort()).toEqual(['camera', 'color', 'depth', 'depthVis', 'edges', 'edgesItems', 'ids', 'instances', 'legend', 'normals']);
+    expect(PNG.sync.read(readFileSync(files['edges']!)).width).toBe(1024);
+    // The saved colour pass is the clean picture of the same camera.
+    expect(data(saved).camera.width).toBe(1024);
+  });
+
   it('jpeg option', async () => {
     const png = await call({ view: 'room', roomId: 'ch1' });
     const jpg = await call({ view: 'room', roomId: 'ch1', format: 'jpeg' });

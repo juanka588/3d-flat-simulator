@@ -7,7 +7,7 @@ import { RenderError } from './errors';
 import { BrowserRenderer, clampSize, sharedRenderer, type RendererOptions } from './browserRenderer';
 import { effectiveSessionLighting } from '../readModel';
 import { resolveLighting, resolvePose } from './resolve';
-import type { ModelSource } from './pageSession';
+import type { ModelSource, PassesPayload } from './pageSession';
 
 /** The server's own asset routes, served to the headless viewer from Node (see `ModelSource`). */
 function modelSourceOf(flat: FlatApi): ModelSource | undefined {
@@ -65,9 +65,10 @@ export interface McpRenderResult {
   mimeType: 'image/png' | 'image/jpeg';
   meta: RenderMeta;
   before?: { image: string; mimeType: 'image/png' | 'image/jpeg' };
+  passes?: PassesPayload;
 }
 
-type Opts = { scene?: SceneResponse; format?: 'png' | 'jpeg'; session?: Pick<McpSession, 'lighting' | 'lampMode' | 'lastRenderedRev'>; modelWaitMs?: number };
+type Opts = { scene?: SceneResponse; format?: 'png' | 'jpeg'; session?: Pick<McpSession, 'lighting' | 'lampMode' | 'lastRenderedRev'>; modelWaitMs?: number; passes?: { kinds?: readonly string[] } };
 
 /** Default wait for shop models still downloading (FLAT_MCP_MODEL_WAIT_MS), ms. */
 const DEFAULT_MODEL_WAIT_MS = Number(process.env['FLAT_MCP_MODEL_WAIT_MS']) || 40_000;
@@ -118,7 +119,7 @@ export class McpRenderer implements Renderer {
     const models = modelSourceOf(this.flat);
     const hasModels = scene.items.some((i) => i.mesh?.kind === 'provider');
     const req = { pose, lighting, size: { width: size.width, height: size.height }, format: opts.format ?? ('png' as const), ...(models ? { models } : {}), ...(hasModels ? { modelWaitMs: opts.modelWaitMs ?? DEFAULT_MODEL_WAIT_MS } : {}) };
-    const main = await this.browser.render({ ...req, scene: current, preview });
+    const main = await this.browser.render({ ...req, scene: current, preview, ...(opts.passes ? { passes: opts.passes } : {}) });
     let before: McpRenderResult['before'];
     let compare: { beforeRev: number } | undefined;
     if (spec.compare) {
@@ -178,6 +179,7 @@ export class McpRenderer implements Renderer {
         ...(caption ? { caption } : {}),
       },
       ...(before ? { before } : {}),
+      ...(main.passes ? { passes: main.passes } : {}),
     };
   }
 

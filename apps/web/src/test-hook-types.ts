@@ -1,6 +1,7 @@
 import type { ApplyResult, CameraPose, Command, LightingView, LoadResult, Scene } from '@flat/scene';
 import type { ModelStats, ProbeStats, ViewState } from '@flat/viewer';
 import type { Front } from '@flat/assets';
+import type { PassesRequest, PassesResult } from '@flat/viewer';
 import type { SunInfo } from './state/sunInfo';
 
 export interface FlatStats {
@@ -152,6 +153,13 @@ export interface FlatTestHook {
   project: (point: [number, number, number]) => { x: number; y: number };
   /** PNG data URL of the current canvas. */
   capture: () => string;
+  /**
+   * CG1 render passes of the current frame, from the same camera: `kinds` (default all) of `color` (clean: no debug markers),
+   * `depth` (16-bit gray PNG, millimetres, 0 = nothing), `depthVis`, `normals` (view space RGB), `ids` (class colours),
+   * `instances` (per-entity colours), `edges` (structure only, from depth and normals), `edgesItems` (the same with every item).
+   * Returns PNG data URLs plus the legend (colour to class / entity id) and the camera JSON. `size` forces the viewport for the call.
+   */
+  passes: (request?: PassesRequest) => Promise<PassesResult>;
   /**
    * Selects an entity by id, or a wall face as if clicked inside `roomId` (a wall id alone selects the wall without a face).
    * Returns false when the target does not exist.
