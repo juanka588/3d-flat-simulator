@@ -84,6 +84,17 @@ export const PRODUCT_CATEGORIES = [
   'appliance',
   'decor',
   'other',
+  // Bathroom / kitchen / storage kinds the shop types tell apart (appended: older records and snapshots stay valid).
+  'washbasin',
+  'vanity',
+  'towel_rail',
+  'bath_accessory',
+  'shower_curtain',
+  'kitchen_island',
+  'tall_cabinet',
+  'appliance_housing',
+  'hook',
+  'storage',
 ] as const;
 /** Coarse furniture category; lookalike picking and generators key on it. */
 export const ProductCategory = z.enum(PRODUCT_CATEGORIES);

@@ -15,6 +15,7 @@
  *   --texture-max N      longest texture side kept in the GLBs (default 1024)
  *   --no-optimize        keep textures and geometry as downloaded (fit checks still run)
  *   --out DIR            another catalogue folder
+ * `pnpm catalog:reclassify [--dry] [--out DIR]` recomputes category and mount of the existing entries offline (no download).
  * Ctrl-C finishes the product in hand, saves and stops; run the command again to resume.
  */
 import { readFileSync } from 'node:fs';
@@ -26,6 +27,7 @@ import { createIkeaFrProvider } from '../ikea-fr';
 import type { ProviderContext } from '../types';
 import { buildCatalog, cleanTemp, refreshPrices, DEFAULTS } from './build';
 import { DEFAULT_QUERIES, SEED_SKUS, parseQueriesFile, skusFromScene } from './queries';
+import { reclassifyCatalog } from './reclassify';
 import { formatStatus, statusReport } from './status';
 
 const here = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));
@@ -44,7 +46,7 @@ export function parseArgs(argv: string[]): Args {
     if (!a.startsWith('--')) throw new Error(`unexpected argument "${a}"`);
     const key = a.slice(2);
     const next = rest[i + 1];
-    if (['refresh-prices', 'no-photos', 'no-optimize', 'no-seeds', 'help'].includes(key)) flags.set(key, true);
+    if (['refresh-prices', 'dry', 'no-photos', 'no-optimize', 'no-seeds', 'help'].includes(key)) flags.set(key, true);
     else if (next === undefined || next.startsWith('--')) throw new Error(`--${key} needs a value`);
     else {
       flags.set(key, next);
@@ -83,8 +85,14 @@ async function main(): Promise<number> {
     console.log(formatStatus(await statusReport(dir)));
     return 0;
   }
+  if (command === 'reclassify') {
+    const r = await reclassifyCatalog(dir, { dryRun: flags.has('dry') });
+    for (const c of r.changes) console.log(`  ${c.sku} ${c.name.slice(0, 50)}  [${c.typeName}]  ${c.from.category}/${c.from.mount} -> ${c.to.category}/${c.to.mount}`);
+    console.log(`${flags.has('dry') ? 'would change' : 'changed'} ${r.changes.length} of ${r.total} entries (category and mount only)`);
+    return 0;
+  }
   if (command !== 'build' || flags.has('help')) {
-    console.log(['usage: pnpm catalog:build [--limit N] [--queries file] [--from-scene file] [--refresh-prices] [--per-query N] [--max-products N] [--no-photos] [--no-optimize] [--no-seeds] [--out dir]', '       pnpm catalog:status'].join('\n'));
+    console.log(['usage: pnpm catalog:build [--limit N] [--queries file] [--from-scene file] [--refresh-prices] [--per-query N] [--max-products N] [--no-photos] [--no-optimize] [--no-seeds] [--out dir]', '       pnpm catalog:reclassify [--dry] [--out dir]', '       pnpm catalog:status'].join('\n'));
     return command === 'help' || flags.has('help') ? 0 : 2;
   }
 

@@ -1106,7 +1106,17 @@
                     "kitchen",
                     "appliance",
                     "decor",
-                    "other"
+                    "other",
+                    "washbasin",
+                    "vanity",
+                    "towel_rail",
+                    "bath_accessory",
+                    "shower_curtain",
+                    "kitchen_island",
+                    "tall_cabinet",
+                    "appliance_housing",
+                    "hook",
+                    "storage"
                   ],
                   "description": "Furniture category of the product."
                 },
@@ -2113,7 +2123,17 @@
                 "kitchen",
                 "appliance",
                 "decor",
-                "other"
+                "other",
+                "washbasin",
+                "vanity",
+                "towel_rail",
+                "bath_accessory",
+                "shower_curtain",
+                "kitchen_island",
+                "tall_cabinet",
+                "appliance_housing",
+                "hook",
+                "storage"
               ],
               "description": "Furniture category of the product."
             },
@@ -3584,7 +3604,17 @@
                         "kitchen",
                         "appliance",
                         "decor",
-                        "other"
+                        "other",
+                        "washbasin",
+                        "vanity",
+                        "towel_rail",
+                        "bath_accessory",
+                        "shower_curtain",
+                        "kitchen_island",
+                        "tall_cabinet",
+                        "appliance_housing",
+                        "hook",
+                        "storage"
                       ],
                       "description": "Furniture category of the product."
                     },
@@ -4578,7 +4608,17 @@
                     "kitchen",
                     "appliance",
                     "decor",
-                    "other"
+                    "other",
+                    "washbasin",
+                    "vanity",
+                    "towel_rail",
+                    "bath_accessory",
+                    "shower_curtain",
+                    "kitchen_island",
+                    "tall_cabinet",
+                    "appliance_housing",
+                    "hook",
+                    "storage"
                   ],
                   "description": "Furniture category of the product."
                 },

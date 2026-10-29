@@ -1,6 +1,7 @@
 import { readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { LOCAL_STALE_DAYS, type LocalCatalogInfo, type ProductRecord } from '@flat/assets';
+import { reclassify } from '../category';
 import { indexEntry, rank } from './search';
 import { LOCAL_PROVIDER_ID, LOCAL_SKU, LocalCatalogFile, type LocalEntry } from './schema';
 import type { LocalCatalogSource, ModelBytes } from '../types';
@@ -29,6 +30,13 @@ export function servedRecord(entry: LocalEntry): ProductRecord {
   if (entry.has3d) rec.modelRef = `local:${entry.record.sku}`;
   if (entry.photo && entry.record.photoUrl) rec.photoUrl = entry.record.photoUrl;
   return rec;
+}
+
+/** The entry with its category and mount recomputed from the shop type and the name by the CURRENT classifier (no re-download). */
+export function reclassifyEntry(entry: LocalEntry): LocalEntry {
+  const { category, mount } = reclassify(entry.typeName, entry.record.name, entry.record.category);
+  if (category === entry.record.category && mount === entry.record.mount) return entry;
+  return { ...entry, record: { ...entry.record, category, mount } };
 }
 
 export async function openLocalCatalog(dir: string, options: OpenOptions = {}): Promise<LocalCatalogSource | undefined> {
@@ -93,14 +101,14 @@ class LocalCatalogReader implements LocalCatalogSource {
     let missing = 0;
     for (const e of parsed.entries) {
       if (!LOCAL_SKU.test(e.record.sku)) continue;
-      let entry = e;
+      let entry = reclassifyEntry(e);
       if (e.has3d && e.model) {
         const ok = await stat(join(this.dir, e.model.file)).then((s) => s.isFile() && s.size === e.model!.bytes, () => false);
         if (!ok) {
           missing++;
-          entry = { ...e, has3d: false, noModelReason: 'model file missing or changed since the build', model: undefined };
+          entry = { ...entry, has3d: false, noModelReason: 'model file missing or changed since the build', model: undefined };
         }
-      } else if (e.has3d) entry = { ...e, has3d: false, noModelReason: 'model entry incomplete' };
+      } else if (e.has3d) entry = { ...entry, has3d: false, noModelReason: 'model entry incomplete' };
       if (e.photo) {
         const ok = await stat(join(this.dir, e.photo.file)).then((s) => s.isFile(), () => false);
         if (!ok) entry = { ...entry, photo: undefined };

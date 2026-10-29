@@ -9,13 +9,13 @@ import { FLAT_MAX_H, footprintOf, itemDims, itemMountOf, localToPlan, round4 } f
  */
 
 /** Things that stand on furniture (a nightstand, table, shelf, desk, sideboard...). */
-const ON_FURNITURE: ReadonlySet<string> = new Set(['lamp', 'vase', 'plant', 'frame', 'decor']);
+const ON_FURNITURE: ReadonlySet<string> = new Set(['lamp', 'vase', 'plant', 'frame', 'decor', 'washbasin']);
 /** Things that lie on seats and beds. */
 const ON_SEATING: ReadonlySet<string> = new Set(['cushion', 'throw']);
 /** Supports for cushions and throws. */
 const SEATING: ReadonlySet<string> = new Set(['sofa', 'armchair', 'chair', 'bed']);
 /** Supports for lamps, vases, plants, frames and decor. */
-const FURNITURE: ReadonlySet<string> = new Set(['bedside', 'drawers', 'shelf', 'sideboard', 'tv_unit', 'table', 'desk', 'wardrobe', 'kitchen', 'other']);
+const FURNITURE: ReadonlySet<string> = new Set(['bedside', 'drawers', 'shelf', 'sideboard', 'tv_unit', 'table', 'desk', 'wardrobe', 'kitchen', 'other', 'vanity', 'kitchen_island', 'tall_cabinet']);
 /** Lamps taller than this are floor lamps: they do not stand on furniture. */
 export const MAX_TABLE_LAMP_H = 0.8;
 /** Duvet and pillows on a dressed bed frame rise this far above the mattress. */

@@ -19,19 +19,21 @@ describe('defaultParametricFor with the real generators', () => {
     wall_cabinet: { w: 0.6, d: 0.35, h: 0.7 },
     kitchen: { w: 0.6, d: 0.6, h: 0.9 },
     bedside: { w: 0.45, d: 0.4, h: 0.5 },
+    tall_cabinet: { w: 0.4, d: 0.35, h: 1.95 },
+    appliance_housing: { w: 0.6, d: 0.6, h: 2.0 },
   };
   it('maps every category to a registered generator whose params the schema accepts, or to nothing', () => {
     for (const category of ProductCategory.options) {
       const dims = typical[category] ?? { w: 1.2, d: 0.6, h: 0.9 };
       const d = defaultParametricFor(category, dims);
       if (!d) {
-        expect(['lamp', 'appliance', 'decor', 'other', 'curtain', 'plant', 'vase', 'frame', 'cushion', 'throw']).toContain(category);
+        expect(['lamp', 'appliance', 'decor', 'other', 'curtain', 'plant', 'vase', 'frame', 'cushion', 'throw', 'washbasin', 'towel_rail', 'bath_accessory', 'shower_curtain', 'hook', 'storage']).toContain(category);
         continue;
       }
       const g = GENERATORS.get(d.generator)!;
       expect(g, category).toBeDefined();
       const parsed = g.params.parse(d.params);
-      expect(g.category === category || ['armchair', 'drawers'].includes(category), category).toBe(true);
+      expect(g.category === category || ['armchair', 'drawers', 'vanity', 'kitchen_island', 'tall_cabinet', 'appliance_housing'].includes(category), category).toBe(true);
       // Exact dims, except for the fixed-depth mirror and fixed-thickness rug.
       const out = g.describeParams(parsed).dims;
       expect(out.w).toBeCloseTo(dims.w, 9);

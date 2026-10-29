@@ -207,7 +207,7 @@ function requestFor(p: Prepared, roomId: string, relation: PlacementRequestInput
 }
 
 /** Kinds of product that can be hung when the caller says `mount: "wall"` (the shop's own "mount" is a guess from the category). */
-const HANGABLE: ReadonlySet<string> = new Set(['shelf', 'mirror', 'lamp', 'wall_cabinet', 'tv_unit', 'decor', 'other', 'drawers', 'sideboard']);
+const HANGABLE: ReadonlySet<string> = new Set(['shelf', 'mirror', 'lamp', 'wall_cabinet', 'tv_unit', 'decor', 'other', 'drawers', 'sideboard', 'washbasin', 'vanity', 'towel_rail', 'bath_accessory', 'shower_curtain', 'hook']);
 /** Kinds hung on an elevation alone (a shelf the shop lists as floor-standing, placed at 1.4 m, is meant to hang). */
 const HUNG_BY_ELEVATION: ReadonlySet<string> = new Set(['shelf', 'mirror', 'wall_cabinet', 'tv_unit']);
 

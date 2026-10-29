@@ -37,7 +37,7 @@ const MOUNT_REACH = 0.12;
 /** A wall mount further from every wall than `MOUNT_REACH` is still taken to hang on the nearest wall within this reach. */
 const MOUNT_FAR_REACH = 1;
 /** Wall-mounted categories that are typically heavier than `HEAVY_MOUNT_KG`: a missing weight deserves a warning. */
-export const TYPICALLY_HEAVY_CATEGORIES: readonly ProductCategory[] = ['wall_cabinet', 'shelf', 'tv_unit', 'sideboard', 'kitchen'];
+export const TYPICALLY_HEAVY_CATEGORIES: readonly ProductCategory[] = ['wall_cabinet', 'shelf', 'tv_unit', 'sideboard', 'kitchen', 'vanity'];
 
 export interface RoomInfo {
   room: Room;

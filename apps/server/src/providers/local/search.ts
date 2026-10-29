@@ -102,6 +102,16 @@ const CATEGORY_WORDS: Record<ProductCategory, string[]> = {
   appliance: ['appliance'],
   decor: ['decor', 'decoration'],
   other: [],
+  washbasin: ['washbasin', 'basin', 'sink', 'vasque', 'lavabo'],
+  vanity: ['vanity', 'lavabo', 'sous-lavabo', 'washbasin'],
+  towel_rail: ['towel', 'serviette', 'serviettes', 'rail'],
+  bath_accessory: ['bathroom', 'bain', 'douche', 'shower', 'accessory'],
+  shower_curtain: ['shower', 'douche', 'curtain', 'rideau'],
+  kitchen_island: ['island', 'ilot', 'kitchen', 'cuisine'],
+  tall_cabinet: ['tall', 'colonne', 'column', 'cabinet'],
+  appliance_housing: ['oven', 'four', 'microwave', 'micro-ondes', 'housing', 'cabinet'],
+  hook: ['hook', 'patere', 'crochet'],
+  storage: ['storage', 'basket', 'panier', 'rangement', 'bin'],
 };
 
 export interface Query {

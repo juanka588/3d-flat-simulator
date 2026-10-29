@@ -55,7 +55,20 @@ export function defaultParametricFor(category: ProductCategory, dims: Dims, name
         return { generator: 'island', params: { w, d, h, overhang: Math.min(0.3, Math.min(w, d) * 0.35), doors: clampInt(w / 0.5, 0, 6) } };
       }
       return { generator: 'kitchenBase', params: { w, d, h, doors: clampInt(w / 0.45, 0, 4), drawers: 0, worktop: true } };
+    case 'vanity':
+      return { generator: 'sideboard', params: { w, d, h, doors: 0, drawers: clampInt(h / 0.25, 1, 4) } };
+    case 'kitchen_island':
+      return { generator: 'island', params: { w, d, h, overhang: Math.min(0.3, Math.min(w, d) * 0.35), doors: clampInt(w / 0.5, 0, 6) } };
+    case 'tall_cabinet':
+    case 'appliance_housing':
+      return { generator: 'wardrobe', params: { w, d, h, doors: clampInt(w / 0.5, 1, 8), doorType: 'hinged' } };
     case 'lamp':
+    case 'washbasin':
+    case 'towel_rail':
+    case 'bath_accessory':
+    case 'shower_curtain':
+    case 'hook':
+    case 'storage':
     case 'appliance':
     case 'decor':
     case 'curtain':
