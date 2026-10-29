@@ -5,6 +5,7 @@ import { useSceneStore } from '../state/sceneStore';
 import { wallRoomsAt } from '@flat/viewer';
 import type { Selection } from '@flat/viewer';
 import { ColorPicker } from './ColorPicker';
+import { MouldingControls, ParquetControls } from './FinishExtras';
 import { buildFinishCommand, materialLabel } from './finish-commands';
 import type { FinishNames, FinishScope, FinishSource } from './finish-commands';
 import { thumbUrl, useFinishCatalog } from './useFinishCatalog';
@@ -312,6 +313,10 @@ function FinishPanelBody({ scene, selection }: { scene: Scene; selection: Select
     report(dispatch(cmd, { label: cmd.label }));
   };
 
+  const applyBatch = (cmd: { label: string }) => report(dispatch(cmd as Parameters<typeof dispatch>[0], { label: cmd.label }));
+  const scopeNames = roomLevelNames(option.scope, names);
+  const scopeRoomId = 'roomId' in option.scope ? option.scope.roomId : undefined;
+
   const categories = catalog.status === 'ready' ? [...new Set(catalog.entries.map((e) => e.category))] : [];
   const entries = catalog.status === 'ready' ? catalog.entries.filter((e) => category === 'all' || e.category === category) : [];
 
@@ -415,6 +420,11 @@ function FinishPanelBody({ scene, selection }: { scene: Scene; selection: Select
           {option.scope.kind === 'zone' ? 'Match the floor around' : 'Reset to default'}
         </button>
       </div>
+
+      {(option.scope.kind === 'wallSide' || option.scope.kind === 'wallFaces' || option.scope.kind === 'roomWalls') && (
+        <MouldingControls scene={scene} scope={option.scope} names={scopeNames} roomId={scopeRoomId} apply={applyBatch} />
+      )}
+      {(option.scope.kind === 'floor' || option.scope.kind === 'zone') && <ParquetControls key={currentId} scope={option.scope} names={scopeNames} current={current.material} apply={applyBatch} />}
 
       {toast ? (
         <div className={`finish-toast ${toast.kind}`} role={toast.kind === 'error' ? 'alert' : 'status'} data-testid="finish-toast">

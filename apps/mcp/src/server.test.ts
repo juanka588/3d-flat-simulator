@@ -154,7 +154,7 @@ describe('tools/list token budget', () => {
     const { client } = await connect();
     const { tools } = await client.listTools();
     // 21.0k before grid lights (M5 lighting) and floor zones; those add ~1.1k tokens of unavoidable schema (4 light variants repeated in light_add / light_update / batch).
-    // CG2 generate_reference: ~0.43k tokens, so the limit went from 22k to 22.5k (the list was at 21.9k). CG1 render_passes will need its own bump. CG3 match_crop plus thumbs/photo flags: ~0.4k tokens, limit 22.8k. CG4 record_reference, match_reference, gap_report (trimmed to ~0.6k tokens; the descriptor shape lives in the reference_reader prompt) and place_item concept/generator/params (~0.1k): limit 23.5k. Ten bathroom/kitchen/storage categories added to the category enum (repeated in several tool schemas, ~60 tokens): limit 23.7k.
+    // CG2 generate_reference: ~0.43k tokens, so the limit went from 22k to 22.5k (the list was at 21.9k). CG1 render_passes will need its own bump. CG3 match_crop plus thumbs/photo flags: ~0.4k tokens, limit 22.8k. CG4 record_reference, match_reference, gap_report (trimmed to ~0.6k tokens; the descriptor shape lives in the reference_reader prompt) and place_item concept/generator/params (~0.1k): limit 23.5k. Ten bathroom/kitchen/storage categories added to the category enum (repeated in several tool schemas, ~60 tokens): limit 23.7k. CG8 wall panelling / cornice / parquet pattern (~0.9k tokens) fit inside by tightening other descriptions.
     const chars = JSON.stringify(tools).length;
     expect(Math.round(chars / 4), `tools/list is ${chars} chars`).toBeLessThan(23_700);
   });

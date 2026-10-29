@@ -90,7 +90,7 @@ function searchLine(p: ProductSummary) {
 const listProviders: ToolDef = {
   name: 'list_providers',
   description:
-    'List the product providers (shops): id, label, enabled, capabilities (search, 3D model, dimension quality, pasted URLs), circuit state (open = paused after blocks; retryAt), personal-use flag. ikea-fr-local is the local catalogue (searched first; localCatalog = its size and date). Call it before search_products.',
+    'List the product providers (shops): id, label, enabled, capabilities (search, 3D model, dimension quality, pasted URLs), circuit state (open = paused after blocks; retryAt), personal-use flag. ikea-fr-local is the local catalogue (searched first; localCatalog = size and date). Call it before search_products.',
   inputSchema: obj({}),
   annotations: READ,
   group: 'read',
@@ -250,7 +250,7 @@ function factsWithSource(p: ProductRecord, source: string | undefined, stale: bo
 const getProduct: ToolDef = {
   name: 'get_product',
   description:
-    'Full facts of one product from search_products: price (TTC), link, assembled dimensions, colours, variants (variants[].sku with their own price and dims, for place_item variantSku), weightKg (wall mounts over 15 kg need a structural wall), has3d and when the data was read. Use it for the few products you intend to place. Limited to 60 per minute.',
+    'Full facts of one product from search_products: price (TTC), link, assembled dimensions, colours, variants (variants[].sku with own price and dims, for place_item variantSku), weightKg (wall mounts over 15 kg need a structural wall), has3d and when it was read. Use it for the few products you intend to place. Limited to 60 per minute.',
   inputSchema: obj(
     {
       productId: { type: 'string', description: 'productId from search_products, "<provider>:<sku>".' },
@@ -308,7 +308,7 @@ const SearchAssetsArgs = z.strictObject({
 const searchAssets: ToolDef = {
   name: 'search_assets',
   description:
-    'Find SHAPES (not products) for place_item\'s optional mesh argument: parametric generators with their parameter ranges ({kind:"parametric", generator, params}; the dims must match the product within 2%) and the CC0 model library ({kind:"lookalike", assetId}; scaled to the product, at most 25% distortion). Normally you do not need it: place_item picks the real model, else a lookalike, else a parametric shape by itself.',
+    'Find SHAPES (not products) for place_item\'s optional mesh argument: parametric generators with parameter ranges ({kind:"parametric", generator, params}; dims must match the product within 2%) and the CC0 model library ({kind:"lookalike", assetId}; scaled to the product, at most 25% distortion). Rarely needed: place_item picks the real model, else a lookalike, else a parametric shape itself.',
   inputSchema: obj({
     category: { type: 'string', enum: [...PRODUCT_CATEGORIES], description: 'Furniture category.' },
     style: { type: 'string', maxLength: 32, description: 'A style tag to prefer/filter, e.g. "wood", "modern" (library models).' },

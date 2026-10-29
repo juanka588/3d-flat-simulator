@@ -7,3 +7,5 @@ export { buildFloors, buildCeilings, roomCeilingHeight, DEFAULT_CEILING_HEIGHT }
 export { buildShell } from './shell';
 export { ZONE_OVERLAP_AREA, ZONE_TOLERANCE, floorParts, polygonIntersectionArea, remainderArea, zoneProblems } from './zones';
 export type { FloorPart, ZoneProblem } from './zones';
+export { BUILTIN_PAINT_PREFIX, PANELLING_DEFAULTS, PANEL_LAYOUT, fittingObstacles, layoutFace, paintMaterialId, wallFacePanelling } from './panelling';
+export type { FaceLayout, LayoutInput, FaceObstacle, PanelRect, RailSpan } from './panelling';

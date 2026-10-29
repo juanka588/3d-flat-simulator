@@ -1,4 +1,4 @@
-import { BUILTIN_MATERIALS, clampAlbedo, relativeLuminance } from '@flat/scene';
+import { BUILTIN_MATERIALS, BUILTIN_PAINT_PREFIX, clampAlbedo, relativeLuminance } from '@flat/scene';
 import { ITEM_MATERIAL_SPECS } from '@flat/assets';
 import type { ItemMaterialId } from '@flat/assets';
 import type { Scene } from '@flat/scene';
@@ -6,6 +6,8 @@ import type { CatalogEntry, CatalogSource } from '@flat/assets';
 import { Color, DoubleSide, MeshStandardMaterial } from 'three';
 import type { Material, Texture } from 'three';
 import { libraryCatalog } from './catalog';
+import { DEFAULT_PLANK_WIDTH_MM, createParquetTexture } from './parquet-texture';
+import type { ParquetTexture } from './parquet-texture';
 import { MAX_ANISOTROPY, disposeSet, instantiateSet, libSlug, textureCache } from './texture-cache';
 import type { Subscription, TextureCache, TextureSet } from './texture-cache';
 
@@ -286,6 +288,10 @@ function builtin(id: string): MeshStandardMaterial {
       return new MeshStandardMaterial({ color: '#f6f6f6', roughness: 1 });
     case BUILTIN_MATERIALS.fallbackWall:
     default: {
+      // A moulding or cornice painted with its own colour (`builtin:paint:#rrggbb`): semi-gloss, shared by every piece of that colour.
+      if (id.startsWith(BUILTIN_PAINT_PREFIX) && /^#[0-9a-f]{6}$/.test(id.slice(BUILTIN_PAINT_PREFIX.length))) {
+        return new MeshStandardMaterial({ color: clampAlbedo(id.slice(BUILTIN_PAINT_PREFIX.length)), roughness: 0.55 });
+      }
       const spec = itemSpec(id);
       return spec ? new MeshStandardMaterial({ color: spec.color, roughness: spec.roughness, metalness: spec.metalness, ...(spec.opacity !== undefined && spec.opacity < 1 ? { transparent: true, opacity: spec.opacity, depthWrite: false, side: DoubleSide } : {}) }) : new MeshStandardMaterial({ color: '#e9e6e0', roughness: 0.95 });
     }
@@ -310,7 +316,9 @@ export function createMaterialLibrary(initial: Pick<Scene, 'materials'> | null =
   const cache = new Map<string, Material>();
   const defs = new Map<string, SceneMaterial>();
   const textured = new Map<string, TexturedMaterial>();
-  const removed: { id: string; material: Material; textured?: TexturedMaterial }[] = [];
+  const removed: { id: string; material: Material; textured?: TexturedMaterial; parquet?: ParquetTexture }[] = [];
+  // Procedural parquet maps of materials with a `pattern`, keyed by material id (see parquet-texture.ts).
+  const parquets = new Map<string, { key: string; tex: ParquetTexture }>();
   const opts = { ...options, anisotropy: options.anisotropy ?? MAX_ANISOTROPY };
   let ambientTexture: Texture | undefined = roomAmbient;
   let bounceTexture: Texture | undefined;
@@ -333,7 +341,32 @@ export function createMaterialLibrary(initial: Pick<Scene, 'materials'> | null =
   const isGlass = (id: string) => id === BUILTIN_MATERIALS.glass;
   const specOf = (m: SceneMaterial): TextureSpec => ({ color: m.color, roughness: m.roughness, url: m.textureUrl, scale: m.textureScale });
   const same = (a: SceneMaterial, b: SceneMaterial) =>
-    a.kind === b.kind && a.color === b.color && a.roughness === b.roughness && a.textureUrl === b.textureUrl && a.textureScale === b.textureScale;
+    a.kind === b.kind && a.color === b.color && a.roughness === b.roughness && a.textureUrl === b.textureUrl && a.textureScale === b.textureScale && a.pattern === b.pattern && a.plankWidthMm === b.plankWidthMm;
+
+  /** Gives a paint material its parquet map (or takes it away); the colour map carries the wood tone, `color` stays white. */
+  const syncParquet = (def: SceneMaterial, material: MeshStandardMaterial): void => {
+    const had = parquets.get(def.id);
+    if (def.kind !== 'paint' || !def.pattern) {
+      if (!had) return;
+      parquets.delete(def.id);
+      had.tex.texture.dispose();
+      material.map = null;
+      material.needsUpdate = true;
+      return;
+    }
+    const key = `${def.pattern}|${def.plankWidthMm ?? DEFAULT_PLANK_WIDTH_MM}|${def.color}`;
+    if (had?.key === key) return;
+    const tex = createParquetTexture({ pattern: def.pattern, plankWidthM: (def.plankWidthMm ?? DEFAULT_PLANK_WIDTH_MM) / 1000, color: clampAlbedo(def.color) }, opts.anisotropy);
+    if (!tex) return; // no canvas (headless without DOM): the paint colour stays
+    const hadMap = material.map !== null;
+    had?.tex.texture.dispose();
+    parquets.set(def.id, { key, tex });
+    material.map = tex.texture;
+    material.color.setScalar(1);
+    setAlbedo(material, clampAlbedo(def.color));
+    syncEmissive(material);
+    if (!hadMap) material.needsUpdate = true; // only a map appearing changes the shader
+  };
 
   const update = (materials: SceneMaterial[], ambient?: Texture, bounce?: Texture): void => {
     if (ambient !== ambientTexture || bounce !== bounceTexture) {
@@ -352,7 +385,8 @@ export function createMaterialLibrary(initial: Pick<Scene, 'materials'> | null =
       let material = cache.get(def.id) as MeshStandardMaterial | undefined;
       if (!material || !prev) {
         // New id (or one that so far only existed as a builtin look-alike): a fresh material.
-        if (material) removed.push({ id: def.id, material, textured: textured.get(def.id) });
+        if (material) removed.push({ id: def.id, material, textured: textured.get(def.id), ...(parquets.has(def.id) ? { parquet: parquets.get(def.id)!.tex } : {}) });
+        parquets.delete(def.id);
         material = new MeshStandardMaterial({ color: clampAlbedo(def.color), roughness: def.roughness });
         setAlbedo(material, clampAlbedo(def.color));
         applyAmbient(material);
@@ -379,12 +413,14 @@ export function createMaterialLibrary(initial: Pick<Scene, 'materials'> | null =
         syncEmissive(material);
         material.roughness = def.roughness;
       }
+      syncParquet(def, material);
     }
     for (const id of [...defs.keys()]) {
       if (ids.has(id)) continue;
       defs.delete(id);
       const material = cache.get(id);
-      if (material) removed.push({ id, material, textured: textured.get(id) });
+      if (material) removed.push({ id, material, textured: textured.get(id), ...(parquets.has(id) ? { parquet: parquets.get(id)!.tex } : {}) });
+      parquets.delete(id);
       cache.delete(id);
       textured.delete(id);
       version++;
@@ -419,6 +455,7 @@ export function createMaterialLibrary(initial: Pick<Scene, 'materials'> | null =
     commit() {
       for (const r of removed.splice(0)) {
         r.textured?.stop();
+        r.parquet?.texture.dispose();
         // A re-created material with the same id lives in `cache` under a new object; only the old one is disposed.
         if (cache.get(r.id) !== r.material) r.material.dispose();
       }
@@ -436,6 +473,7 @@ export function createMaterialLibrary(initial: Pick<Scene, 'materials'> | null =
     dispose() {
       lib.commit();
       textured.forEach((t) => t.stop());
+      parquets.forEach((p) => p.tex.texture.dispose());
       cache.forEach((m) => m.dispose());
     },
     resume() {

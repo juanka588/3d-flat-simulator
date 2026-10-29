@@ -111,3 +111,68 @@ export function buildFinishCommand(scope: FinishScope, source: FinishSource, nam
     commands: [{ type: 'material.define', material }, ...finishCommands(scope, material.id)],
   };
 }
+
+/** Wall mouldings the finish panel offers; `none` removes them (the wall or room then follows the room / default). */
+export type MouldingStyle = 'none' | 'frames' | 'dado' | 'frames+dado';
+export const MOULDING_STYLES: readonly { value: MouldingStyle; label: string }[] = [
+  { value: 'none', label: 'None' },
+  { value: 'frames', label: 'Frames' },
+  { value: 'dado', label: 'Dado rail' },
+  { value: 'frames+dado', label: 'Frames and dado rail' },
+];
+/** Cornice height (mm) the panel sets; the model takes 40-300. */
+export const CORNICE_MM = 100;
+
+/** The command setting (or removing) mouldings for a wall or room scope; undefined for scopes that have none. */
+export function buildMouldingCommand(scope: FinishScope, style: MouldingStyle, names: FinishNames = {}): BatchCommand | undefined {
+  const panelling = style === 'none' ? null : style;
+  const what = style === 'none' ? 'Remove mouldings from' : `${MOULDING_STYLES.find((s) => s.value === style)!.label} on`;
+  const label = `${what} ${scopeLabel(scope, names)}`;
+  switch (scope.kind) {
+    case 'wallSide':
+      return { type: 'batch', label, commands: [{ type: 'wall.setFinish', wallId: scope.wallId, side: scope.side, panelling }] };
+    case 'wallFaces':
+      return { type: 'batch', label, commands: scope.faces.map((f) => ({ type: 'wall.setFinish', wallId: scope.wallId, side: f.side, panelling })) };
+    case 'roomWalls':
+      return { type: 'batch', label, commands: [{ type: 'room.setWallFinish', roomId: scope.roomId, panelling }] };
+    default:
+      return undefined;
+  }
+}
+
+/** The command adding (`on`) or removing the ceiling cornice of a room. */
+export function buildCorniceCommand(roomId: string, on: boolean, names: FinishNames = {}): BatchCommand {
+  const name = names.room ?? roomId;
+  return {
+    type: 'batch',
+    label: on ? `Add a cornice to ${name}` : `Remove the cornice of ${name}`,
+    commands: [{ type: 'room.setWallFinish', roomId, corniceMm: on ? CORNICE_MM : null }],
+  };
+}
+
+/** Parquet layouts the panel offers for floors. */
+export type ParquetPattern = 'herringbone' | 'chevron';
+export const PARQUET_PATTERNS: readonly { value: ParquetPattern; label: string }[] = [
+  { value: 'herringbone', label: 'Herringbone' },
+  { value: 'chevron', label: 'Chevron' },
+];
+export const PARQUET_TONES: readonly { hex: string; name: string }[] = [
+  { hex: '#a47a4d', name: 'Honey oak' },
+  { hex: '#c9a97a', name: 'Light oak' },
+  { hex: '#6b4a32', name: 'Walnut' },
+];
+
+/** The parquet material for a pattern and wood tone; the id is deterministic, so equal choices share one material. */
+export function parquetMaterial(pattern: ParquetPattern, hex: string): Material {
+  const h = normalizeHex(hex);
+  const tone = PARQUET_TONES.find((t) => t.hex === h)?.name ?? h;
+  const layout = PARQUET_PATTERNS.find((p) => p.value === pattern)!.label;
+  return { id: `parquet-${pattern}-${h.slice(1)}`, name: `${layout} parquet, ${tone}`, kind: 'paint', color: h, roughness: 0.55, pattern };
+}
+
+/** The command laying a herringbone or chevron floor on a floor or floor-zone scope; undefined for other scopes. */
+export function buildParquetCommand(scope: FinishScope, pattern: ParquetPattern, hex: string, names: FinishNames = {}): BatchCommand | undefined {
+  if (scope.kind !== 'floor' && scope.kind !== 'zone') return undefined;
+  const material = parquetMaterial(pattern, hex);
+  return { type: 'batch', label: `${material.name} on ${scopeLabel(scope, names)}`, commands: [{ type: 'material.define', material }, ...finishCommands(scope, material.id)] };
+}

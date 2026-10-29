@@ -111,8 +111,8 @@ export function historyTools(): ToolDef[] {
     {
       name: 'undo',
       description:
-        'Undo the newest entry of the shared history, whoever made it (the user\'s edits included); the result names the entry it reverted. To undo only what you have seen, pass expectId (the id of the last entry of list_history\'s past): if the newest entry is a different one, it fails with stale_scene and changes nothing. Without expectId it reverts whatever is on top at that moment.',
-      inputSchema: obj({ expectId: { type: 'string', maxLength: 64, description: 'Optional. Id of the entry you mean to undo (the last item of past in list_history). Mismatch: stale_scene, nothing undone.' } }),
+        'Undo the newest entry of the shared history, whoever made it (the user\'s edits included); the result names the entry it reverted. To undo only what you have seen, pass expectId (last item of past in list_history): a different newest entry fails with stale_scene and changes nothing.',
+      inputSchema: obj({ expectId: { type: 'string', maxLength: 64, description: 'Id of the entry you mean to undo; mismatch: stale_scene.' } }),
       annotations: HISTORY_WRITE,
       group: 'history',
       mutatesScene: true,

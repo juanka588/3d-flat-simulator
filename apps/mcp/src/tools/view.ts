@@ -48,7 +48,7 @@ export function viewTools(): ToolDef[] {
         date: { type: 'string', description: 'Local date YYYY-MM-DD at the flat.' },
         time: { type: 'string', description: 'Local time HH:mm at the flat.' },
         preset: { type: 'string', enum: ['day', 'evening', 'night'], description: 'day: 12:00 sun, lamps off. evening: 20:00 on 21 Dec, lamps on. night: 23:00, no sun, lamps on. Applied first; date and time then override it.' },
-        lamps: { type: 'string', enum: [...LAMP_MODES], description: 'scene: lamps follow the flat (light_update changes show). allOn / allOff: force every lamp on / off. A preset sets this (day: allOff; evening and night: allOn) and it stays until you change it: pass "scene" to go back to the flat\'s own lamp states.' },
+        lamps: { type: 'string', enum: [...LAMP_MODES], description: 'scene: lamps follow the flat. allOn / allOff: force every lamp on / off. A preset sets it (day: allOff; evening, night: allOn) until you change it; "scene" goes back to the flat\'s own lamp states.' },
         sync_to_user_tab: { type: 'boolean', description: 'true: also relay this lighting to the user\'s open tab (shown only if they follow the assistant view).' },
       }),
       annotations: { ...READ, idempotentHint: true },

@@ -231,7 +231,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "openWorldHint": false,
       "readOnlyHint": false,
     },
-    "description": "Create a material, or fully replace an existing one with the same id (upsert, FULL REPLACE: omitted optional fields are cleared and roughness resets to 0.9, so send every field you want to keep). A material kind ("paint" or "texture") can never change; use a new id for a different kind. For a library texture use kind "texture" with textureUrl "lib:<slug>" (slugs: library[].slug from list_materials). Define a material before using it in a finish.",
+    "description": "Create a material, or fully replace one with the same id (upsert, FULL REPLACE: omitted optional fields are cleared, roughness resets to 0.9; send every field to keep). Its kind never changes. Library texture: kind "texture", textureUrl "lib:<slug>" (library[].slug from list_materials). Parquet: kind "paint", color = wood tone, pattern "herringbone" or "chevron". Define before using it in a finish.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -273,6 +273,20 @@ exports[`snapshots (the contract) > tools/list 1`] = `
               "description": "Human-readable name, at most 120 characters.",
               "maxLength": 120,
               "type": "string",
+            },
+            "pattern": {
+              "description": "Parquet layout for floors (paint kind); color = wood tone.",
+              "enum": [
+                "herringbone",
+                "chevron",
+              ],
+              "type": "string",
+            },
+            "plankWidthMm": {
+              "description": "Parquet plank width in mm (default 90; length is 7x).",
+              "maximum": 250,
+              "minimum": 40,
+              "type": "number",
             },
             "roughness": {
               "default": 0.9,
@@ -382,7 +396,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "openWorldHint": false,
       "readOnlyHint": false,
     },
-    "description": "Paint one or both faces of a wall (wall ids: walls[].wallId from describe_room, which also says which side faces the room). Pass roomId (strongly recommended) to paint only that room's stretch of the face (the alcove and the sejour can share a wall and get different colours); without it the whole face is painted for every room on it. Precedence, most specific first: roomId finish, whole-face finish, room_set_wall_finish, scene default. Left and right follow the walking direction from wall start to end (plan y grows down). materialId null clears.",
+    "description": "Paint one or both faces of a wall (walls[].wallId from describe_room, which says which side faces the room). Pass roomId (strongly recommended) to paint only that room's stretch: a wall face can be shared by rooms, and without roomId every room on it is painted. Precedence: roomId finish, whole-face finish, room_set_wall_finish, scene default. materialId null clears. panelling: mouldings on the whole face.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -406,6 +420,28 @@ exports[`snapshots (the contract) > tools/list 1`] = `
             "null",
           ],
         },
+        "panelColour": {
+          "description": "Moulding #rrggbb (default: wall paint); null resets.",
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "type": [
+            "string",
+            "null",
+          ],
+        },
+        "panelling": {
+          "description": "Mouldings (boiserie): frames, dado (rail), frames+dado, none; null removes.",
+          "enum": [
+            "frames",
+            "dado",
+            "frames+dado",
+            "none",
+            null,
+          ],
+          "type": [
+            "string",
+            "null",
+          ],
+        },
         "preview": {
           "description": "true: change nothing, return diff and warnings.",
           "type": "boolean",
@@ -423,13 +459,13 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "description": "true or render_view arguments: also return an image (true: first changed room, else the whole flat).",
         },
         "roomId": {
-          "description": "Room whose stretch of this side to paint (list_rooms). Strongly recommended: a side can be shared by several rooms (alcove and sejour) and without roomId all of them are painted. precondition_failed if the room does not border that side. A room-scoped finish beats the whole-side finish and room_set_wall_finish.",
+          "description": "Room whose stretch of this side to paint (list_rooms). Strongly recommended: without it every room sharing the side is painted. precondition_failed if the room does not border that side. Beats the whole-side finish and room_set_wall_finish.",
           "maxLength": 64,
           "minLength": 1,
           "type": "string",
         },
         "side": {
-          "description": "Which face of the wall. "left" is the left of someone walking from the wall start to its end on the plan (plan y grows down; describe_room gives the side that faces each room), "right" the other face, "both" both faces. With roomId, "both" means every face of this wall that the room adjoins.",
+          "description": "Face of the wall: "left" is on the left when walking from the wall start to its end on the plan (y grows down; describe_room says which face each room sees), "right" the other, "both" both. With roomId, "both" means every face the room adjoins.",
           "enum": [
             "left",
             "right",
@@ -447,7 +483,6 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "required": [
         "wallId",
         "side",
-        "materialId",
       ],
       "type": "object",
     },
@@ -460,7 +495,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "openWorldHint": false,
       "readOnlyHint": false,
     },
-    "description": "Mark a wall structural (never removable) or removable, or clear the mark. Walls that are exterior or at least 15 cm thick are structural by default; only a user may mark such a wall removable (an LLM gets precondition_failed).",
+    "description": "Mark a wall structural (never removable) or removable, or clear the mark. Exterior or at least 15 cm thick walls are structural by default; only a user may mark one removable.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -492,7 +527,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "description": "true or render_view arguments: also return an image (true: first changed room, else the whole flat).",
         },
         "structural": {
-          "description": "true marks the wall structural (cannot be removed); false marks it removable; null clears the explicit mark so it is derived (exterior or at least 15 cm thick means structural). Only a user may set false on a wall that is structural by default.",
+          "description": "true: structural (cannot be removed); false: removable; null: derived (exterior or at least 15 cm thick means structural). Only a user may set false on a default-structural wall.",
           "type": [
             "boolean",
             "null",
@@ -520,10 +555,19 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "openWorldHint": false,
       "readOnlyHint": false,
     },
-    "description": "Paint all the walls of a room with one material (the room's own stretches only: neighbouring rooms keep their look, even on shared wall faces). It replaces any earlier per-wall paint of that room; a later wall_set_finish on one of its walls wins again. materialId null removes the room paint. Fails with no_wall_sides when none of the room's edges run along a wall face (an unwalled room).",
+    "description": "Paint all the walls of a room (its own stretches only: neighbouring rooms keep their look). Replaces earlier per-wall paint of that room; a later wall_set_finish wins again. materialId null removes the room paint (no_wall_sides when no room edge runs along a wall face). panelling and cornice: mouldings, ceiling cornice.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
+        "corniceMm": {
+          "description": "Ceiling cornice height in mm; null removes.",
+          "maximum": 300,
+          "minimum": 40,
+          "type": [
+            "number",
+            "null",
+          ],
+        },
         "ifRev": {
           "description": "Apply only if the flat is at this rev (or preview baseRev), else stale_scene.",
           "minimum": 0,
@@ -536,9 +580,31 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "type": "string",
         },
         "materialId": {
-          "description": "Material id (sceneMaterials[].id from list_materials, or materials[].id from get_scene_summary with detail "full"), or null to clear. Library texture: first material_define with textureUrl "lib:<slug>" (library[].slug from list_materials).",
+          "description": "Material id (sceneMaterials[].id from list_materials), or null to clear. Library texture: material_define it first (textureUrl "lib:<slug>").",
           "maxLength": 64,
           "minLength": 1,
+          "type": [
+            "string",
+            "null",
+          ],
+        },
+        "panelColour": {
+          "description": "Moulding #rrggbb (default: wall paint); null resets.",
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "type": [
+            "string",
+            "null",
+          ],
+        },
+        "panelling": {
+          "description": "Mouldings (boiserie): frames, dado (rail), frames+dado, none; null removes.",
+          "enum": [
+            "frames",
+            "dado",
+            "frames+dado",
+            "none",
+            null,
+          ],
           "type": [
             "string",
             "null",
@@ -569,7 +635,6 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       },
       "required": [
         "roomId",
-        "materialId",
       ],
       "type": "object",
     },
@@ -598,7 +663,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "type": "string",
         },
         "materialId": {
-          "description": "Material id (sceneMaterials[].id from list_materials, or materials[].id from get_scene_summary with detail "full"), or null to clear. Library texture: first material_define with textureUrl "lib:<slug>" (library[].slug from list_materials).",
+          "description": "Material id (sceneMaterials[].id from list_materials), or null to clear. Library texture: material_define it first (textureUrl "lib:<slug>").",
           "maxLength": 64,
           "minLength": 1,
           "type": [
@@ -660,7 +725,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "type": "string",
         },
         "materialId": {
-          "description": "Material id (sceneMaterials[].id from list_materials, or materials[].id from get_scene_summary with detail "full"), or null to clear. Library texture: first material_define with textureUrl "lib:<slug>" (library[].slug from list_materials).",
+          "description": "Material id (sceneMaterials[].id from list_materials), or null to clear. Library texture: material_define it first (textureUrl "lib:<slug>").",
           "maxLength": 64,
           "minLength": 1,
           "type": [
@@ -706,7 +771,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "openWorldHint": false,
       "readOnlyHint": false,
     },
-    "description": "Set the scene-wide default materials used where a wall face, floor or ceiling has none. Omitted fields stay unchanged; null clears one.",
+    "description": "Set the default materials used where a wall face, floor or ceiling has none. Omitted fields stay; null clears one.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -777,7 +842,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "openWorldHint": false,
       "readOnlyHint": false,
     },
-    "description": "Change site fields (location, orientation, time zone, floor elevation, address). Omitted fields stay unchanged; address null clears it.",
+    "description": "Change site fields (location, orientation, time zone, floor elevation, address). Omitted fields stay; address null clears it.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -862,7 +927,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "openWorldHint": false,
       "readOnlyHint": false,
     },
-    "description": "Add a light: point (bulb), spot (downward cone), area (panel) or grid: rows x cols identical LED downlights as ONE light (rows, cols, lumensEach, kelvin, angle; fitToRoom + roomId, or position + width + depth). Size a grid by the lighting plan of describe_room. Only about 9 lights cast shadows: light_remove the ceiling light a grid replaces.",
+    "description": "Add a light: point (bulb), spot (downward cone), area (panel) or grid: rows x cols identical LED downlights as ONE light (rows, cols, lumensEach, kelvin, angle; fitToRoom + roomId, or position + width + depth). Size a grid by describe_room's lighting plan. Only about 9 lights cast shadows: light_remove the ceiling light a grid replaces.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -1235,7 +1300,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "openWorldHint": false,
       "readOnlyHint": false,
     },
-    "description": "Change fields of a light (not fields of another light type). Grid: rows, cols, lumensEach, kelvin, angle, on, or fitToRoom: true. A lamp item's light (describe_room lights[].itemId) follows its item: only on, lumens, kelvin, name change; move the item instead.",
+    "description": "Change fields of a light (not of another light type). Grid: rows, cols, lumensEach, kelvin, angle, on, fitToRoom: true. A lamp item's light (describe_room lights[].itemId) follows its item: only on, lumens, kelvin, name change; move the item instead.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -1395,7 +1460,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "openWorldHint": false,
       "readOnlyHint": false,
     },
-    "description": "Remove a light by id. Undo restores it at the same position in the list. A lamp item's own light cannot be removed alone: light_update {on: false}, or remove the item.",
+    "description": "Remove a light by id (undo restores it). A lamp item's own light cannot be removed alone: light_update {on: false}, or remove the item.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -1447,7 +1512,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "openWorldHint": false,
       "readOnlyHint": false,
     },
-    "description": "Move a placed item (items[].id from describe_room) to a new plan position, optionally with a new rotation, height, room or placement relation. Omitted fields stay as they are; roomId and relation accept null to clear. Refused with placement_invalid when the new spot is outside the room, over a wall or another item, or in a door swing, and with precondition_failed for a locked item (existing furniture such as a built-in wardrobe; only the user may move it). Call validate_layout afterwards to check windows and walkways. Undo moves it back. To find a valid spot first, call get_placement_options.",
+    "description": "Move a placed item (items[].id from describe_room) to a new plan position, optionally with rotation, height, room or placement relation. Omitted fields stay; roomId and relation accept null to clear. placement_invalid when the spot is outside the room, over a wall or another item, or in a door swing; precondition_failed for a locked item (existing furniture; only the user may move it). Then call validate_layout (windows, walkways). Undo moves it back. To find a valid spot first, call get_placement_options.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -1817,7 +1882,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "openWorldHint": false,
       "readOnlyHint": false,
     },
-    "description": "Turn a placed item to an absolute rotation in degrees, counter-clockwise seen from above (the front faces plan +y at 0, +x at 90, -y at 180, -x at 270). The footprint turns about the item origin and is checked like item_move (placement_invalid when it no longer fits). Locked items cannot be rotated by an LLM. Undo restores the previous rotation.",
+    "description": "Turn a placed item to an absolute rotation in degrees, counter-clockwise seen from above (front faces plan +y at 0, +x at 90, -y at 180, -x at 270); checked like item_move. Locked items cannot be rotated by an LLM. Undo restores the rotation.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -1874,7 +1939,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "openWorldHint": false,
       "readOnlyHint": false,
     },
-    "description": "Remove a placed item by id (items[].id from describe_room). A locked item (existing furniture) can only be removed by the user. Undo puts it back at the same position in the list. Find the item id with describe_room; get_bill_of_materials shows the cost.",
+    "description": "Remove a placed item by id (items[].id from describe_room). Only the user can remove a locked item (existing furniture). Undo puts it back in place. Find the item id with describe_room; get_bill_of_materials shows the cost.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -1926,7 +1991,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "openWorldHint": false,
       "readOnlyHint": false,
     },
-    "description": "Add or replace (by zone.id, full replace) a floor zone: a part of a room floor with its own material, e.g. kitchen tiles in an open-plan room. The polygon must lie inside the room (1 cm tolerance) and not overlap the other zones of that room; define the material first.",
+    "description": "Add or replace (by zone.id, full replace) a floor zone: part of a room floor with its own material, e.g. kitchen tiles in an open-plan room. The polygon must lie inside the room (1 cm tolerance) and not overlap its other zones; define the material first.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -2942,6 +3007,18 @@ exports[`snapshots (the contract) > tools/list 1`] = `
                   "maxLength": 120,
                   "type": "string",
                 },
+                "pattern": {
+                  "enum": [
+                    "herringbone",
+                    "chevron",
+                  ],
+                  "type": "string",
+                },
+                "plankWidthMm": {
+                  "maximum": 250,
+                  "minimum": 40,
+                  "type": "number",
+                },
                 "roughness": {
                   "default": 0.9,
                   "maximum": 1,
@@ -3167,9 +3244,37 @@ exports[`snapshots (the contract) > tools/list 1`] = `
         "room_set_wall_finish": {
           "additionalProperties": false,
           "properties": {
+            "corniceMm": {
+              "maximum": 300,
+              "minimum": 40,
+              "type": [
+                "number",
+                "null",
+              ],
+            },
             "materialId": {
               "maxLength": 64,
               "minLength": 1,
+              "type": [
+                "string",
+                "null",
+              ],
+            },
+            "panelColour": {
+              "pattern": "^#[0-9a-fA-F]{6}$",
+              "type": [
+                "string",
+                "null",
+              ],
+            },
+            "panelling": {
+              "enum": [
+                "frames",
+                "dado",
+                "frames+dado",
+                "none",
+                null,
+              ],
               "type": [
                 "string",
                 "null",
@@ -3188,7 +3293,6 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "required": [
             "type",
             "roomId",
-            "materialId",
           ],
           "type": "object",
         },
@@ -3286,6 +3390,26 @@ exports[`snapshots (the contract) > tools/list 1`] = `
                 "null",
               ],
             },
+            "panelColour": {
+              "pattern": "^#[0-9a-fA-F]{6}$",
+              "type": [
+                "string",
+                "null",
+              ],
+            },
+            "panelling": {
+              "enum": [
+                "frames",
+                "dado",
+                "frames+dado",
+                "none",
+                null,
+              ],
+              "type": [
+                "string",
+                "null",
+              ],
+            },
             "roomId": {
               "maxLength": 64,
               "minLength": 1,
@@ -3313,7 +3437,6 @@ exports[`snapshots (the contract) > tools/list 1`] = `
             "type",
             "wallId",
             "side",
-            "materialId",
           ],
           "type": "object",
         },
@@ -4043,7 +4166,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "openWorldHint": false,
       "readOnlyHint": true,
     },
-    "description": "Describe one room: area, ceiling height, the wall faces that border it (structural flag, finish and where it comes from, wallOn = which side of the room the wall is on, left/right side, wallId), openings with compass = the direction you look through them, lights, daylight factor and hours of direct sun for a date (default: the session date, see set_sun_time).",
+    "description": "Describe one room: area, ceiling height, the wall faces that border it (structural flag, finish and where it comes from, wallOn = which side of the room the wall is on, left/right side, wallId), openings with compass = the direction you look through them, lights, daylight factor and hours of direct sun for a date (default: session date, see set_sun_time).",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -4105,7 +4228,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "openWorldHint": false,
       "readOnlyHint": true,
     },
-    "description": "List the product providers (shops): id, label, enabled, capabilities (search, 3D model, dimension quality, pasted URLs), circuit state (open = paused after blocks; retryAt), personal-use flag. ikea-fr-local is the local catalogue (searched first; localCatalog = its size and date). Call it before search_products.",
+    "description": "List the product providers (shops): id, label, enabled, capabilities (search, 3D model, dimension quality, pasted URLs), circuit state (open = paused after blocks; retryAt), personal-use flag. ikea-fr-local is the local catalogue (searched first; localCatalog = size and date). Call it before search_products.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {},
@@ -4230,7 +4353,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "openWorldHint": false,
       "readOnlyHint": true,
     },
-    "description": "Full facts of one product from search_products: price (TTC), link, assembled dimensions, colours, variants (variants[].sku with their own price and dims, for place_item variantSku), weightKg (wall mounts over 15 kg need a structural wall), has3d and when the data was read. Use it for the few products you intend to place. Limited to 60 per minute.",
+    "description": "Full facts of one product from search_products: price (TTC), link, assembled dimensions, colours, variants (variants[].sku with own price and dims, for place_item variantSku), weightKg (wall mounts over 15 kg need a structural wall), has3d and when it was read. Use it for the few products you intend to place. Limited to 60 per minute.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -4257,7 +4380,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "openWorldHint": false,
       "readOnlyHint": true,
     },
-    "description": "Find SHAPES (not products) for place_item's optional mesh argument: parametric generators with their parameter ranges ({kind:"parametric", generator, params}; the dims must match the product within 2%) and the CC0 model library ({kind:"lookalike", assetId}; scaled to the product, at most 25% distortion). Normally you do not need it: place_item picks the real model, else a lookalike, else a parametric shape by itself.",
+    "description": "Find SHAPES (not products) for place_item's optional mesh argument: parametric generators with parameter ranges ({kind:"parametric", generator, params}; dims must match the product within 2%) and the CC0 model library ({kind:"lookalike", assetId}; scaled to the product, at most 25% distortion). Rarely needed: place_item picks the real model, else a lookalike, else a parametric shape itself.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -4419,7 +4542,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "openWorldHint": false,
       "readOnlyHint": true,
     },
-    "description": "Dry run of the placement solver, nothing changes: where could this product go in this room for a relation (against_wall, in_corner, centered_in, facing, next_to, under_window, on, at)? Returns up to 3 candidate spots (position, rotation, elevation, the relation to pass to place_item) with reasons, or the violations (outside_room, overlap, door_swing_blocked, ...) with alternatives. The product must come from search_products in this session.",
+    "description": "Dry run of the placement solver (nothing changes): where could this product go in this room for a relation (against_wall, in_corner, centered_in, facing, next_to, under_window, on, at)? Returns up to 3 candidate spots (position, rotation, elevation, relation to pass to place_item) with reasons, or the violations (outside_room, overlap, door_swing_blocked, ...) with alternatives. The product must come from search_products in this session.",
     "inputSchema": {
       "$defs": {
         "relation": {
@@ -4753,7 +4876,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "openWorldHint": false,
       "readOnlyHint": true,
     },
-    "description": "Check the placed furniture of one room (or the whole flat) against the layout rules: inside the room, no overlaps, door swings and landings, window sills, glazing, walkways at least 0.8 m (0.9 m at the entry). Returns violations and warnings with the entities and a hint, the free floor area, the narrowest walkway, and totalEur (TTC prices of unlocked items; locked existing furniture counts 0) plus overBudget when budgetEur is given. Call it after placing and before you finish.",
+    "description": "Check the placed furniture of one room (or the whole flat) against the layout rules: inside the room, no overlaps, door swings and landings, window sills, glazing, walkways at least 0.8 m (0.9 m at the entry). Returns violations and warnings with the entities and a hint, the free floor area, the narrowest walkway, and totalEur (TTC, unlocked items only) plus overBudget when budgetEur is given. Call it after placing and before you finish.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -4779,7 +4902,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "openWorldHint": false,
       "readOnlyHint": true,
     },
-    "description": "Shopping list of the placed items, grouped by product: productId, name, link, quantity, unit price, what is left to buy (toBuy) and the amount. totalEur counts the TTC prices of unlocked items only (locked existing furniture is listed at 0; delivery, assembly and discounts are not included), byRoom has the subtotals, stale lists price snapshots older than 30 days. Prices are indicative.",
+    "description": "Shopping list of the placed items, grouped by product: productId, name, link, quantity, unit price, what is left to buy (toBuy) and the amount. totalEur is TTC, unlocked items only (locked furniture is listed at 0; no delivery or assembly), byRoom has subtotals, stale lists prices older than 30 days. Prices are indicative.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -4809,7 +4932,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "type": "string",
         },
         "lamps": {
-          "description": "scene: lamps follow the flat (light_update changes show). allOn / allOff: force every lamp on / off. A preset sets this (day: allOff; evening and night: allOn) and it stays until you change it: pass "scene" to go back to the flat's own lamp states.",
+          "description": "scene: lamps follow the flat. allOn / allOff: force every lamp on / off. A preset sets it (day: allOff; evening, night: allOn) until you change it; "scene" goes back to the flat's own lamp states.",
           "enum": [
             "scene",
             "allOn",
@@ -5433,12 +5556,12 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "openWorldHint": false,
       "readOnlyHint": false,
     },
-    "description": "Undo the newest entry of the shared history, whoever made it (the user's edits included); the result names the entry it reverted. To undo only what you have seen, pass expectId (the id of the last entry of list_history's past): if the newest entry is a different one, it fails with stale_scene and changes nothing. Without expectId it reverts whatever is on top at that moment.",
+    "description": "Undo the newest entry of the shared history, whoever made it (the user's edits included); the result names the entry it reverted. To undo only what you have seen, pass expectId (last item of past in list_history): a different newest entry fails with stale_scene and changes nothing.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
         "expectId": {
-          "description": "Optional. Id of the entry you mean to undo (the last item of past in list_history). Mismatch: stale_scene, nothing undone.",
+          "description": "Id of the entry you mean to undo; mismatch: stale_scene.",
           "maxLength": 64,
           "type": "string",
         },

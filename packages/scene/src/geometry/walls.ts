@@ -4,6 +4,7 @@ import { MeshBuilder, type Vec3 } from './builder';
 import { clampedOpeningSpans } from './openings';
 import { computeWallJunctions, type WallFootprint } from './junctions';
 import { wallEdgeMaterial, wallFaceMaterial } from './materials';
+import { buildWallMouldings } from './panelling';
 import type { MeshData, WallFace } from './types';
 
 const EPS = 1e-6;
@@ -149,7 +150,11 @@ export function buildWalls(scene: Scene): MeshData {
     };
     const segments = sideRooms[wall.id]?.segments ?? [];
     const cuts = segments.slice(1).map((seg) => seg.from);
-    buildWall(b, scene, wall, frame, fp, openingsByWall.get(wall.id) ?? [], edgeMat, cuts, segments);
+    const openings = openingsByWall.get(wall.id) ?? [];
+    buildWall(b, scene, wall, frame, fp, openings, edgeMat, cuts, segments);
+    if (wall.panelling || scene.rooms.some((r) => r.panelling || r.cornice)) {
+      buildWallMouldings(b, scene, wall, frame, fp, clampedOpeningSpans(openings, fp, frame.height), segments);
+    }
   }
   return b.build();
 }

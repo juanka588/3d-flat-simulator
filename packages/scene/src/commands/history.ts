@@ -49,9 +49,9 @@ const fields = (o: Record<string, unknown>) =>
 function leafSignature(c: LeafCommand): string | undefined {
   switch (c.type) {
     case 'material.define': return `${c.type}:${c.material.id}`;
-    case 'wall.setFinish': return `${c.type}:${c.wallId}:${c.roomId ?? ''}:${c.side}`;
+    case 'wall.setFinish': return `${c.type}:${c.wallId}:${c.roomId ?? ''}:${c.side}:${fields({ materialId: c.materialId, panelling: c.panelling, panelColour: c.panelColour })}`;
     case 'wall.setStructural': return `${c.type}:${c.wallId}`;
-    case 'room.setWallFinish':
+    case 'room.setWallFinish': return `${c.type}:${c.roomId}:${fields({ materialId: c.materialId, panelling: c.panelling, panelColour: c.panelColour, corniceMm: c.corniceMm })}`;
     case 'room.setFloor':
     case 'room.setCeiling': return `${c.type}:${c.roomId}`;
     case 'scene.setDefaults': return `${c.type}:${fields(c)}`;

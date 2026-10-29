@@ -46,6 +46,29 @@ export const ADDRESS_MAX = 300;
 const HexColor = z.string().regex(/^#[0-9a-fA-F]{6}$/, 'expected a hex colour like #a1b2c3');
 const TimeZone = z.string().refine(isTimeZone, 'unknown IANA time zone');
 
+/**
+ * Wall mouldings (boiserie). `frames`: tall rectangular frames between skirting and ceiling; `dado`: a chair rail at
+ * `dadoHeightMm` with a row of low frames below it; `frames+dado`: both, with frames above and below the rail; `none`
+ * switches panelling off where a room has it. Frames are laid out automatically around openings and locked fittings.
+ * Absent `colour` = the paint of the face (tone on tone); absent sizes use the defaults of `PANELLING_DEFAULTS`.
+ */
+export const Panelling = z.strictObject({
+  style: z.enum(['frames', 'dado', 'frames+dado', 'none']),
+  colour: HexColor.optional(),
+  depthMm: z.number().min(5).max(60).optional(),
+  dadoHeightMm: z.number().min(400).max(1500).optional(),
+});
+export type Panelling = z.infer<typeof Panelling>;
+
+/** Ceiling cornice (coving) around a room's walls. `projectionMm` defaults to the height, `colour` to the ceiling paint. */
+export const Cornice = z.strictObject({
+  heightMm: z.number().min(40).max(300),
+  projectionMm: z.number().min(20).max(300).optional(),
+  colour: HexColor.optional(),
+});
+export type Cornice = z.infer<typeof Cornice>;
+
+
 export const Material = z
   .strictObject({
     id: Id.describe('Material id (1-64 characters), unique across all entities. Reference it from finishes and defaults.'),
@@ -61,10 +84,18 @@ export const Material = z
       .optional(),
     /** Texture tile size in metres. */
     textureScale: z.number().positive().describe('Size in metres of one texture tile. Optional.').optional(),
+    /** Parquet laid in this pattern (paint materials, for floors); `color` is the wood tone. */
+    pattern: z.enum(['herringbone', 'chevron']).describe('Parquet layout for floors (paint kind); color = wood tone.').optional(),
+    /** Plank width in mm (length is 7 times the width). Default 90. */
+    plankWidthMm: z.number().min(40).max(250).describe('Parquet plank width in mm (default 90; length is 7x).').optional(),
   })
   .refine((m) => m.kind !== 'texture' || m.textureUrl !== undefined, {
     path: ['textureUrl'],
     message: 'texture materials need a textureUrl',
+  })
+  .refine((m) => m.pattern === undefined || m.kind === 'paint', {
+    path: ['pattern'],
+    message: 'a pattern needs a paint material (its colour is the wood tone)',
   });
 export type Material = z.infer<typeof Material>;
 
@@ -86,6 +117,8 @@ export const Wall = z.strictObject({
    * `defaults.wall`, then a builtin (see `wallFaceMaterial`). Empty entries are never stored.
    */
   roomFinishes: z.record(Id, z.strictObject({ left: Id.optional(), right: Id.optional() })).optional(),
+  /** Mouldings per side (see `Panelling`); beats `Room.panelling` for that face. Empty entries are never stored. */
+  panelling: z.strictObject({ left: Panelling.optional(), right: Panelling.optional() }).optional(),
   /**
    * Whether the wall is structural (load-bearing, facade, party wall) and so can never be
    * removed. When absent it is resolved by `isStructural` (exterior/party or >= 15 cm thick).
@@ -150,6 +183,10 @@ export const Room = z.strictObject({
    * unless the wall has a room-scoped or whole-side `finish` for that side (see `wallFaceMaterial`).
    */
   wallFinish: Id.optional(),
+  /** Mouldings on this room's wall faces, unless the wall side has its own `panelling`. */
+  panelling: Panelling.optional(),
+  /** Ceiling cornice around this room's walls. */
+  cornice: Cornice.optional(),
   floorMaterial: Id.optional(),
   /** Parts of the floor with their own material (see `FloorZone`); the rest of the floor uses `floorMaterial`. */
   floorZones: z.array(FloorZone).max(LIMITS.floorZonesPerRoom, `too many floor zones (max ${LIMITS.floorZonesPerRoom})`).optional(),

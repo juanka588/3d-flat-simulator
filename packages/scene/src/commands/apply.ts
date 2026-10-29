@@ -3,7 +3,7 @@ import { analyzeRoomWallSides, wallFaceRooms } from '../geometry/room-sides';
 import { zoneProblems } from '../geometry/zones';
 import { fitGridToRoom, GRID_DROP_M } from '../lighting/lamps';
 import { roomCeilingHeight } from '../geometry/floors';
-import { LIMITS, Light, Scene, lightIssues, type FloorZone, type Light as LightT, type Material, type Room, type Wall } from '../schema';
+import { LIMITS, Light, Scene, lightIssues, type Cornice, type FloorZone, type Light as LightT, type Material, type Panelling, type Room, type Wall } from '../schema';
 import { isDefaultStructural } from '../structural';
 import { canCutOpening, canRemoveWall } from './guards';
 import { applyItemCommand, isItemCommand } from './items';
@@ -178,7 +178,7 @@ function setRoomFinish(scene: Scene, cmd: Extract<LeafCommand, { type: 'wall.set
   return { ok: true, scene: { ...scene, walls: replaceAt(scene.walls, found.index, wall) }, inverse, changed: touch('walls', wall.id), warnings: [] };
 }
 
-function setFinish(scene: Scene, cmd: Extract<LeafCommand, { type: 'wall.setFinish' }>): Outcome {
+function setPaint(scene: Scene, cmd: Extract<LeafCommand, { type: 'wall.setFinish' }>): Outcome {
   if (cmd.roomId !== undefined) return setRoomFinish(scene, cmd);
   const found = findWall(scene, cmd.wallId);
   if (isErr(found)) return fail(found);
@@ -204,6 +204,63 @@ function setFinish(scene: Scene, cmd: Extract<LeafCommand, { type: 'wall.setFini
     changed: touch('walls', wall.id),
     warnings: [],
   };
+}
+
+/** Wall with the mouldings of one side set (`undefined` clears); the empty record is never stored. */
+function withWallPanelling(wall: Wall, side: Side, value: Panelling | undefined): Wall {
+  const entry: { left?: Panelling; right?: Panelling } = { ...wall.panelling };
+  if (value === undefined) delete entry[side];
+  else entry[side] = value;
+  const { panelling: _drop, ...rest } = wall;
+  void _drop;
+  return Object.keys(entry).length ? { ...rest, panelling: entry } : rest;
+}
+
+/**
+ * The mouldings after a command: `style` null removes them; a style replaces the style and keeps the other stored
+ * fields (sizes written in a file); `colour` sets (string) or resets (null) the colour. A colour alone needs mouldings.
+ */
+function mergePanelling(prev: Panelling | undefined, style: string | null | undefined, colour: string | null | undefined): Panelling | undefined | CommandError {
+  if (style === null) return undefined;
+  if (style === undefined && colour === undefined) return prev;
+  if (style === undefined && prev === undefined) return err('precondition_failed', 'panelColour', 'panelColour needs panelling: set a panelling style first');
+  const next: Panelling = { ...prev, ...(style !== undefined ? { style: style as Panelling['style'] } : {}) } as Panelling;
+  if (colour === null) delete next.colour;
+  else if (colour !== undefined) next.colour = colour;
+  return next;
+}
+
+/** The command that restores `prev` (best effort for sizes only a file can hold: style and colour are exact). */
+const panellingBack = (prev: Panelling | undefined) => ({ panelling: prev?.style ?? null, ...(prev ? { panelColour: prev.colour ?? null } : {}) });
+
+/** Mouldings cover the whole face (also the stretches of other rooms on a shared side): `roomId` does not scope them. */
+function setWallPanelling(scene: Scene, cmd: Extract<LeafCommand, { type: 'wall.setFinish' }>): Outcome {
+  const found = findWall(scene, cmd.wallId);
+  if (isErr(found)) return fail(found);
+  let wall = found.wall;
+  const inverse: LeafCommand[] = [];
+  for (const sd of cmd.side === 'both' ? (['left', 'right'] as const) : [cmd.side]) {
+    const prev = wall.panelling?.[sd];
+    const next = mergePanelling(prev, cmd.panelling, cmd.panelColour);
+    if (isErr(next)) return fail(next);
+    if (deepEqual(prev, next)) continue;
+    wall = withWallPanelling(wall, sd, next);
+    inverse.push({ type: 'wall.setFinish', wallId: wall.id, side: sd, ...panellingBack(prev) });
+  }
+  if (wall === found.wall) return noop(scene);
+  return { ok: true, scene: { ...scene, walls: replaceAt(scene.walls, found.index, wall) }, inverse, changed: touch('walls', wall.id), warnings: [] };
+}
+
+function setFinish(scene: Scene, cmd: Extract<LeafCommand, { type: 'wall.setFinish' }>): Outcome {
+  const hasPanelling = cmd.panelling !== undefined || cmd.panelColour !== undefined;
+  if (cmd.materialId === undefined && !hasPanelling) {
+    return fail(err('invalid_command', 'materialId', 'wall.setFinish needs a materialId (null clears) and/or panelling (null removes)'));
+  }
+  const paint = cmd.materialId === undefined ? noop(scene) : setPaint(scene, cmd);
+  if (!paint.ok || !hasPanelling) return paint;
+  const pan = setWallPanelling(paint.scene, cmd);
+  if (!pan.ok) return pan;
+  return { ok: true, scene: pan.scene, inverse: [...pan.inverse, ...paint.inverse], changed: mergeChanged(paint.changed, pan.changed), warnings: [] };
 }
 
 function setStructural(scene: Scene, cmd: Extract<LeafCommand, { type: 'wall.setStructural' }>, ctx: ReduceContext): Outcome {
@@ -259,7 +316,7 @@ function roomSlot(scene: Scene, cmd: Extract<LeafCommand, { type: 'room.setFloor
  *    rooms on that side (so they keep their look), then cleared.
  * Afterwards a later `wall.setFinish` (scoped or not) wins over the room paint again.
  */
-function roomWallFinish(scene: Scene, cmd: Extract<LeafCommand, { type: 'room.setWallFinish' }>): Outcome {
+function roomPaint(scene: Scene, cmd: Extract<LeafCommand, { type: 'room.setWallFinish' }>): Outcome {
   const found = findRoom(scene, cmd.roomId);
   if (isErr(found)) return fail(found);
   const bad = checkMaterial(scene, cmd.materialId, 'materialId');
@@ -273,7 +330,7 @@ function roomWallFinish(scene: Scene, cmd: Extract<LeafCommand, { type: 'room.se
   const wallInverse: LeafCommand[] = [];
   let changed = emptyChanged();
   const step = (c: Extract<LeafCommand, { type: 'wall.setFinish' }>): ApplyFail | undefined => {
-    const r = setFinish(current, c);
+    const r = setPaint(current, c);
     if (!r.ok) return r;
     current = r.scene;
     wallInverse.unshift(...r.inverse);
@@ -313,6 +370,38 @@ function roomWallFinish(scene: Scene, cmd: Extract<LeafCommand, { type: 'room.se
   inverse.push(...wallInverse);
   if (current === scene) return noop(scene);
   return { ok: true, scene: current, inverse, changed, warnings: [] };
+}
+
+/** Room-level mouldings and cornice (`null` clears, omitted stays), after the optional paint. */
+function roomWallFinish(scene: Scene, cmd: Extract<LeafCommand, { type: 'room.setWallFinish' }>): Outcome {
+  const hasPanelling = cmd.panelling !== undefined || cmd.panelColour !== undefined;
+  if (cmd.materialId === undefined && !hasPanelling && cmd.corniceMm === undefined) {
+    return fail(err('invalid_command', 'materialId', 'room.setWallFinish needs materialId (null clears), panelling and/or corniceMm (null removes)'));
+  }
+  const paint = cmd.materialId === undefined ? noop(scene) : roomPaint(scene, cmd);
+  if (!paint.ok || (!hasPanelling && cmd.corniceMm === undefined)) return paint;
+  const found = findRoom(paint.scene, cmd.roomId);
+  if (isErr(found)) return fail(found);
+  const prev = found.room;
+  const panelling = mergePanelling(prev.panelling, cmd.panelling, cmd.panelColour);
+  if (isErr(panelling)) return fail(panelling);
+  const cornice: Cornice | undefined = cmd.corniceMm === undefined ? prev.cornice : cmd.corniceMm === null ? undefined : { ...prev.cornice, heightMm: cmd.corniceMm };
+  const { panelling: _p, cornice: _c, ...rest } = prev;
+  void _p;
+  void _c;
+  const room: Room = { ...rest, ...(panelling ? { panelling } : {}), ...(cornice ? { cornice } : {}) };
+  if (deepEqual(room, prev)) return paint;
+  const back = {
+    ...(hasPanelling ? panellingBack(prev.panelling) : {}),
+    ...(cmd.corniceMm !== undefined ? { corniceMm: prev.cornice?.heightMm ?? null } : {}),
+  };
+  return {
+    ok: true,
+    scene: { ...paint.scene, rooms: replaceAt(paint.scene.rooms, found.index, room) },
+    inverse: [{ type: 'room.setWallFinish', roomId: room.id, ...back }, ...paint.inverse],
+    changed: mergeChanged(paint.changed, touch('rooms', room.id)),
+    warnings: [],
+  };
 }
 
 function setDefaults(scene: Scene, cmd: Extract<LeafCommand, { type: 'scene.setDefaults' }>): Outcome {
@@ -706,6 +795,7 @@ const prefix = (i: number, p: string) => `commands/${i}${p ? `/${p}` : ''}`;
 function overwriteKeys(c: LeafCommand): string[] | undefined {
   switch (c.type) {
     case 'wall.setFinish':
+      if (c.panelling !== undefined || c.panelColour !== undefined) return undefined;
       return (c.side === 'both' ? ['left', 'right'] : [c.side]).map((sd) => `finish|${c.wallId}|${c.roomId ?? ''}|${sd}`);
     case 'wall.setStructural': return [`structural|${c.wallId}`];
     case 'room.setFloor':

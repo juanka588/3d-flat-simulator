@@ -34,8 +34,8 @@ export interface CommandToolSchema {
 const DESCRIPTIONS: Record<string, { description: string; example: Record<string, unknown> }> = {
   'material.define': {
     description:
-      'Create a material, or fully replace an existing one with the same id (upsert, FULL REPLACE: omitted optional fields are cleared and roughness resets to 0.9, so send every field you want to keep). ' +
-      'A material kind ("paint" or "texture") can never change; use a new id for a different kind. For a library texture use kind "texture" with textureUrl "lib:<slug>" (slugs: library[].slug from list_materials). Define a material before using it in a finish.',
+      'Create a material, or fully replace one with the same id (upsert, FULL REPLACE: omitted optional fields are cleared, roughness resets to 0.9; send every field to keep). Its kind never changes. ' +
+      'Library texture: kind "texture", textureUrl "lib:<slug>" (library[].slug from list_materials). Parquet: kind "paint", color = wood tone, pattern "herringbone" or "chevron". Define before using it in a finish.',
     example: { material: { id: 'paint-sage', name: 'Sage green', kind: 'paint', color: '#9caf88', roughness: 0.9 } },
   },
   'material.remove': {
@@ -44,46 +44,45 @@ const DESCRIPTIONS: Record<string, { description: string; example: Record<string
   },
   'wall.setFinish': {
     description:
-      'Paint one or both faces of a wall (wall ids: walls[].wallId from describe_room, which also says which side faces the room). Pass roomId (strongly recommended) to paint only that room\'s stretch of the face (the alcove and the sejour can share a wall and get different colours); without it the whole face is painted for every room on it. ' +
-      'Precedence, most specific first: roomId finish, whole-face finish, room_set_wall_finish, scene default. ' +
-      'Left and right follow the walking direction from wall start to end (plan y grows down). materialId null clears.',
+      'Paint one or both faces of a wall (walls[].wallId from describe_room, which says which side faces the room). Pass roomId (strongly recommended) to paint only that room\'s stretch: a wall face can be shared by rooms, and without roomId every room on it is painted. ' +
+      'Precedence: roomId finish, whole-face finish, room_set_wall_finish, scene default. materialId null clears. panelling: mouldings on the whole face.',
     example: { wallId: 'w-west', side: 'right', materialId: 'paint-sage', roomId: 'sejour' },
   },
   'wall.setStructural': {
     description:
-      'Mark a wall structural (never removable) or removable, or clear the mark. Walls that are exterior or at least 15 cm thick are structural by default; only a user may mark such a wall removable (an LLM gets precondition_failed).',
+      'Mark a wall structural (never removable) or removable, or clear the mark. Exterior or at least 15 cm thick walls are structural by default; only a user may mark one removable.',
     example: { wallId: 'w-alcove', structural: true },
   },
   'room.setWallFinish': {
     description:
-      'Paint all the walls of a room with one material (the room\'s own stretches only: neighbouring rooms keep their look, even on shared wall faces). It replaces any earlier per-wall paint of that room; a later wall_set_finish on one of its walls wins again. ' +
-      'materialId null removes the room paint. Fails with no_wall_sides when none of the room\'s edges run along a wall face (an unwalled room).',
+      'Paint all the walls of a room (its own stretches only: neighbouring rooms keep their look). Replaces earlier per-wall paint of that room; a later wall_set_finish wins again. ' +
+      'materialId null removes the room paint (no_wall_sides when no room edge runs along a wall face). panelling and cornice: mouldings, ceiling cornice.',
     example: { roomId: 'sejour', materialId: 'paint-sage' },
   },
   'room.setFloor': { description: 'Set the floor material of a room (null clears it so the scene default applies).', example: { roomId: 'sejour', materialId: 'floor-oak' } },
   'room.setCeiling': { description: 'Set the ceiling material of a room (null clears it so the scene default applies).', example: { roomId: 'sejour', materialId: 'ceiling-white' } },
   'scene.setDefaults': {
-    description: 'Set the scene-wide default materials used where a wall face, floor or ceiling has none. Omitted fields stay unchanged; null clears one.',
+    description: 'Set the default materials used where a wall face, floor or ceiling has none. Omitted fields stay; null clears one.',
     example: { wall: 'paint-white', floor: null },
   },
   'site.set': {
-    description: 'Change site fields (location, orientation, time zone, floor elevation, address). Omitted fields stay unchanged; address null clears it.',
+    description: 'Change site fields (location, orientation, time zone, floor elevation, address). Omitted fields stay; address null clears it.',
     example: { site: { northAngle: 35, timezone: 'Europe/Paris' } },
   },
   'light.add': {
     description:
       'Add a light: point (bulb), spot (downward cone), area (panel) or grid: rows x cols identical LED downlights as ONE light (rows, cols, lumensEach, kelvin, angle; fitToRoom + roomId, or position + width + depth). ' +
-      'Size a grid by the lighting plan of describe_room. Only about 9 lights cast shadows: light_remove the ceiling light a grid replaces.',
+      'Size a grid by describe_room\'s lighting plan. Only about 9 lights cast shadows: light_remove the ceiling light a grid replaces.',
     example: { light: { type: 'grid', roomId: 'sejour', fitToRoom: true, rows: 3, cols: 4, lumensEach: 450, kelvin: 2700, angle: 100 } },
   },
   'light.update': {
     description:
-      'Change fields of a light (not fields of another light type). ' +
-      'Grid: rows, cols, lumensEach, kelvin, angle, on, or fitToRoom: true. A lamp item\'s light (describe_room lights[].itemId) follows its item: only on, lumens, kelvin, name change; move the item instead.',
+      'Change fields of a light (not of another light type). Grid: rows, cols, lumensEach, kelvin, angle, on, fitToRoom: true. ' +
+      'A lamp item\'s light (describe_room lights[].itemId) follows its item: only on, lumens, kelvin, name change; move the item instead.',
     example: { id: 'light-1', patch: { on: false, lumens: 600 } },
   },
   'light.remove': {
-    description: 'Remove a light by id. Undo restores it at the same position in the list. A lamp item\'s own light cannot be removed alone: light_update {on: false}, or remove the item.',
+    description: 'Remove a light by id (undo restores it). A lamp item\'s own light cannot be removed alone: light_update {on: false}, or remove the item.',
     example: { id: 'light-1' },
   },
   'item.place': {
@@ -119,14 +118,13 @@ const DESCRIPTIONS: Record<string, { description: string; example: Record<string
   },
   'item.move': {
     description:
-      'Move a placed item (items[].id from describe_room) to a new plan position, optionally with a new rotation, height, room or placement relation. Omitted fields stay as they are; roomId and relation accept null to clear. ' +
-      'Refused with placement_invalid when the new spot is outside the room, over a wall or another item, or in a door swing, and with precondition_failed for a locked item (existing furniture such as a built-in wardrobe; only the user may move it). ' +
-      'Call validate_layout afterwards to check windows and walkways. Undo moves it back.',
+      'Move a placed item (items[].id from describe_room) to a new plan position, optionally with rotation, height, room or placement relation. Omitted fields stay; roomId and relation accept null to clear. ' +
+      'placement_invalid when the spot is outside the room, over a wall or another item, or in a door swing; precondition_failed for a locked item (existing furniture; only the user may move it). Then call validate_layout (windows, walkways). Undo moves it back.',
     example: { id: 'item-1', position: [8.2, 1.1], rotation: 0 },
   },
   'item.rotate': {
     description:
-      'Turn a placed item to an absolute rotation in degrees, counter-clockwise seen from above (the front faces plan +y at 0, +x at 90, -y at 180, -x at 270). The footprint turns about the item origin and is checked like item_move (placement_invalid when it no longer fits). Locked items cannot be rotated by an LLM. Undo restores the previous rotation.',
+      'Turn a placed item to an absolute rotation in degrees, counter-clockwise seen from above (front faces plan +y at 0, +x at 90, -y at 180, -x at 270); checked like item_move. Locked items cannot be rotated by an LLM. Undo restores the rotation.',
     example: { id: 'item-1', rotation: 90 },
   },
   'item.setVariant': {
@@ -136,13 +134,13 @@ const DESCRIPTIONS: Record<string, { description: string; example: Record<string
     example: { id: 'item-1', variant: 'white' },
   },
   'item.remove': {
-    description: 'Remove a placed item by id (items[].id from describe_room). A locked item (existing furniture) can only be removed by the user. Undo puts it back at the same position in the list.',
+    description: 'Remove a placed item by id (items[].id from describe_room). Only the user can remove a locked item (existing furniture). Undo puts it back in place.',
     example: { id: 'item-1' },
   },
   'room.setFloorZone': {
     description:
-      'Add or replace (by zone.id, full replace) a floor zone: a part of a room floor with its own material, e.g. kitchen tiles in an open-plan room. ' +
-      'The polygon must lie inside the room (1 cm tolerance) and not overlap the other zones of that room; define the material first.',
+      'Add or replace (by zone.id, full replace) a floor zone: part of a room floor with its own material, e.g. kitchen tiles in an open-plan room. ' +
+      'The polygon must lie inside the room (1 cm tolerance) and not overlap its other zones; define the material first.',
     example: { roomId: 'sejour', zone: { id: 'cuisine', name: 'Cuisine', polygon: [[0.7, 6.6], [3.7, 6.6], [3.7, 8.3], [0.7, 8.3]], material: 'floor-tile' } },
   },
   'room.removeFloorZone': {

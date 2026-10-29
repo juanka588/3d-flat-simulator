@@ -149,6 +149,7 @@ function describeLeaf(c: LeafCommand, scene: Scene): string {
     }
     case 'wall.setFinish': {
       const wall = wallTitle(scene, c.wallId, c.side, c.roomId);
+      if (c.materialId === undefined) return clip(c.panelling ? `Panelling ${c.panelling} on ${wall}` : c.panelling === null ? `Remove panelling from ${wall}` : `Panelling colour of ${wall}`);
       const mat = materialName(scene, c.materialId);
       if (c.materialId === null) return `Clear finish of ${wall}`;
       return `${REF_VERB(scene, c.materialId)} ${wall} ${mat}`;
@@ -160,6 +161,10 @@ function describeLeaf(c: LeafCommand, scene: Scene): string {
       return `Reset ${wall} to its default structural status`;
     }
     case 'room.setWallFinish':
+      if (c.materialId === undefined) {
+        const parts = [c.panelling === undefined ? (c.panelColour === undefined ? '' : 'panelling colour') : c.panelling ? `panelling ${c.panelling}` : 'no panelling', c.corniceMm === undefined ? '' : c.corniceMm ? 'cornice' : 'no cornice'].filter(Boolean);
+        return clip(`${roomName(scene, c.roomId)} walls: ${parts.join(', ')}`);
+      }
       return c.materialId === null
         ? `Clear ${roomName(scene, c.roomId)} wall finish`
         : `${REF_VERB(scene, c.materialId)} ${roomName(scene, c.roomId)} walls ${materialName(scene, c.materialId)}`;

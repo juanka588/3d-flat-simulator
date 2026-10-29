@@ -57,7 +57,7 @@ export function readTools(): ToolDef[] {
     {
       name: 'describe_room',
       description:
-        'Describe one room: area, ceiling height, the wall faces that border it (structural flag, finish and where it comes from, wallOn = which side of the room the wall is on, left/right side, wallId), openings with compass = the direction you look through them, lights, daylight factor and hours of direct sun for a date (default: the session date, see set_sun_time).',
+        'Describe one room: area, ceiling height, the wall faces that border it (structural flag, finish and where it comes from, wallOn = which side of the room the wall is on, left/right side, wallId), openings with compass = the direction you look through them, lights, daylight factor and hours of direct sun for a date (default: session date, see set_sun_time).',
       inputSchema: obj(
         {
           roomId: { type: 'string', description: 'Room id (see list_rooms).' },

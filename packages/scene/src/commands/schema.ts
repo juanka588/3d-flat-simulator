@@ -1,14 +1,19 @@
 import { z } from 'zod';
 import { ITEM_COMMAND_SCHEMAS, ItemMove, ItemPlace, ItemRemove, ItemRotate, ItemSetVariant } from './item-schema';
-import { ADDRESS_MAX, EntityId, FloorZone, GRID_MAX_SIDE, Light, Material, NAME_MAX, Site, stripControlChars } from '../schema';
+import { ADDRESS_MAX, EntityId, FloorZone, GRID_MAX_SIDE, Light, Material, NAME_MAX, Panelling, Site, stripControlChars } from '../schema';
 
 const Id = EntityId;
 const WallId = Id.describe('Id of the wall (walls[].wallId from describe_room).');
 const RoomId = Id.describe('Id of the room (rooms[].id from list_rooms).');
-const MaterialRef = Id.nullable().describe(
+const MaterialRef = Id.nullable().describe('Material id (sceneMaterials[].id from list_materials), or null to clear. Library texture: material_define it first (textureUrl "lib:<slug>").');
+/** The long form, once (wall.setFinish): where else a material id can be read. */
+const MaterialRefFull = Id.nullable().describe(
   'Material id (sceneMaterials[].id from list_materials, or materials[].id from get_scene_summary with detail "full"), or null to clear. Library texture: first material_define with textureUrl "lib:<slug>" (library[].slug from list_materials).',
 );
 
+
+const PanelStyle = Panelling.shape.style;
+const PanelColour = Panelling.shape.colour.unwrap().nullable().describe('Moulding #rrggbb (default: wall paint); null resets.').optional();
 
 const OptionalLightId = Id.describe('Id; default light-N.').optional();
 /** Fields of a light that only the item commands manage (a lamp item's own light). */
@@ -91,13 +96,13 @@ export const WallSetFinish = z.strictObject({
   side: z
     .enum(['left', 'right', 'both'])
     .describe(
-      'Which face of the wall. "left" is the left of someone walking from the wall start to its end on the plan (plan y grows down; describe_room gives the side that faces each room), "right" the other face, "both" both faces. ' +
-        'With roomId, "both" means every face of this wall that the room adjoins.',
+      'Face of the wall: "left" is on the left when walking from the wall start to its end on the plan (y grows down; describe_room says which face each room sees), "right" the other, "both" both. With roomId, "both" means every face the room adjoins.',
     ),
-  materialId: MaterialRef,
+  materialId: MaterialRefFull.optional(),
+  panelling: PanelStyle.nullable().describe('Mouldings (boiserie): frames, dado (rail), frames+dado, none; null removes.').optional(),
+  panelColour: PanelColour,
   roomId: RoomId.describe(
-    'Room whose stretch of this side to paint (list_rooms). Strongly recommended: a side can be shared by several rooms (alcove and sejour) and without roomId all of them are painted. ' +
-      'precondition_failed if the room does not border that side. A room-scoped finish beats the whole-side finish and room_set_wall_finish.',
+    'Room whose stretch of this side to paint (list_rooms). Strongly recommended: without it every room sharing the side is painted. precondition_failed if the room does not border that side. Beats the whole-side finish and room_set_wall_finish.',
   ).optional(),
 });
 export const WallSetStructural = z.strictObject({
@@ -108,14 +113,16 @@ export const WallSetStructural = z.strictObject({
     .boolean()
     .nullable()
     .describe(
-      'true marks the wall structural (cannot be removed); false marks it removable; null clears the explicit mark so it is derived (exterior or at least 15 cm thick means structural). ' +
-        'Only a user may set false on a wall that is structural by default.',
+      'true: structural (cannot be removed); false: removable; null: derived (exterior or at least 15 cm thick means structural). Only a user may set false on a default-structural wall.',
     ),
 });
 export const RoomSetWallFinish = z.strictObject({
   type: t('room.setWallFinish'),
   roomId: RoomId,
-  materialId: MaterialRef,
+  materialId: MaterialRef.optional(),
+  panelling: PanelStyle.nullable().describe('Mouldings (boiserie): frames, dado (rail), frames+dado, none; null removes.').optional(),
+  panelColour: PanelColour,
+  corniceMm: z.number().min(40).max(300).nullable().describe('Ceiling cornice height in mm; null removes.').optional(),
 });
 export const RoomSetFloor = z.strictObject({ type: t('room.setFloor'), roomId: RoomId, materialId: MaterialRef });
 export const RoomSetCeiling = z.strictObject({ type: t('room.setCeiling'), roomId: RoomId, materialId: MaterialRef });

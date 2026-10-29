@@ -145,9 +145,9 @@ describe('commandToolSchemas', () => {
       const t = tools.find((x) => x.name === name)!.inputSchema as { properties: Record<string, Json>; required: string[] };
       return { props: Object.keys(t.properties), required: t.required };
     };
-    expect(shape('wall_set_finish')).toStrictEqual({ props: ['wallId', 'side', 'materialId', 'roomId'], required: ['wallId', 'side', 'materialId'] });
+    expect(shape('wall_set_finish')).toStrictEqual({ props: ['wallId', 'side', 'materialId', 'panelling', 'panelColour', 'roomId'], required: ['wallId', 'side'] });
     expect(shape('wall_set_structural')).toStrictEqual({ props: ['wallId', 'structural'], required: ['wallId', 'structural'] });
-    expect(shape('room_set_wall_finish')).toStrictEqual({ props: ['roomId', 'materialId'], required: ['roomId', 'materialId'] });
+    expect(shape('room_set_wall_finish')).toStrictEqual({ props: ['roomId', 'materialId', 'panelling', 'panelColour', 'corniceMm'], required: ['roomId'] });
     expect(shape('room_set_floor')).toStrictEqual({ props: ['roomId', 'materialId'], required: ['roomId', 'materialId'] });
     expect(shape('room_set_ceiling')).toStrictEqual({ props: ['roomId', 'materialId'], required: ['roomId', 'materialId'] });
     expect(shape('scene_set_defaults')).toStrictEqual({ props: ['wall', 'floor', 'ceiling'], required: [] });
@@ -161,6 +161,6 @@ describe('commandToolSchemas', () => {
     const side = (tools[2]!.inputSchema as { properties: Record<string, Json> }).properties.side!;
     expect(side.enum).toStrictEqual(['left', 'right', 'both']);
     const mat = (tools.find((x) => x.name === 'material_define')!.inputSchema as { properties: { material: { properties: Record<string, Json> } } }).properties.material.properties;
-    expect(Object.keys(mat)).toStrictEqual(['id', 'name', 'kind', 'color', 'roughness', 'textureUrl', 'textureScale']);
+    expect(Object.keys(mat)).toStrictEqual(['id', 'name', 'kind', 'color', 'roughness', 'textureUrl', 'textureScale', 'pattern', 'plankWidthMm']);
   });
 });

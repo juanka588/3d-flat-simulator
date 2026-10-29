@@ -1,7 +1,7 @@
 ---
 id: french-parisian
 name: French Parisian (Haussmann)
-summary: Haussmann elegance in a modern flat - pale walls with a moulding feel, chevron oak, brass, marble touches and bistro details.
+summary: Haussmann elegance in a modern flat - panelled pale walls, chevron oak, brass, marble, bistro touches.
 version: 1
 palette:
   - { hex: "#efe9dd", role: walls (chalky ivory) }
@@ -11,7 +11,8 @@ palette:
   - { hex: "#cfc9c0", role: marble and stone touches }
   - { hex: "#a47a4d", role: chevron oak floor }
 materials:
-  - chevron or herringbone oak parquet (warm honey)
+  - chevron or herringbone oak parquet (warm honey; paint material with pattern "chevron")
+  - wall panelling (boiserie) and a ceiling cornice, tone on tone
   - brass and aged gold metal
   - white and grey-veined marble (coffee table top, console, mantel feel)
   - black-framed glass and mirror
@@ -65,8 +66,9 @@ searchTerms:
 A Parisian pied-à-terre: refined, a little worn-in, never showy. Think Haussmann salon scaled down to a contemporary flat.
 
 ## Principles
-- Create a moulding feel with paint, not with fake plaster: panel the focal wall with a slightly deeper colour and keep the ceiling white.
-- Warm chevron oak underfoot everywhere except wet rooms; layer a pale rug.
+- Real mouldings, set with room_set_wall_finish: panelling frames+dado (frames above and below a chair rail) in the sejour and main bedroom, panelling frames in the entry, corniceMm 100 in every dry room. Tone on tone is the default (frames take the wall paint); panelColour #ffffff gives white frames on a deeper wall. A wall_set_finish panelling "none" or null switches one face off. They are laid out around doors, windows and locked fittings by themselves.
+- Keep the ceiling white.
+- Warm chevron oak underfoot everywhere except wet rooms: a paint material with pattern "chevron" (or "herringbone", plankWidthMm 90 by default); layer a pale rug.
 - One metal (brass) repeated in lamps, frames and handles; one stone (marble) repeated in two tabletops.
 - Symmetry and a focal point per room; tall mirrors to double the daylight.
 - Mix one curved piece with straight ones; keep colour for textiles and one deep accent.

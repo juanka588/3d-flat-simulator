@@ -51,6 +51,20 @@
               "type": "number",
               "exclusiveMinimum": 0,
               "description": "Size in metres of one texture tile. Optional."
+            },
+            "pattern": {
+              "type": "string",
+              "enum": [
+                "herringbone",
+                "chevron"
+              ],
+              "description": "Parquet layout for floors (paint kind); color = wood tone."
+            },
+            "plankWidthMm": {
+              "type": "number",
+              "minimum": 40,
+              "maximum": 250,
+              "description": "Parquet plank width in mm (default 90; length is 7x)."
             }
           },
           "required": [
@@ -117,7 +131,7 @@
             "right",
             "both"
           ],
-          "description": "Which face of the wall. \"left\" is the left of someone walking from the wall start to its end on the plan (plan y grows down; describe_room gives the side that faces each room), \"right\" the other face, \"both\" both faces. With roomId, \"both\" means every face of this wall that the room adjoins."
+          "description": "Face of the wall: \"left\" is on the left when walking from the wall start to its end on the plan (y grows down; describe_room says which face each room sees), \"right\" the other, \"both\" both. With roomId, \"both\" means every face the room adjoins."
         },
         "materialId": {
           "anyOf": [
@@ -132,18 +146,46 @@
           ],
           "description": "Material id (sceneMaterials[].id from list_materials, or materials[].id from get_scene_summary with detail \"full\"), or null to clear. Library texture: first material_define with textureUrl \"lib:<slug>\" (library[].slug from list_materials)."
         },
+        "panelling": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "frames",
+                "dado",
+                "frames+dado",
+                "none"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Mouldings (boiserie): frames, dado (rail), frames+dado, none; null removes."
+        },
+        "panelColour": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^#[0-9a-fA-F]{6}$"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Moulding #rrggbb (default: wall paint); null resets."
+        },
         "roomId": {
           "type": "string",
           "minLength": 1,
           "maxLength": 64,
-          "description": "Room whose stretch of this side to paint (list_rooms). Strongly recommended: a side can be shared by several rooms (alcove and sejour) and without roomId all of them are painted. precondition_failed if the room does not border that side. A room-scoped finish beats the whole-side finish and room_set_wall_finish."
+          "description": "Room whose stretch of this side to paint (list_rooms). Strongly recommended: without it every room sharing the side is painted. precondition_failed if the room does not border that side. Beats the whole-side finish and room_set_wall_finish."
         }
       },
       "required": [
         "type",
         "wallId",
-        "side",
-        "materialId"
+        "side"
       ],
       "additionalProperties": false
     },
@@ -162,7 +204,7 @@
           "description": "Id of the wall (walls[].wallId from describe_room)."
         },
         "structural": {
-          "description": "true marks the wall structural (cannot be removed); false marks it removable; null clears the explicit mark so it is derived (exterior or at least 15 cm thick means structural). Only a user may set false on a wall that is structural by default.",
+          "description": "true: structural (cannot be removed); false: removable; null: derived (exterior or at least 15 cm thick means structural). Only a user may set false on a default-structural wall.",
           "type": [
             "boolean",
             "null"
@@ -201,13 +243,54 @@
               "type": "null"
             }
           ],
-          "description": "Material id (sceneMaterials[].id from list_materials, or materials[].id from get_scene_summary with detail \"full\"), or null to clear. Library texture: first material_define with textureUrl \"lib:<slug>\" (library[].slug from list_materials)."
+          "description": "Material id (sceneMaterials[].id from list_materials), or null to clear. Library texture: material_define it first (textureUrl \"lib:<slug>\")."
+        },
+        "panelling": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "frames",
+                "dado",
+                "frames+dado",
+                "none"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Mouldings (boiserie): frames, dado (rail), frames+dado, none; null removes."
+        },
+        "panelColour": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^#[0-9a-fA-F]{6}$"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Moulding #rrggbb (default: wall paint); null resets."
+        },
+        "corniceMm": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 40,
+              "maximum": 300
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Ceiling cornice height in mm; null removes."
         }
       },
       "required": [
         "type",
-        "roomId",
-        "materialId"
+        "roomId"
       ],
       "additionalProperties": false
     },
@@ -236,7 +319,7 @@
               "type": "null"
             }
           ],
-          "description": "Material id (sceneMaterials[].id from list_materials, or materials[].id from get_scene_summary with detail \"full\"), or null to clear. Library texture: first material_define with textureUrl \"lib:<slug>\" (library[].slug from list_materials)."
+          "description": "Material id (sceneMaterials[].id from list_materials), or null to clear. Library texture: material_define it first (textureUrl \"lib:<slug>\")."
         }
       },
       "required": [
@@ -271,7 +354,7 @@
               "type": "null"
             }
           ],
-          "description": "Material id (sceneMaterials[].id from list_materials, or materials[].id from get_scene_summary with detail \"full\"), or null to clear. Library texture: first material_define with textureUrl \"lib:<slug>\" (library[].slug from list_materials)."
+          "description": "Material id (sceneMaterials[].id from list_materials), or null to clear. Library texture: material_define it first (textureUrl \"lib:<slug>\")."
         }
       },
       "required": [
@@ -3067,6 +3150,20 @@
                         "type": "number",
                         "exclusiveMinimum": 0,
                         "description": "Size in metres of one texture tile. Optional."
+                      },
+                      "pattern": {
+                        "type": "string",
+                        "enum": [
+                          "herringbone",
+                          "chevron"
+                        ],
+                        "description": "Parquet layout for floors (paint kind); color = wood tone."
+                      },
+                      "plankWidthMm": {
+                        "type": "number",
+                        "minimum": 40,
+                        "maximum": 250,
+                        "description": "Parquet plank width in mm (default 90; length is 7x)."
                       }
                     },
                     "required": [
@@ -3133,7 +3230,7 @@
                       "right",
                       "both"
                     ],
-                    "description": "Which face of the wall. \"left\" is the left of someone walking from the wall start to its end on the plan (plan y grows down; describe_room gives the side that faces each room), \"right\" the other face, \"both\" both faces. With roomId, \"both\" means every face of this wall that the room adjoins."
+                    "description": "Face of the wall: \"left\" is on the left when walking from the wall start to its end on the plan (y grows down; describe_room says which face each room sees), \"right\" the other, \"both\" both. With roomId, \"both\" means every face the room adjoins."
                   },
                   "materialId": {
                     "anyOf": [
@@ -3148,18 +3245,46 @@
                     ],
                     "description": "Material id (sceneMaterials[].id from list_materials, or materials[].id from get_scene_summary with detail \"full\"), or null to clear. Library texture: first material_define with textureUrl \"lib:<slug>\" (library[].slug from list_materials)."
                   },
+                  "panelling": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "frames",
+                          "dado",
+                          "frames+dado",
+                          "none"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Mouldings (boiserie): frames, dado (rail), frames+dado, none; null removes."
+                  },
+                  "panelColour": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^#[0-9a-fA-F]{6}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Moulding #rrggbb (default: wall paint); null resets."
+                  },
                   "roomId": {
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 64,
-                    "description": "Room whose stretch of this side to paint (list_rooms). Strongly recommended: a side can be shared by several rooms (alcove and sejour) and without roomId all of them are painted. precondition_failed if the room does not border that side. A room-scoped finish beats the whole-side finish and room_set_wall_finish."
+                    "description": "Room whose stretch of this side to paint (list_rooms). Strongly recommended: without it every room sharing the side is painted. precondition_failed if the room does not border that side. Beats the whole-side finish and room_set_wall_finish."
                   }
                 },
                 "required": [
                   "type",
                   "wallId",
-                  "side",
-                  "materialId"
+                  "side"
                 ],
                 "additionalProperties": false
               },
@@ -3178,7 +3303,7 @@
                     "description": "Id of the wall (walls[].wallId from describe_room)."
                   },
                   "structural": {
-                    "description": "true marks the wall structural (cannot be removed); false marks it removable; null clears the explicit mark so it is derived (exterior or at least 15 cm thick means structural). Only a user may set false on a wall that is structural by default.",
+                    "description": "true: structural (cannot be removed); false: removable; null: derived (exterior or at least 15 cm thick means structural). Only a user may set false on a default-structural wall.",
                     "type": [
                       "boolean",
                       "null"
@@ -3217,13 +3342,54 @@
                         "type": "null"
                       }
                     ],
-                    "description": "Material id (sceneMaterials[].id from list_materials, or materials[].id from get_scene_summary with detail \"full\"), or null to clear. Library texture: first material_define with textureUrl \"lib:<slug>\" (library[].slug from list_materials)."
+                    "description": "Material id (sceneMaterials[].id from list_materials), or null to clear. Library texture: material_define it first (textureUrl \"lib:<slug>\")."
+                  },
+                  "panelling": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "frames",
+                          "dado",
+                          "frames+dado",
+                          "none"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Mouldings (boiserie): frames, dado (rail), frames+dado, none; null removes."
+                  },
+                  "panelColour": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^#[0-9a-fA-F]{6}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Moulding #rrggbb (default: wall paint); null resets."
+                  },
+                  "corniceMm": {
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "minimum": 40,
+                        "maximum": 300
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Ceiling cornice height in mm; null removes."
                   }
                 },
                 "required": [
                   "type",
-                  "roomId",
-                  "materialId"
+                  "roomId"
                 ],
                 "additionalProperties": false
               },
@@ -3252,7 +3418,7 @@
                         "type": "null"
                       }
                     ],
-                    "description": "Material id (sceneMaterials[].id from list_materials, or materials[].id from get_scene_summary with detail \"full\"), or null to clear. Library texture: first material_define with textureUrl \"lib:<slug>\" (library[].slug from list_materials)."
+                    "description": "Material id (sceneMaterials[].id from list_materials), or null to clear. Library texture: material_define it first (textureUrl \"lib:<slug>\")."
                   }
                 },
                 "required": [
@@ -3287,7 +3453,7 @@
                         "type": "null"
                       }
                     ],
-                    "description": "Material id (sceneMaterials[].id from list_materials, or materials[].id from get_scene_summary with detail \"full\"), or null to clear. Library texture: first material_define with textureUrl \"lib:<slug>\" (library[].slug from list_materials)."
+                    "description": "Material id (sceneMaterials[].id from list_materials), or null to clear. Library texture: material_define it first (textureUrl \"lib:<slug>\")."
                   }
                 },
                 "required": [

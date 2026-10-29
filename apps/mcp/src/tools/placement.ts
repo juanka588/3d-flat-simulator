@@ -391,7 +391,7 @@ function conceptItem(working: Scene, entry: Entry, at: string, index: number | u
 const getPlacementOptions: ToolDef = {
   name: 'get_placement_options',
   description:
-    'Dry run of the placement solver, nothing changes: where could this product go in this room for a relation (against_wall, in_corner, centered_in, facing, next_to, under_window, on, at)? Returns up to 3 candidate spots (position, rotation, elevation, the relation to pass to place_item) with reasons, or the violations (outside_room, overlap, door_swing_blocked, ...) with alternatives. The product must come from search_products in this session.',
+    'Dry run of the placement solver (nothing changes): where could this product go in this room for a relation (against_wall, in_corner, centered_in, facing, next_to, under_window, on, at)? Returns up to 3 candidate spots (position, rotation, elevation, relation to pass to place_item) with reasons, or the violations (outside_room, overlap, door_swing_blocked, ...) with alternatives. The product must come from search_products in this session.',
   inputSchema: { ...obj({ productId: ENTRY_PROPS.productId!, roomId: ENTRY_PROPS.roomId!, relation: { ...RELATION_REF, description: 'The relation to try.' }, variantSku: ENTRY_PROPS.variantSku! }, ['productId', 'roomId', 'relation']), $defs: { relation: jsonSchema(Relation) } },
   annotations: READ,
   group: 'read',
@@ -443,7 +443,7 @@ const getPlacementOptions: ToolDef = {
 const validateLayoutTool: ToolDef = {
   name: 'validate_layout',
   description:
-    'Check the placed furniture of one room (or the whole flat) against the layout rules: inside the room, no overlaps, door swings and landings, window sills, glazing, walkways at least 0.8 m (0.9 m at the entry). Returns violations and warnings with the entities and a hint, the free floor area, the narrowest walkway, and totalEur (TTC prices of unlocked items; locked existing furniture counts 0) plus overBudget when budgetEur is given. Call it after placing and before you finish.',
+    'Check the placed furniture of one room (or the whole flat) against the layout rules: inside the room, no overlaps, door swings and landings, window sills, glazing, walkways at least 0.8 m (0.9 m at the entry). Returns violations and warnings with the entities and a hint, the free floor area, the narrowest walkway, and totalEur (TTC, unlocked items only) plus overBudget when budgetEur is given. Call it after placing and before you finish.',
   inputSchema: obj({
     roomId: { type: 'string', description: 'Room to check (list_rooms). Default: every room.' },
     budgetEur: { type: 'number', minimum: 0, description: 'Budget in EUR (TTC prices only). With roomId it is compared with that room\'s items, else with the whole flat.' },
@@ -485,7 +485,7 @@ const validateLayoutTool: ToolDef = {
 const getBillOfMaterials: ToolDef = {
   name: 'get_bill_of_materials',
   description:
-    'Shopping list of the placed items, grouped by product: productId, name, link, quantity, unit price, what is left to buy (toBuy) and the amount. totalEur counts the TTC prices of unlocked items only (locked existing furniture is listed at 0; delivery, assembly and discounts are not included), byRoom has the subtotals, stale lists price snapshots older than 30 days. Prices are indicative.',
+    'Shopping list of the placed items, grouped by product: productId, name, link, quantity, unit price, what is left to buy (toBuy) and the amount. totalEur is TTC, unlocked items only (locked furniture is listed at 0; no delivery or assembly), byRoom has subtotals, stale lists prices older than 30 days. Prices are indicative.',
   inputSchema: obj({ roomId: { type: 'string', description: 'Only the items of this room (list_rooms). Default: the whole flat.' } }),
   annotations: READ,
   group: 'read',
