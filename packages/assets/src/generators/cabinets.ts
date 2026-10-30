@@ -83,7 +83,7 @@ export const wardrobe: Generator<WardrobeParams> = {
     const gapBetween = 0.004;
     const back = zFace - 2 * FRONT - gapBetween;
     kit.box(ITEM_MATERIALS.dark, -w / 2 + 0.02, 0, -d / 2 + 0.02, w / 2 - 0.02, ph, back - 0.02);
-    kit.box(mat, -w / 2, ph, -d / 2, w / 2, h, back);
+    kit.box(f === 'grey' ? ITEM_MATERIALS.white : mat, -w / 2, ph, -d / 2, w / 2, h, back);
     const overlap = 0.03;
     const dw = (w + (doors - 1) * overlap) / doors;
     const dh = h - ph;
@@ -91,7 +91,18 @@ export const wardrobe: Generator<WardrobeParams> = {
       const front = doors === 1 || i % 2 === 1;
       const face = front ? zFace : zFace - FRONT - gapBetween;
       const xa = -w / 2 + i * (dw - overlap);
-      kit.box(mat, xa, ph + 0.002, face - FRONT, xa + dw, h - 0.002, face);
+      if (f === 'grey') {
+        // Matt grey panel in thin anodised-aluminium profiles (top and bottom rails, side stiles), the panel set back 2 mm.
+        const pr = 0.022;
+        const alu = ITEM_MATERIALS.aluminium;
+        kit.box(mat, xa + 0.016, ph + 0.002 + pr, face - FRONT, xa + dw - 0.016, h - 0.002 - pr, face - 0.002, 0);
+        kit.box(alu, xa, ph + 0.002, face - FRONT, xa + dw, ph + 0.002 + pr, face, 0.001);
+        kit.box(alu, xa, h - 0.002 - pr, face - FRONT, xa + dw, h - 0.002, face, 0.001);
+        kit.box(alu, xa, ph + 0.002 + pr, face - FRONT, xa + 0.016, h - 0.002 - pr, face, 0.001);
+        kit.box(alu, xa + dw - 0.016, ph + 0.002 + pr, face - FRONT, xa + dw, h - 0.002 - pr, face, 0.001);
+      } else {
+        kit.box(mat, xa, ph + 0.002, face - FRONT, xa + dw, h - 0.002, face);
+      }
       const hx = i < doors - 1 || doors === 1 ? xa + dw - 0.04 : xa + 0.04;
       const ym = ph + dh * 0.5;
       kit.handle(ITEM_MATERIALS.metal, hx, ym, 0.4, true, face, front ? HANDLE : 0.004);

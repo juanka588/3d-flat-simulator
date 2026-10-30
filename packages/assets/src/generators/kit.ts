@@ -338,6 +338,41 @@ export class Kit {
   }
 
   /**
+   * A round disc / short cylinder whose axis is the item's z axis (a porthole, a dial, a knob): centre `cx, cy`, radius `r`,
+   * from `z0` (back) to `z1` (front); smooth sides and a flat front cap. `segments` is a multiple of 4, so the bounding box is exact.
+   */
+  discZ(material: string, cx: number, cy: number, z0: number, z1: number, r: number, segments = 16): void {
+    if (r < 1e-9 || z1 - z0 < 1e-9) return;
+    const b = this.b;
+    const pt = (i: number, z: number): Vec3 => [cx + r * Math.cos((2 * Math.PI * i) / segments), cy + r * Math.sin((2 * Math.PI * i) / segments), z];
+    const nrm = (i: number): Vec3 => [Math.cos((2 * Math.PI * i) / segments), Math.sin((2 * Math.PI * i) / segments), 0];
+    const tri = (ids: [number, number, number], pos: [Vec3, Vec3, Vec3], n: Vec3) => {
+      const u: Vec3 = [pos[1][0] - pos[0][0], pos[1][1] - pos[0][1], pos[1][2] - pos[0][2]];
+      const w: Vec3 = [pos[2][0] - pos[0][0], pos[2][1] - pos[0][1], pos[2][2] - pos[0][2]];
+      const g = u[1] * w[2] - u[2] * w[1];
+      const gy = u[2] * w[0] - u[0] * w[2];
+      const gz = u[0] * w[1] - u[1] * w[0];
+      if (g * n[0] + gy * n[1] + gz * n[2] > 0) b.triangle(ids[0], ids[1], ids[2], material, OWNER);
+      else b.triangle(ids[0], ids[2], ids[1], material, OWNER);
+    };
+    const centre = b.vertex([cx, cy, z1], [0, 0, 1], [0, 0]);
+    for (let i = 0; i < segments; i++) {
+      const j = i + 1;
+      const a = pt(i, z1);
+      const c = pt(j, z1);
+      const ia = b.vertex(a, [0, 0, 1], [a[0] - cx, a[1] - cy]);
+      const ic = b.vertex(c, [0, 0, 1], [c[0] - cx, c[1] - cy]);
+      tri([centre, ia, ic], [[cx, cy, z1], a, c], [0, 0, 1]);
+      const q = [pt(i, z0), pt(i, z1), pt(j, z1), pt(j, z0)];
+      const ns = [nrm(i), nrm(i), nrm(j), nrm(j)];
+      const ids = q.map((p, k) => b.vertex(p, ns[k]!, [(i / segments) * 2 * Math.PI * r, p[2]]));
+      const mid: Vec3 = [nrm(i)[0] + nrm(j)[0], nrm(i)[1] + nrm(j)[1], 0];
+      tri([ids[0]!, ids[1]!, ids[2]!], [q[0]!, q[1]!, q[2]!], mid);
+      tri([ids[0]!, ids[2]!, ids[3]!], [q[0]!, q[2]!, q[3]!], mid);
+    }
+  }
+
+  /**
    * A thin round tube from `a` to `b` (radius `r`, `sides` around, no end caps; the ends are hidden in a canopy or a ball).
    * For arms and rods that are not axis aligned. Smooth normals around.
    */
@@ -393,14 +428,14 @@ export const metres = (description: string, def: number, min: number, max: numbe
 export const count = (description: string, def: number, min: number, max: number) =>
   z.number().int().min(min).max(max).default(def).describe(`${description} Whole number, ${min}-${max}. Defaults to ${def}.`);
 
-export const FINISHES = ['white', 'wood', 'dark', 'oak', 'white-matte', 'anthracite', 'walnut', 'concrete', 'light-oak'] as const;
+export const FINISHES = ['white', 'wood', 'dark', 'oak', 'white-matte', 'anthracite', 'walnut', 'concrete', 'light-oak', 'grey'] as const;
 export type Finish = (typeof FINISHES)[number];
 export const finish = (def: Finish = 'white') =>
   z
     .enum(FINISHES)
     .default(def)
     .describe(
-      `Panel finish: "white" (satin lacquer), "white-matte", "wood" (warm oak veneer), "oak" (natural oak veneer), "walnut", "dark" (gloss anthracite lacquer), "anthracite" (matt anthracite paint), "concrete" (dark grey concrete effect; its handles are black bars) or "light-oak" (light oak effect). Defaults to "${def}".`,
+      `Panel finish: "white" (satin lacquer), "white-matte", "wood" (warm oak veneer), "oak" (natural oak veneer), "walnut", "dark" (gloss anthracite lacquer), "anthracite" (matt anthracite paint), "concrete" (dark grey concrete effect; its handles are black bars) "light-oak" (light oak effect) or "grey" (matt medium-light grey). Defaults to "${def}".`,
     );
 
 const FINISH_MATERIAL: Readonly<Record<Finish, string>> = {
@@ -413,6 +448,7 @@ const FINISH_MATERIAL: Readonly<Record<Finish, string>> = {
   anthracite: ITEM_MATERIALS.anthracite,
   concrete: ITEM_MATERIALS.concreteDark,
   'light-oak': ITEM_MATERIALS.oakLight,
+  grey: ITEM_MATERIALS.greyMatte,
 };
 
 export function finishMaterial(f: Finish): string {

@@ -77,17 +77,17 @@ function hash(mesh: MeshData): string {
 describe('generator registry', () => {
   it('registers the furniture generators, the TV, the fixed bathroom / kitchen ware and the CG4 curtains and pendant and the CG8 stand-ins in the process-wide registry', () => {
     expect(GENERATORS.list().map((g) => g.id)).toEqual(
-      ['basket', 'bathtub', 'bed', 'bookshelf', 'chair', 'cooktop', 'curtains', 'cushion', 'desk', 'frame', 'fridge', 'island', 'kitchenBase', 'kitchenWall', 'lamp', 'mirror', 'nightstand', 'ovenColumn', 'pendant', 'plant', 'radiator', 'rug', 'sideboard', 'sofa', 'table', 'throwBlanket', 'toilet', 'tv', 'tvUnit', 'vase', 'wallFitting', 'wallTiles', 'wardrobe', 'washbasin'],
+      ['basket', 'bathScreen', 'bathtub', 'bed', 'bookshelf', 'chair', 'cooktop', 'curtains', 'cushion', 'desk', 'frame', 'fridge', 'handBasin', 'island', 'kitchenBase', 'kitchenWall', 'lamp', 'mirror', 'nightstand', 'ovenColumn', 'pendant', 'plant', 'radiator', 'rug', 'sideboard', 'sofa', 'table', 'throwBlanket', 'toilet', 'tv', 'tvUnit', 'vase', 'wallFitting', 'wallTiles', 'wardrobe', 'washbasin', 'washingMachine'],
     );
-    expect(ALL_GENERATORS).toHaveLength(34);
+    expect(ALL_GENERATORS).toHaveLength(37);
   });
   it('registerGenerators is idempotent and fills any registry', () => {
     const r = createGeneratorRegistry();
     registerGenerators(r);
     registerGenerators(r);
-    expect(r.list()).toHaveLength(34);
+    expect(r.list()).toHaveLength(37);
     registerGenerators();
-    expect(GENERATORS.list()).toHaveLength(34);
+    expect(GENERATORS.list()).toHaveLength(37);
   });
   it('assertGeneratorsRegistered passes on the process-wide registry and names what is missing otherwise', () => {
     expect(() => assertGeneratorsRegistered()).not.toThrow();
@@ -169,6 +169,7 @@ describe('generator geometry snapshot (determinism across versions)', () => {
     expect(hashes).toMatchInlineSnapshot(`
       {
         "basket": "fa2a38ab5da8",
+        "bathScreen": "fef7226a72df",
         "bathtub": "53f86549a006",
         "bed": "dd1c8f81770e",
         "bookshelf": "0fc035283a17",
@@ -179,6 +180,7 @@ describe('generator geometry snapshot (determinism across versions)', () => {
         "desk": "33b3f0f692b5",
         "frame": "bca6caa7319d",
         "fridge": "4a989acb1d4d",
+        "handBasin": "74504603ac58",
         "island": "55908420f6f3",
         "kitchenBase": "7595c22b3dc2",
         "kitchenWall": "0cfbd2b6c08b",
@@ -202,6 +204,7 @@ describe('generator geometry snapshot (determinism across versions)', () => {
         "wallTiles": "427377b8773f",
         "wardrobe": "6b7946f318dd",
         "washbasin": "a33867c4ee57",
+        "washingMachine": "60099a19071f",
       }
     `);
   });

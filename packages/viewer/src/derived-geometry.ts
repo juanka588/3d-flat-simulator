@@ -9,6 +9,20 @@ interface Merged {
   indices: Uint32Array;
 }
 
+/** Item materials that are see-through glass: they cast no shadow (the bath screen would otherwise darken the tub like a wall). */
+const NO_SHADOW_MATERIALS: ReadonlySet<string> = new Set(['builtin:furniture-glass-clear']);
+
+/** The triangles of `m` that do not use a no-shadow material (the mesh itself when it has none). */
+function castingPart(m: MeshData): Pick<MeshData, 'positions' | 'indices'> {
+  if (!m.groups.some((g) => NO_SHADOW_MATERIALS.has(g.materialId))) return m;
+  const kept: number[] = [];
+  for (const g of m.groups) {
+    if (NO_SHADOW_MATERIALS.has(g.materialId)) continue;
+    for (let i = g.start; i < g.start + g.count; i++) kept.push(m.indices[i]!);
+  }
+  return { positions: m.positions, indices: Uint32Array.from(kept) };
+}
+
 const mergedCache = new WeakMap<ShellMeshes, Merged>();
 
 /** How far (metres) the lamp-light blockers of floors and ceilings sit beyond the surface they close. */
@@ -47,7 +61,7 @@ export function shadowCasterGeometry(shell: ShellMeshes): BufferGeometry {
     const parts = [
       shell.walls,
       shell.fittings,
-      shell.items,
+      castingPart(shell.items),
       shell.ceilings,
       reversedSurface(shell.floors, -SLAB_BLOCKER_OFFSET_M),
       reversedSurface(shell.ceilings, SLAB_BLOCKER_OFFSET_M),

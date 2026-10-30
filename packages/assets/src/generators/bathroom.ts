@@ -103,6 +103,71 @@ export const bathtub: Generator<BathtubParams> = {
 };
 
 // ---------------------------------------------------------------------------------------------
+// Hand basin (wall-hung "lave-mains")
+// ---------------------------------------------------------------------------------------------
+
+const handBasinParams = z.strictObject({
+  w: metres('Width of the basin along the wall.', 0.4, 0.25, 0.6),
+  d: metres('How far it stands out of the wall.', 0.25, 0.18, 0.4),
+  h: metres('Height from the underside of the trap to the top of the tap; hang it with an elevation of about 0.68 m.', 0.22, 0.15, 0.35),
+});
+type HandBasinParams = z.infer<typeof handBasinParams>;
+
+export const handBasin: Generator<HandBasinParams> = {
+  id: 'handBasin',
+  label: 'Small wall-hung hand basin (lave-mains) with a tap and trap; mount "wall", the wall is at the back',
+  category: 'other',
+  params: handBasinParams,
+  describeParams: ({ w, d, h }) => ({ dims: { w, d, h }, anchors: boxAnchors(w, d, h), clearance: { front: 0.5, back: 0 } }),
+  generate({ w, d, h }) {
+    const kit = new Kit();
+    // Wall-hung bowl (ellipse, back flat against the wall), a chrome trap below and a small mixer on the back rim.
+    const trapH = Math.min(0.06, h * 0.3);
+    const rim = h - 0.05;
+    const rx = w / 2;
+    const rz = d / 2;
+    const inner = Math.max(0.05, 1 - 0.018 / Math.min(rx, rz));
+    kit.lathe(W, 0, 0, rx, rz, [[0.8, trapH], [1, trapH + 0.05], [1, rim], [inner, rim], [inner, trapH + 0.03], [0, trapH + 0.03]], 24);
+    kit.box(W, -rx * 0.7, trapH + 0.03, -d / 2, rx * 0.7, rim, -d / 2 + 0.03); // flat back against the wall
+    kit.box(METAL, -0.015, 0, -d / 2 + 0.025, 0.015, trapH + 0.03, -d / 2 + 0.055); // trap
+    kit.box(METAL, -0.012, rim, -d / 2 + 0.01, 0.012, h - 0.012, -d / 2 + 0.034); // tap body
+    kit.box(METAL, -0.01, h - 0.025, -d / 2 + 0.01, 0.01, h, -d / 2 + 0.1); // spout
+    kit.box(METAL, 0.012, h - 0.022, -d / 2 + 0.014, 0.04, h - 0.01, -d / 2 + 0.03); // lever
+    return kit.build();
+  },
+};
+
+// ---------------------------------------------------------------------------------------------
+// Bath screen
+// ---------------------------------------------------------------------------------------------
+
+const bathScreenParams = z.strictObject({
+  w: metres('Width of the glass screen along the tub.', 0.75, 0.4, 1.2),
+  d: metres('Depth of the item (the chrome wall channel is this deep; the glass is 8 mm).', 0.03, 0.02, 0.1),
+  h: metres('Height of the screen (mount it on the tub rim with an elevation).', 1.4, 0.8, 2),
+});
+type BathScreenParams = z.infer<typeof bathScreenParams>;
+
+export const bathScreen: Generator<BathScreenParams> = {
+  id: 'bathScreen',
+  label: 'Fixed clear-glass bath screen (pare-baignoire); its wall channel is at item-local -x',
+  category: 'other',
+  params: bathScreenParams,
+  describeParams: ({ w, d, h }) => ({ dims: { w, d, h }, anchors: boxAnchors(w, d, h), clearance: { front: 0, back: 0 } }),
+  generate({ w, d, h }) {
+    const kit = new Kit();
+    const chan = Math.min(0.02, w / 4);
+    // Wall channel (the glass slots into it) and a slim chrome edge along the free side; the pane is clear glass, 8 mm.
+    kit.box(ITEM_MATERIALS.aluminium, -w / 2, 0, -d / 2, -w / 2 + chan, h, d / 2, 0.001);
+    const t = Math.min(0.008, d);
+    kit.box(ITEM_MATERIALS.glassClear, -w / 2 + chan, 0.01, -t / 2, w / 2, h, t / 2, 0);
+    kit.box(ITEM_MATERIALS.aluminium, w / 2 - 0.006, 0.01, -d / 2 + 0.008, w / 2, h, d / 2 - 0.008, 0.0005);
+    kit.box(ITEM_MATERIALS.aluminium, -w / 2 + chan, 0, -d / 2 + 0.008, w / 2, 0.01, d / 2 - 0.008, 0.0005); // bottom rail
+    return kit.build();
+  },
+};
+
+// ---------------------------------------------------------------------------------------------
 // Toilet
 // ---------------------------------------------------------------------------------------------
 

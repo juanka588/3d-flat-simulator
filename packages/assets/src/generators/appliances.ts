@@ -182,3 +182,49 @@ export const ovenColumn: Generator<OvenColumnParams> = {
     return kit.build();
   },
 };
+
+// ---------------------------------------------------------------------------------------------
+// Washing machine (front loader)
+// ---------------------------------------------------------------------------------------------
+
+const washingMachineParams = z.strictObject({
+  w: metres('Width of the machine.', 0.6, 0.5, 0.7),
+  d: metres('Depth of the machine (front to back).', 0.6, 0.4, 0.7),
+  h: metres('Height of the machine.', 0.85, 0.8, 0.95),
+});
+type WashingMachineParams = z.infer<typeof washingMachineParams>;
+
+export const washingMachine: Generator<WashingMachineParams> = {
+  id: 'washingMachine',
+  label: 'Front-loading washing machine: porthole door, control strip with dial, display and detergent drawer',
+  category: 'appliance',
+  params: washingMachineParams,
+  describeParams: ({ w, d, h }) => ({ dims: { w, d, h }, anchors: boxAnchors(w, d, h), clearance: { front: 0.7, back: 0 } }),
+  generate({ w, d, h }) {
+    const kit = new Kit();
+    const RING = ITEM_MATERIALS.aluminium;
+    const foot = 0.012;
+    const zf = d / 2 - 0.006; // the plain front; the door, dial and drawer stand up to d/2
+    kit.box(DARK, -w / 2 + 0.03, 0, -d / 2 + 0.03, w / 2 - 0.03, foot, zf - 0.02); // feet / plinth
+    kit.box(W, -w / 2, foot, -d / 2, w / 2, h, zf);
+    // control strip across the top of the front: panel, detergent drawer (left), display and dial (right)
+    const stripY0 = h - 0.11;
+    kit.box(DARK, -w / 2, stripY0 - 0.003, zf, w / 2, stripY0, d / 2 - 0.003, 0); // shadow gap above the door
+    kit.box(W, -w / 2 + 0.008, stripY0, zf, w / 2 - 0.008, h - 0.008, d / 2 - 0.003, 0.002);
+    const dx0 = -w / 2 + 0.03;
+    kit.box(DARK, dx0 - 0.004, stripY0 + 0.016, zf, dx0 + 0.164, h - 0.02, d / 2 - 0.002, 0); // drawer opening
+    kit.box(W, dx0, stripY0 + 0.02, zf, dx0 + 0.16, h - 0.024, d / 2, 0.002); // detergent drawer front
+    kit.box(ITEM_MATERIALS.glassSmoked, 0, stripY0 + 0.032, zf, 0.09, stripY0 + 0.07, d / 2 - 0.002, 0); // display
+    const dialX = w / 2 - 0.085;
+    const dialY = stripY0 + 0.055;
+    kit.discZ(RING, dialX, dialY, zf, d / 2, 0.036, 24); // dial
+    kit.box(DARK, dialX - 0.002, dialY + 0.012, d / 2 - 0.0005, dialX + 0.002, dialY + 0.034, d / 2, 0); // pointer
+    // round porthole door: white door, grey / chrome ring, dark tinted glass slightly proud
+    const cy = (foot + stripY0) / 2 + 0.005;
+    kit.discZ(W, 0, cy, zf, d / 2 - 0.004, Math.min(0.235, (w - 0.1) / 2), 32);
+    kit.discZ(RING, 0, cy, zf, d / 2 - 0.002, 0.2, 32);
+    kit.discZ(ITEM_MATERIALS.glassSmoked, 0, cy, zf, d / 2, 0.165, 32);
+    kit.discZ(DARK, 0, cy, zf, d / 2 - 0.001, 0.07, 24); // drum seen through the glass
+    return kit.build();
+  },
+};

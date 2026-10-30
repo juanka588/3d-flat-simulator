@@ -60,6 +60,12 @@ export const ITEM_MATERIALS = {
   chrome: 'builtin:furniture-chrome',
   /** Faceted crystal / mesh ball of a lamp shade: pale, glossy, a little metallic. */
   crystal: 'builtin:furniture-crystal',
+  /** Medium-light grey matt lacquer (sliding wardrobe doors). */
+  greyMatte: 'builtin:furniture-grey-matte',
+  /** Clear glass pane (bath screen): very transparent, casts no shadow and is left out of the probe occluders. */
+  glassClear: 'builtin:furniture-glass-clear',
+  /** Anodised aluminium profile (grey, satin). */
+  aluminium: 'builtin:furniture-aluminium',
 } as const;
 
 /**
@@ -200,6 +206,10 @@ const BASE_SPECS: Readonly<Record<(typeof ITEM_MATERIALS)[keyof typeof ITEM_MATE
   'builtin:furniture-glass-smoked': { color: '#25282b', roughness: 0.05, metalness: 0.3, opacity: 0.7 },
   'builtin:furniture-chrome': { color: '#d9dce0', roughness: 0.08, metalness: 1 },
   'builtin:furniture-crystal': { color: '#dfe3e6', roughness: 0.1, metalness: 0.55 },
+  'builtin:furniture-grey-matte': { color: '#b3b4b2', roughness: 0.85, metalness: 0 },
+  'builtin:furniture-glass-clear': { color: '#d3e6e8', roughness: 0.04, metalness: 0, opacity: 0.16 },
+  // No environment map in software GL: a light grey base with a little metal sheen, never a black full-metal.
+  'builtin:furniture-aluminium': { color: '#c4c7ca', roughness: 0.35, metalness: 0.2 },
 };
 
 /** The coloured upholstery, ceramic and sheer variants, generated from the palette (colour steers the shared library texture). */

@@ -66,6 +66,14 @@ export const BUILTIN_MATERIALS = {
   glass: 'builtin:glass',
   frame: 'builtin:frame',
   door: 'builtin:door',
+  /** White lacquered interior door leaf (`Opening.finish = 'white'`). */
+  doorWhite: 'builtin:door-white',
+  /** White painted door frame, architrave and white PVC window profiles. */
+  frameWhite: 'builtin:frame-white',
+  /** Brushed-steel door furniture (lever handle, rose, key rose). */
+  handle: 'builtin:handle',
+  /** White window handle. */
+  handleWhite: 'builtin:handle-white',
   /** Used when neither the element nor `scene.defaults` names a material. */
   fallbackWall: 'builtin:wall',
   fallbackFloor: 'builtin:floor',

@@ -141,7 +141,8 @@ describe('views of small rooms are checked for what they see', () => {
     const m = v[0]!;
     expect(m.pose.fovDeg).toBeGreaterThanOrEqual(90);
     expect(m.pose.fovDeg).toBeLessThanOrEqual(100);
-    expect(m.checks).toMatchObject({ ok: true, seen: ['wc-toilet'] });
+    expect(m.checks).toMatchObject({ ok: true });
+    expect(m.checks!.seen).toContain('wc-toilet');
     expect(m.checks!.share).toBeGreaterThanOrEqual(0.75);
     const toilet = scene.items.find((i) => i.id === 'wc-toilet')!;
     expect(itemVisibility(scene, m.pose, toilet)).toBeGreaterThanOrEqual(0.75);
@@ -151,7 +152,7 @@ describe('views of small rooms are checked for what they see', () => {
 
   it('a camera that stares into a wall corner does not see the toilet; the doorway one does', () => {
     const toilet = bathFittings(scene, room('wc'));
-    expect(toilet.map((i) => i.id)).toEqual(['wc-toilet']);
+    expect(toilet.map((i) => i.id)).toEqual(['wc-toilet', 'wc-handbasin']);
     const corner = { mode: 'walk' as const, position: [9.17, 5.69] as [number, number], eyeHeight: 1.55, headingDeg: 29, pitchDeg: 0, fovDeg: 70 };
     expect(itemVisibility(scene, corner, toilet[0]!)).toBeLessThan(0.5);
     expect(doorwayPose(scene, 'wc', toilet)?.checks.ok).toBe(true);

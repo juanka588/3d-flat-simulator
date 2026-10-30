@@ -143,6 +143,16 @@ export const Opening = z.strictObject({
   /** Door leaf: which end of the opening is hinged, and which wall side it swings into. */
   hinge: z.enum(['start', 'end']).optional(),
   swing: z.enum(['left', 'right']).optional(),
+  /**
+   * Finish of the leaf and frame. Absent: the legacy look (timber leaf, dark frame). `white`: white lacquered leaf, white painted
+   * frame with a slim architrave and brushed-steel lever handles (doors), white PVC profiles (windows).
+   */
+  finish: z.enum(['white']).optional(),
+  /**
+   * Glazed openings only: draw this many opening sashes (1-4) inside the frame, with meeting stiles, a bottom rail and a window
+   * handle on the room side (the `swing` side, default right). Absent: one fixed pane.
+   */
+  sashes: z.number().int().min(1).max(4).optional(),
 });
 export type Opening = z.infer<typeof Opening>;
 

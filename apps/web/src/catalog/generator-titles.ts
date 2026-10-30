@@ -40,6 +40,9 @@ const TITLES: Readonly<Record<string, string>> = {
   radiator: 'Radiator',
   ovenColumn: 'Oven column',
   wallTiles: 'Wall tiles',
+  bathScreen: 'Bath screen',
+  handBasin: 'Hand basin',
+  washingMachine: 'Washing machine',
 };
 
 /** The short name of a generator; an unlisted one falls back to the first words of its description. */

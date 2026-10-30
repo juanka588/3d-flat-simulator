@@ -123,7 +123,7 @@ describe('buildFittings', () => {
       expect(m.fittings.positions.every(Number.isFinite)).toBe(true);
       expect(m.glass.positions.every(Number.isFinite)).toBe(true);
       expect(m.fittings.indices.length / 3 + m.glass.indices.length / 3).toBeLessThan(
-        s.openings.length * 80,
+        s.openings.length * 260,
       );
       const withFittings = new Set([...m.fittings.owners, ...m.glass.owners].map((o) => o.entityId));
       for (const o of s.openings) expect(withFittings.has(o.id)).toBe(o.type !== 'passage');
