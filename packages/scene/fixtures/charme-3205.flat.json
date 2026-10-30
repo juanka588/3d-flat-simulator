@@ -34,6 +34,7 @@
     { "id": "w-alcove", "start": [0, 2.235], "end": [4.105, 2.235], "thickness": 0.07, "height": 2.5 },
     { "id": "w-sejour-ch2", "start": [4.105, 0], "end": [4.105, 4.155], "thickness": 0.07, "height": 2.5 },
     { "id": "w-ch2-south-west", "start": [4.105, 4.155], "end": [4.355, 4.155], "thickness": 0.07, "height": 2.5 },
+    { "id": "w-ch2-south-west-infill", "start": [4.355, 4.1725], "end": [4.505, 4.1725], "thickness": 0.035, "height": 2.5 },
     { "id": "w-placard-ch2-back", "start": [4.14, 3.555], "end": [5.865, 3.555], "thickness": 0.07, "height": 2.5 },
     { "id": "w-placard-ch2-east", "start": [5.83, 3.59], "end": [5.83, 4.12], "thickness": 0.07, "height": 2.5 },
     { "id": "w-ch2-south", "start": [5.795, 4.155], "end": [6.875, 4.155], "thickness": 0.07, "height": 2.5 },
@@ -49,8 +50,8 @@
     { "id": "w-fridge-top", "start": [3.745, 6.615], "end": [3.08, 6.615], "thickness": 0.07, "height": 2.5 },
     { "id": "w-kitchen-column", "start": [3.31, 7.68], "end": [3.31, 8.28], "thickness": 0.8, "height": 2.5, "structural": true },
     { "id": "w-ch1-column", "start": [9.825, 3.82], "end": [9.825, 4.42], "thickness": 0.45, "height": 2.5, "structural": true },
-    { "id": "w-te-west", "start": [5.95, 6.1], "end": [5.95, 6.435], "thickness": 0.07, "height": 2.5 },
-    { "id": "w-te-south", "start": [5.95, 6.435], "end": [6.39, 6.435], "thickness": 0.07, "height": 2.5 },
+    { "id": "w-te-west", "start": [5.95, 6.065], "end": [5.95, 6.435], "thickness": 0.07, "height": 2.5 },
+    { "id": "w-te-south", "start": [5.95, 6.435], "end": [6.425, 6.435], "thickness": 0.07, "height": 2.5 },
     { "id": "w-sdb-column", "start": [6.27, 6.9], "end": [6.27, 7.66], "thickness": 0.24, "height": 2.5, "structural": true },
     { "id": "w-balcony-rail", "start": [-1.575, -0.0], "end": [-1.575, 8.28], "thickness": 0.05, "height": 1.0 },
     { "id": "w-balcony-screen", "start": [-1.575, 8.305], "end": [-0.2, 8.305], "thickness": 0.05, "height": 1.8 }
@@ -87,7 +88,7 @@
       "id": "entree",
       "name": "Entrée",
       "type": "hallway",
-      "polygon": [[4.54, 4.19], [6.91, 4.19], [6.91, 4.49], [8.7, 4.49], [8.7, 6.03], [4.54, 6.03]],
+      "polygon": [[4.54, 4.19], [6.91, 4.19], [6.91, 4.49], [8.7, 4.49], [8.7, 6.03], [6.39, 6.03], [6.39, 6.4], [5.985, 6.4], [5.985, 6.03], [4.54, 6.03]],
       "ceilingHeight": 2.5
     },
     { "id": "wc", "name": "WC", "type": "bathroom", "polygon": [[8.77, 4.49], [10.05, 4.49], [10.05, 6.03], [8.77, 6.03]], "floorMaterial": "floor-tile-grey", "ceilingHeight": 2.5 },
@@ -95,7 +96,7 @@
       "id": "sdb",
       "name": "Salle de bain",
       "type": "bathroom",
-      "polygon": [[4.54, 6.1], [6.39, 6.1], [6.39, 8.28], [3.78, 8.28], [3.78, 6.65], [4.54, 6.65]],
+      "polygon": [[4.54, 6.1], [5.915, 6.1], [5.915, 6.47], [6.39, 6.47], [6.39, 8.28], [3.78, 8.28], [3.78, 6.65], [4.54, 6.65]],
       "floorMaterial": "lib-tile-limestone-beige",
       "ceilingHeight": 2.5
     },
