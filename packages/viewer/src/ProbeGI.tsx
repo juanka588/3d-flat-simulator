@@ -6,6 +6,7 @@ import type { Material, Object3D, Scene as ThreeScene } from 'three';
 import { GROUND_ALBEDO } from './lighting';
 import type { LightingModel } from './lighting';
 import { getPerfProfile } from './perf';
+import { glCapsOf, supportsProbes } from './gl-caps';
 import { ProbeBaker } from './probe-baker';
 import { BakeMaterials } from './probe-bake-materials';
 import type { BakeJob } from './probe-baker';
@@ -34,7 +35,8 @@ export function useProbesActive(): boolean {
   const gl = useThree((s) => s.gl);
   const settings = getPerfProfile().probes;
   const error = useSyncExternalStore(subscribeProbeStats, () => probeStats().error);
-  const usable = useMemo(() => settings !== null && (new URLSearchParams(location.search).get('gi') === 'on' || !isSoftwareGl(gl.getContext())), [settings, gl]);
+  // Probes also need float render targets AND linear filtering of float textures (absent on many phone GPUs: the atlas would read black).
+  const usable = useMemo(() => settings !== null && supportsProbes(glCapsOf(gl.getContext())) && (new URLSearchParams(location.search).get('gi') === 'on' || !isSoftwareGl(gl.getContext())), [settings, gl]);
   return usable && error === null;
 }
 

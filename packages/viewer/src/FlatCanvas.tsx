@@ -36,6 +36,9 @@ import { contextReach } from './sun-bounds';
 import type { Selection, ViewState } from './view-types';
 import { ViewerGuard } from './ViewerGuard';
 import { shouldInjectFault, useViewerHealth } from './viewer-health';
+import { checkWebGl2 } from './gl-debug';
+import { GlHealth } from './GlHealth';
+import { GlDebugOverlay, NoWebGl } from './GlDebugOverlay';
 
 /**
  * Props of the 3D viewer. Everything the host app and the viewer say to each other goes through them: the viewer reads no
@@ -88,7 +91,7 @@ export interface FlatCanvasProps {
 }
 
 /** The 3D viewer: a pure function of `Scene` + `ViewState`. All UI chrome lives outside it. */
-export function FlatCanvas({ scene, view, showStructural = true, overlays, isManualClock = false, acceptsKey, context = null, onSelect, onExitWalk, onPersonChange, onWalkEnd, onCreated, onFrame, onUserCamera, viewport = null }: FlatCanvasProps) {
+function FlatCanvasInner({ scene, view, showStructural = true, overlays, isManualClock = false, acceptsKey, context = null, onSelect, onExitWalk, onPersonChange, onWalkEnd, onCreated, onFrame, onUserCamera, viewport = null }: FlatCanvasProps) {
   const needle = useRef<HTMLDivElement>(null);
   const downAt = useRef<[number, number]>([0, 0]);
 
@@ -129,6 +132,7 @@ export function FlatCanvas({ scene, view, showStructural = true, overlays, isMan
         }}
       >
         <color attach="background" args={['#e8ebf0']} />
+        <GlHealth />
         <ViewerGuard value={lightingInput} source="lighting">
           {(l) => <LightingRig scene={l.scene} lighting={l.lighting} context={l.context} viewMode={l.viewMode} buildingMode={l.buildingMode} />}
         </ViewerGuard>
@@ -153,6 +157,23 @@ export function FlatCanvas({ scene, view, showStructural = true, overlays, isMan
       {/* A sibling of the viewer: clicks on it must not engage pointer lock. */}
       {view.mode === 'walk' && <WalkOverlay onExit={onExitWalk} />}
       {view.mode !== 'walk' && <CameraHelp mode={view.mode} />}
+    </>
+  );
+}
+
+/**
+ * The 3D viewer. Checks up front that a WebGL2 context can be created (a phone with WebGL1 only, a blocklisted GPU, a
+ * browser out of contexts) and says so with the reason instead of leaving a blank page; `?debug=gl` adds a capabilities overlay.
+ */
+export function FlatCanvas(props: FlatCanvasProps) {
+  const support = useMemo(() => checkWebGl2(), []);
+  useEffect(() => {
+    if (!support.ok) useViewerHealth.getState().report({ source: 'webgl', message: support.reason, keptLastGood: false });
+  }, [support]);
+  return (
+    <>
+      {support.ok ? <FlatCanvasInner {...props} /> : <NoWebGl reason={support.reason} />}
+      <GlDebugOverlay />
     </>
   );
 }

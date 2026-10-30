@@ -1,4 +1,5 @@
 import { CanvasTexture, LinearMipmapLinearFilter, LinearFilter, RepeatWrapping, SRGBColorSpace } from 'three';
+import { getPerfProfile } from './perf';
 
 /**
  * Procedural parquet for materials with a `pattern` (herringbone or chevron): one seamless tile drawn on a canvas,
@@ -122,7 +123,8 @@ export function parquetTile(spec: Pick<ParquetSpec, 'pattern' | 'plankWidthM'>):
 
 /** Pixels per metre such that the tile fits the canvas limit, and not more than `MAX_PX_PER_M`. */
 export function tilePixelsPerMetre(tile: Pick<ParquetTile, 'widthM' | 'heightM'>): number {
-  return Math.min(MAX_PX_PER_M, MAX_TILE_PX / Math.max(tile.widthM, tile.heightM));
+  const cap = getPerfProfile().low ? MAX_TILE_PX / 2 : MAX_TILE_PX;
+  return Math.min(MAX_PX_PER_M, cap / Math.max(tile.widthM, tile.heightM));
 }
 
 function shaded(hex: string, factor: number): string {

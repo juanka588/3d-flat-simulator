@@ -1,4 +1,6 @@
 import type { ProbeSettings } from './probe-grid';
+import { checkWebGl2, useGlDebug } from './gl-debug';
+import type { GlCaps } from './gl-caps';
 
 /**
  * Rendering budget. Phones (coarse primary pointer) and weak machines (<= 2 logical cores) get a
@@ -28,7 +30,7 @@ export interface PerfProfile {
 }
 
 export const FULL_PROFILE: PerfProfile = { low: false, maxDpr: 2, sunMap: 2048, pointMap: 512, areaMap: 1024, spotMap: 1024, maxShadowLamps: 12, gridTiles: 4, environment: true, contactShadows: true, probes: { spacing: 0.5, cube: 8, bounces: 1 }, shadowRadius: 3 };
-export const LOW_PROFILE: PerfProfile = { low: true, maxDpr: 1.5, sunMap: 1024, pointMap: 256, areaMap: 512, spotMap: 512, maxShadowLamps: 6, gridTiles: 2, environment: false, contactShadows: false, probes: { spacing: 1, cube: 8, bounces: 0 }, shadowRadius: 1.5 };
+export const LOW_PROFILE: PerfProfile = { low: true, maxDpr: 1.5, sunMap: 1024, pointMap: 256, areaMap: 512, spotMap: 512, maxShadowLamps: 6, gridTiles: 2, environment: false, contactShadows: false, probes: null, shadowRadius: 1.5 };
 
 /**
  * Texture units a lit material needs besides the lamp shadow maps. The heaviest are streamed provider models (glTF
@@ -48,11 +50,17 @@ export function shadowLampBudget(profile: PerfProfile, maxTextures: number): num
 /** Cores at or below which a desktop is treated as low-end. 4-core CI runners keep full quality. */
 export const LOW_CORE_COUNT = 2;
 
-export function perfProfileFor(input: { coarsePointer: boolean; cores?: number; override?: string | null }): PerfProfile {
+/** True for a GPU that should get the low tier whatever the pointer says: a phone GPU family, small textures or few texture units. */
+export function weakGpu(caps: GlCaps | null): boolean {
+  if (!caps) return false;
+  return caps.mobileGpu || (caps.maxTextureSize > 0 && caps.maxTextureSize <= 4096) || (caps.maxTextures > 0 && caps.maxTextures < 16);
+}
+
+export function perfProfileFor(input: { coarsePointer: boolean; cores?: number; override?: string | null; weakGpu?: boolean }): PerfProfile {
   if (input.override === 'low') return LOW_PROFILE;
   if (input.override === 'high') return FULL_PROFILE;
   const weak = input.cores !== undefined && input.cores > 0 && input.cores <= LOW_CORE_COUNT;
-  return input.coarsePointer || weak ? LOW_PROFILE : FULL_PROFILE;
+  return input.coarsePointer || weak || input.weakGpu ? LOW_PROFILE : FULL_PROFILE;
 }
 
 let cached: PerfProfile | null = null;
@@ -65,12 +73,24 @@ export function getPerfProfile(): PerfProfile {
   // compiles the full profile's shaders 40% slower); then the device heuristics.
   const urlQuality = typeof location !== 'undefined' ? new URLSearchParams(location.search).get('quality') : null;
   const override = urlQuality ?? (import.meta.env?.VITE_FLAT_QUALITY as string | undefined) ?? null;
-  const base = perfProfileFor({ coarsePointer: coarse, cores: typeof navigator !== 'undefined' ? navigator.hardwareConcurrency : undefined, override });
+  let caps: GlCaps | null = null;
+  if (typeof document !== 'undefined') {
+    try {
+      checkWebGl2();
+      caps = useGlDebug.getState().caps;
+    } catch {
+      caps = null;
+    }
+  }
+  const base = perfProfileFor({ coarsePointer: coarse, cores: typeof navigator !== 'undefined' ? navigator.hardwareConcurrency : undefined, override, weakGpu: weakGpu(caps) });
   // `?ao=off` leaves out the contact shadows and wall creases (measurements of flat lighting, debugging).
   const aoOff = typeof location !== 'undefined' && ['0', 'off'].includes(new URLSearchParams(location.search).get('ao') ?? '');
+  // `?gi=on` brings the probes back on the low tier too (when the GPU can filter float textures, see gl-caps.ts).
+  const giOn = (typeof location !== 'undefined' ? new URLSearchParams(location.search).get('gi') : null) === 'on';
   // `?gi=off` (or a build with `VITE_FLAT_GI=off`) falls back to the old per-room bounce and sky ambient (no probe grid).
   const gi = (typeof location !== 'undefined' ? new URLSearchParams(location.search).get('gi') : null) ?? (import.meta.env?.VITE_FLAT_GI as string | undefined) ?? '';
   const giOff = ['0', 'off'].includes(gi);
-  cached = { ...base, ...(aoOff ? { contactShadows: false } : {}), ...(giOff ? { probes: null } : {}) };
+  cached = { ...base, ...(aoOff ? { contactShadows: false } : {}), ...(giOff ? { probes: null } : {}), ...(giOn && base.probes === null ? { probes: { spacing: 1, cube: 8, bounces: 0 } } : {}) };
+  useGlDebug.getState().set({ profile: { ...cached }, tier: cached.low ? 'low' : 'full' });
   return cached;
 }

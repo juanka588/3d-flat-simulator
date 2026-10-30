@@ -44,7 +44,20 @@ const HEADLESS_MAX_SLICE = 512;
 /** Baked grids kept besides the displayed one, so going back to a recent lighting state (a lamp toggled back) needs no bake. */
 const SPARE_SLOTS = 2;
 
-const headless = (): boolean => typeof navigator !== 'undefined' && (navigator.webdriver === true || (typeof location !== 'undefined' && new URLSearchParams(location.search).has('test')));
+const headless = (): boolean => typeof navigator !== 'undefined' && !(typeof location !== 'undefined' && new URLSearchParams(location.search).get('bake') === 'interactive') && (navigator.webdriver === true || (typeof location !== 'undefined' && new URLSearchParams(location.search).has('test')));
+/** Last pointer/wheel/key input (performance.now): a bake slice waits while the user is orbiting or walking, so interaction stays smooth. */
+let lastInput = -Infinity;
+let inputWatched = false;
+const watchInput = (): void => {
+  if (inputWatched || typeof window === 'undefined') return;
+  inputWatched = true;
+  for (const type of ['pointermove', 'pointerdown', 'wheel', 'keydown'] as const) window.addEventListener(type, () => void (lastInput = performance.now()), { passive: true, capture: true });
+};
+/** Longest a bake is held back by continuous input (ms): it must still finish eventually. */
+const MAX_INPUT_HOLD_MS = 4000;
+/** Quiet time after the last input before a slice may start, ms. */
+const INPUT_QUIET_MS = 150;
+
 const NEAR = 0.05;
 const FAR = 120;
 
@@ -221,6 +234,14 @@ export class ProbeBaker {
           while (at < start + count) {
             if (token !== this.token || this.disposed) return;
             const n = Math.min(this.sliceSize, start + count - at);
+            if (!quiet) {
+              watchInput();
+              const holdFrom = performance.now();
+              while (performance.now() - lastInput < INPUT_QUIET_MS && performance.now() - holdFrom < MAX_INPUT_HOLD_MS) {
+                await new Promise((r) => setTimeout(r, 40));
+                if (token !== this.token || this.disposed) return;
+              }
+            }
             const t0 = performance.now();
             this.slice(slot, job, at, n, pass, job.indoor[at] === 1);
             await this.gpuIdle();

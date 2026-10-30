@@ -1,5 +1,25 @@
 import { LinearMipmapLinearFilter, NoColorSpace, RepeatWrapping, SRGBColorSpace, Texture, TextureLoader } from 'three';
 import { materialsBase } from './catalog';
+import { getPerfProfile } from './perf';
+
+/** Largest side of a library map on the low tier: 1024 px maps are 5.4 MB of GPU memory each with mipmaps, three per material. */
+export const LOW_TIER_MAX_MAP_PX = 512;
+
+/** Redraws a decoded map at most `maxPx` wide/high (low tier: a phone has a fraction of a desktop's GPU memory). Returns the texture itself when it is small enough or cannot be resized. */
+export function shrinkTexture(t: Texture, maxPx: number): Texture {
+  const img = t.image as { width?: number; height?: number } | undefined;
+  if (!img?.width || !img.height || Math.max(img.width, img.height) <= maxPx || typeof document === 'undefined') return t;
+  const k = maxPx / Math.max(img.width, img.height);
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(img.width * k));
+  canvas.height = Math.max(1, Math.round(img.height * k));
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return t;
+  ctx.drawImage(img as CanvasImageSource, 0, 0, canvas.width, canvas.height);
+  t.image = canvas;
+  t.needsUpdate = true;
+  return t;
+}
 
 /** The three PBR maps of one library material. */
 export interface TextureSet {
@@ -102,7 +122,8 @@ export function defaultSetLoader(base?: string, makeLoader: () => MapLoader = ()
       new Promise<Texture>((resolve, reject) =>
         loader.load(
           url,
-          (t) => {
+          (loadedTexture) => {
+            const t = getPerfProfile().low ? shrinkTexture(loadedTexture, LOW_TIER_MAX_MAP_PX) : loadedTexture;
             if (abandoned) {
               t.dispose(); // a sibling already failed
               reject(new Error('abandoned'));

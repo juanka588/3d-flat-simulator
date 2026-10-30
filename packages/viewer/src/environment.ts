@@ -1,4 +1,5 @@
-import { EquirectangularReflectionMapping, FloatType, PMREMGenerator } from 'three';
+import { EquirectangularReflectionMapping, FloatType, LinearFilter, NearestFilter, PMREMGenerator } from 'three';
+import { glCapsOf } from './gl-caps';
 import { viewerConfig } from './config';
 import type { DataTexture, Texture, WebGLRenderer } from 'three';
 
@@ -43,6 +44,10 @@ export async function loadEnvironment(renderer: WebGLRenderer, url = envUrl()): 
   const image = source.image as { data: ArrayLike<number>; width: number; height: number };
   const meanRadiance = meanRadianceOf(image.data, image.width, image.height, 4);
   source.mapping = EquirectangularReflectionMapping;
+  // Without float filtering (phone GPUs) a linearly filtered float texture reads black: sample it unfiltered instead.
+  const filter = glCapsOf(renderer.getContext()).floatLinear ? LinearFilter : NearestFilter;
+  source.minFilter = filter;
+  source.magFilter = filter;
   const pmrem = new PMREMGenerator(renderer);
   const target = pmrem.fromEquirectangular(source);
   source.dispose();

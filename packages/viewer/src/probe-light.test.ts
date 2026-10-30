@@ -53,9 +53,10 @@ describe('probe shader chunk', () => {
 });
 
 describe('probes in the perf profiles', () => {
-  it('the full profile bakes a finer grid than the low one, both with probes; the texture budget is unchanged', () => {
-    expect(FULL_PROFILE.probes!.spacing).toBeLessThan(LOW_PROFILE.probes!.spacing);
-    expect(perfProfileFor({ coarsePointer: true }).probes).not.toBeNull();
+  it('the full profile bakes probes, the low (phone) tier has none (float atlas + bake cost); the texture budget is unchanged', () => {
+    expect(FULL_PROFILE.probes).not.toBeNull();
+    expect(LOW_PROFILE.probes).toBeNull();
+    expect(perfProfileFor({ coarsePointer: true }).probes).toBeNull();
     expect(RESERVED_TEXTURE_UNITS).toBe(9);
     expect(shadowLampBudget(FULL_PROFILE, 16)).toBe(7);
   });
