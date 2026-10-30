@@ -113,13 +113,15 @@ describe('placard of Chambre 2: a closet in the wall, doors onto the Entrée', (
     expect(describeRoom(scene, 'ch2', light)!.items.map((i) => i.id)).not.toContain('placard-ch2');
   });
 
-  it('fills the niche between the séjour wall and the door jamb: back wall behind, east side wall, front on the wall axis', () => {
+  it('fills the niche between the séjour wall and the door jamb: back wall behind, east side wall, front on the hall face', () => {
     const r = rect('placard-ch2');
     const back = wall('w-placard-ch2-back');
     const east = wall('w-placard-ch2-east');
     const stub = wall('w-ch2-south-west');
     near(r.minY, back.start[1] + back.thickness / 2); // against the back wall's face
-    near(r.maxY, wall('w-ch2-south').start[1]); // front on the axis of the south wall: 3.5 cm behind the hall face, no coplanar faces
+    // front flush with the hall face of the south wall: the closet fills the slot between the stub and w-sejour-entree
+    near(r.maxY, wall('w-ch2-south').start[1] + wall('w-ch2-south').thickness / 2);
+    near(wall('w-sejour-entree').start[1], r.maxY); // the séjour wall starts at the closet front
     near(r.maxX, east.start[0] - east.thickness / 2); // against the east side wall
     near(r.minX, stub.end[0]); // against the end of the stub that closes the séjour side
     expect(r.maxX - r.minX).toBeGreaterThan(1.4); // the plan's 1.45 m
