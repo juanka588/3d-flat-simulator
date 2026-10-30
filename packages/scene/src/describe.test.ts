@@ -182,10 +182,10 @@ describe('describeRoom', () => {
     expect(d.lights.find((l) => l.id === 'l-sejour')).toMatchObject({ on: false, kelvin: 4000 });
   });
 
-  it('stays within the token budget (<= 7000 chars of JSON) for every Charme room', () => {
+  it('stays within the token budget (<= 8000 chars of JSON) for every Charme room', () => {
     for (const room of charme.rooms) {
       const json = JSON.stringify(describeRoom(charme, room.id, light));
-      expect(json.length, room.id).toBeLessThanOrEqual(7000);
+      expect(json.length, room.id).toBeLessThanOrEqual(8000);
     }
   });
 

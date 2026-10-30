@@ -3,7 +3,7 @@ import { connect, json, realCatalog, textChars } from './testing/inproc';
 import { MockFlatApi, charmeScene } from './testing/mockFlatApi';
 
 /** Char proxy for tokens: about 4 characters per token, so 1.5k tokens = 6000 chars, 3k = 12000. */
-const BUDGET_1_5K = 7000; // the fixed fittings of the séjour (radiator, oven column, ceiling lamp) grew its description
+const BUDGET_1_5K = 8000; // the fixed fittings of the séjour (radiator, oven and larder columns, niche unit, end panel, ceiling lamp) grew its description
 const BUDGET_3K = 12000;
 const MUTATING_CALLS = ['postCommand', 'undo', 'redo', 'checkpoint', 'undoTo', 'postView'];
 

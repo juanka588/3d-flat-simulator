@@ -24,8 +24,9 @@ export interface CabinetSpec {
 export function cabinet(kit: Kit, s: CabinetSpec): void {
   const { w, d, h } = s;
   const zFace = d / 2 - HANDLE;
+  const narrow = w < 0.2; // too narrow for fronts and handles: a plain panel
   // A unit with no doors or drawers is a plain panel: the body itself reaches the front.
-  const zBodyFront = s.doors + s.drawers === 0 ? d / 2 : zFace - FRONT;
+  const zBodyFront = s.doors + s.drawers === 0 || narrow ? d / 2 : zFace - FRONT; // too narrow for fronts: a plain panel
   const bodyTop = s.topT ? h - s.topT : h;
   if (s.base === 'plinth') {
     kit.box(s.baseMat, -w / 2, 0, -d / 2 + 0.02, w / 2, s.baseH, zBodyFront - 0.03);
@@ -42,7 +43,7 @@ export function cabinet(kit: Kit, s: CabinetSpec): void {
   }
   kit.box(s.bodyMat, -w / 2, s.baseH, -d / 2, w / 2, bodyTop, zBodyFront);
   if (s.topT && s.topMat) kit.box(s.topMat, -w / 2, bodyTop, -d / 2, w / 2, h, d / 2);
-  addFronts(kit, { x0: -w / 2, x1: w / 2, y0: s.baseH, y1: bodyTop, zFace, doors: s.doors, drawers: s.drawers, frontMaterial: s.frontMat });
+  if (!narrow) addFronts(kit, { x0: -w / 2, x1: w / 2, y0: s.baseH, y1: bodyTop, zFace, doors: s.doors, drawers: s.drawers, frontMaterial: s.frontMat });
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -104,7 +105,7 @@ export const wardrobe: Generator<WardrobeParams> = {
 // ---------------------------------------------------------------------------------------------
 
 const kitchenBaseParams = z.strictObject({
-  w: metres('Width of the module; modules placed edge to edge give a continuous worktop.', 0.6, 0.2, 2.4),
+  w: metres('Width of the module (down to 1 cm for a slim end panel with doors 0 and drawers 0); modules placed edge to edge give a continuous worktop.', 0.6, 0.01, 2.4),
   d: metres('Depth of the module (front to back); standard worktop depth is 0.6.', 0.6, 0.3, 0.9),
   h: metres('Overall height including the worktop; standard is 0.9.', 0.9, 0.5, 1.2),
   doors: count('Number of doors side by side below the drawers (0 for none).', 1, 0, 4),
@@ -192,6 +193,7 @@ const kitchenWallParams = z.strictObject({
   h: metres('Height of the unit body; standard is 0.7. Hang it with the item elevation.', 0.7, 0.3, 1.2),
   doors: count('Number of doors side by side.', 1, 1, 4),
   glassStrip: z.boolean().default(false).describe('Lay a horizontal smoked-glass strip across the doors (the flat\'s wall units). Defaults to false.'),
+  niches: count('0 for a closed unit with doors; 1 or more makes an open shelf unit in the finish colour with that many stacked cubbies (no doors).', 0, 0, 6),
   finish: finish('white'),
 });
 type KitchenWallParams = z.infer<typeof kitchenWallParams>;
@@ -202,9 +204,24 @@ export const kitchenWall: Generator<KitchenWallParams> = {
   category: 'wall_cabinet',
   params: kitchenWallParams,
   describeParams: ({ w, d, h }) => ({ dims: { w, d, h }, anchors: boxAnchors(w, d, h), clearance: { front: 0.3, back: 0 } }),
-  generate({ w, d, h, doors, glassStrip, finish: f }) {
+  generate({ w, d, h, doors, glassStrip, niches, finish: f }) {
     const kit = new Kit();
     const mat = finishMaterial(f);
+    if (niches > 0) {
+      // open shelf unit: shell of 18 mm panels with (niches - 1) shelves
+      const t = Math.min(0.018, w / 4);
+      const B = mat;
+      kit.box(B, -w / 2, 0, -d / 2, w / 2, h, -d / 2 + 0.01); // back
+      kit.box(B, -w / 2, 0, -d / 2 + 0.01, -w / 2 + t, h, d / 2);
+      kit.box(B, w / 2 - t, 0, -d / 2 + 0.01, w / 2, h, d / 2);
+      kit.box(B, -w / 2 + t, 0, -d / 2 + 0.01, w / 2 - t, t, d / 2);
+      kit.box(B, -w / 2 + t, h - t, -d / 2 + 0.01, w / 2 - t, h, d / 2);
+      for (let i = 1; i < niches; i++) {
+        const y = (h * i) / niches;
+        kit.box(B, -w / 2 + t, y - t / 2, -d / 2 + 0.01, w / 2 - t, y + t / 2, d / 2);
+      }
+      return kit.build();
+    }
     cabinet(kit, { w, d, h, base: 'none', baseH: 0, baseMat: mat, bodyMat: mat, frontMat: mat, doors, drawers: 0 });
     if (glassStrip) {
       // a smoked-glass band in front of the doors, from 55% to 75% of the height (inside the handle depth, so the box stays exact)

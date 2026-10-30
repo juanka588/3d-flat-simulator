@@ -181,7 +181,8 @@ const BASE_SPECS: Readonly<Record<(typeof ITEM_MATERIALS)[keyof typeof ITEM_MATE
   'builtin:furniture-bedding': { color: '#e6e1d8', roughness: 0.9, metalness: 0, texture: { slug: 'fabric-cream', scale: 0.4 } },
   'builtin:furniture-metal': { color: '#bfc2c6', roughness: 0.32, metalness: 0.9, texture: { slug: 'brushed-steel', scale: 0.4 } },
   'builtin:furniture-worktop': { color: '#a9a59e', roughness: 0.3, metalness: 0, texture: { slug: 'quartz-light', scale: 0.9 } },
-  'builtin:furniture-mirror': { color: '#d4e4ea', roughness: 0.03, metalness: 1 },
+  // No environment map in software GL / low tier: a fully metallic mirror renders black, so it keeps a light-grey diffuse base with a glossy sheen.
+  'builtin:furniture-mirror': { color: '#cdd6da', roughness: 0.1, metalness: 0.25 },
   'builtin:furniture-rug': { color: '#a79b8c', roughness: 1, metalness: 0, texture: { slug: 'fabric-weave-grey', scale: 0.7 } },
   'builtin:furniture-oak': { color: '#cfa978', roughness: 0.5, metalness: 0, texture: { slug: 'oak-veneer' } },
   'builtin:furniture-walnut': { color: '#7a5a42', roughness: 0.5, metalness: 0, texture: { slug: 'wood-walnut' } },
@@ -191,8 +192,8 @@ const BASE_SPECS: Readonly<Record<(typeof ITEM_MATERIALS)[keyof typeof ITEM_MATE
   'builtin:furniture-glass': { color: '#0b0c0f', roughness: 0.04, metalness: 0.3 },
   'builtin:furniture-enamel': { color: '#f1f1ee', roughness: 0.28, metalness: 0 },
   // Reuse the existing library textures (no new maps): the average colour steers them to the real flat's finishes.
-  'builtin:furniture-concrete-dark': { color: '#4d5054', roughness: 0.62, metalness: 0, texture: { slug: 'concrete-smooth-grey', scale: 1 } },
-  'builtin:furniture-concrete-light': { color: '#a9aaa8', roughness: 0.5, metalness: 0, texture: { slug: 'concrete-smooth-grey', scale: 1 } },
+  'builtin:furniture-concrete-dark': { color: '#797c7f', roughness: 0.62, metalness: 0, texture: { slug: 'concrete-smooth-grey', scale: 1 } },
+  'builtin:furniture-concrete-light': { color: '#b9b7b2', roughness: 0.5, metalness: 0, texture: { slug: 'concrete-smooth-grey', scale: 1 } },
   'builtin:furniture-composite-black': { color: '#17181a', roughness: 0.42, metalness: 0.05 },
   'builtin:furniture-oak-light': { color: '#d6c09b', roughness: 0.5, metalness: 0, texture: { slug: 'oak-veneer' } },
   'builtin:furniture-tile-beige': { color: '#c9b9a3', roughness: 0.35, metalness: 0, texture: { slug: 'tile-limestone-beige', scale: 0.6 } },

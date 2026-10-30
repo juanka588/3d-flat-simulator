@@ -17,7 +17,7 @@ export const RADIATOR_CLEARANCE_FRONT = 0.15;
 
 const radiatorParams = z.strictObject({
   kind: z.enum(['panel', 'towel']).default('panel').describe('"panel" (a flat steel panel radiator with vertical channels) or "towel" (a ladder of horizontal tubes, sèche-serviettes). Defaults to "panel".'),
-  w: metres('Width of the radiator.', 0.8, 0.3, 2),
+  w: metres('Width of the radiator.', 0.8, 0.2, 2),
   h: metres('Height of the radiator.', 0.6, 0.3, 2),
   d: metres('How far it stands out of the wall.', 0.1, 0.04, 0.5),
   valve: z.enum(['left', 'right']).default('right').describe('Panel only: which side carries the thermostatic valve, seen from the front. Defaults to "right".'),

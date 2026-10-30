@@ -43,6 +43,9 @@ const FIXTURE_ITEMS: Record<string, { generator: string; room: string }> = {
   'wc-toilet': { generator: 'toilet', room: 'wc' },
   'te-electrical-panel': { generator: 'wardrobe', room: 'entree' },
   'kitchen-oven-column': { generator: 'ovenColumn', room: 'sejour' },
+  'kitchen-larder-column': { generator: 'ovenColumn', room: 'sejour' },
+  'kitchen-end-panel': { generator: 'kitchenBase', room: 'sejour' },
+  'kitchen-wall-niche': { generator: 'kitchenWall', room: 'sejour' },
   'sdb-vanity-mirror': { generator: 'mirror', room: 'sdb' },
   'sdb-tiles-back': { generator: 'wallTiles', room: 'sdb' },
   'sdb-tiles-end-north': { generator: 'wallTiles', room: 'sdb' },
@@ -53,6 +56,8 @@ const FIXTURE_ITEMS: Record<string, { generator: string; room: string }> = {
   'heat-ch2-east': { generator: 'radiator', room: 'ch2' },
   'heat-sejour-east': { generator: 'radiator', room: 'sejour' },
   'heat-sdb-towel': { generator: 'radiator', room: 'sdb' },
+  'heat-sdb-towel-2': { generator: 'radiator', room: 'sdb' },
+  'sdb-towel-shelves': { generator: 'kitchenWall', room: 'sdb' },
 };
 
 describe('fixed fixtures: locked, existing, exact', () => {
@@ -172,6 +177,28 @@ describe('placard of Chambre 2: a closet in the wall, doors onto the Entrée', (
 });
 
 describe('kitchen (CUISINE), transcribed from the plan', () => {
+  it('lines up along the south wall, east to west: fridge, sink, induction hob, black end panel, oven column, larder column, none overlapping', () => {
+    const order = ['kitchen-sink-tri', 'kitchen-cooktop-cui', 'kitchen-end-panel', 'kitchen-oven-column', 'kitchen-larder-column'];
+    const rs = order.map(rect);
+    expect(rect('kitchen-fridge-f').minX).toBeGreaterThan(rs[0]!.maxX); // the fridge stands east of the run (left when facing the wall)
+    for (let i = 0; i < rs.length - 1; i++) near(rs[i]!.minX, rs[i + 1]!.maxX); // each ends exactly where the next begins, no gap and no overlap
+    near(rs[4]!.minX, 0); // the larder reaches the west wall (balcony side)
+    for (const r of rs) near(r.maxY, 8.28);
+    // 240 cm kit does not fit: the plan holds 291 cm between the west wall and the 80 cm column, columns take 104 cm
+    expect(rs[0]!.maxX - rs[2]!.minX).toBeCloseTo(1.87, 9); // sink + hob + end panel: the run the plan can hold
+    // the base run is a worktop at 0.9; the wall run (units + niche) sits above, ending at the same x as the end panel
+    const wall1 = rect('kitchen-wall-niche');
+    near(wall1.minX, rect('kitchen-end-panel').maxX);
+    near(rect('kitchen-wall-est-1').minX, wall1.maxX);
+    near(rect('kitchen-wall-est-2').maxX, rs[0]!.maxX);
+    expect(item('kitchen-wall-niche').mesh).toMatchObject({ params: { niches: 4, finish: 'dark' } });
+    near(item('kitchen-wall-niche').elevation + item('kitchen-wall-niche').dims!.h, 2.0);
+    expect(item('kitchen-cooktop-cui').mesh).toMatchObject({ params: { style: 'induction' } });
+    expect(item('kitchen-larder-column').mesh).toMatchObject({ params: { kind: 'larder' } });
+    for (let a = 0; a < order.length; a++) for (let b = a + 1; b < order.length; b++) expect(penetration(rs[a]!.pts, rs[b]!.pts), `${order[a]} vs ${order[b]}`).toBeLessThan(1e-3);
+    expect(penetration(rs[0]!.pts, wallRect('w-kitchen-column'))).toBeLessThan(1e-3);
+  });
+
   it('is one run along the south wall: cooktop CUI, then the sink with the TRI unit up to the 80 cm column by the niche wall (user)', () => {
     const run = ['kitchen-cooktop-cui', 'kitchen-sink-tri'].map(rect);
     for (const r of run) {
@@ -179,6 +206,7 @@ describe('kitchen (CUISINE), transcribed from the plan', () => {
       near(r.maxY - r.minY, 0.6);
     }
     near(run[0]!.maxX, run[1]!.minX);
+    near(run[0]!.maxX - run[0]!.minX, 0.63);
     const column = wallRect('w-kitchen-column');
     near(run[1]!.maxX, Math.min(...column.map((p) => p[0]))); // the sink ends at the column (80 x 60 cm, user)
     expect(wall('w-kitchen-column').structural).toBe(true);
@@ -343,7 +371,6 @@ describe('radiators (chauffage), from the home video and the user\'s wall list',
     { id: 'heat-alcove-north', wall: 'w-north', room: 'alcove', kind: 'panel', front: [0, 1], left: [-1, 0], limit: 0, window: 'win-alcove' },
     { id: 'heat-ch2-east', wall: 'w-ch2-ch1', room: 'ch2', kind: 'panel', front: [-1, 0], left: [0, -1], limit: 0, window: 'win-ch2' },
     { id: 'heat-sejour-east', wall: 'w-sejour-ch2', room: 'sejour', kind: 'panel', front: [-1, 0], left: [0, -1], limit: 2.27 },
-    { id: 'heat-sdb-towel', wall: 'w-sdb-east', room: 'sdb', kind: 'towel', front: [-1, 0], left: [0, -1], limit: 6.47 },
   ] as const;
 
   it.each(RADIATORS)('$id is a locked wall-mounted $kind radiator on $wall, room side, 15 cm off the floor', (r) => {
@@ -368,6 +395,37 @@ describe('radiators (chauffage), from the home video and the user\'s wall list',
     const limit = r.limit * (r.left[0] + r.left[1]);
     expect(limit - extreme, r.id).toBeLessThanOrEqual(0.2 + 1e-9);
     expect(limit - extreme, r.id).toBeGreaterThanOrEqual(-1e-9);
+  });
+
+  it('the SDB recess (east wall, between the TE partition and the column) holds two 1.2 m towel radiators facing each other and open shelves above', () => {
+    const te = wall('w-te-south');
+    const col = wallRect('w-sdb-column');
+    const teFace = te.start[1] + te.thickness / 2; // south face of the TE partition
+    const colFace = Math.min(...col.map((p) => p[1])); // north face of the column
+    const east = wall('w-sdb-east').start[0] - wall('w-sdb-east').thickness / 2; // inner face of the east wall (6.39)
+    near(colFace - teFace, 0.43, 1e-6); // measured width of the recess
+    const a = rect('heat-sdb-towel');
+    const b = rect('heat-sdb-towel-2');
+    for (const [id, r] of [['heat-sdb-towel', a], ['heat-sdb-towel-2', b]] as const) {
+      expect(item(id)).toMatchObject({ mount: 'wall', roomId: 'sdb', elevation: 0.3, dims: { h: 1.2 } });
+      expect(r.maxX).toBeLessThanOrEqual(east + 1e-9);
+    }
+    near(a.minY, teFace, 1e-6); // back on the south face of the TE partition, facing south
+    near(frontOf(item('heat-sdb-towel').rotation)[1], 1);
+    near(b.maxY, colFace, 1e-6); // back on the north face of the column, facing north
+    near(frontOf(item('heat-sdb-towel-2').rotation)[1], -1);
+    expect(a.minX).toBeGreaterThanOrEqual(5.95 - 1e-9);
+    expect(b.minX).toBeGreaterThanOrEqual(Math.min(...col.map((p) => p[0])) - 1e-9); // the column face is only 24 cm wide
+    expect(b.maxY - b.minY).toBeCloseTo(0.08, 9);
+    expect(b.minY - a.maxY).toBeGreaterThan(0.25); // a clear 27 cm between the two radiators
+    // the shelves hang over the recess, above the radiators, on the east wall
+    const sh = rect('sdb-towel-shelves');
+    near(sh.maxX, east);
+    expect(sh.minY).toBeGreaterThanOrEqual(teFace - 1e-9);
+    expect(sh.maxY).toBeLessThanOrEqual(colFace + 1e-9);
+    expect(item('sdb-towel-shelves').elevation).toBeGreaterThanOrEqual(0.3 + 1.2);
+    expect(item('sdb-towel-shelves').mesh).toMatchObject({ params: { niches: 3, finish: 'white' } });
+    expect(validateLayout(scene, { roomId: 'sdb' }).violations.filter((v) => v.entityIds.some((e) => e.startsWith('heat-sdb-towel') || e === 'sdb-towel-shelves'))).toEqual([]);
   });
 
   it('stands clear of every window next to it and of every door swing, and inside its room', () => {

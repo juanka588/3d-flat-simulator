@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { Generator } from '@flat/scene';
 import { ITEM_MATERIALS } from '../materials/item-materials';
+import { cabinet } from './cabinets';
 import { Kit, boxAnchors, count, metres } from './kit';
 
 /** Kitchen appliances that stand on the floor: cooking block and fridge. Item frame as in `kit.ts` (front +z). */
@@ -20,6 +21,7 @@ const cooktopParams = z.strictObject({
   d: metres('Depth of the cooking block (front to back).', 0.6, 0.5, 0.7),
   h: metres('Height of the hob surface; level it with the neighbouring worktop (0.9).', 0.9, 0.8, 0.95),
   burners: count('Number of hob burners.', 4, 1, 4),
+  style: z.enum(['block', 'induction']).default('block').describe('"block" is a hob over an oven; "induction" is a black-glass induction hob set in a concrete worktop over three drawers with black bar handles (the flat\'s kitchen). Defaults to "block".'),
 });
 type CooktopParams = z.infer<typeof cooktopParams>;
 
@@ -29,8 +31,27 @@ export const cooktop: Generator<CooktopParams> = {
   category: 'appliance',
   params: cooktopParams,
   describeParams: ({ w, d, h }) => ({ dims: { w, d, h }, anchors: boxAnchors(w, d, h), clearance: { front: 0.9, back: 0 } }),
-  generate({ w, d, h, burners }) {
+  generate({ w, d, h, burners, style }) {
     const kit = new Kit();
+    if (style === 'induction') {
+      // Drawer base under a light concrete worktop; the black glass plate stands 6 mm proud of it and sets the overall height.
+      const plate = 0.006;
+      cabinet(kit, { w, d, h: h - plate, base: 'plinth', baseH: 0.1, baseMat: DARK, bodyMat: ITEM_MATERIALS.concreteDark, frontMat: ITEM_MATERIALS.concreteDark, doors: 0, drawers: 3, topT: 0.04, topMat: ITEM_MATERIALS.concreteLight });
+      const px = w / 2 - 0.04;
+      const pz0 = -d / 2 + 0.06;
+      const pz1 = d / 2 - 0.08;
+      kit.box(GLASS, -px, h - plate, pz0, px, h, pz1, 0.001);
+      const rx = Math.min(0.09, (px * 2) / 2 / 2.4);
+      const rz = Math.min(rx, (pz1 - pz0) / 2 / 2.4);
+      const cz = (pz0 + pz1) / 2;
+      const spots: [number, number][] = [[-1, -1], [1, 1], [1, -1], [-1, 1]];
+      for (const [sx, sz] of spots.slice(0, burners)) {
+        const cx = burners === 1 ? 0 : sx * (px / 2);
+        const zz = burners === 1 ? cz : cz + sz * ((pz1 - pz0) / 4);
+        kit.prism(DARK, cx, h - 0.0005, zz, rx, rz, h + 0.0004);
+      }
+      return kit.build();
+    }
     const front = d / 2 - 0.03;
     kit.box(DARK, -w / 2 + 0.02, 0, -d / 2 + 0.02, w / 2 - 0.02, 0.07, front); // plinth
     kit.box(W, -w / 2, 0.07, -d / 2, w / 2, h - 0.03, front); // body
@@ -112,9 +133,10 @@ export const fridge: Generator<FridgeParams> = {
 // ---------------------------------------------------------------------------------------------
 
 const ovenColumnParams = z.strictObject({
-  w: metres('Width of the column.', 0.6, 0.45, 0.8),
+  w: metres('Width of the column.', 0.6, 0.4, 0.8),
   d: metres('Depth of the column (front to back).', 0.6, 0.5, 0.7),
   h: metres('Overall height of the column.', 2.1, 1.8, 2.5),
+  kind: z.enum(['oven', 'larder']).default('oven').describe('"oven" holds a drawer, a built-in oven, a microwave and a lift-up cabinet; "larder" is a pantry column with a tall upper door and a lower door, each with a vertical black bar handle. Defaults to "oven".'),
 });
 type OvenColumnParams = z.infer<typeof ovenColumnParams>;
 
@@ -124,13 +146,23 @@ export const ovenColumn: Generator<OvenColumnParams> = {
   category: 'appliance_housing',
   params: ovenColumnParams,
   describeParams: ({ w, d, h }) => ({ dims: { w, d, h }, anchors: boxAnchors(w, d, h), clearance: { front: 0.9, back: 0 } }),
-  generate({ w, d, h }) {
+  generate({ w, d, h, kind }) {
     const kit = new Kit();
     const FRONT_M = ITEM_MATERIALS.concreteDark;
     const baseH = 0.1;
     const zFace = d / 2 - 0.008;
     kit.box(DARK, -w / 2 + 0.02, 0, -d / 2 + 0.02, w / 2 - 0.02, baseH, zFace - 0.05); // plinth
     kit.box(FRONT_M, -w / 2, baseH, -d / 2, w / 2, h, zFace - 0.018); // carcass
+    if (kind === 'larder') {
+      // lower door up to 0.9 m, tall upper door above it; the handles sit on the oven-column side (the hinges are by the wall)
+      const split = baseH + 0.8;
+      for (const [a, b] of [[baseH, split], [split, h]] as const) {
+        kit.box(FRONT_M, -w / 2 + 0.0015, a + 0.0015, zFace - 0.018, w / 2 - 0.0015, b - 0.0015, zFace);
+        const len = Math.min(0.5, (b - a) * 0.5);
+        kit.handle(DARK, -w / 2 + 0.04, a === baseH ? b - 0.05 - len / 2 : a + 0.1 + len / 2, len, true, zFace);
+      }
+      return kit.build();
+    }
     // stacked fronts: drawer, oven, microwave, upper door. y positions scale with the height
     const y1 = baseH + 0.4; // drawer top
     const ovenTop = y1 + 0.6;
