@@ -105,7 +105,8 @@ test.describe('probes: the default indirect light', () => {
       floorPoint(1.0, 5.2), // Séjour, beside the balcony doors
       floorPoint(5.2, 7.2), // bare floor of the bathroom, away from its door
       floorPoint(6.0, 6.8),
-      floorPoint(9.0, 4.75),
+      // WC bare floor: (9.0, 4.75) is under the hand basin since 2b00eb8 (white ceramic, not the floor); the door is z 4.6-5.3 on x 8.735.
+      floorPoint(9.2, 5.6),
       floorPoint(4.7, 6.9), // floor beside the Séjour/bathroom partition
     ]);
     expect(sejour!).toBeGreaterThan(0.15);

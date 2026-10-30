@@ -118,7 +118,8 @@ const steadyCalls = async (page: Page) => {
 test('the default Charme load fetches exactly the texture sets the flat uses, once, and nothing else from the library', async ({ page }) => {
   await idle(page);
   const slugsInUse = usedTextureSlugs(charmeFlat);
-  expect(slugsInUse).toEqual(['parquet-light-oak', 'tile-grey-large', 'turf-artificial-green']);
+  // (The bathroom floor is beige limestone tiles since the real-fittings fixture, 2b00eb8.)
+  expect(slugsInUse).toEqual(['parquet-light-oak', 'tile-grey-large', 'tile-limestone-beige', 'turf-artificial-green']);
   // Plus the sets the fittings' finishes use (M5R): each set's three maps exactly once, nothing unrelated.
   const sets = mapsBySet(webpRequests);
   const items = itemTextureSlugs();

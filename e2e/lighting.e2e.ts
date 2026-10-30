@@ -168,9 +168,11 @@ test.describe('lamp shadows have no acne (no stripes on walls in walk view)', ()
   test('kitchen panel: the lit side wall is smooth along a vertical scanline', async ({ page }) => {
     await setLighting(page, { sunEnabled: false, lamps: onlyLamps(['l-cuisine']) });
     await walk(page, 2.0, 4.6, 180);
-    // The right-hand part of the view: the wall beside the cooktop. (The left of it is now the 80 cm structural column
-    // w-kitchen-column and the fridge: its edges are geometry, not acne.)
-    for (const xFrac of [0.83, 0.88, 0.93]) {
+    // The left edge of the view: the wall face beside the camera, lit at a grazing angle by the panel (where acne shows).
+    // (The right-hand part, the wall beside the cooktop, is covered by the oven and larder columns since 151d801: concrete
+    // fronts and oven glass whose edges are geometry and texture, not acne. Measured there: min luma 0-43, second
+    // differences 17-87; on this face: min 127, 0.7.)
+    for (const xFrac of [0.02, 0.05, 0.08]) {
       const scan = await columnLuma(page, xFrac, 0.35, 0.7);
       expect(Math.min(...scan), 'the wall is lit').toBeGreaterThan(40);
       const step = maxSecondDifference(scan);

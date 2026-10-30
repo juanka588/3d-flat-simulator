@@ -7,6 +7,9 @@ import type { Page } from '@playwright/test';
 import { openApp, rendered } from './helpers';
 
 const MAX_DRAW_CALLS = 70;
+/** Charme's door leaves are white lacquered (187fc02), and their walk-mode twin is the see-through `-walk` material. */
+const DOOR = 'builtin:door-white';
+const DOOR_WALK = 'builtin:door-white-walk';
 
 test.beforeEach(async ({ page }) => {
   await openApp(page);
@@ -26,12 +29,12 @@ test('door leaves are translucent in walk mode and opaque in orbit and top', asy
   for (const m of ['orbit', 'top'] as const) {
     await mode(page, m);
     const l = await leaves(page);
-    expect(l.map((x) => x.id), m).toEqual(['builtin:door']);
+    expect(l.map((x) => x.id), m).toEqual([DOOR]);
     expect(l[0]).toMatchObject({ transparent: false, opacity: 1 });
   }
   await mode(page, 'walk');
   const walk = await leaves(page);
-  expect(walk.map((x) => x.id)).toEqual(['builtin:door-walk']);
+  expect(walk.map((x) => x.id)).toEqual([DOOR_WALK]);
   expect(walk[0]!.transparent).toBe(true);
   expect(walk[0]!.opacity).toBeLessThan(0.5);
   expect(walk[0]!.depthWrite).toBe(false);
@@ -40,17 +43,17 @@ test('door leaves are translucent in walk mode and opaque in orbit and top', asy
   const programs = (await stats(page)).programs;
   await mode(page, 'walk');
   await mode(page, 'orbit');
-  expect((await leaves(page))[0]).toMatchObject({ id: 'builtin:door', transparent: false });
+  expect((await leaves(page))[0]).toMatchObject({ id: DOOR, transparent: false });
   expect((await stats(page)).programs).toBe(programs);
 });
 
 test('setComfort({translucentDoors:false}) keeps door leaves opaque in walk mode (what renders use) and back', async ({ page }) => {
   await page.evaluate(() => window.__flat!.setComfort({ translucentDoors: false }));
   await mode(page, 'walk');
-  expect((await leaves(page)).map((x) => ({ id: x.id, transparent: x.transparent, opacity: x.opacity }))).toEqual([{ id: 'builtin:door', transparent: false, opacity: 1 }]);
+  expect((await leaves(page)).map((x) => ({ id: x.id, transparent: x.transparent, opacity: x.opacity }))).toEqual([{ id: DOOR, transparent: false, opacity: 1 }]);
   await page.evaluate(() => window.__flat!.setComfort({ translucentDoors: true }));
   const l = await leaves(page);
-  expect(l.map((x) => x.id)).toEqual(['builtin:door-walk']);
+  expect(l.map((x) => x.id)).toEqual([DOOR_WALK]);
   expect(l[0]!.transparent).toBe(true);
 });
 

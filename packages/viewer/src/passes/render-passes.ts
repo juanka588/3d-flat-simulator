@@ -396,7 +396,22 @@ class Runner {
           instanceIdMaterial ??= shader(FLAT_FRAGMENT, false);
           scene.overrideMaterial = null;
         }
-        for (const d of drawablesOf(scene)) {
+        const drawables = drawablesOf(scene);
+        // A content-defined draw order. Where two surfaces meet (a wall standing on the floor) the crease pixels tie in depth and,
+        // with three's LessEqual test, the last one drawn wins; three would order them by the camera distance of their bounding
+        // spheres and then by object id, so a rebuilt mesh (a floor or wall finish change) could flip a crease pixel and the
+        // "structural" edges would depend on edit history. Each mesh keeps its own renderOrder (fittings, glass) as the major key.
+        drawables
+          .map((d) => ({ d, key: `${d.t}|${d.mesh.name}|${d.t === 'item' ? d.ids[0] : d.t === 'fixture' ? d.id : ''}` }))
+          .sort((a, b) => a.d.mesh.renderOrder - b.d.mesh.renderOrder || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0))
+          .forEach(({ d }, rank) => {
+            const before = d.mesh.renderOrder;
+            d.mesh.renderOrder = rank;
+            undo.push(() => {
+              d.mesh.renderOrder = before;
+            });
+          });
+        for (const d of drawables) {
           if (geometric) {
             if (!structureOnly) continue;
             if (d.t === 'fixture') hide(d.mesh);

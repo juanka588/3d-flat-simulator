@@ -14,8 +14,15 @@ import type { Page } from '@playwright/test';
 import { installGlCaps } from '../scripts/perf/gl-caps.mjs';
 import { flat, openApp } from './helpers';
 
-/** Measured on the Charme fixture in SwiftShader (desktop profile): ~43 calls, ~22k triangles, ~38 programs. */
-const BUDGET = { calls: 65, triangles: 30_000, programs: 40, geometries: 40, textures: 50 };
+/**
+ * Measured on the Charme fixture in SwiftShader (desktop profile): ~43 calls, ~22k triangles, ~38 programs.
+ * 2026-10-30 re-measure after the real fittings (2b00eb8..2ab535b): calls=61 triangles=51559 programs=29 geometries=27
+ * textures=41. The triangle growth is content: buildShell+buildItems on Charme went from 5.3k to 19.7k triangles (+12.2k
+ * items: four 1.2k panel radiators, two 0.9k towel radiators, the 1.1k sputnik pendant, oven/larder columns, WC hand basin,
+ * mirror, wall tiles...; +2.2k fittings: door levers and window sashes), and `info.render.triangles` counts them twice
+ * (colour pass + the shadow map rendered in the same frame). Budget = measured x ~1.35, the same margin as before.
+ */
+const BUDGET = { calls: 65, triangles: 70_000, programs: 40, geometries: 40, textures: 50 };
 
 test('the shipped fixture stays within the rendering budget', async ({ page }) => {
   await openApp(page);
