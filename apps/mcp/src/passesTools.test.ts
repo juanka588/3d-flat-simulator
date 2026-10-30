@@ -87,7 +87,7 @@ describe('generate_reference gets its control images from the render passes', ()
     expect(r.isError, JSON.stringify(r.content[0])).toBeFalsy();
     expect(calls).toHaveLength(1);
     expect(calls[0]!.spec).toMatchObject({ view: 'walk', roomId: 'sdb', size: { width: 1024, height: 768 } });
-    expect(calls[0]!.opts.passes!.kinds).toEqual(['edges', 'depthVis']);
+    expect(calls[0]!.opts.passes!.kinds).toEqual(['edges', 'depthVis', 'ids']);
     expect(provider.generated).toHaveLength(1);
     const control = provider.generated[0]!.controls[0]!;
     expect(control).toMatchObject({ type: 'canny', strength: 1, image: { provenance: 'pass', mimeType: 'image/png', data: PNG_B64 } });

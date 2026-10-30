@@ -5328,6 +5328,11 @@ exports[`snapshots (the contract) > tools/list 1`] = `
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
+        "blockout": {
+          "default": true,
+          "description": "Draw the intended layout as placeholder volumes in the control image (scratch copy, scene untouched).",
+          "type": "boolean",
+        },
         "facing": {
           "anyOf": [
             {

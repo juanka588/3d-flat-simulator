@@ -1,11 +1,12 @@
-import { copyFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import type { CameraPose, RoomType } from '@flat/scene';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import { toolError, toolOk } from '../errors';
-import { ControlsUnavailableError, ImageProviderError, buildReferencePrompt, buildVisualisationPrompt, getControlImageSource, getImageProvider, passControlSource, unavailableControls, type GeneratedImage, type JobStatus } from '../imagegen';
+import { ControlsUnavailableError, ImageProviderError, buildReferencePrompt, fidelityRef, scoreFidelity, type Fidelity, type FidelityRef, buildVisualisationPrompt, getControlImageSource, getImageProvider, passControlSource, unavailableControls, type GeneratedImage, type JobStatus } from '../imagegen';
 import { RenderError, resolvePose, sharedMcpRenderer } from '../render';
+import { blockoutScene } from '../reference/blockout';
 import { findView, layoutIntent, roomViews, type ViewSpec } from '../reference/views';
 import { StyleError, findStyle } from '../styles';
 import { READ, fetchScene, parseArgs } from './common';
@@ -19,6 +20,17 @@ import type { Renderer, ToolContext, ToolDef } from './registry';
  * A generation takes about 90 s per image: the call waits `waitS`, then returns the `jobId` to collect with another call.
  */
 
+/** Strength of the depth+edges blend (spike: 0.8 keeps the layout without overriding the style). */
+const BLEND_STRENGTH = 0.8;
+/** How a placeholder role reads in the image prompt. */
+const BLOCK_WORDS: Readonly<Record<string, string>> = {
+  sofa: 'a sofa facing the TV wall',
+  'coffee table': 'a low coffee table in front of it',
+  rug: 'a rug under them',
+  'media unit': 'a low media unit under the TV',
+  bed: 'a bed with its headboard on the wall',
+  'main piece': 'one large seat against the wall',
+};
 const SIZE = { width: 1024, height: 768 } as const;
 const MAX_PREVIEW_B64 = 700_000;
 const REFERENCE_LABEL = 'REFERENCE IMAGE (AI-generated target for the design; not a render of this flat, not a product, never an asset).';
@@ -31,6 +43,7 @@ export const GenerateReferenceArgs = z.strictObject({
   facing: z.union([z.string().min(1).max(64), z.number().min(-360).max(360)]).optional().describe('As in render_view (walk camera).'),
   view: z.string().min(1).max(40).optional().describe('View id from describe_room.'),
   layout: z.string().min(1).max(500).optional().describe('Layout in words; default: the room\'s intent.'),
+  blockout: z.boolean().default(true).describe('Draw the intended layout as placeholder volumes in the control image (scratch copy, scene untouched).'),
   n: z.number().int().min(1).max(4).default(1),
   seed: z.number().int().min(0).max(4294967295).optional(),
   waitS: z.number().min(0).max(300).default(45),
@@ -61,17 +74,25 @@ export interface JobMeta {
   zone?: string;
   weight?: number;
   layout?: string;
+  /** Roles drawn as placeholders in the control image (a scratch scene; the flat has none of them). */
+  blockout?: string[];
   /** Why fewer candidates than asked were made (time budget, slow machine). */
   budgetNote?: string;
 }
 const jobs = new Map<string, JobMeta>();
+/** Per job: what the generated images are checked against (the ids and edge passes of the control camera). */
+const checks = new Map<string, FidelityRef>();
 const countedJobs = new Set<string>();
 /** What a job was asked for (this process only); `record_reference` uses its room and camera. */
 export const getJobMeta = (id: string): JobMeta | undefined => jobs.get(id);
 export const SIZE_OF_REFERENCE = SIZE;
 const remember = (id: string, m: JobMeta) => {
   jobs.set(id, m);
-  if (jobs.size > 50) jobs.delete(jobs.keys().next().value as string);
+  if (jobs.size > 50) {
+    const old = jobs.keys().next().value as string;
+    jobs.delete(old);
+    checks.delete(old);
+  }
 };
 
 // -- time budget of the reference phase ------------------------------------------------------------------------------------------
@@ -151,6 +172,43 @@ function saveForRunner(status: JobStatus, meta: JobMeta | undefined): void {
   }
 }
 
+interface Filtered {
+  kept: GeneratedImage[];
+  rejected: { seed: number; path: string; fidelity: number; reasons: string[] }[];
+  scores: Map<string, Fidelity>;
+  note?: string;
+}
+
+/**
+ * The automatic candidate filter: images whose ceiling is not pale or that ignore the drawing's edges are dropped (the model
+ * never sees them). When every candidate fails the best one is kept with a warning, so a call never returns nothing.
+ * Images that cannot be read (not a PNG, file gone) pass unchecked.
+ */
+function filterCandidates(images: GeneratedImage[], ref: FidelityRef | undefined): Filtered {
+  const scores = new Map<string, Fidelity>();
+  if (!ref) return { kept: images, rejected: [], scores };
+  for (const img of images) {
+    try {
+      const bytes = existsSync(img.path) ? readFileSync(img.path) : img.preview?.mimeType === 'image/png' ? Buffer.from(img.preview.data, 'base64') : undefined;
+      if (bytes) scores.set(img.path, scoreFidelity(bytes, ref));
+    } catch {
+      // unreadable image: not judged
+    }
+  }
+  const failed = images.filter((i) => scores.get(i.path)?.ok === false);
+  if (!failed.length) return { kept: images, rejected: [], scores };
+  let kept = images.filter((i) => !failed.includes(i));
+  let rejected = failed;
+  let note = `${failed.length} candidate(s) dropped by the fidelity filter (ceiling or edges do not follow the drawing); pass another seed for more.`;
+  if (!kept.length) {
+    const best = [...failed].sort((a, b) => scores.get(b.path)!.score - scores.get(a.path)!.score)[0]!;
+    kept = [best];
+    rejected = failed.filter((i) => i !== best);
+    note = `WARNING: every candidate failed the fidelity filter (${scores.get(best.path)!.reasons.join('; ')}); the best is returned. Retry with another seed before using it as a target.`;
+  }
+  return { kept, rejected: rejected.map((i) => ({ seed: i.seed, path: i.path, fidelity: scores.get(i.path)!.score, reasons: scores.get(i.path)!.reasons })), scores, note };
+}
+
 function resultFor(status: JobStatus, meta: JobMeta | undefined, providerId: string): CallToolResult {
   const label = meta?.mode === 'visualisation' ? VISUALISATION_LABEL : REFERENCE_LABEL;
   const { pose: _pose, ...shownMeta } = meta ?? ({} as Partial<JobMeta>);
@@ -168,7 +226,9 @@ function resultFor(status: JobStatus, meta: JobMeta | undefined, providerId: str
       next: `Not finished (about 90 s per reference image). Call generate_reference {"jobId":"${status.jobId}"} again to collect it.`,
     });
   }
-  const images: GeneratedImage[] = status.images.slice(0, 4);
+  const all: GeneratedImage[] = status.images.slice(0, 4);
+  const filtered = filterCandidates(all, checks.get(status.jobId));
+  const images = filtered.kept;
   saveForRunner(status, meta);
   // wall time per image, for the budget and for a loud warning when the machine is swapping
   const perImage = images.length ? images.reduce((a, i) => a + i.seconds, 0) / images.length : 0;
@@ -194,8 +254,9 @@ function resultFor(status: JobStatus, meta: JobMeta | undefined, providerId: str
       label,
       kind: meta?.mode ?? 'reference',
       ...base,
-      images: images.map((i) => ({ path: i.path, seed: i.seed, seconds: i.seconds, ...(i.peakGb != null ? { peakGb: i.peakGb } : {}), ...(i.loadS !== undefined ? { loadS: i.loadS } : {}), ...(i.stepsS !== undefined ? { stepsS: i.stepsS } : {}) })),
+      images: images.map((i) => ({ path: i.path, seed: i.seed, seconds: i.seconds, ...(filtered.scores.has(i.path) ? { fidelity: filtered.scores.get(i.path)!.score } : {}), ...(i.peakGb != null ? { peakGb: i.peakGb } : {}), ...(i.loadS !== undefined ? { loadS: i.loadS } : {}), ...(i.stepsS !== undefined ? { stepsS: i.stepsS } : {}) })),
       ...report,
+      ...(filtered.rejected.length ? { rejected: filtered.rejected, note: filtered.note } : {}),
       ...(skipped.length ? { note: `no preview for ${skipped.length} image(s) (too large or unavailable); open the files at "path"` } : {}),
     },
     content,
@@ -252,19 +313,32 @@ async function generateReference(ctx: ToolContext, args: Record<string, unknown>
       return resultFor(status, meta, provider.id);
     }
 
-    // The layout is decided from the room, before the image: the prompt states it, the camera only shows it.
-    const layout = a.layout ?? (spec ? layoutIntent(scene, a.roomId, spec.zone).promptText : undefined);
+    // The layout is decided from the room, before the image: the prompt states it, the camera only shows it. The intended
+    // pieces are also drawn as placeholder volumes in a scratch copy of the scene, so the control image carries them too.
+    const intent = spec ? layoutIntent(scene, a.roomId, spec.zone) : undefined;
+    const block = a.blockout && intent && !a.layout ? blockoutScene(scene, a.roomId, intent) : undefined;
+    const blockText = block ? ` Furniture as blocked out in the control drawing: ${block.placed.map((r) => BLOCK_WORDS[r] ?? `a ${r}`).join(', ')}.` : '';
+    const layout = a.layout ?? (intent ? `${block ? '' : intent.promptText}${blockText}`.trim() || undefined : undefined);
     const built = buildReferencePrompt(style.meta, room.type, { zone: spec?.zone === 'kitchen' ? 'kitchen' : undefined, kitchenVisible: spec ? spec.zone !== 'kitchen' && spec.sees.includes('kitchen') : false, viewHint: spec?.promptHint, layout });
     // A source installed with setControlImageSource wins (tests); otherwise the CG1 render passes of this server's renderer.
     const source = getControlImageSource();
-    const ctrl = await (source === unavailableControls ? passControlSource(ctx.renderer ?? sharedMcpRenderer(ctx.flat, { webUrl: ctx.config.webUrl, renderChannel: ctx.config.renderChannel, log: ctx.config.log })) : source).getControlImages({ scene, roomId: a.roomId, pose, size: { ...SIZE } });
+    const ctrl = await (source === unavailableControls ? passControlSource(ctx.renderer ?? sharedMcpRenderer(ctx.flat, { webUrl: ctx.config.webUrl, renderChannel: ctx.config.renderChannel, log: ctx.config.log })) : source).getControlImages({ scene, roomId: a.roomId, pose, size: { ...SIZE }, ...(block ? { blockout: block.scene } : {}) });
     const budget = referenceBudget(a.n);
     if (budget.refuse) return toolError('rate_limited', budget.refuse, 'Call record_reference and score_against_reference with the references you already have.');
+    // The blend (depth + edges) when the passes could draw the placeholders; otherwise the structural edges as before.
+    const control = ctrl.blend ? { type: 'depth' as const, image: ctrl.blend, strength: BLEND_STRENGTH } : { type: 'canny' as const, image: ctrl.canny, strength: 1.0 };
     const status = await provider.generate(
-      { prompt: built.prompt, negativePrompt: built.negativePrompt, seed, n: budget.n, width: SIZE.width, height: SIZE.height, model: 'qwen-cn', controls: [{ type: 'canny', image: ctrl.canny, strength: 1.0 }] },
+      { prompt: built.prompt, negativePrompt: built.negativePrompt, seed, n: budget.n, width: SIZE.width, height: SIZE.height, model: 'qwen-cn', controls: [control] },
       { waitMs },
     );
-    const meta: JobMeta = { mode: 'reference', roomId: a.roomId, styleId: a.styleId, roomType: room.type, prompt: built.prompt, negativePrompt: built.negativePrompt, seed, pose, ...viewMeta, ...(layout ? { layout } : {}), ...(budget.note ? { budgetNote: budget.note } : {}) };
+    if (ctrl.check) {
+      try {
+        checks.set(status.jobId, fidelityRef(ctrl.check.ids.data, ctrl.check.edges.data));
+      } catch {
+        // no check data: the filter is off for this job
+      }
+    }
+    const meta: JobMeta = { mode: 'reference', roomId: a.roomId, styleId: a.styleId, roomType: room.type, prompt: built.prompt, negativePrompt: built.negativePrompt, seed, pose, ...viewMeta, ...(layout ? { layout } : {}), ...(block ? { blockout: block.placed } : {}), ...(budget.note ? { budgetNote: budget.note } : {}) };
     remember(status.jobId, meta);
     return resultFor(status, meta, provider.id);
   } catch (e) {

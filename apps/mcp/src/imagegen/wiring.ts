@@ -18,12 +18,18 @@ export interface ControlImagesRequest {
   roomId: string;
   pose: CameraPose;
   size: { width: number; height: number };
+  /** Scratch copy of the scene with layout placeholders (never the real scene): draw the passes from it. */
+  blockout?: Scene | undefined;
 }
 
 /** What the render passes give the sidecar for one camera. Structural edges only: no texture edges (CG0). */
 export interface ControlImages {
   canny: ImageInput;
   depth?: ImageInput | undefined;
+  /** Inverse depth with the structural edges drawn over it: the one control the Union ControlNet reads best (set with a blockout). */
+  blend?: ImageInput | undefined;
+  /** For the fidelity filter: the ids pass and the edge pass of the same camera (PNG). */
+  check?: { ids: ImageInput; edges: ImageInput } | undefined;
 }
 
 /** The ONLY thing the reference tool needs from CG1 (`render_passes`). */
