@@ -108,7 +108,7 @@ describe('placard of Chambre 2: a closet in the wall, doors onto the Entrée', (
 
   it('is a sliding wardrobe whose doors face south (+y) onto the Entrée, listed as hall storage and not as bedroom storage', () => {
     const it = item('placard-ch2');
-    expect(it).toMatchObject({ roomId: 'entree', rotation: 0, mount: 'floor', mesh: { params: { doorType: 'sliding', h: 2.4 } } });
+    expect(it).toMatchObject({ roomId: 'entree', rotation: 0, mount: 'floor', mesh: { params: { doorType: 'sliding', h: 2.5 } } }); // floor to ceiling: no slot above the doors
     expect(frontOf(it.rotation)).toEqual([0, 1]);
     const light = { ...DEFAULT_LIGHTING, date: '2026-12-21' };
     expect(describeRoom(scene, 'entree', light)!.items.map((i) => i.id)).toContain('placard-ch2');
@@ -156,7 +156,7 @@ describe('placard of Chambre 2: a closet in the wall, doors onto the Entrée', (
     near(max[0]!, r.maxX, 2e-3);
     near(min[2]!, r.minY, 2e-3);
     near(max[2]!, r.maxY, 2e-3); // the door handles stand 8 mm proud of the doors, flush with the footprint
-    expect(max[1]!).toBeLessThan(wall('w-placard-ch2-back').height);
+    expect(max[1]!).toBeLessThanOrEqual(wall('w-placard-ch2-back').height + 1e-6); // up to the ceiling, never through it
   });
 
   it('leaves door-ch2 exactly where it was (world centre x = 6.315) with the same swing, clear of the closet', () => {

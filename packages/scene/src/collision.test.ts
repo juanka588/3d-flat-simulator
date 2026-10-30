@@ -43,9 +43,9 @@ describe('wallObstacles', () => {
     const north = wallObstacles(scene).filter((o) => o.wallId === 'w-north');
     expect(north).toHaveLength(1); // windows only
     const alcove = wallObstacles(scene).filter((o) => o.wallId === 'w-alcove');
-    // door-alcove spans 0.07..0.87: solid [0, 0.07] and [0.87, L]
+    // door-alcove spans x 0.07..0.87; w-alcove starts 10 cm inside w-west (no light-leak joint): solid [-0.1, 0.07] and [0.87, L]
     expect(alcove).toHaveLength(2);
-    expect(Math.hypot(alcove[0]!.b[0] - alcove[0]!.a[0], alcove[0]!.b[1] - alcove[0]!.a[1])).toBeCloseTo(0.07, 9);
+    expect(Math.hypot(alcove[0]!.b[0] - alcove[0]!.a[0], alcove[0]!.b[1] - alcove[0]!.a[1])).toBeCloseTo(0.17, 9);
     expect(alcove[1]!.a[0]).toBeCloseTo(0.87, 9);
     expect(alcove[1]!.halfThickness).toBeCloseTo(0.035, 9);
   });
