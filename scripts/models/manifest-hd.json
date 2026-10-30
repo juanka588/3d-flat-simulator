@@ -208,7 +208,7 @@
     },
     {
       "slug": "sofa_curved",
-      "name": "Curved bouclé sofa",
+      "name": "Curved boucl\u00e9 sofa",
       "category": "sofa",
       "sourceId": "5c123f31ae894d5db5b82a546998b92a",
       "maxDimM": [
@@ -1115,6 +1115,99 @@
       "sourceSha256": {
         "archive": "36cd58bc4564a1a505f0a22c2b351440d1cf860ac95d6d4aac0d34b4d2e05b1f"
       }
+    },
+    {
+      "slug": "fridge_bottom_freezer",
+      "name": "Fridge-freezer, bottom freezer",
+      "category": "appliance",
+      "sourceId": "5436bb89a0d8400f80abc23992049f53",
+      "maxDimM": [
+        0.5,
+        2.2
+      ],
+      "styleTags": [
+        "modern",
+        "kitchen",
+        "fridge",
+        "steel"
+      ],
+      "front": "+z",
+      "status": "rejected",
+      "reason": "French-door fridge 0.91 m wide with dark doors; not a 60 cm stainless bottom-freezer (flat fridge is 60 x 66 x 185)"
+    },
+    {
+      "slug": "fridge_freezer_tall",
+      "name": "Tall fridge-freezer",
+      "category": "appliance",
+      "sourceId": "f9fd65542a414ef4b8b5227d49e87d87",
+      "maxDimM": [
+        0.5,
+        2.2
+      ],
+      "styleTags": [
+        "modern",
+        "kitchen",
+        "fridge",
+        "steel"
+      ],
+      "front": "+z",
+      "status": "rejected",
+      "reason": "unusable scale (unit-less, 0.076 m tall at the nearest unit) and 1 MB; no usable shape"
+    },
+    {
+      "slug": "radiator_panel",
+      "name": "Panel radiator",
+      "category": "other",
+      "sourceId": "8779a5966d3c4dc19c6d5591669965b5",
+      "maxDimM": [
+        0.4,
+        2.0
+      ],
+      "styleTags": [
+        "radiator",
+        "heating",
+        "white"
+      ],
+      "front": "+z",
+      "status": "rejected",
+      "reason": "designer vertical radiator on a wall panel, not a horizontal steel panel radiator"
+    },
+    {
+      "slug": "radiator_towel",
+      "name": "Towel radiator",
+      "category": "other",
+      "sourceId": "6be3bba8ac6c452caf5cbdad6aaff656",
+      "maxDimM": [
+        0.4,
+        2.0
+      ],
+      "styleTags": [
+        "radiator",
+        "heating",
+        "towel",
+        "bathroom"
+      ],
+      "front": "+z",
+      "status": "rejected",
+      "reason": "curved electric towel rail with a cable and socket; the flat has a straight ladder rail"
+    },
+    {
+      "slug": "ceiling_light_arms",
+      "name": "Ceiling light",
+      "category": "lamp",
+      "sourceId": "3e65cebe43b144ca802101d482b9c193",
+      "maxDimM": [
+        0.3,
+        1.5
+      ],
+      "styleTags": [
+        "lamp",
+        "ceiling",
+        "chrome"
+      ],
+      "front": "+z",
+      "status": "rejected",
+      "reason": "a flat disc (no arms, no balls); not the multi-arm ceiling lamp"
     }
   ]
 }

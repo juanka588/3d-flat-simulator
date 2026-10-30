@@ -8,6 +8,7 @@ const CATEGORY_RULES: [RegExp, ProductCategory][] = [
   // Bathroom first: "rideau de douche" is not a curtain, "meuble lavabo" is not a washbasin, "etagere douche" is not a shelf.
   [/\b(rideaux? de (douche|bain|baignoire)|shower curtains?)\b/, 'shower_curtain'],
   [/\b(porte|portant|seche|support)s?[- ]serviettes?\b|\btowel (rail|rack|holder|ring)s?\b|\bbarre a serviettes\b/, 'towel_rail'],
+  [/\b(radiateurs?|radiators?|convecteurs?)\b/, 'radiator'],
   [/\b(meubles?|elements?|caissons?|armoires?)( bas)? (sous[- ]|de )?(lavabos?|vasques?)\b|\bsous[- ]lavabo\b|\bvanity\b|\bwash ?stand\b/, 'vanity'],
   [/\b(vasques?|lavabos?|washbasins?|wash basins?|basin)\b/, 'washbasin'],
   [/\b(etageres?|tablettes?|paniers?|accessoires?) (de |pour )?(douche|bain|salle de bain)\b|\bpanier a ventouse\b|\bporte-savons?\b|\bshower (shelf|caddy|rack)\b/, 'bath_accessory'],
@@ -65,7 +66,7 @@ export function categoryOf(typeName: string, categoryPath: readonly string[] = [
 }
 
 /** Categories that hang on a wall. A washbasin counts: IKEA basins are wall-hung or sit `on` a vanity (the `on` relation overrides the mount). */
-export const WALL_CATEGORIES = new Set<ProductCategory>(['mirror', 'wall_cabinet', 'frame', 'curtain', 'shower_curtain', 'towel_rail', 'bath_accessory', 'hook', 'washbasin']);
+export const WALL_CATEGORIES = new Set<ProductCategory>(['mirror', 'wall_cabinet', 'frame', 'curtain', 'shower_curtain', 'towel_rail', 'bath_accessory', 'hook', 'washbasin', 'radiator']);
 
 /** Names that say a product hangs on a wall although its shop category does not ("Étagère murale", "Wall shelf", "Applique murale"). */
 const WALL_NAME = /\b(murale?s?|muraux|mural|wall[- ]?mounted|wall[- ]?shelf|wall[- ]?shelves|wall lamp|a fixer au mur|suspendu au mur|appliques?|baguette lumin\w*|rails? susp\w*)\b/;

@@ -62,7 +62,7 @@ export const curtains: Generator<CurtainParams> = {
 // ---------------------------------------------------------------------------------------------
 
 const pendantParams = z.strictObject({
-  shape: z.enum(['globe', 'dome', 'cluster']).default('globe').describe('"globe" (one round shade), "dome" (open bell shade) or "cluster" (five small globes at different heights). Defaults to "globe".'),
+  shape: z.enum(['globe', 'dome', 'cluster', 'sputnik']).default('globe').describe('"globe" (one round shade), "dome" (open bell shade), "cluster" (five small globes at different heights) or "sputnik" (a chrome ceiling lamp: eight curved arms ending in small crystal balls; flush to the ceiling, `h` is its drop). Defaults to "globe".'),
   w: metres('Diameter of the shade (of the whole cluster).', 0.4, 0.15, 1),
   h: metres('Overall height from the bottom of the shade to the ceiling canopy; the item elevation is where the bottom hangs.', 1.2, 0.4, 2.5),
   colour: colourParam('the shade (glossy)'),
@@ -79,6 +79,58 @@ function globeProfile(y0: number, sh: number): [number, number][] {
   return out;
 }
 
+/**
+ * Sputnik ceiling lamp: a chrome canopy at the ceiling (top at `h`), eight curved chrome arms and a small crystal ball at the
+ * end of each. Four arms (along the axes) reach the full radius, the others are shorter and hang at different heights, so the
+ * outer bounding box is exact: `w` wide in x and z, the lowest ball bottom at 0, the canopy top at `h`.
+ */
+function sputnik(kit: Kit, w: number, h: number): void {
+  const rb = Math.min(0.05, w * 0.07, h * 0.2);
+  const arms = 8;
+  const canopyY = h - 0.03;
+  const armTop = h - 0.045;
+  const R = w / 2 - rb;
+  const cr = Math.min(0.08, w * 0.3);
+  kit.prism(ITEM_MATERIALS.chrome, 0, canopyY, 0, cr, cr, h, 16);
+  kit.prism(ITEM_MATERIALS.chrome, 0, armTop - 0.03, 0, cr * 0.45, cr * 0.45, canopyY, 8);
+  // ball heights: 0 = the lowest balls (bottom at y = 0), 1 = the highest, within the drop `h`
+  const drop = Math.max(0, armTop - 2 * rb - 0.04);
+  const level = [0, 0.7, 0.35, 0.9, 0.15, 0.6, 0.45, 1];
+  for (let i = 0; i < arms; i++) {
+    const ang = (2 * Math.PI * i) / arms;
+    const axis = i % 2 === 0;
+    const r = axis ? R : R * 0.82;
+    const lv = axis ? [0, 0.35, 0.15, 0.6][i / 2]! : level[i]!;
+    const cy = rb + Math.min(drop, drop * lv);
+    const dx = Math.cos(ang);
+    const dz = Math.sin(ang);
+    const start: [number, number, number] = [0, armTop, 0];
+    const ctrl: [number, number, number] = [dx * r * 0.45, armTop - 0.01, dz * r * 0.45];
+    const end: [number, number, number] = [dx * r, cy, dz * r];
+    let prev = start;
+    for (let k = 1; k <= 4; k++) {
+      const t = k / 4;
+      const a = (1 - t) * (1 - t);
+      const b = 2 * (1 - t) * t;
+      const c = t * t;
+      const pt: [number, number, number] = [a * start[0] + b * ctrl[0] + c * end[0], a * start[1] + b * ctrl[1] + c * end[1], a * start[2] + b * ctrl[2] + c * end[2]];
+      kit.tube(ITEM_MATERIALS.chrome, prev, pt, 0.004, 6);
+      prev = pt;
+    }
+    kit.lathe(ITEM_MATERIALS.crystal, dx * r, dz * r, rb, rb, ballProfile(cy - rb, 2 * rb), 8);
+  }
+}
+
+/** A six-step globe profile (bottom, then up the outside) for the small balls. */
+function ballProfile(y0: number, sh: number): [number, number][] {
+  const out: [number, number][] = [];
+  for (let k = 0; k <= 6; k++) {
+    const th = -Math.PI / 2 + (Math.PI * k) / 6;
+    out.push([k === 0 || k === 6 ? 0 : Math.cos(th), y0 + sh / 2 + (sh / 2) * Math.sin(th)]);
+  }
+  return out;
+}
+
 export const pendant: Generator<PendantParams> = {
   id: 'pendant',
   label: 'Pendant lamp: globe, dome or cluster of globes on cords (mount "ceiling"; a generated pendant has no light)',
@@ -90,6 +142,10 @@ export const pendant: Generator<PendantParams> = {
     const shade = colour ? ceramicMaterial(colour) : ITEM_MATERIALS.white;
     const cord = ITEM_MATERIALS.dark;
     const cordTop = h - 0.03;
+    if (shape === 'sputnik') {
+      sputnik(kit, w, h);
+      return kit.build();
+    }
     kit.box(ITEM_MATERIALS.metal, -0.06, cordTop, -0.06, 0.06, h, 0.06);
     if (shape === 'globe') {
       const sh = Math.min(w, h - 0.06);

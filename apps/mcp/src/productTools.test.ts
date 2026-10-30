@@ -313,7 +313,7 @@ describe('place_item', () => {
     const f3 = new MockFlatApi({ products: [odd] });
     const s3 = await setup({}, f3);
     await s3.search('console');
-    const r3 = await s3.call('place_item', { productId: 'mock:MOCK-ODD-TABLE', roomId: 'sejour', position: [2.85, 2.52] });
+    const r3 = await s3.call('place_item', { productId: 'mock:MOCK-ODD-TABLE', roomId: 'sejour', position: [2.4, 2.52] });
     expect(r3.j.placed?.[0]?.mesh, JSON.stringify(r3.j)).toBe('parametric');
     expect(f3.scene.items.at(-1)!.mesh).toMatchObject({ kind: 'parametric', generator: 'table' });
   });
@@ -415,7 +415,7 @@ describe('place_item', () => {
   it('preview changes nothing and its diff equals the committed diff', async () => {
     const { call: c, search, flat } = await setup();
     await search('', { limit: 12 });
-    const args = { items: [{ productId: 'mock:MOCK-BED-160', roomId: 'ch1', relation: EAST }, { productId: 'mock:MOCK-NIGHT-WHT', roomId: 'ch1', relation: { kind: 'against_wall', wallId: 'w-north', align: 'start' } }] };
+    const args = { items: [{ productId: 'mock:MOCK-BED-160', roomId: 'ch1', relation: EAST }, { productId: 'mock:MOCK-NIGHT-WHT', roomId: 'ch1', relation: { kind: 'against_wall', wallId: 'w-north', align: 'center' } }] };
     const before: Scene = flat.scene;
     const calls = flat.calls.filter((x) => x === 'postCommand').length;
     const pv = await c('place_item', { ...args, preview: true });
@@ -592,7 +592,7 @@ describe('describe_room with items (budget)', () => {
       ],
     };
     const { r, j } = await s.call('describe_room', { roomId: 'ch1' });
-    expect(j.items.length).toBe(13); // 12 + the locked wardrobe
+    expect(j.items.length).toBe(14); // 12 + the locked wardrobe + the locked radiator
     expect(j.items.find((i: any) => i.productId === 'mock:MOCK-BED-160')).toMatchObject({ price: { amount: 299, currency: 'EUR' }, locked: false });
     expect(tokens(r)).toBeLessThan(4500);
   });

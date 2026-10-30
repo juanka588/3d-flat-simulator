@@ -105,6 +105,7 @@ const CATEGORY_WORDS: Record<ProductCategory, string[]> = {
   washbasin: ['washbasin', 'basin', 'sink', 'vasque', 'lavabo'],
   vanity: ['vanity', 'lavabo', 'sous-lavabo', 'washbasin'],
   towel_rail: ['towel', 'serviette', 'serviettes', 'rail'],
+  radiator: ['radiator', 'radiateur', 'chauffage', 'heater'],
   bath_accessory: ['bathroom', 'bain', 'douche', 'shower', 'accessory'],
   shower_curtain: ['shower', 'douche', 'curtain', 'rideau'],
   kitchen_island: ['island', 'ilot', 'kitchen', 'cuisine'],

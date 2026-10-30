@@ -101,6 +101,8 @@ export function defaultParametricFor(category: ProductCategory, dims: Dims, name
       return { generator: 'sideboard', params: { w, d, h, doors: clampInt(w / 0.6, 0, 4), drawers: 0 } };
     case 'towel_rail':
       return { generator: 'wallFitting', params: { w, d, h, kind: 'rail', ...tint } };
+    case 'radiator':
+      return { generator: 'radiator', params: { w, d, h, kind: /serviette|towel/.test(words) ? 'towel' : 'panel' } };
     case 'hook':
       return { generator: 'wallFitting', params: { w, d, h, kind: 'hook', ...tint } };
     case 'bath_accessory':

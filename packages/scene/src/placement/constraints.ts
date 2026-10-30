@@ -13,6 +13,8 @@ import {
   FLAT_MAX_H,
   footprintOf,
   frontOf,
+  itemDims,
+  localToPlan,
   overlaps,
   segmentRect,
   type Bounds,
@@ -85,10 +87,47 @@ export function layoutContext(scene: Scene): LayoutContext {
     rooms,
     walls,
     boxes: scene.items.map((it, i) => boxOfItem(it, i)),
-    zones: openingZones(scene),
+    zones: [...openingZones(scene), ...heaterZones(scene)],
   };
   cache.set(scene, ctx);
   return ctx;
+}
+
+/** Free space kept in front of a radiator (its `heater` zone depth), in metres. */
+export const HEATER_CLEARANCE_M = 0.15;
+/** A heater zone also keeps this much of height above the radiator clear. */
+const HEATER_ZONE_TOP_M = 0.05;
+
+/** The generator id of the flat's radiators (`assets/generators/heating.ts`). */
+const RADIATOR_GENERATOR = 'radiator';
+
+/**
+ * Keep-out zones in front of every radiator: a rectangle as wide as the radiator and `HEATER_CLEARANCE_M` deep, from
+ * the radiator's own bottom up to just over its top. Items lower than the radiator's bottom (a rug, a skirting) pass;
+ * a sofa, a bed or a wardrobe cannot stand against it.
+ */
+function heaterZones(scene: Scene): Zone[] {
+  const zones: Zone[] = [];
+  for (const it of scene.items) {
+    if (it.mesh?.kind !== 'parametric' || it.mesh.generator !== RADIATOR_GENERATOR) continue;
+    const dims = itemDims(it);
+    const corner = (x: number, z: number): Vec2 => {
+      const o = localToPlan(it.rotation, x, z);
+      return [it.position[0] + o[0], it.position[1] + o[1]];
+    };
+    const hw = dims.w / 2;
+    const z0 = dims.d / 2;
+    zones.push({
+      kind: 'heater',
+      openingId: it.id,
+      wallId: '',
+      polygon: [corner(-hw, z0), corner(hw, z0), corner(hw, z0 + HEATER_CLEARANCE_M), corner(-hw, z0 + HEATER_CLEARANCE_M)],
+      lo: it.elevation,
+      hi: it.elevation + dims.h + HEATER_ZONE_TOP_M,
+      tolerance: 0.01,
+    });
+  }
+  return zones;
 }
 
 /** Room an item belongs to: its `roomId`, else the first room containing its position. */
@@ -230,11 +269,18 @@ export function checkZones(ctx: LayoutContext, s: Subject, box: Pick<ItemBox, 'f
   const windows: string[] = [];
   const glazing: string[] = [];
   const wallMount = s.mount === 'wall';
+  const heaters: string[] = [];
   // ceiling lights hang far above any sill: the window rules are for things standing or hanging on walls
   const ceilingMount = s.mount === 'ceiling';
   // curtains and blinds hang over windows (and glazed doors) on purpose
   const covers = s.category === 'curtain';
   for (const z of ctx.zones) {
+    if (z.kind === 'heater') {
+      // nothing stands or hangs in front of a radiator (curtains and the radiator itself excepted)
+      if (covers || z.openingId === s.id || box.flat || s.mount === 'ceiling') continue;
+      if (box.top > z.lo + HEIGHT_TOLERANCE && box.bottom < z.hi - HEIGHT_TOLERANCE && zoneHit(box, z) && !heaters.includes(z.openingId)) heaters.push(z.openingId);
+      continue;
+    }
     const clear = z.kind === 'swing' || z.kind === 'landing' || z.kind === 'passage' || z.kind === 'approach' || z.kind === 'span';
     if (only === 'swing' && !clear) continue;
     if (clear) {
@@ -253,6 +299,9 @@ export function checkZones(ctx: LayoutContext, s: Subject, box: Pick<ItemBox, 'f
     }
   }
   const out: Violation[] = [];
+  if (heaters.length) {
+    out.push(violation('overlap', `${label(s)} blocks the clearance in front of radiator ${heaters.map((x) => `"${x}"`).join(', ')} (keep ${f2(HEATER_CLEARANCE_M * 100)} cm free)`, heaters, 'Leave at least 15 cm free in front of a radiator; move the item along the wall or to another wall.'));
+  }
   if (swing.length) {
     out.push(violation('door_swing_blocked', `${label(s)} blocks the swing, landing or doorway of ${swing.map((x) => `"${x}"`).join(', ')}`, swing));
   }

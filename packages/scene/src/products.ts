@@ -95,6 +95,7 @@ export const PRODUCT_CATEGORIES = [
   'appliance_housing',
   'hook',
   'storage',
+  'radiator',
 ] as const;
 /** Coarse furniture category; lookalike picking and generators key on it. */
 export const ProductCategory = z.enum(PRODUCT_CATEGORIES);

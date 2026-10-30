@@ -8,6 +8,7 @@ describe('bathroom, kitchen and storage categories', () => {
     ['Porte-serviettes avec 2 barres', 'towel_rail'],
     ['Portant serviettes', 'towel_rail'],
     ['Towel rail', 'towel_rail'],
+    ['Radiateur à eau chaude', 'radiator'],
     ['Vasque avec siphon', 'washbasin'],
     ['Vasque semi-encastré avec siphon', 'washbasin'],
     ['Meuble lavabo avec tiroirs', 'vanity'],

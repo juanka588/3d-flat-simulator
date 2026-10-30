@@ -44,6 +44,22 @@ export const ITEM_MATERIALS = {
   glass: 'builtin:furniture-glass',
   /** Enamelled appliance body (fridge, oven): satin white, slightly glossier than the lacquer. */
   enamel: 'builtin:furniture-enamel',
+  /** Dark grey concrete-effect kitchen fronts (laminate / melamine). */
+  concreteDark: 'builtin:furniture-concrete-dark',
+  /** Light grey concrete-effect worktop. */
+  concreteLight: 'builtin:furniture-concrete-light',
+  /** Black composite (granite-resin) sink bowl and drainer. */
+  compositeBlack: 'builtin:furniture-composite-black',
+  /** Light oak-effect melamine (bathroom vanity). */
+  oakLight: 'builtin:furniture-oak-light',
+  /** Beige rectangular wall tiles (bath surround). */
+  tileBeige: 'builtin:furniture-tile-beige',
+  /** Smoked glass (strip in a wall unit). */
+  glassSmoked: 'builtin:furniture-glass-smoked',
+  /** Chrome (arms of a lamp, taps): bright and mirror-like, unlike the brushed steel. */
+  chrome: 'builtin:furniture-chrome',
+  /** Faceted crystal / mesh ball of a lamp shade: pale, glossy, a little metallic. */
+  crystal: 'builtin:furniture-crystal',
 } as const;
 
 /**
@@ -174,6 +190,15 @@ const BASE_SPECS: Readonly<Record<(typeof ITEM_MATERIALS)[keyof typeof ITEM_MATE
   'builtin:furniture-ceramic': { color: '#f4f4f2', roughness: 0.1, metalness: 0 },
   'builtin:furniture-glass': { color: '#0b0c0f', roughness: 0.04, metalness: 0.3 },
   'builtin:furniture-enamel': { color: '#f1f1ee', roughness: 0.28, metalness: 0 },
+  // Reuse the existing library textures (no new maps): the average colour steers them to the real flat's finishes.
+  'builtin:furniture-concrete-dark': { color: '#4d5054', roughness: 0.62, metalness: 0, texture: { slug: 'concrete-smooth-grey', scale: 1 } },
+  'builtin:furniture-concrete-light': { color: '#a9aaa8', roughness: 0.5, metalness: 0, texture: { slug: 'concrete-smooth-grey', scale: 1 } },
+  'builtin:furniture-composite-black': { color: '#17181a', roughness: 0.42, metalness: 0.05 },
+  'builtin:furniture-oak-light': { color: '#d6c09b', roughness: 0.5, metalness: 0, texture: { slug: 'oak-veneer' } },
+  'builtin:furniture-tile-beige': { color: '#c9b9a3', roughness: 0.35, metalness: 0, texture: { slug: 'tile-limestone-beige', scale: 0.6 } },
+  'builtin:furniture-glass-smoked': { color: '#25282b', roughness: 0.05, metalness: 0.3, opacity: 0.7 },
+  'builtin:furniture-chrome': { color: '#d9dce0', roughness: 0.08, metalness: 1 },
+  'builtin:furniture-crystal': { color: '#dfe3e6', roughness: 0.1, metalness: 0.55 },
 };
 
 /** The coloured upholstery, ceramic and sheer variants, generated from the palette (colour steers the shared library texture). */

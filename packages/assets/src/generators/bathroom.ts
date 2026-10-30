@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { Generator } from '@flat/scene';
 import { ITEM_MATERIALS, ceramicMaterial } from '../materials/item-materials';
 import { cabinet } from './cabinets';
-import { Kit, boxAnchors, colourParam, metres } from './kit';
+import { Kit, boxAnchors, colourParam, finish, finishMaterial, metres } from './kit';
 
 /** Fixed sanitary ware: bathtub, toilet and washbasin / sink unit. Item frame as in `kit.ts` (front +z, back against the wall). */
 
@@ -145,15 +145,22 @@ const washbasinParams = z.strictObject({
     .describe('"vanity" is a cabinet with a top and a basin on it, "pedestal" a basin on a column, "sink" a kitchen sink unit (cabinet with a worktop, a bowl and a drainer). Defaults to "vanity".'),
   w: metres('Overall width.', 0.7, 0.3, 1.8),
   d: metres('Overall depth (front to back).', 0.45, 0.3, 0.8),
-  h: metres('Overall height to the top of the basin rim, worktop or tap.', 0.85, 0.6, 1),
+  h: metres('Overall height to the top of the basin rim, worktop or tap (a sink with a mixer: the tap top, the worktop is 0.2 m lower).', 0.85, 0.6, 1.2),
   basin: z
     .enum(['vessel', 'integrated'])
     .optional()
     .describe('Vanity only. "vessel": a bowl standing on the top. "integrated": the basin is moulded into the ceramic top. Omitted: the classic low oval basin.'),
   shape: z.enum(['round', 'rect']).optional().describe('Vanity only, with basin: the basin outline, "round" (oval) or "rect". Omitted: round.'),
   colour: colourParam('the ceramic (basin, pedestal and vanity top)'),
+  finish: finish('white').describe('Vanity and sink only: finish of the cabinet body and fronts. Defaults to "white".'),
+  bowl: z.enum(['steel', 'black']).default('steel').describe('Sink only: "steel" (stainless bowl and drainer) or "black" (black composite). Defaults to "steel".'),
+  worktop: z.enum(['quartz', 'concrete']).default('quartz').describe('Sink only: worktop look, "quartz" (polished light stone) or "concrete" (light grey concrete effect). Defaults to "quartz".'),
+  mixer: z.boolean().default(false).describe('Sink only: add a tall chrome mixer tap behind the bowl; `h` then counts the tap: the worktop is 0.2 m below it. Defaults to false.'),
 });
 type WashbasinParams = z.infer<typeof washbasinParams>;
+
+/** Height of the mixer tap above the worktop of a sink unit with `mixer`. */
+const SINK_MIXER_H = 0.2;
 
 export const washbasin: Generator<WashbasinParams> = {
   id: 'washbasin',
@@ -161,8 +168,9 @@ export const washbasin: Generator<WashbasinParams> = {
   category: 'other',
   params: washbasinParams,
   describeParams: ({ w, d, h }) => ({ dims: { w, d, h }, anchors: boxAnchors(w, d, h), clearance: { front: 0.6, back: 0 } }),
-  generate({ kind, w, d, h, basin, shape, colour }) {
+  generate({ kind, w, d, h, basin, shape, colour, finish: fin, bowl: bowlStyle, worktop, mixer }) {
     const kit = new Kit();
+    const BODY = finishMaterial(fin);
     const W = colour ? ceramicMaterial(colour) : CERAMIC;
     if (kind === 'pedestal') {
       const rimT = 0.035;
@@ -178,7 +186,8 @@ export const washbasin: Generator<WashbasinParams> = {
     }
     if (kind === 'sink') {
       const slab = 0.04;
-      const top = h - slab;
+      const wt = mixer ? h - SINK_MIXER_H : h; // worktop top
+      const top = wt - slab;
       cabinet(kit, {
         w,
         d,
@@ -186,36 +195,46 @@ export const washbasin: Generator<WashbasinParams> = {
         base: 'plinth',
         baseH: 0.1,
         baseMat: ITEM_MATERIALS.dark,
-        bodyMat: CARCASS,
-        frontMat: CARCASS,
+        bodyMat: BODY,
+        frontMat: BODY,
         doors: w >= 1 ? 2 : 1,
         drawers: 0,
       });
       const m = Math.min(0.08, d * 0.15);
       const gap = 0.04;
+      const BOWL = bowlStyle === 'black' ? ITEM_MATERIALS.compositeBlack : METAL;
       const avail = w - 2 * m - gap;
       const bowlW = Math.max(0.1, Math.min(0.45, avail * 0.45));
       const drainW = Math.max(0, avail - bowlW);
       const bowl: [number, number, number, number] = [-w / 2 + m, -d / 2 + m, -w / 2 + m + bowlW, d / 2 - m];
       const holes: [number, number, number, number][] = [bowl];
-      kit.box(METAL, bowl[0], top, bowl[1], bowl[2], top + 0.004, bowl[3]);
+      kit.box(BOWL, bowl[0], top, bowl[1], bowl[2], top + 0.004, bowl[3]);
       if (drainW >= 0.12) {
         const drain: [number, number, number, number] = [bowl[2] + gap, -d / 2 + m, w / 2 - m, d / 2 - m];
         holes.push(drain);
-        kit.box(METAL, drain[0], top, drain[1], drain[2], top + 0.004, drain[3]);
+        kit.box(BOWL, drain[0], top, drain[1], drain[2], top + 0.004, drain[3]);
         const ribs = Math.max(2, Math.floor(drainW / 0.04));
         const pitch = drainW / ribs;
         for (let i = 0; i < ribs; i++) {
           const x = drain[0] + (i + 0.35) * pitch;
-          kit.box(METAL, x, top + 0.004, drain[1] + 0.02, x + pitch * 0.3, top + 0.012, drain[3] - 0.02, 0);
+          kit.box(BOWL, x, top + 0.004, drain[1] + 0.02, x + pitch * 0.3, top + 0.012, drain[3] - 0.02, 0);
         }
       }
-      kit.slab(ITEM_MATERIALS.worktop, -w / 2, top, -d / 2, w / 2, h, d / 2, holes);
+      kit.slab(worktop === 'concrete' ? ITEM_MATERIALS.concreteLight : ITEM_MATERIALS.worktop, -w / 2, top, -d / 2, w / 2, wt, d / 2, holes);
+      if (mixer) {
+        // chrome mixer behind the bowl: a post, a gooseneck over the bowl and a lever
+        const mx = bowl[0] + bowlW / 2;
+        const mz = -d / 2 + 0.06;
+        const topY = h;
+        kit.box(ITEM_MATERIALS.metal, mx - 0.016, wt, mz - 0.016, mx + 0.016, topY - 0.02, mz + 0.016, 0.003);
+        kit.box(ITEM_MATERIALS.metal, mx - 0.012, topY - 0.035, mz - 0.012, mx + 0.012, topY, mz + 0.16, 0.003);
+        kit.box(ITEM_MATERIALS.metal, mx - 0.045, wt + 0.07, mz - 0.01, mx - 0.016, wt + 0.085, mz + 0.01, 0.002);
+      }
       return kit.build();
     }
     // vanity
     const bodyH = h - 0.14;
-    cabinet(kit, { w, d, h: bodyH, base: 'plinth', baseH: 0.1, baseMat: ITEM_MATERIALS.dark, bodyMat: CARCASS, frontMat: CARCASS, doors: w >= 0.6 ? 2 : 1, drawers: 0 });
+    cabinet(kit, { w, d, h: bodyH, base: 'plinth', baseH: 0.1, baseMat: ITEM_MATERIALS.dark, bodyMat: BODY, frontMat: BODY, doors: w >= 0.6 ? 2 : 1, drawers: 0 });
     kit.box(W, -w / 2, bodyH, -d / 2, w / 2, bodyH + 0.04, d / 2); // ceramic vanity top
     const rx = Math.min(0.22, w / 2 - 0.04);
     const rz = Math.min(0.17, d / 2 - 0.04);

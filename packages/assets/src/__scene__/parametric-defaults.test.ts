@@ -34,6 +34,7 @@ describe('defaultParametricFor with the real generators', () => {
     bath_accessory: { w: 0.1, d: 0.1, h: 0.15 },
     shower_curtain: { w: 1.8, d: 0.01, h: 2 },
     storage: { w: 0.3, d: 0.25, h: 0.25 },
+    radiator: { w: 0.8, d: 0.1, h: 0.6 },
   };
   it('maps every category to a registered generator whose params the schema accepts, or to nothing', () => {
     for (const category of ProductCategory.options) {

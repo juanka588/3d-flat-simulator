@@ -12,7 +12,7 @@ import { assertGeneratorsRegistered, registerGenerators } from '../register';
 
 const MAX_TRIANGLES = 3000;
 /** Carcass, fronts or ceramic, the dark reveal behind the fronts, metal fittings and one more (worktop, glass). */
-const MAX_MATERIALS = 4;
+const MAX_MATERIALS = 5; // the sink unit with a black bowl, a concrete worktop and a mixer has five
 const MM = 1e-3;
 
 function bbox(mesh: MeshData) {
@@ -77,17 +77,17 @@ function hash(mesh: MeshData): string {
 describe('generator registry', () => {
   it('registers the furniture generators, the TV, the fixed bathroom / kitchen ware and the CG4 curtains and pendant and the CG8 stand-ins in the process-wide registry', () => {
     expect(GENERATORS.list().map((g) => g.id)).toEqual(
-      ['basket', 'bathtub', 'bed', 'bookshelf', 'chair', 'cooktop', 'curtains', 'cushion', 'desk', 'frame', 'fridge', 'island', 'kitchenBase', 'kitchenWall', 'lamp', 'mirror', 'nightstand', 'pendant', 'plant', 'rug', 'sideboard', 'sofa', 'table', 'throwBlanket', 'toilet', 'tv', 'tvUnit', 'vase', 'wallFitting', 'wardrobe', 'washbasin'],
+      ['basket', 'bathtub', 'bed', 'bookshelf', 'chair', 'cooktop', 'curtains', 'cushion', 'desk', 'frame', 'fridge', 'island', 'kitchenBase', 'kitchenWall', 'lamp', 'mirror', 'nightstand', 'ovenColumn', 'pendant', 'plant', 'radiator', 'rug', 'sideboard', 'sofa', 'table', 'throwBlanket', 'toilet', 'tv', 'tvUnit', 'vase', 'wallFitting', 'wallTiles', 'wardrobe', 'washbasin'],
     );
-    expect(ALL_GENERATORS).toHaveLength(31);
+    expect(ALL_GENERATORS).toHaveLength(34);
   });
   it('registerGenerators is idempotent and fills any registry', () => {
     const r = createGeneratorRegistry();
     registerGenerators(r);
     registerGenerators(r);
-    expect(r.list()).toHaveLength(31);
+    expect(r.list()).toHaveLength(34);
     registerGenerators();
-    expect(GENERATORS.list()).toHaveLength(31);
+    expect(GENERATORS.list()).toHaveLength(34);
   });
   it('assertGeneratorsRegistered passes on the process-wide registry and names what is missing otherwise', () => {
     expect(() => assertGeneratorsRegistered()).not.toThrow();
@@ -185,8 +185,10 @@ describe('generator geometry snapshot (determinism across versions)', () => {
         "lamp": "a122e85a4b0e",
         "mirror": "9f58ba728e26",
         "nightstand": "17cb49fdb6c2",
+        "ovenColumn": "2412ee287c73",
         "pendant": "6b40fd1ba1b4",
         "plant": "0c18a7add731",
+        "radiator": "089f8ba653f6",
         "rug": "b42900d44133",
         "sideboard": "21e5c1283a52",
         "sofa": "b950d0047d92",
@@ -197,6 +199,7 @@ describe('generator geometry snapshot (determinism across versions)', () => {
         "tvUnit": "96be9ddf0cd6",
         "vase": "6b2a9dd5f99b",
         "wallFitting": "12b6e54884cf",
+        "wallTiles": "427377b8773f",
         "wardrobe": "6b7946f318dd",
         "washbasin": "a33867c4ee57",
       }

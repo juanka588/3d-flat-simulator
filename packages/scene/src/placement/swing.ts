@@ -29,7 +29,7 @@ const SPAN_MARGIN_M = 0.08;
 /** Segments of the quarter-circle arc. */
 const ARC_STEPS = 12;
 
-export type ZoneKind = 'swing' | 'landing' | 'passage' | 'approach' | 'span' | 'window' | 'glass';
+export type ZoneKind = 'swing' | 'landing' | 'passage' | 'approach' | 'span' | 'window' | 'glass' | 'heater';
 
 export interface Zone {
   kind: ZoneKind;
@@ -40,6 +40,7 @@ export interface Zone {
   /** Height range the zone occupies: items entirely above `hi` or below `lo` are clear of it. */
   lo: number;
   hi: number;
+  /** `heater` zones: `openingId` is the id of the radiator item. */
   /** `window` zones: sill height (items must stay under `sill - 0.02`). */
   sill?: number;
   /** Penetration (m) below which a footprint only brushes the zone; default `TOUCH_TOLERANCE`. */

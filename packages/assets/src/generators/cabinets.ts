@@ -110,6 +110,7 @@ const kitchenBaseParams = z.strictObject({
   doors: count('Number of doors side by side below the drawers (0 for none).', 1, 0, 4),
   drawers: count('Number of drawers stacked at the top (0 for none); with no doors the drawers fill the whole front.', 0, 0, 5),
   worktop: z.boolean().default(true).describe('Add a 4 cm worktop over the full footprint. Defaults to true.'),
+  worktopFinish: z.enum(['quartz', 'concrete']).default('quartz').describe('Worktop look: "quartz" (polished light stone) or "concrete" (light grey concrete effect). Defaults to "quartz".'),
   finish: finish('white'),
 });
 type KitchenBaseParams = z.infer<typeof kitchenBaseParams>;
@@ -120,7 +121,7 @@ export const kitchenBase: Generator<KitchenBaseParams> = {
   category: 'kitchen',
   params: kitchenBaseParams,
   describeParams: ({ w, d, h }) => ({ dims: { w, d, h }, anchors: boxAnchors(w, d, h), clearance: { front: 0.9, back: 0 } }),
-  generate({ w, d, h, doors, drawers, worktop, finish: f }) {
+  generate({ w, d, h, doors, drawers, worktop, worktopFinish, finish: f }) {
     const kit = new Kit();
     const mat = finishMaterial(f);
     cabinet(kit, {
@@ -134,7 +135,7 @@ export const kitchenBase: Generator<KitchenBaseParams> = {
       frontMat: mat,
       doors,
       drawers,
-      ...(worktop ? { topT: 0.04, topMat: ITEM_MATERIALS.worktop } : {}),
+      ...(worktop ? { topT: 0.04, topMat: worktopFinish === 'concrete' ? ITEM_MATERIALS.concreteLight : ITEM_MATERIALS.worktop } : {}),
     });
     return kit.build();
   },
@@ -190,6 +191,7 @@ const kitchenWallParams = z.strictObject({
   d: metres('Depth of the wall unit (front to back); standard is 0.35.', 0.35, 0.2, 0.6),
   h: metres('Height of the unit body; standard is 0.7. Hang it with the item elevation.', 0.7, 0.3, 1.2),
   doors: count('Number of doors side by side.', 1, 1, 4),
+  glassStrip: z.boolean().default(false).describe('Lay a horizontal smoked-glass strip across the doors (the flat\'s wall units). Defaults to false.'),
   finish: finish('white'),
 });
 type KitchenWallParams = z.infer<typeof kitchenWallParams>;
@@ -200,10 +202,15 @@ export const kitchenWall: Generator<KitchenWallParams> = {
   category: 'wall_cabinet',
   params: kitchenWallParams,
   describeParams: ({ w, d, h }) => ({ dims: { w, d, h }, anchors: boxAnchors(w, d, h), clearance: { front: 0.3, back: 0 } }),
-  generate({ w, d, h, doors, finish: f }) {
+  generate({ w, d, h, doors, glassStrip, finish: f }) {
     const kit = new Kit();
     const mat = finishMaterial(f);
     cabinet(kit, { w, d, h, base: 'none', baseH: 0, baseMat: mat, bodyMat: mat, frontMat: mat, doors, drawers: 0 });
+    if (glassStrip) {
+      // a smoked-glass band in front of the doors, from 55% to 75% of the height (inside the handle depth, so the box stays exact)
+      const zFace = d / 2 - HANDLE;
+      kit.box(ITEM_MATERIALS.glassSmoked, -w / 2 + 0.02, h * 0.55, zFace, w / 2 - 0.02, h * 0.75, zFace + 0.003, 0);
+    }
     return kit.build();
   },
 };

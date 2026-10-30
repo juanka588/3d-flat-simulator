@@ -1194,7 +1194,8 @@
                     "tall_cabinet",
                     "appliance_housing",
                     "hook",
-                    "storage"
+                    "storage",
+                    "radiator"
                   ],
                   "description": "Furniture category of the product."
                 },
@@ -2746,7 +2747,8 @@
                 "tall_cabinet",
                 "appliance_housing",
                 "hook",
-                "storage"
+                "storage",
+                "radiator"
               ],
               "description": "Furniture category of the product."
             },
@@ -4293,7 +4295,8 @@
                               "tall_cabinet",
                               "appliance_housing",
                               "hook",
-                              "storage"
+                              "storage",
+                              "radiator"
                             ],
                             "description": "Furniture category of the product."
                           },
@@ -5845,7 +5848,8 @@
                           "tall_cabinet",
                           "appliance_housing",
                           "hook",
-                          "storage"
+                          "storage",
+                          "radiator"
                         ],
                         "description": "Furniture category of the product."
                       },

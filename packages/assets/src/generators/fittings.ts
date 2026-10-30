@@ -71,3 +71,33 @@ export const basket: Generator<BasketParams> = {
     return kit.build();
   },
 };
+
+const wallTilesParams = z.strictObject({
+  w: metres('Width of the tiled panel along the wall.', 1.6, 0.1, 6),
+  h: metres('Height of the tiled panel.', 1.3, 0.1, 3),
+  d: metres('Thickness of the tiling (tile plus adhesive).', 0.012, 0.004, 0.05),
+});
+type WallTilesParams = z.infer<typeof wallTilesParams>;
+
+/** Course height of the tiles (rectangular wall tiles laid in rows), in metres. */
+const TILE_COURSE = 0.1;
+
+export const wallTiles: Generator<WallTilesParams> = {
+  id: 'wallTiles',
+  label: 'Tiled wall panel: beige wall tiles in rows, e.g. around a bathtub (mount "wall")',
+  category: 'other',
+  params: wallTilesParams,
+  describeParams: ({ w, d, h }) => ({ dims: { w, d, h }, anchors: boxAnchors(w, d, h), clearance: {} }),
+  generate({ w, d, h }) {
+    const kit = new Kit();
+    const joint = 0.002;
+    // rows of tiles with slightly recessed grout lines: each course is a box, the gap between courses shows the darker backing
+    kit.box(ITEM_MATERIALS.whiteMatte, -w / 2, 0, -d / 2, w / 2, h, -d / 2 + d * 0.4, 0);
+    const rows = Math.max(1, Math.round(h / TILE_COURSE));
+    const course = h / rows;
+    for (let r = 0; r < rows; r++) {
+      kit.box(ITEM_MATERIALS.tileBeige, -w / 2, r * course + joint / 2, -d / 2 + d * 0.4, w / 2, (r + 1) * course - joint / 2, d / 2, 0);
+    }
+    return kit.build();
+  },
+};

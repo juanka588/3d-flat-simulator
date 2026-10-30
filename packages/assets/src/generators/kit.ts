@@ -31,6 +31,8 @@ const BEVEL: Readonly<Record<string, number>> = {
   [ITEM_MATERIALS.walnut]: 0.0025,
   [ITEM_MATERIALS.dark]: 0.0025,
   [ITEM_MATERIALS.anthracite]: 0.0025,
+  [ITEM_MATERIALS.concreteDark]: 0.0025,
+  [ITEM_MATERIALS.oakLight]: 0.0025,
   [ITEM_MATERIALS.enamel]: 0.003,
   [ITEM_MATERIALS.metal]: 0.0015,
   [ITEM_MATERIALS.ceramic]: 0.008,
@@ -335,6 +337,47 @@ export class Kit {
     }
   }
 
+  /**
+   * A thin round tube from `a` to `b` (radius `r`, `sides` around, no end caps; the ends are hidden in a canopy or a ball).
+   * For arms and rods that are not axis aligned. Smooth normals around.
+   */
+  tube(material: string, a: Vec3, b: Vec3, r: number, sides = 6): void {
+    const dir: Vec3 = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+    const len = Math.hypot(dir[0], dir[1], dir[2]);
+    if (len < 1e-9 || r < 1e-9) return;
+    const t: Vec3 = [dir[0] / len, dir[1] / len, dir[2] / len];
+    // any unit vector not parallel to the axis seeds the frame
+    const seed: Vec3 = Math.abs(t[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0];
+    const cross = (u: Vec3, v: Vec3): Vec3 => [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
+    const e1 = cross(t, seed);
+    const l1 = Math.hypot(e1[0], e1[1], e1[2]);
+    const u1: Vec3 = [e1[0] / l1, e1[1] / l1, e1[2] / l1];
+    const u2 = cross(t, u1);
+    for (let i = 0; i < sides; i++) {
+      const ang = (k: number) => (2 * Math.PI * k) / sides;
+      const nrm = (k: number): Vec3 => [Math.cos(ang(k)) * u1[0] + Math.sin(ang(k)) * u2[0], Math.cos(ang(k)) * u1[1] + Math.sin(ang(k)) * u2[1], Math.cos(ang(k)) * u1[2] + Math.sin(ang(k)) * u2[2]];
+      const at = (p: Vec3, n: Vec3): Vec3 => [p[0] + n[0] * r, p[1] + n[1] * r, p[2] + n[2] * r];
+      const n0 = nrm(i);
+      const n1 = nrm(i + 1);
+      const u0 = (2 * Math.PI * r * i) / sides;
+      const uu = (2 * Math.PI * r * (i + 1)) / sides;
+      const v0 = this.b.vertex(at(a, n0), n0, [u0, 0]);
+      const v1 = this.b.vertex(at(b, n0), n0, [u0, len]);
+      const v2 = this.b.vertex(at(b, n1), n1, [uu, len]);
+      const v3 = this.b.vertex(at(a, n1), n1, [uu, 0]);
+      // (v0, v1, v2) has the normal len * r * t x (n1 - n0), which points inward for a right-handed turn about t
+      const g = cross(t, [n1[0] - n0[0], n1[1] - n0[1], n1[2] - n0[2]]);
+      const outward = g[0] * (n0[0] + n1[0]) + g[1] * (n0[1] + n1[1]) + g[2] * (n0[2] + n1[2]) > 0;
+      if (outward) {
+        this.b.triangle(v0, v1, v2, material, OWNER);
+        this.b.triangle(v0, v2, v3, material, OWNER);
+      } else {
+        this.b.triangle(v0, v2, v1, material, OWNER);
+        this.b.triangle(v0, v3, v2, material, OWNER);
+      }
+    }
+  }
+
   build(): MeshData {
     return this.b.build();
   }
@@ -350,14 +393,14 @@ export const metres = (description: string, def: number, min: number, max: numbe
 export const count = (description: string, def: number, min: number, max: number) =>
   z.number().int().min(min).max(max).default(def).describe(`${description} Whole number, ${min}-${max}. Defaults to ${def}.`);
 
-export const FINISHES = ['white', 'wood', 'dark', 'oak', 'white-matte', 'anthracite', 'walnut'] as const;
+export const FINISHES = ['white', 'wood', 'dark', 'oak', 'white-matte', 'anthracite', 'walnut', 'concrete', 'light-oak'] as const;
 export type Finish = (typeof FINISHES)[number];
 export const finish = (def: Finish = 'white') =>
   z
     .enum(FINISHES)
     .default(def)
     .describe(
-      `Panel finish: "white" (satin lacquer), "white-matte", "wood" (warm oak veneer), "oak" (natural oak veneer), "walnut", "dark" (gloss anthracite lacquer) or "anthracite" (matt anthracite paint). Defaults to "${def}".`,
+      `Panel finish: "white" (satin lacquer), "white-matte", "wood" (warm oak veneer), "oak" (natural oak veneer), "walnut", "dark" (gloss anthracite lacquer), "anthracite" (matt anthracite paint), "concrete" (dark grey concrete effect; its handles are black bars) or "light-oak" (light oak effect). Defaults to "${def}".`,
     );
 
 const FINISH_MATERIAL: Readonly<Record<Finish, string>> = {
@@ -368,6 +411,8 @@ const FINISH_MATERIAL: Readonly<Record<Finish, string>> = {
   walnut: ITEM_MATERIALS.walnut,
   dark: ITEM_MATERIALS.dark,
   anthracite: ITEM_MATERIALS.anthracite,
+  concrete: ITEM_MATERIALS.concreteDark,
+  'light-oak': ITEM_MATERIALS.oakLight,
 };
 
 export function finishMaterial(f: Finish): string {
@@ -405,6 +450,8 @@ export interface FrontsSpec {
 
 /** Gap between neighbouring fronts. */
 const GAP = 0.003;
+/** Handle material for a front: dark concrete-effect fronts carry black bars, everything else brushed steel. */
+const handleFor = (front: string): string => (front === ITEM_MATERIALS.concreteDark ? ITEM_MATERIALS.dark : ITEM_MATERIALS.metal);
 /** Depth of the dark reveal behind the fronts: it shows in the gaps as a shadow line. */
 const REVEAL = 0.003;
 
@@ -427,7 +474,7 @@ export function addFronts(kit: Kit, s: FrontsSpec): void {
       const yb = doorTop + i * each;
       kit.box(s.frontMaterial, s.x0 + GAP / 2, yb + GAP / 2, zDoor, s.x1 - GAP / 2, yb + each - GAP / 2, s.zFace);
       const hw = Math.min(0.3, W * 0.5);
-      kit.handle(ITEM_MATERIALS.metal, (s.x0 + s.x1) / 2, yb + each / 2, hw, false, s.zFace);
+      kit.handle(handleFor(s.frontMaterial), (s.x0 + s.x1) / 2, yb + each / 2, hw, false, s.zFace);
     }
   }
   if (s.doors > 0) {
@@ -439,7 +486,7 @@ export function addFronts(kit: Kit, s: FrontsSpec): void {
       // Handles meet in pairs: even doors on their right edge, odd doors on their left edge.
       const hx = s.doors === 1 || i % 2 === 0 ? xa + each - 0.04 : xa + 0.04;
       const hh = Math.min(0.3, dh * 0.4);
-      kit.handle(ITEM_MATERIALS.metal, hx, s.y0 + dh / 2, hh, true, s.zFace);
+      kit.handle(handleFor(s.frontMaterial), hx, s.y0 + dh / 2, hh, true, s.zFace);
     }
   }
 }

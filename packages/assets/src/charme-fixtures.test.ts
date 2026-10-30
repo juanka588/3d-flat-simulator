@@ -42,6 +42,17 @@ const FIXTURE_ITEMS: Record<string, { generator: string; room: string }> = {
   'sdb-washing-machine-ll': { generator: 'kitchenBase', room: 'sdb' },
   'wc-toilet': { generator: 'toilet', room: 'wc' },
   'te-electrical-panel': { generator: 'wardrobe', room: 'entree' },
+  'kitchen-oven-column': { generator: 'ovenColumn', room: 'sejour' },
+  'sdb-vanity-mirror': { generator: 'mirror', room: 'sdb' },
+  'sdb-tiles-back': { generator: 'wallTiles', room: 'sdb' },
+  'sdb-tiles-end-north': { generator: 'wallTiles', room: 'sdb' },
+  'sdb-tiles-end-south': { generator: 'wallTiles', room: 'sdb' },
+  'sejour-ceiling-lamp': { generator: 'pendant', room: 'sejour' },
+  'heat-ch1-north': { generator: 'radiator', room: 'ch1' },
+  'heat-alcove-north': { generator: 'radiator', room: 'alcove' },
+  'heat-ch2-east': { generator: 'radiator', room: 'ch2' },
+  'heat-sejour-east': { generator: 'radiator', room: 'sejour' },
+  'heat-sdb-towel': { generator: 'radiator', room: 'sdb' },
 };
 
 describe('fixed fixtures: locked, existing, exact', () => {
@@ -172,7 +183,7 @@ describe('kitchen (CUISINE), transcribed from the plan', () => {
     near(run[1]!.maxX, Math.min(...column.map((p) => p[0]))); // the sink ends at the column (80 x 60 cm, user)
     expect(wall('w-kitchen-column').structural).toBe(true);
     near(run[1]!.maxX - run[1]!.minX, 1.22);
-    for (const id of ['kitchen-cooktop-cui', 'kitchen-sink-tri']) expect(item(id).dims!.h).toBe(0.9); // one continuous worktop level
+    for (const id of ['kitchen-cooktop-cui', 'kitchen-sink-tri']) expect(item(id).dims!.h).toBeGreaterThanOrEqual(0.9); // one continuous worktop level (the sink's dims also count its mixer tap)
     for (const id of ['kitchen-cooktop-cui', 'kitchen-sink-tri']) expect(frontOf(item(id).rotation)[1]).toBeCloseTo(-1, 9); // fronts face north into the room
   });
 
@@ -192,11 +203,12 @@ describe('kitchen (CUISINE), transcribed from the plan', () => {
     for (const id of Object.keys(FIXTURE_ITEMS)) if (id !== 'kitchen-fridge-f' && item(id).mount !== 'wall') expect(penetration(swept, rect(id).pts), id).toBeLessThan(1e-3);
   });
 
-  it('hangs two estimated wall units over the sink at 1.45 m, above the worktop', () => {
+  it('hangs two wall units over the sink so that the top of the kit is 2.00 m, above the worktop', () => {
     for (const id of ['kitchen-wall-est-1', 'kitchen-wall-est-2']) {
       const it = item(id);
-      expect(it).toMatchObject({ mount: 'wall', elevation: 1.45 });
-      expect(it.elevation).toBeGreaterThan(0.9 + 0.5);
+      expect(it).toMatchObject({ mount: 'wall', elevation: 1.4 });
+      expect(it.elevation).toBeGreaterThanOrEqual(0.9 + 0.5);
+      near(it.elevation + it.dims!.h, 2.0); // kit height 200 cm, floor to the top of the wall units (user)
       near(rect(id).maxY, 8.28);
       expect(it.elevation + it.dims!.h).toBeLessThan(wall('w-south').height);
     }
@@ -321,5 +333,93 @@ describe('structural columns: kitchen, Chambre 1 and SDB', () => {
     expect(penetration(ll.pts, b.pts)).toBeLessThan(1e-3);
     // and it leaves the TE recess walls alone
     for (const id of ['w-te-west', 'w-te-south']) expect(penetration(box(id).pts, b.pts), id).toBeLessThan(1e-3);
+  });
+});
+
+describe('radiators (chauffage), from the home video and the user\'s wall list', () => {
+  /** Seen from inside the room, facing the wall: `left` is the direction of the left end of the wall run, `limit` the coordinate of that end on the axis of `left`. */
+  const RADIATORS = [
+    { id: 'heat-ch1-north', wall: 'w-north', room: 'ch1', kind: 'panel', front: [0, 1], left: [-1, 0], limit: 6.91, window: 'win-ch1' },
+    { id: 'heat-alcove-north', wall: 'w-north', room: 'alcove', kind: 'panel', front: [0, 1], left: [-1, 0], limit: 0, window: 'win-alcove' },
+    { id: 'heat-ch2-east', wall: 'w-ch2-ch1', room: 'ch2', kind: 'panel', front: [-1, 0], left: [0, -1], limit: 0, window: 'win-ch2' },
+    { id: 'heat-sejour-east', wall: 'w-sejour-ch2', room: 'sejour', kind: 'panel', front: [-1, 0], left: [0, -1], limit: 2.27 },
+    { id: 'heat-sdb-towel', wall: 'w-sdb-east', room: 'sdb', kind: 'towel', front: [-1, 0], left: [0, -1], limit: 6.47 },
+  ] as const;
+
+  it.each(RADIATORS)('$id is a locked wall-mounted $kind radiator on $wall, room side, 15 cm off the floor', (r) => {
+    const it = item(r.id);
+    expect(it).toMatchObject({ locked: true, mount: 'wall', roomId: r.room, mesh: { kind: 'parametric', generator: 'radiator', params: { kind: r.kind } } });
+    expect(it.product).toBeUndefined();
+    expect(it.elevation).toBeGreaterThanOrEqual(0.15);
+    expect(it.elevation).toBeLessThanOrEqual(0.3);
+    const f = frontOf(it.rotation);
+    near(f[0], r.front[0]);
+    near(f[1], r.front[1]);
+    // the back touches the wall face on the room side
+    const w = wall(r.wall);
+    const len = wallLength(w);
+    const dir: Vec2 = [(w.end[0] - w.start[0]) / len, (w.end[1] - w.start[1]) / len];
+    const faceDist = Math.abs((it.position[0] - w.start[0]) * dir[1] - (it.position[1] - w.start[1]) * dir[0]) - itemDims(it).d / 2;
+    near(faceDist, w.thickness / 2, 0.003);
+    // within the left end of the wall run, as seen from the room
+    const pts = rect(r.id).pts;
+    // the extreme of the radiator along `left` is at most 0.2 m from the end of the run
+    const extreme = Math.max(...pts.map((p) => p[0] * r.left[0] + p[1] * r.left[1]));
+    const limit = r.limit * (r.left[0] + r.left[1]);
+    expect(limit - extreme, r.id).toBeLessThanOrEqual(0.2 + 1e-9);
+    expect(limit - extreme, r.id).toBeGreaterThanOrEqual(-1e-9);
+  });
+
+  it('stands clear of every window next to it and of every door swing, and inside its room', () => {
+    for (const r of RADIATORS) {
+      const rep = validateLayout(scene, { roomId: r.room });
+      expect(rep.violations.filter((v) => v.entityIds.includes(r.id)), r.id).toEqual([]);
+    }
+    const win = (id: string) => scene.openings.find((o) => o.id === id)!;
+    for (const r of RADIATORS) {
+      if (!('window' in r)) continue;
+      const o = win(r.window);
+      const w = wall(o.wallId);
+      const len = wallLength(w);
+      const dir: Vec2 = [(w.end[0] - w.start[0]) / len, (w.end[1] - w.start[1]) / len];
+      const c: Vec2 = [w.start[0] + dir[0] * o.offset, w.start[1] + dir[1] * o.offset];
+      const wx0 = c[0] - o.width / 2;
+      const wx1 = c[0] + o.width / 2;
+      const pts = rect(r.id).pts;
+      const rx0 = Math.min(...pts.map((p) => p[0]));
+      const rx1 = Math.max(...pts.map((p) => p[0]));
+      if (r.wall === 'w-north') expect(rx1 <= wx0 + 1e-9 || rx0 >= wx1 - 1e-9, r.id).toBe(true);
+      else expect(rx0).toBeGreaterThan(wx1 - 1e-9); // the ch2 window ends before the radiator wall
+    }
+  });
+
+  it('the ch2 radiator is next to the window, the others sit in the left corner of their wall', () => {
+    const o = scene.openings.find((x) => x.id === 'win-ch2')!;
+    const w = wall(o.wallId);
+    const winEast = w.start[0] + o.offset + o.width / 2;
+    const r = rect('heat-ch2-east');
+    expect(r.minX - winEast).toBeLessThan(0.3); // radiator back is just past the window's east jamb
+    expect(r.minY).toBeLessThan(0.3);
+  });
+
+  it('keeps 15 cm free in front: furniture there is refused by validate_layout, a rug is not, and a shelf above is fine', () => {
+    const base: Scene = JSON.parse(JSON.stringify(scene));
+    const r = item('heat-ch1-north');
+    const add = (extra: Partial<Item> & { id: string }): Scene => {
+      const it: Item = { assetId: 'param:sideboard', position: [r.position[0], r.position[1] + 0.05 + 0.1 + 0.2], elevation: 0, rotation: 0, roomId: 'ch1', mount: 'floor', dims: { w: 0.8, d: 0.4, h: 0.5 }, mesh: { kind: 'parametric', generator: 'sideboard', params: { w: 0.8, d: 0.4, h: 0.5 } }, ...extra } as Item;
+      return { ...base, items: [...base.items, it] };
+    };
+    // d 0.4 centred 0.35 off the wall face reaches 0.15 from the radiator front (wall face y = 0, radiator front at y = 0.1): inside the zone by 0.05
+    const blocked = add({ id: 'sideboard-in-front', position: [r.position[0], 0.1 + 0.2 + 0.0 - 0.05] });
+    expect(validateLayout(blocked, { roomId: 'ch1' }).violations.some((v) => v.entityIds.includes('heat-ch1-north') && v.entityIds.includes('sideboard-in-front'))).toBe(true);
+    const clear = add({ id: 'sideboard-clear', position: [r.position[0], 0.1 + 0.15 + 0.2 + 0.01] });
+    expect(validateLayout(clear, { roomId: 'ch1' }).violations.filter((v) => v.entityIds.includes('sideboard-clear'))).toEqual([]);
+    const above = add({ id: 'shelf-above', mount: 'wall', elevation: 1.2, dims: { w: 0.8, d: 0.25, h: 0.3 }, position: [r.position[0], 0.125], mesh: { kind: 'parametric', generator: 'sideboard', params: { w: 0.8, d: 0.25, h: 0.3 } } });
+    expect(validateLayout(above, { roomId: 'ch1' }).violations.filter((v) => v.entityIds.includes('shelf-above'))).toEqual([]);
+  });
+
+  it('radiators cost EUR 0 (existing furniture) and are not purchasable', () => {
+    const bom = billOfMaterials(scene);
+    for (const r of RADIATORS) expect(bom.lines.find((l) => l.itemId === r.id), r.id).toMatchObject({ locked: true, existing: true, amount: 0 });
   });
 });

@@ -37,6 +37,9 @@ const TITLES: Readonly<Record<string, string>> = {
   lamp: 'Lamp',
   wallFitting: 'Wall fitting',
   basket: 'Basket',
+  radiator: 'Radiator',
+  ovenColumn: 'Oven column',
+  wallTiles: 'Wall tiles',
 };
 
 /** The short name of a generator; an unlisted one falls back to the first words of its description. */

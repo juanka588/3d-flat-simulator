@@ -4,7 +4,7 @@
 // downloads the glTF with the user's token (cached, sequential), normalises to the item frame (pivot bottom-centre,
 // front +z, metres; unit scale is auto-detected from `maxDimM`), Meshopt + WebP <= 1024 px, <= 40k triangles, and writes
 // GLB + thumbnail + catalog.json to apps/web/public/models-hd. Output is staged and swapped in only on full success.
-//  --preview   renders a 4-view sheet per model to /tmp/m5r-hd/preview (no output written) so the front axis,
+//  --preview   renders a 4-view sheet per model to --preview-dir (default: the OS temp dir /m5r-hd/preview; no output written) so the front axis,
 //              the scale and the look can be judged before a model is accepted.
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -26,6 +26,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const arg = (name) => { const i = process.argv.indexOf(name); return i >= 0 ? process.argv[i + 1] : undefined; };
 const flag = (name) => process.argv.includes(name);
+const previewDir = arg('--preview-dir') ?? join(process.env.TMPDIR ?? '/tmp', 'm5r-hd', 'preview');
 
 async function metaFor(uid, now) {
   const p = join(sketchfabCacheDir, uid, 'meta.json');
@@ -128,7 +129,7 @@ async function main() {
   const slugs = new Set();
   for (const e of manifest.models) { if (slugs.has(e.slug)) throw new Error(`duplicate slug ${e.slug}`); slugs.add(e.slug); }
   const wanted = manifest.models.filter((e) => (only ? only.includes(e.slug) : preview ? e.status !== 'rejected' : e.status === 'accepted'));
-  if (preview) mkdirSync('/tmp/m5r-hd/preview', { recursive: true });
+  if (preview) mkdirSync(previewDir, { recursive: true });
   rmSync(stagingDir, { recursive: true, force: true });
   mkdirSync(join(stagingDir, 'thumbs'), { recursive: true });
   const catalog = [];
@@ -166,7 +167,7 @@ async function main() {
     assertPlausibleSize(entry.slug, res.dims, entry.maxDimM);
     res.bytes = res.glb.length;
     if (preview) {
-      writeFileSync(`/tmp/m5r-hd/preview/${entry.slug}.png`, await previewSheet(entry, views, { ...res, hint }));
+      writeFileSync(join(previewDir, `${entry.slug}.png`), await previewSheet(entry, views, { ...res, hint }));
       console.log(`hint ${hint}; ${res.dims.w}x${res.dims.d}x${res.dims.h} m, ${res.triangles} tris (from ${res.sourceTriangles}), ${(res.bytes / 1024) | 0} KB, unit x${unitScale}, ${res.materials} mat, ${meta.licence}`);
       continue;
     }
