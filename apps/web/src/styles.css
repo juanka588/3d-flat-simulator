@@ -1547,3 +1547,41 @@ legend {
 .app.mobile .cam-help-toggle {
   display: none;
 }
+
+/* Plan check: badge, proposed fixes */
+.plan-badge {
+  display: inline-block;
+  margin: 0 0 0.5rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: #fdeef0;
+  color: #8a0019;
+  border: 1px solid #e8a3ad;
+  font-size: 0.78rem;
+  text-decoration: none;
+}
+.plan-fix {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin: 0.15rem 0 0.4rem;
+}
+.plan-fix-label {
+  color: #4b4b52;
+  font-size: 0.78rem;
+  flex: 1;
+}
+.plan-fix button {
+  font-size: 0.78rem;
+  padding: 0.15rem 0.5rem;
+}
+.plan-fix-all {
+  margin: 0 0 0.4rem;
+}
+.panel details summary {
+  cursor: pointer;
+  margin: 0.4rem 0 0.2rem;
+}
+li[data-code]:hover {
+  background: #fdf3f3;
+}

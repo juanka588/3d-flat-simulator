@@ -33,7 +33,7 @@ import { itemKeysApply, useItemKeys } from './ui/useItemKeys';
 import { useUndoRedoKeys } from './ui/useUndoRedoKeys';
 import { ViewSettings } from './ui/ViewSettings';
 import { ViewerErrorBanner } from './ui/ViewerErrorBanner';
-import { WarningsList } from './ui/WarningsList';
+import { PlanBadge, WarningsList } from './ui/WarningsList';
 import { FlatCanvas, sceneKey, selectionForId } from '@flat/viewer';
 
 /** The catalog (cards, search, parameter forms) is its own chunk: it loads when the sidebar first renders it. */
@@ -65,7 +65,7 @@ export function App() {
   useUndoRedoKeys();
   useItemKeys();
   const { scene, source, warnings, errors, loadText } = useSceneStore();
-  const { mode, selection, lighting, personHeightCm, walkLightsOn, translucentDoors, buildingMode, camera, showPerson, person, setMode, select } = useViewStore();
+  const { mode, selection, lighting, personHeightCm, walkLightsOn, translucentDoors, buildingMode, camera, showPerson, person, highlight, setMode, select } = useViewStore();
   const setPerson = useViewStore((s) => s.setPerson);
   // A different flat: the person stands at its default walk start again.
   useEffect(() => setPerson(null), [source, setPerson]);
@@ -212,6 +212,7 @@ export function App() {
       >
         <h1>{scene?.name ?? '3D Flat Simulator'}</h1>
         <SyncStatus />
+        {scene && <PlanBadge scene={scene} />}
         <ModeToolbar mode={mode} onChange={changeMode} />
         {mode === 'walk' && (
           <p className="hint">Click the view to look around, arrows to move, W/A/S/D (ZQSD on AZERTY) to look, Esc to leave.</p>
@@ -230,6 +231,7 @@ export function App() {
         {scene && <SitePanel key={sceneKey(scene)} scene={scene} />}
         {scene && (
           <WarningsList
+            scene={scene}
             warnings={warnings}
             onSelect={(id) => select(selectionForId(scene, id))}
           />
@@ -243,7 +245,7 @@ export function App() {
           <>
             <FlatCanvas
               scene={scene}
-              view={{ mode, selection, lighting: effectiveLighting(lighting, mode, walkLightsOn, scene.lights), personHeightCm, camera, translucentDoors, buildingMode, showPerson, person }}
+              view={{ mode, selection, lighting: effectiveLighting(lighting, mode, walkLightsOn, scene.lights), personHeightCm, camera, translucentDoors, buildingMode, showPerson, person, highlight }}
               context={context}
               showStructural={showStructural}
               isManualClock={isManualClock}

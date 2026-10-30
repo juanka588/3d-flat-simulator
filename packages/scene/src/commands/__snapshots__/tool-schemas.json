@@ -218,6 +218,107 @@
     }
   },
   {
+    "name": "wall_set_ends",
+    "commandType": "wall.setEnds",
+    "description": "Move the start and/or end of a wall (a snap or extension to close a gap or overlap a junction). Openings stay where they are in the plan. A structural wall moves by at most 20 cm.",
+    "example": {
+      "wallId": "w-south",
+      "end": [
+        4.505,
+        4.155
+      ]
+    },
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "wallId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "description": "Id of the wall (walls[].wallId from describe_room)."
+        },
+        "start": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 2,
+          "maxItems": 2,
+          "description": "New start [x, y] in metres. Omit to keep."
+        },
+        "end": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 2,
+          "maxItems": 2,
+          "description": "New end [x, y] in metres. Omit to keep."
+        }
+      },
+      "required": [
+        "wallId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "room_set_polygon",
+    "commandType": "room.setPolygon",
+    "description": "Replace the outline of a room (simple polygon along the inner wall faces).",
+    "example": {
+      "roomId": "sejour",
+      "polygon": [
+        [
+          0,
+          0
+        ],
+        [
+          4,
+          0
+        ],
+        [
+          4,
+          3
+        ],
+        [
+          0,
+          3
+        ]
+      ]
+    },
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "roomId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "description": "Id of the room (rooms[].id from list_rooms)."
+        },
+        "polygon": {
+          "minItems": 3,
+          "maxItems": 500,
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "description": "New outline [[x, y], ...] in metres, simple, along the inner wall faces."
+        }
+      },
+      "required": [
+        "roomId",
+        "polygon"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "room_set_wall_finish",
     "commandType": "room.setWallFinish",
     "description": "Paint all the walls of a room (its own stretches only: neighbouring rooms keep their look). Replaces earlier per-wall paint of that room; a later wall_set_finish wins again. materialId null removes the room paint (no_wall_sides when no room edge runs along a wall face). panelling and cornice: mouldings, ceiling cornice.",
@@ -2604,6 +2705,12 @@
                 "$ref": "#/$defs/wall_set_structural"
               },
               {
+                "$ref": "#/$defs/wall_set_ends"
+              },
+              {
+                "$ref": "#/$defs/room_set_polygon"
+              },
+              {
                 "$ref": "#/$defs/room_set_wall_finish"
               },
               {
@@ -2859,6 +2966,81 @@
             "type",
             "wallId",
             "structural"
+          ],
+          "additionalProperties": false
+        },
+        "wall_set_ends": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "wall.setEnds",
+              "description": "Command discriminator, always \"wall.setEnds\"."
+            },
+            "wallId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "description": "Id of the wall (walls[].wallId from describe_room)."
+            },
+            "start": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              },
+              "minItems": 2,
+              "maxItems": 2,
+              "description": "New start [x, y] in metres. Omit to keep."
+            },
+            "end": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              },
+              "minItems": 2,
+              "maxItems": 2,
+              "description": "New end [x, y] in metres. Omit to keep."
+            }
+          },
+          "required": [
+            "type",
+            "wallId"
+          ],
+          "additionalProperties": false
+        },
+        "room_set_polygon": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "room.setPolygon",
+              "description": "Command discriminator, always \"room.setPolygon\"."
+            },
+            "roomId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "description": "Id of the room (rooms[].id from list_rooms)."
+            },
+            "polygon": {
+              "minItems": 3,
+              "maxItems": 500,
+              "type": "array",
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                },
+                "minItems": 2,
+                "maxItems": 2
+              },
+              "description": "New outline [[x, y], ...] in metres, simple, along the inner wall faces."
+            }
+          },
+          "required": [
+            "type",
+            "roomId",
+            "polygon"
           ],
           "additionalProperties": false
         },

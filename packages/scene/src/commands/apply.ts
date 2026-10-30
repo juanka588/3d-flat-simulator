@@ -3,8 +3,8 @@ import { analyzeRoomWallSides, wallFaceRooms } from '../geometry/room-sides';
 import { zoneProblems } from '../geometry/zones';
 import { fitGridToRoom, GRID_DROP_M } from '../lighting/lamps';
 import { roomCeilingHeight } from '../geometry/floors';
-import { LIMITS, Light, Scene, lightIssues, type Cornice, type FloorZone, type Light as LightT, type Material, type Panelling, type Room, type Wall } from '../schema';
-import { isDefaultStructural } from '../structural';
+import { LIMITS, Light, Scene, lightIssues, wallLength, type Cornice, type FloorZone, type Light as LightT, type Material, type Panelling, type Room, type Wall } from '../schema';
+import { isDefaultStructural, isStructural } from '../structural';
 import { canCutOpening, canRemoveWall } from './guards';
 import { applyItemCommand, isItemCommand } from './items';
 import { parseCommand } from './parse';
@@ -281,6 +281,62 @@ function setStructural(scene: Scene, cmd: Extract<LeafCommand, { type: 'wall.set
     scene: { ...scene, walls: replaceAt(scene.walls, index, nextWall) },
     inverse: [{ type: 'wall.setStructural', wallId: wall.id, structural: prev ?? null }],
     changed: touch('walls', wall.id),
+    warnings: [],
+  };
+}
+
+/** Largest displacement of an endpoint of a structural wall (load-bearing, facade, party): a snap, never a redesign. */
+export const STRUCTURAL_MAX_MOVE = 0.2;
+const round6 = (x: number) => Math.round(x * 1e6) / 1e6;
+
+function setEnds(scene: Scene, cmd: Extract<LeafCommand, { type: 'wall.setEnds' }>, ctx: ReduceContext): Outcome {
+  const found = findWall(scene, cmd.wallId);
+  if (isErr(found)) return fail(found);
+  const { wall, index } = found;
+  const start = cmd.start ?? wall.start;
+  const end = cmd.end ?? wall.end;
+  if (start[0] === wall.start[0] && start[1] === wall.start[1] && end[0] === wall.end[0] && end[1] === wall.end[1]) return noop(scene);
+  if (Math.hypot(end[0] - start[0], end[1] - start[1]) < 1e-3) {
+    return fail(err('precondition_failed', 'end', `wall "${wall.id}" would be shorter than 1 mm`, 'a wall needs two distinct ends'));
+  }
+  if (!ctx.trusted && isStructural(scene, wall)) {
+    const moved = Math.max(Math.hypot(start[0] - wall.start[0], start[1] - wall.start[1]), Math.hypot(end[0] - wall.end[0], end[1] - wall.end[1]));
+    if (moved > STRUCTURAL_MAX_MOVE + 1e-9) {
+      return fail(err('precondition_failed', 'start', `wall "${wall.id}" is structural: an end may move by at most ${STRUCTURAL_MAX_MOVE * 100} cm (asked ${(moved * 100).toFixed(1)} cm)`, 'structural walls only get small snaps; redraw it by hand'));
+    }
+  }
+  // Openings keep their place in the plan: their offset is measured from the (possibly moved) start.
+  const oldLen = wallLength(wall);
+  const newLen = Math.hypot(end[0] - start[0], end[1] - start[1]);
+  const ou = [(wall.end[0] - wall.start[0]) / oldLen, (wall.end[1] - wall.start[1]) / oldLen] as const;
+  const nu = [(end[0] - start[0]) / newLen, (end[1] - start[1]) / newLen] as const;
+  const openings = scene.openings.map((o) => {
+    if (o.wallId !== wall.id) return o;
+    const x = wall.start[0] + ou[0] * o.offset;
+    const y = wall.start[1] + ou[1] * o.offset;
+    const offset = round6(Math.max(0, (x - start[0]) * nu[0] + (y - start[1]) * nu[1]));
+    return offset === o.offset ? o : { ...o, offset };
+  });
+  const nextWall: Wall = { ...wall, start: [start[0], start[1]], end: [end[0], end[1]] };
+  return {
+    ok: true,
+    scene: { ...scene, walls: replaceAt(scene.walls, index, nextWall), openings: openings.some((o, i) => o !== scene.openings[i]) ? openings : scene.openings },
+    inverse: [{ type: 'wall.setEnds', wallId: wall.id, start: wall.start, end: wall.end }],
+    changed: touch('walls', wall.id),
+    warnings: [],
+  };
+}
+
+function setPolygon(scene: Scene, cmd: Extract<LeafCommand, { type: 'room.setPolygon' }>): Outcome {
+  const found = findRoom(scene, cmd.roomId);
+  if (isErr(found)) return fail(found);
+  const { room, index } = found;
+  if (deepEqual(room.polygon, cmd.polygon)) return noop(scene);
+  return {
+    ok: true,
+    scene: { ...scene, rooms: replaceAt(scene.rooms, index, { ...room, polygon: cmd.polygon.map((p) => [p[0], p[1]] as [number, number]) }) },
+    inverse: [{ type: 'room.setPolygon', roomId: room.id, polygon: room.polygon }],
+    changed: touch('rooms', room.id),
     warnings: [],
   };
 }
@@ -771,6 +827,8 @@ function applyLeaf(scene: Scene, cmd: LeafCommand, ctx: ReduceContext): Outcome 
     case 'material.remove': return removeMaterial(scene, cmd);
     case 'wall.setFinish': return setFinish(scene, cmd);
     case 'wall.setStructural': return setStructural(scene, cmd, ctx);
+    case 'wall.setEnds': return setEnds(scene, cmd, ctx);
+    case 'room.setPolygon': return setPolygon(scene, cmd);
     case 'room.setWallFinish': return roomWallFinish(scene, cmd);
     case 'room.setFloor':
     case 'room.setCeiling': return roomSlot(scene, cmd);

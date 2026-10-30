@@ -53,6 +53,14 @@ const DESCRIPTIONS: Record<string, { description: string; example: Record<string
       'Mark a wall structural (never removable) or removable, or clear the mark. Exterior or at least 15 cm thick walls are structural by default; only a user may mark one removable.',
     example: { wallId: 'w-alcove', structural: true },
   },
+  'wall.setEnds': {
+    description: 'Move the start and/or end of a wall (a snap or extension to close a gap or overlap a junction). Openings stay where they are in the plan. A structural wall moves by at most 20 cm.',
+    example: { wallId: 'w-south', end: [4.505, 4.155] },
+  },
+  'room.setPolygon': {
+    description: 'Replace the outline of a room (simple polygon along the inner wall faces).',
+    example: { roomId: 'sejour', polygon: [[0, 0], [4, 0], [4, 3], [0, 3]] },
+  },
   'room.setWallFinish': {
     description:
       'Paint all the walls of a room (its own stretches only: neighbouring rooms keep their look). Replaces earlier per-wall paint of that room; a later wall_set_finish wins again. ' +

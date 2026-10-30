@@ -52,6 +52,9 @@ interface ViewStore extends ViewState {
   setView: (partial: Partial<ViewState>) => void;
   setMode: (mode: ViewMode) => void;
   select: (selection: Selection | null) => void;
+  /** Ids flagged in red in the viewer (the plan-check finding under the pointer or focus); empty = none. */
+  highlight: readonly string[];
+  setHighlight: (ids: readonly string[]) => void;
   /** Merges into the lighting view; no-op (same object) when nothing changes. */
   setLighting: (partial: Partial<LightingView>) => void;
   /** Clamps to the supported range and remembers the choice. */
@@ -61,6 +64,8 @@ interface ViewStore extends ViewState {
 export const useViewStore = create<ViewStore>((set) => ({
   mode: 'orbit',
   selection: null,
+  highlight: [],
+  setHighlight: (ids) => set((s) => (s.highlight.length === 0 && ids.length === 0 ? s : { highlight: ids })),
   lighting: { ...DEFAULT_LIGHTING, date: todayIso(), time: '12:00' },
   personHeightCm: initialPersonHeight(),
   showPerson: readPref(SHOW_PERSON_KEY) !== '0',

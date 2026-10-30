@@ -160,6 +160,10 @@ function describeLeaf(c: LeafCommand, scene: Scene): string {
       if (c.structural === false) return `Mark ${wall} as removable`;
       return `Reset ${wall} to its default structural status`;
     }
+    case 'wall.setEnds':
+      return clip(`Reshape wall ${c.wallId} (${[c.start ? 'start' : '', c.end ? 'end' : ''].filter(Boolean).join(' and ')})`);
+    case 'room.setPolygon':
+      return clip(`Reshape ${roomName(scene, c.roomId)}`);
     case 'room.setWallFinish':
       if (c.materialId === undefined) {
         const parts = [c.panelling === undefined ? (c.panelColour === undefined ? '' : 'panelling colour') : c.panelling ? `panelling ${c.panelling}` : 'no panelling', c.corniceMm === undefined ? '' : c.corniceMm ? 'cornice' : 'no cornice'].filter(Boolean);

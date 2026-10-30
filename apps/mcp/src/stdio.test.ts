@@ -19,12 +19,13 @@ const connect = async (env: Record<string, string>, name?: string) => {
 const json = (r: { content: unknown }) => JSON.parse((r.content as { text: string }[])[0]!.text);
 
 describe('stdio server', () => {
-  it('lists the 20 write tools (item_place and item_set_variant are hidden; place_item covers them) plus the 25 read, view, render, reference, score and history tools', async () => {
+  it('lists the 21 write tools (item_place, item_set_variant, wall_set_ends and room_set_polygon are hidden; place_item and apply_plan_fix cover them) plus the 25 read, view, render, reference, score and history tools', async () => {
     const { client } = await connect({ FLAT_SERVER_URL: DEAD_URL });
     const names = (await client.listTools()).tools.map((t) => t.name);
-    for (const t of commandToolSchemas()) expect(names.includes(t.name), t.name).toBe(!['item_place', 'item_set_variant'].includes(t.name));
+    for (const t of commandToolSchemas()) expect(names.includes(t.name), t.name).toBe(!['item_place', 'item_set_variant', 'wall_set_ends', 'room_set_polygon'].includes(t.name));
     expect(names).toContain('place_item');
-    expect(names).toHaveLength(20 + 25);
+    expect(names).toContain('apply_plan_fix');
+    expect(names).toHaveLength(21 + 25);
     expect(client.getServerVersion()?.name).toBe('flat');
     expect(client.getInstructions()).toContain('plan');
   });

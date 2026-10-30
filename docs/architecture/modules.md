@@ -66,7 +66,7 @@ The rule behind every split: **`scene` models, satellite packages produce or con
 
 ### 1.1 `@flat/scene`: the core model (it shrinks)
 
-**Stays in scene:** `schema`, `parse`, `load`, `validate`, `serialize`, `measure`, `collision`, `camera`, `camera-presets`, `view`, `structural`, `stats`, `describe`, `diff`, `protocol`, `mcp-types`, `bill-of-materials`, `primitives`, `commands/**`, `placement/**`, `geometry/**`, `materials/paint.ts`, `context/{schema,mesh}.ts`, `lighting/**`, `fixtures/**`.
+**Stays in scene:** `schema`, `parse`, `load`, `validate`, `plan-check`, `plan-fix`, `plan-recess` (plan-coherence lint: pure, fixes are typed `wall.setEnds` / `room.setPolygon` batches), `serialize`, `measure`, `collision`, `camera`, `camera-presets`, `view`, `structural`, `stats`, `describe`, `diff`, `protocol`, `mcp-types`, `bill-of-materials`, `primitives`, `commands/**`, `placement/**`, `geometry/**`, `materials/paint.ts`, `context/{schema,mesh}.ts`, `lighting/**`, `fixtures/**`.
 
 **New `src/items/` folder in scene.** These are the asset contracts a Scene file depends on:
 

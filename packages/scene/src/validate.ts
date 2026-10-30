@@ -3,6 +3,7 @@ import { gridFixtures } from './lighting/grid';
 import { checkParametricMesh, GENERATOR_DIMS_TOLERANCE } from './items/mesh-source';
 import { edgeCoverage, roomCeilingHeight, triangulatePolygon } from './geometry/floors';
 import { polygonArea } from './measure';
+import { edgeSnap, planWarnings, type PlanFinding, type PlanFix } from './plan-check';
 import { validateLayout } from './placement/validateLayout';
 import type { Dims } from './primitives';
 import type { Scene, Vec2 } from './schema';
@@ -16,6 +17,10 @@ export interface ValidationWarning {
   entityIds: string[];
   /** Location in the scene JSON, e.g. `openings[3]`. */
   path?: string;
+  /** Plan-coherence warnings only: stable id (same finding, same id), so a fix can be asked for by id. */
+  id?: string;
+  /** Plan-coherence warnings only: the proposed repair, a batch of typed commands. Never applied automatically. */
+  fix?: PlanFix;
 }
 
 export interface ValidationResult {
@@ -168,7 +173,37 @@ function junctionOffsets(scene: Scene, wallIndex: number): { s: number; half: nu
  * in a deterministic order (openings, rooms, lights, items, layout, coordinates).
  */
 export function validateScene(scene: Scene): ValidationResult {
+  return { warnings: collect(scene).warnings };
+}
+
+/** Codes of the plan-coherence checks (the "Plan check" panel and `validate_layout`'s `plan`). */
+export const PLAN_CODES: ReadonlySet<string> = new Set([
+  'wall-gap',
+  'wall-joint-no-overlap',
+  'walls-overlap',
+  'wall-zero-length',
+  'room-edge-unwalled',
+  'room-polygon-off-wall',
+  'room-includes-foreign-recess',
+  'rooms-overlap',
+  'opening-near-junction',
+]);
+
+/**
+ * The plan-coherence findings of a scene: the warnings of `validateScene` whose code is in `PLAN_CODES`, then the
+ * advisories (joints without overlap), each with its `fix` when one is obvious. Pure and deterministic.
+ */
+export function planCheck(scene: Scene): PlanFinding[] {
+  const { warnings, advisories } = collect(scene);
+  return [
+    ...warnings.filter((w) => PLAN_CODES.has(w.code)).map((w): PlanFinding => ({ ...w, id: w.id ?? `${w.code}:${w.path ?? w.entityIds.join('+')}`, severity: 'warning' })),
+    ...advisories,
+  ];
+}
+
+function collect(scene: Scene): { warnings: ValidationWarning[]; advisories: PlanFinding[] } {
   const warnings: ValidationWarning[] = [];
+  const advisories: PlanFinding[] = [];
 
   // Openings close to a wall end or to a junction with another wall.
   const wallIndex = new Map(scene.walls.map((w, i) => [w.id, i]));
@@ -205,6 +240,18 @@ export function validateScene(scene: Scene): ValidationResult {
       const b = room.polygon[(k + 1) % n]!;
       const { uncovered } = edgeCoverage(scene.walls, a, b);
       if (uncovered > UNWALLED_TOLERANCE) {
+        const snap = edgeSnap(scene, room, k);
+        if (snap) {
+          warnings.push({
+            code: 'room-polygon-off-wall',
+            id: `room-polygon-off-wall:${room.id}:${k}`,
+            message: `room "${room.id}" edge ${k} (${a.join(', ')} to ${b.join(', ')}) runs parallel to wall "${snap.wallId}" but ${(snap.offset * 100).toFixed(1)} cm off its face`,
+            entityIds: [room.id, snap.wallId],
+            path: `rooms[${ri}].polygon[${k}]`,
+            fix: snap.fix,
+          });
+          continue;
+        }
         warnings.push({
           code: 'room-edge-unwalled',
           message: `room "${room.id}" edge ${k} (${a.join(', ')} to ${b.join(', ')}) has ${uncovered.toFixed(2)} m with no wall behind it (open plan)`,
@@ -233,6 +280,15 @@ export function validateScene(scene: Scene): ValidationResult {
       }
     });
   });
+  for (const f of planWarnings(scene)) {
+    if (f.severity === 'advisory') advisories.push(f);
+    else {
+      const { severity: _s, ...rest } = f;
+      void _s;
+      warnings.push(rest);
+    }
+  }
+
   // Triangulate each room once and skip pairs whose bounding boxes do not intersect.
   const roomBounds = scene.rooms.map((r) => boundsOf(r.polygon));
   const roomTriangles: (Vec2[][] | undefined)[] = [];
@@ -378,5 +434,5 @@ export function validateScene(scene: Scene): ValidationResult {
   scene.items.forEach((it, i) => far([it.position]) && report('item', it.id, `items[${i}].position`));
   scene.lights.forEach((l, i) => far([l.position]) && report('light', l.id, `lights[${i}].position`));
 
-  return { warnings };
+  return { warnings, advisories };
 }

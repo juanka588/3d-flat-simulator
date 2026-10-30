@@ -14,10 +14,13 @@ import {
   meshAssetId,
   nearestIds,
   parseProductId,
+  planCheck,
+  planFixes,
   solvePlacement,
   validateLayout,
   type Command,
   type Dims,
+  type PlanFinding,
   type Placement,
   type PlacementRequestInput,
   type Scene,
@@ -115,6 +118,7 @@ const PlaceMany = z.strictObject({ items: z.array(Entry).min(1).max(MAX_PLACEMEN
 
 const OptionsArgs = z.strictObject({ productId: ProductId, roomId: RoomId, relation: Relation, variantSku: Sku.optional() });
 const LayoutArgs = z.strictObject({ roomId: RoomId.optional(), budgetEur: z.number().min(0).max(10_000_000).optional() });
+const FixArgs = z.strictObject({ ids: z.array(z.string().min(1).max(200)).min(1).max(50) });
 const BomArgs = z.strictObject({ roomId: RoomId.optional() });
 
 type Json = Record<string, unknown>;
@@ -440,10 +444,26 @@ const getPlacementOptions: ToolDef = {
 // validate_layout and get_bill_of_materials
 // ---------------------------------------------------------------------------------------------
 
+/** Findings shown by validate_layout: all of them for the flat, those that name the room for one room. Terse: the fix says what it does and carries its commands. */
+const PLAN_SHOWN = 30;
+function planPart(scene: Scene, roomId: string | undefined): Json {
+  const all = planCheck(scene).filter((f) => roomId === undefined || f.entityIds.includes(roomId));
+  if (all.length === 0) return {};
+  const terse = (f: PlanFinding) => ({
+    id: f.id,
+    code: f.code,
+    ...(f.severity === 'advisory' ? { advisory: true } : {}),
+    entities: f.entityIds,
+    message: f.message,
+    ...(f.fix ? { fix: { label: f.fix.label, safe: f.fix.safe, commands: f.fix.command.commands } } : {}),
+  });
+  return { plan: all.slice(0, PLAN_SHOWN).map(terse), ...(all.length > PLAN_SHOWN ? { planMore: all.length - PLAN_SHOWN } : {}) };
+}
+
 const validateLayoutTool: ToolDef = {
   name: 'validate_layout',
   description:
-    'Check the placed furniture of one room (or the whole flat) against the layout rules: inside the room, no overlaps, door swings and landings, window sills, glazing, walkways at least 0.8 m (0.9 m at the entry). Returns violations and warnings with the entities and a hint, the free floor area, the narrowest walkway, and totalEur (TTC, unlocked items only) plus overBudget when budgetEur is given. Call it after placing and before you finish.',
+    'Check the placed furniture of one room (or the whole flat) against the layout rules: inside the room, no overlaps, door swings and landings, window sills, glazing, walkways at least 0.8 m (0.9 m at the entry). Returns violations and warnings with the entities and a hint, the free floor area, the narrowest walkway, and totalEur (TTC, unlocked items only) plus overBudget when budgetEur is given. plan: plan-coherence findings with fixes (apply_plan_fix). Call it after placing and before you finish.',
   inputSchema: obj({
     roomId: { type: 'string', description: 'Room to check (list_rooms). Default: every room.' },
     budgetEur: { type: 'number', minimum: 0, description: 'Budget in EUR (TTC prices only). With roomId it is compared with that room\'s items, else with the whole flat.' },
@@ -472,6 +492,7 @@ const validateLayoutTool: ToolDef = {
       itemCount: report.itemCount,
       violations: report.violations.map(violationOf),
       warnings: report.warnings.map(violationOf),
+      ...planPart(scene, a.data.roomId),
       ...(report.freeFloorM2 !== undefined ? { freeFloorM2: report.freeFloorM2 } : {}),
       ...(report.minWalkwayM !== undefined ? { minWalkwayM: report.minWalkwayM } : {}),
       totalEur,
@@ -479,6 +500,29 @@ const validateLayoutTool: ToolDef = {
       ...(bom.mixedCurrency ? { mixedCurrency: true } : {}),
       ...(bom.missingPrice.length ? { missingPrice: bom.missingPrice } : {}),
     });
+  },
+};
+
+const applyPlanFixTool: ToolDef = {
+  name: 'apply_plan_fix',
+  description: 'Apply validate_layout plan fixes in one undo step. ids: finding ids, or ["safe"].',
+  inputSchema: obj({ ids: { type: 'array', items: { type: 'string' } }, preview: { type: 'boolean' } }, ['ids']),
+  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+  group: 'write',
+  mutatesScene: true,
+  async handler(ctx, args) {
+    const { preview, ...rest } = args as Json;
+    const a = parseArgs(FixArgs, rest);
+    if (!a.ok) return a.result;
+    const sc = await fetchScene(ctx);
+    if (!sc.ok) return sc.result;
+    const plan = planFixes(sc.data.scene, a.data.ids.length === 1 && a.data.ids[0] === 'safe' ? 'safe' : a.data.ids);
+    if (!plan.command) {
+      return toolError('precondition_failed', `nothing to apply: ${plan.skipped.map((s) => `${s.id}: ${s.reason}`).join('; ') || 'no plan finding has a safe fix'}`, 'call validate_layout for the current plan findings and their ids');
+    }
+    const done = await executeCommand(ctx, plan.command, { ifRev: sc.data.rev, preview: preview === true, plan: undefined });
+    if (done.isError || !done.structuredContent) return done;
+    return toolOk({ ...done.structuredContent, applied: plan.applied, ...(plan.skipped.length ? { skipped: plan.skipped } : {}) }, done.content.slice(1));
   },
 };
 
@@ -754,5 +798,5 @@ const placeItemTool: ToolDef = {
 };
 
 export function placementTools(): ToolDef[] {
-  return [getPlacementOptions, validateLayoutTool, getBillOfMaterials, placeItemTool];
+  return [getPlacementOptions, validateLayoutTool, applyPlanFixTool, getBillOfMaterials, placeItemTool];
 }

@@ -8,7 +8,7 @@ import { RenderViewArgs } from './render';
 import type { ToolContext, ToolDef } from './registry';
 
 /**
- * The write tools (no `item_place` / `item_set_variant`: see `LLM_HIDDEN_TOOLS`), generated from `commandToolSchemas()` (@flat/scene) plus the MCP extras
+ * The write tools (no `item_place` / `item_set_variant` / `wall_set_ends` / `room_set_polygon`: see `LLM_HIDDEN_TOOLS`), generated from `commandToolSchemas()` (@flat/scene) plus the MCP extras
  * (`preview`, `render`, `label`; see `extras.ts`). The tool schema is advertised as given (plus the
  * extras); `toolCallToCommand` + `parseCommand` (and then the server's reducer) are the only source
  * of validation errors. Flow of a call:
@@ -29,7 +29,7 @@ const DESTRUCTIVE = new Set(['material.remove', 'light.remove']);
  * `item.place` and `item.setVariant` carry product facts (price, dims, name): they go through `place_item`
  * (which reads the record from the scene server), never through a tool call or a batch.
  */
-export const LLM_HIDDEN_TOOLS: ReadonlySet<string> = new Set(['item_place', 'item_set_variant']);
+export const LLM_HIDDEN_TOOLS: ReadonlySet<string> = new Set(['item_place', 'item_set_variant', 'wall_set_ends', 'room_set_polygon']);
 const FACT_COMMANDS = new Set(['item.place', 'item.setVariant']);
 
 /** The first `item.place` / `item.setVariant` in a command (or in its batch), or undefined. */

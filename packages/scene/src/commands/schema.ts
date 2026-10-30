@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { ITEM_COMMAND_SCHEMAS, ItemMove, ItemPlace, ItemRemove, ItemRotate, ItemSetVariant } from './item-schema';
-import { ADDRESS_MAX, EntityId, FloorZone, GRID_MAX_SIDE, Light, Material, NAME_MAX, Panelling, Site, stripControlChars } from '../schema';
+import { ADDRESS_MAX, EntityId, FloorZone, GRID_MAX_SIDE, Light, Material, NAME_MAX, Panelling, Room, Site, Vec2, stripControlChars } from '../schema';
 
 const Id = EntityId;
 const WallId = Id.describe('Id of the wall (walls[].wallId from describe_room).');
@@ -116,6 +116,17 @@ export const WallSetStructural = z.strictObject({
       'true: structural (cannot be removed); false: removable; null: derived (exterior or at least 15 cm thick means structural). Only a user may set false on a default-structural wall.',
     ),
 });
+export const WallSetEnds = z.strictObject({
+  type: t('wall.setEnds'),
+  wallId: WallId,
+  start: Vec2.describe('New start [x, y] in metres. Omit to keep.').optional(),
+  end: Vec2.describe('New end [x, y] in metres. Omit to keep.').optional(),
+});
+export const RoomSetPolygon = z.strictObject({
+  type: t('room.setPolygon'),
+  roomId: RoomId,
+  polygon: Room.shape.polygon.describe('New outline [[x, y], ...] in metres, simple, along the inner wall faces.'),
+});
 export const RoomSetWallFinish = z.strictObject({
   type: t('room.setWallFinish'),
   roomId: RoomId,
@@ -174,6 +185,8 @@ export const LEAF_COMMAND_SCHEMAS = [
   MaterialRemove,
   WallSetFinish,
   WallSetStructural,
+  WallSetEnds,
+  RoomSetPolygon,
   RoomSetWallFinish,
   RoomSetFloor,
   RoomSetCeiling,
@@ -221,6 +234,8 @@ export type LeafCommand =
   | z.input<typeof MaterialRemove>
   | z.input<typeof WallSetFinish>
   | z.input<typeof WallSetStructural>
+  | z.input<typeof WallSetEnds>
+  | z.input<typeof RoomSetPolygon>
   | z.input<typeof RoomSetWallFinish>
   | z.input<typeof RoomSetFloor>
   | z.input<typeof RoomSetCeiling>
@@ -261,7 +276,6 @@ export const RESERVED_COMMAND_TYPES: Readonly<Record<string, string>> = {
   'opening.remove': 'opening commands are planned for M6',
   'room.add': 'room geometry editing is planned for M6',
   'room.remove': 'room geometry editing is planned for M6',
-  'room.setPolygon': 'room geometry editing is planned for M6',
   'item.add': 'use item.place',
   'item.update': 'use item.move, item.rotate or item.setVariant',
 };

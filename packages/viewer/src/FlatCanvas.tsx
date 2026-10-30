@@ -305,6 +305,7 @@ function Shell({ scene, view, onSelect }: { scene: Scene; view: ViewState; onSel
       {getPerfProfile().contactShadows && <ContactShadows scene={scene} itemMesh={shell.items} controller={models.controller} version={models.version} />}
       <ShellMesh name="glass" data={shell.glass} materials={materials} renderOrder={2} onSelect={pick} />
       {selectedId && meshes.map((m, i) => <SelectionHighlight key={i} mesh={m} entityId={selectedId} zoneId={view.selection?.zoneId} />)}
+      {view.highlight?.map((id) => meshes.map((m, i) => <SelectionHighlight key={`${id}:${i}`} mesh={m} entityId={id} flagged />))}
     </group>
   );
 }
