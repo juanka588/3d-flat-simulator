@@ -20,7 +20,7 @@ import { CameraHelp } from './ControlsHelp';
 import { PersonGhost } from './PersonGhost';
 import { personPlacement } from './walk-start';
 import type { PersonPlacement } from './walk-start';
-import { DOOR_WALK_MATERIAL, DOOR_WHITE_WALK_MATERIAL, createMaterialLibrary } from './materials';
+import { DOOR_WALK_MATERIAL, DOOR_WHITE_WALK_MATERIAL, HANDLE_WALK_MATERIAL, createMaterialLibrary } from './materials';
 import { getPerfProfile } from './perf';
 import { createRoomAmbient, withRoomAmbient } from './room-ambient';
 import { useProbesActive } from './ProbeGI';
@@ -186,7 +186,7 @@ function FrameReporter({ scene, view, onFrame }: { scene: Scene; view: ViewState
 }
 
 /** Walk mode draws door leaves see-through (see DOOR_WALK_MATERIAL). */
-const WALK_SWAP = { [BUILTIN_MATERIALS.door]: DOOR_WALK_MATERIAL, [BUILTIN_MATERIALS.doorWhite]: DOOR_WHITE_WALK_MATERIAL } as const;
+const WALK_SWAP = { [BUILTIN_MATERIALS.door]: DOOR_WALK_MATERIAL, [BUILTIN_MATERIALS.doorWhite]: DOOR_WHITE_WALK_MATERIAL, [BUILTIN_MATERIALS.handle]: HANDLE_WALK_MATERIAL } as const;
 
 function Shell({ scene, view, onSelect }: { scene: Scene; view: ViewState; onSelect: (s: Selection) => void }) {
   if (shouldInjectFault(scene.name)) throw new Error('injected viewer fault (test)');

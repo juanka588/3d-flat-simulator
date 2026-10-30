@@ -264,6 +264,8 @@ export const DOOR_WALK_MATERIAL = 'builtin:door-walk';
 export const DOOR_WALK_OPACITY = 0.35;
 /** The see-through twin of the white lacquered door leaf. */
 export const DOOR_WHITE_WALK_MATERIAL = 'builtin:door-white-walk';
+/** The see-through twin of the door lever and roses (they sit on the leaf, so they fade with it). */
+export const HANDLE_WALK_MATERIAL = 'builtin:handle-walk';
 
 function builtin(id: string): MeshStandardMaterial {
   switch (id) {
@@ -290,6 +292,8 @@ function builtin(id: string): MeshStandardMaterial {
     case BUILTIN_MATERIALS.handle:
       // Brushed steel; no environment map in software GL, so a light diffuse base with a sheen instead of a black full-metal.
       return new MeshStandardMaterial({ color: '#cdd0d3', roughness: 0.3, metalness: 0.15 });
+    case HANDLE_WALK_MATERIAL:
+      return new MeshStandardMaterial({ color: '#cdd0d3', roughness: 0.3, metalness: 0.15, transparent: true, opacity: DOOR_WALK_OPACITY, depthWrite: false });
     case BUILTIN_MATERIALS.handleWhite:
       return new MeshStandardMaterial({ color: '#f5f5f2', roughness: 0.3 });
     case DOOR_WALK_MATERIAL:
