@@ -53,4 +53,20 @@ describe('defaultParametricFor with the real generators', () => {
             expect(out).toEqual(dims);
     }
   });
+
+  it('draws a table-island product as the island with a swivel top, shelf and wine bays, at its exact listed size', () => {
+    const name = 'Table à manger extensible, table de bar rotative à 360° avec casier à vin et étagères, îlot central cuisine, blanc';
+    const dims = { w: 1.4, d: 0.6, h: 0.9 };
+    const d = defaultParametricFor('kitchen_island', dims, name)!;
+    expect(d.generator).toBe('island');
+    expect(d.params).toMatchObject({ wineBays: 1, shelfBays: 1 });
+    expect(d.params['topLength']).toBeCloseTo(1.38, 3);
+    const g = GENERATORS.get('island')!;
+    const out = g.describeParams(g.params.parse(d.params)).dims;
+    for (const k of ['w', 'd', 'h'] as const) expect(out[k]).toBeCloseTo(dims[k], 6);
+    // a plain island product keeps the plain island
+    const plain = defaultParametricFor('kitchen_island', dims, 'TORNVIKEN Îlot pour cuisine - blanc cassé/chêne')!;
+    expect(plain.params['topLength']).toBeUndefined();
+    expect(plain.params['wineBays']).toBeUndefined();
+  });
 });

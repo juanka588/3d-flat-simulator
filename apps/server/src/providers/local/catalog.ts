@@ -34,6 +34,7 @@ export function servedRecord(entry: LocalEntry): ProductRecord {
 
 /** The entry with its category and mount recomputed from the shop type and the name by the CURRENT classifier (no re-download). */
 export function reclassifyEntry(entry: LocalEntry): LocalEntry {
+  if (entry.source === 'manual') return entry; // typed in by hand (category may be the user's choice)
   const { category, mount } = reclassify(entry.typeName, entry.record.name, entry.record.category);
   if (category === entry.record.category && mount === entry.record.mount) return entry;
   return { ...entry, record: { ...entry.record, category, mount } };

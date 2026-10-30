@@ -64,6 +64,8 @@ export const LocalEntry = z.strictObject({
   /** Small photo, `photos/<sku>.webp`. */
   photo: z.strictObject({ file: z.string().regex(/^photos\/\d{8}\.webp$/), bytes: z.number().int().positive() }).optional(),
   availability: Availability.default('unknown'),
+  /** `manual`: typed in from a page the user saved (`catalog:import-page`), not read from the shop; price refreshes skip it. */
+  source: z.literal('manual').optional(),
   /** Non-fatal observations from the build ("dims_mismatch 18%", "textures resized"). */
   flags: z.array(z.string().max(200)).max(12).default([]),
   /** Parts a transient failure left out (`model`, `photo`): the next build retries them. */

@@ -155,7 +155,9 @@ describe.each(ALL_GENERATORS.map((g) => [g.id, g] as const))('generator %s', (_i
         const params = g.params.parse(raw);
         const { dims } = g.describeParams(params);
         for (const v of Object.values(dims)) expect(v).toBeGreaterThan(0);
-        if ('w' in params) expect(dims.w).toBe(params.w);
+        // an island with a swivel top grows its box to include the top
+        const grows = g.id === 'island' && (params as { topLength?: number }).topLength! > 0;
+        if ('w' in params && !grows) expect(dims.w).toBe(params.w);
         if ('h' in params && g.id !== 'tv') expect(dims.h).toBe(params.h);
       }),
       { numRuns: 60 },

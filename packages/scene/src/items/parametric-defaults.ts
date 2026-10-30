@@ -23,6 +23,27 @@ function lampKind(words: string, h: number): 'hanging' | 'wall' | 'floor' | 'tab
 const SINK_NAME = /\b(evier|sink)\b/;
 const PEDESTAL_NAME = /colonne|pedestal|pied/;
 const clampInt = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, Math.round(v)));
+/** Island products with a turning / extendable table top (a "table-island"), and with open shelves or a wine rack. */
+const SWIVEL_NAME = /\b(rotati\w*|pivotan\w*|swivel\w*|extensible|extendable|table (a manger|de bar|bar)|dining)\b/;
+const WINE_NAME = /casiers? a vin|range[- ]bouteilles?|porte[- ]bouteilles?|wine/;
+const SHELVES_NAME = /etageres?|shelves|shelf|niches?/;
+
+/** The island generator's params for an island product: base cabinets, plus a swivel top and open bays when the name says so. */
+function islandFor(name: string, w: number, d: number, h: number): Params {
+  const params: Params = { w, d, h, overhang: Math.min(0.3, Math.min(w, d) * 0.35), doors: clampInt(w / 0.5, 0, 6) };
+  if (w >= 1) {
+    // Bays at the right end: a wine rack and/or open shelves; the doors keep the rest of the width.
+    if (WINE_NAME.test(name)) params['wineBays'] = 1;
+    if (SHELVES_NAME.test(name)) params['shelfBays'] = 1;
+    if (params['wineBays'] !== undefined || params['shelfBays'] !== undefined) params['doors'] = clampInt((w - 0.34 * ((params['wineBays'] ? 1 : 0) + (params['shelfBays'] ? 1 : 0))) / 0.5, 1, 6);
+  }
+  if (w >= 0.9 && d >= 0.45 && SWIVEL_NAME.test(name)) {
+    // Shown closed: the top lies along the island and ends where it ends, so the item box is exactly the listed size (turn it with topAngle on a concept item).
+    params['topLength'] = Math.min(3, w - 0.02);
+    params['topWidth'] = Math.min(0.55, d * 0.8);
+  }
+  return params;
+}
 
 /**
  * The generator and params that best stand for a product of `category` at exact `dims` (D6), or `undefined`
@@ -83,13 +104,13 @@ export function defaultParametricFor(category: ProductCategory, dims: Dims, name
     case 'kitchen':
       // A free-standing island (by its name): base cabinets, a full worktop and a stool overhang instead of a single run unit.
       if (name !== undefined && ISLAND_NAME.test(foldName(name)) && Math.min(w, d) >= 0.5) {
-        return { generator: 'island', params: { w, d, h, overhang: Math.min(0.3, Math.min(w, d) * 0.35), doors: clampInt(w / 0.5, 0, 6) } };
+        return { generator: 'island', params: islandFor(words, w, d, h) };
       }
       return { generator: 'kitchenBase', params: { w, d, h, doors: clampInt(w / 0.45, 0, 4), drawers: 0, worktop: true } };
     case 'vanity':
       return { generator: 'sideboard', params: { w, d, h, doors: 0, drawers: clampInt(h / 0.25, 1, 4) } };
     case 'kitchen_island':
-      return { generator: 'island', params: { w, d, h, overhang: Math.min(0.3, Math.min(w, d) * 0.35), doors: clampInt(w / 0.5, 0, 6) } };
+      return { generator: 'island', params: islandFor(words, w, d, h) };
     case 'tall_cabinet':
     case 'appliance_housing':
       return { generator: 'wardrobe', params: { w, d, h, doors: clampInt(w / 0.5, 1, 8), doorType: 'hinged' } };

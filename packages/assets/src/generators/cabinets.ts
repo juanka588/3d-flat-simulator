@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { Generator } from '@flat/scene';
 import { ITEM_MATERIALS } from '../materials/item-materials';
-import { FRONT, HANDLE, Kit, addFronts, boxAnchors, count, finish, finishMaterial, metres, type Finish } from './kit';
+import { FRONT, HANDLE, PANEL, Kit, addFronts, boxAnchors, count, finish, finishMaterial, metres, type Finish } from './kit';
 
 /** Cabinet-like generators: wardrobe, kitchen base / wall units, sideboard, TV unit, nightstand. */
 
@@ -222,43 +222,157 @@ export const kitchenBase: Generator<KitchenBaseParams> = {
 // ---------------------------------------------------------------------------------------------
 
 const islandParams = z.strictObject({
-  w: metres('Length of the island (its worktop).', 1.26, 0.6, 3.5),
-  d: metres('Depth of the island including the seating overhang.', 0.77, 0.5, 1.6),
-  h: metres('Overall height including the worktop; standard is 0.9.', 0.9, 0.5, 1.2),
+  w: metres('Length of the island body (its worktop), without the swivel top. With a swivel top (topLength > 0) the item box grows to include the top, whatever its angle.', 1.26, 0.6, 3.5),
+  d: metres('Depth of the island body including the seating overhang.', 0.77, 0.5, 1.6),
+  h: metres('Overall height including the worktop (and the swivel top, which sits flush in it); standard is 0.9.', 0.9, 0.5, 1.2),
   overhang: metres('Worktop overhang at the back (-z) for stools, 0 for none. Clamped so a cabinet at least 0.3 m deep remains.', 0.25, 0, 0.5),
-  doors: count('Number of doors side by side below the drawers on the front (+z), 0 for none.', 2, 0, 6),
+  doors: count('Number of doors side by side below the drawers on the front (+z), 0 for none. They fill the width left of the open bays.', 2, 0, 6),
   drawers: count('Number of drawers at the top of the front (0 for none).', 0, 0, 5),
+  shelfBays: count('Open shelf bays (three shelves each, about 0.3 m wide) at the right (+x) end of the front, 0 for none.', 0, 0, 3),
+  wineBays: count('Wine-rack bays (rows of lying bottles, about 0.3 m wide) at the right (+x) end of the front, after the shelf bays; 0 for none.', 0, 0, 1),
+  topLength: metres('Length of a swivel / extendable top that pivots on a post at the right (+x) end of the island and lies on it: aligned with the island at topAngle 0, swung out over the stool side (-z) at 90 to make a dining table. 0 for no swivel top. Typical 1.4-1.8.', 0, 0, 3),
+  topWidth: metres('Width of the swivel top (only with topLength > 0); clamped to the island length.', 0.55, 0.3, 1),
+  topAngle: z.number().min(0).max(90).default(0).describe('Swivel angle of the top in degrees, 0-90 (only with topLength > 0): 0 = closed, aligned with the island; 90 = turned square to it as a dining table. Defaults to 0.'),
   finish: finish('white'),
 });
 type IslandParams = z.infer<typeof islandParams>;
 
+/** Thickness of the swivel top; the island worktop below is lowered by as much so the overall height stays `h`. */
+const SWIVEL_T = 0.03;
+/** Footprint of the swivel top turned by `topAngle` degrees: the pivot post, the four corners (x, z) and the length actually used. */
+function swivelTop({ w, topLength, topWidth, topAngle }: Pick<IslandParams, 'w' | 'topLength' | 'topWidth' | 'topAngle'>) {
+  const tw = Math.min(topWidth, w);
+  const len = Math.max(topLength, tw + 0.1);
+  const px = w / 2 - tw / 2 - 0.02;
+  const phi = Math.PI - (topAngle * Math.PI) / 180;
+  const c = Math.cos(phi);
+  const s = Math.sin(phi);
+  // local box: lx from -tw/2 (behind the pivot) to len - tw/2, lz across the width; see Kit.yawBox
+  const world = (lx: number, lz: number): [number, number] => [px + lx * c + lz * s, -lx * s + lz * c];
+  const corners = [world(-tw / 2, -tw / 2), world(len - tw / 2, -tw / 2), world(len - tw / 2, tw / 2), world(-tw / 2, tw / 2)];
+  return { tw, len, px, phi, corners, world };
+}
+
+/** The box of the island: the body's rectangle joined with the swivel top, if any. Min / max of x and z. */
+function islandExtent(p: IslandParams) {
+  const ext = { x0: -p.w / 2, x1: p.w / 2, z0: -p.d / 2, z1: p.d / 2 };
+  if (p.topLength > 0) {
+    for (const [x, z] of swivelTop(p).corners) {
+      ext.x0 = Math.min(ext.x0, x);
+      ext.x1 = Math.max(ext.x1, x);
+      ext.z0 = Math.min(ext.z0, z);
+      ext.z1 = Math.max(ext.z1, z);
+    }
+  }
+  return ext;
+}
+
 export const island: Generator<IslandParams> = {
   id: 'island',
-  label: 'Kitchen island: base cabinets with a full-footprint worktop and a stool overhang at the back (-z)',
+  label: 'Kitchen island with stool overhang (-z); optional shelf / wine bays and a swivel (topAngle) dining top',
   category: 'kitchen',
   params: islandParams,
-  describeParams: ({ w, d, h }) => ({ dims: { w, d, h }, anchors: boxAnchors(w, d, h), clearance: { front: 0.9, back: 0.6, left: 0.6, right: 0.6 } }),
-  generate({ w, d, h, overhang, doors, drawers, finish: f }) {
+  describeParams: (p) => {
+    const e = islandExtent(p);
+    const w = e.x1 - e.x0;
+    const d = e.z1 - e.z0;
+    return { dims: { w, d, h: p.h }, anchors: boxAnchors(w, d, p.h), clearance: { front: 0.9, back: 0.6, left: 0.6, right: 0.6 } };
+  },
+  generate(p) {
+    const { w, d, h, overhang, doors, drawers, finish: f } = p;
     const kit = new Kit();
     const mat = finishMaterial(f);
+    const swivel = p.topLength > 0;
     const over = Math.max(0, Math.min(overhang, d - 0.3));
     const baseH = 0.1;
     const topT = 0.04;
-    const bodyTop = h - topT;
+    const worktopTop = swivel ? h - SWIVEL_T : h;
+    const bodyTop = worktopTop - topT;
     const z0 = -d / 2 + over; // back of the cabinet body
     const zFace = d / 2 - HANDLE;
+    // Open bays (shelves, wine rack) take the right end of the front; the doors keep at least 0.4 m.
+    const nBays = Math.min(p.shelfBays + p.wineBays, Math.max(0, Math.floor((w - 0.4) / 0.2)));
+    const bayW = nBays > 0 ? Math.min(0.34, (w - 0.4) / nBays) : 0;
+    const xb = w / 2 - nBays * bayW; // right edge of the closed part
+    const nShelf = Math.min(p.shelfBays, nBays);
     const zBodyFront = doors + drawers === 0 ? d / 2 : zFace - FRONT;
     kit.box(ITEM_MATERIALS.dark, -w / 2, 0, z0 + 0.02, w / 2, baseH, zBodyFront - 0.03);
-    kit.box(mat, -w / 2, baseH, z0, w / 2, bodyTop, zBodyFront);
+    kit.box(mat, -w / 2, baseH, z0, xb, bodyTop, zBodyFront);
     // End panels carry the overhang.
     if (over > 0.05) {
       const t = Math.min(0.03, w / 10);
       kit.box(mat, -w / 2, baseH, -d / 2, -w / 2 + t, bodyTop, z0);
       kit.box(mat, w / 2 - t, baseH, -d / 2, w / 2, bodyTop, z0);
     }
-    kit.box(ITEM_MATERIALS.worktop, -w / 2, bodyTop, -d / 2, w / 2, h, d / 2);
-    addFronts(kit, { x0: -w / 2, x1: w / 2, y0: baseH, y1: bodyTop, zFace, doors, drawers, frontMaterial: mat });
-    return kit.build();
+    kit.box(ITEM_MATERIALS.worktop, -w / 2, bodyTop, -d / 2, w / 2, worktopTop, d / 2);
+    addFronts(kit, { x0: -w / 2, x1: xb, y0: baseH, y1: bodyTop, zFace, doors, drawers, frontMaterial: mat });
+
+    // Open bays: a shell of 18 mm panels, then shelves or bottle rows in each bay.
+    if (nBays > 0) {
+      const t = PANEL;
+      const yIn0 = baseH + t;
+      const yIn1 = bodyTop - t;
+      kit.box(mat, xb, baseH, z0, w / 2, bodyTop, z0 + t); // back
+      kit.box(mat, xb, baseH, z0 + t, w / 2, yIn0, zBodyFront); // bottom
+      kit.box(mat, xb, yIn1, z0 + t, w / 2, bodyTop, zBodyFront); // top
+      for (let i = 0; i <= nBays; i++) {
+        const x = i === nBays ? w / 2 - t : xb + i * bayW;
+        kit.box(mat, x, yIn0, z0 + t, x + t, yIn1, zBodyFront); // dividers and the end panel
+      }
+      for (let i = 0; i < nBays; i++) {
+        const a = xb + i * bayW + t;
+        const b = i === nBays - 1 ? w / 2 - t : xb + (i + 1) * bayW;
+        if (i < nShelf) {
+          for (let k = 1; k <= 3; k++) {
+            const y = yIn0 + ((yIn1 - yIn0) * k) / 4;
+            kit.box(mat, a, y - t / 2, z0 + t, b, y + t / 2, zBodyFront - 0.01);
+          }
+        } else {
+          // wine rack: rows of lying bottles (necks to the front) on thin slats
+          const rows = Math.max(2, Math.round((yIn1 - yIn0) / 0.115));
+          const pitch = (yIn1 - yIn0) / rows;
+          const perRow = Math.max(1, Math.floor((b - a) / 0.085));
+          const gap = (b - a) / perRow;
+          const rBody = Math.min(0.037, gap / 2 - 0.004, pitch / 2 - 0.006);
+          const zNeck = zBodyFront - 0.05;
+          for (let k = 1; k < rows; k++) kit.box(mat, a, yIn0 + k * pitch - 0.006, z0 + t, b, yIn0 + k * pitch + 0.006, zBodyFront - 0.01);
+          for (let k = 0; k < rows; k++) {
+            for (let j = 0; j < perRow; j++) {
+              if ((j + k) % 4 === 3) continue; // a few empty slots
+              const cx = a + gap * (j + 0.5);
+              const cy = yIn0 + k * pitch + pitch / 2 + 0.003;
+              kit.discZ(ITEM_MATERIALS.glassSmoked, cx, cy, zNeck - 0.2, zNeck, rBody, 8);
+              kit.discZ(ITEM_MATERIALS.glassSmoked, cx, cy, zNeck, zNeck + 0.045, rBody * 0.38, 4);
+            }
+          }
+        }
+      }
+    }
+
+    // Swivel top: lies on the worktop, pivots on a post at the right end; its far end gets two legs once it is clear of the island.
+    if (swivel) {
+      const { tw, len, px, phi, world } = swivelTop(p);
+      kit.yawBox(ITEM_MATERIALS.worktop, px, 0, phi, -tw / 2, worktopTop, -tw / 2, len - tw / 2, h, tw / 2);
+      const legT = 0.05;
+      const clear = (x: number, z: number) => x - legT > w / 2 + 0.01 || x + legT < -w / 2 - 0.01 || z - legT > d / 2 + 0.01 || z + legT < -d / 2 - 0.01;
+      const lxLeg = len - tw / 2 - 0.06;
+      const legs = [-1, 1].map((sgn) => world(lxLeg, sgn * (tw / 2 - 0.06)));
+      if (legs.every(([x, z]) => clear(x, z))) {
+        for (const [x, z] of legs) kit.yawBox(ITEM_MATERIALS.metal, x, z, phi, -legT / 2, 0, -legT / 2, legT / 2, worktopTop, legT / 2);
+      }
+    }
+    const mesh = kit.build();
+    if (swivel) {
+      // centre the item box (body + top) on the origin
+      const e = islandExtent(p);
+      const ox = -(e.x0 + e.x1) / 2;
+      const oz = -(e.z0 + e.z1) / 2;
+      for (let i = 0; i < mesh.positions.length; i += 3) {
+        mesh.positions[i] = mesh.positions[i]! + ox;
+        mesh.positions[i + 2] = mesh.positions[i + 2]! + oz;
+      }
+    }
+    return mesh;
   },
 };
 

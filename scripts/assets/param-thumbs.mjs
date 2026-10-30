@@ -104,6 +104,8 @@ export const VARIANTS = [
   ['pendant globe', 'pendant', { shape: 'globe' }],
   ['pendant dome, black', 'pendant', { shape: 'dome', colour: 'black', w: 0.5, h: 1 }],
   ['pendant cluster', 'pendant', { shape: 'cluster', w: 0.7, h: 1.4 }],
+  ['island, shelves + wine rack, swivel top closed', 'island', { w: 1.3, d: 0.6, shelfBays: 1, wineBays: 1, topLength: 1.6 }],
+  ['island, swivel top turned 90 deg (dining table)', 'island', { w: 1.3, d: 0.6, shelfBays: 1, wineBays: 1, topLength: 1.6, topAngle: 90 }],
 ];
 
 /** A labelled grid of the variants as one PNG (4 columns). */

@@ -10,6 +10,7 @@
     "catalog:build": "tsx src/providers/local/cli.ts build",
     "catalog:reclassify": "tsx src/providers/local/cli.ts reclassify",
     "catalog:refit": "tsx src/providers/local/cli.ts refit",
+    "catalog:import-page": "tsx src/providers/local/cli.ts import-page",
     "catalog:status": "tsx src/providers/local/cli.ts status"
   },
   "dependencies": {

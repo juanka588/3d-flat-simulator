@@ -90,7 +90,7 @@ export async function loadCatalogFile(dir: string, now: string): Promise<LocalCa
   return parsed.data;
 }
 
-async function writeAtomic(path: string, data: string | Uint8Array): Promise<void> {
+export async function writeAtomic(path: string, data: string | Uint8Array): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
   const tmp = `${path}.tmp`;
   await writeFile(tmp, data);
@@ -500,7 +500,7 @@ export async function refreshPrices(o: RefreshOptions): Promise<RefreshReport> {
   const log = o.log ?? (() => undefined);
   const file = await loadCatalogFile(o.dir, now().toISOString());
   const report: RefreshReport = { checked: 0, changed: [], discontinued: [], failed: [] };
-  const queue = [...file.entries].sort((a, b) => Date.parse(a.checkedAt) - Date.parse(b.checkedAt)).slice(0, o.limit ?? Infinity);
+  const queue = file.entries.filter((e) => e.source !== 'manual').sort((a, b) => Date.parse(a.checkedAt) - Date.parse(b.checkedAt)).slice(0, o.limit ?? Infinity);
   let sinceSave = 0;
   const save = async () => {
     file.builtAt = now().toISOString();

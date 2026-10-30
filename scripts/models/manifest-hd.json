@@ -208,7 +208,7 @@
     },
     {
       "slug": "sofa_curved",
-      "name": "Curved boucl\u00e9 sofa",
+      "name": "Curved bouclé sofa",
       "category": "sofa",
       "sourceId": "5c123f31ae894d5db5b82a546998b92a",
       "maxDimM": [
@@ -1161,7 +1161,7 @@
       "sourceId": "8779a5966d3c4dc19c6d5591669965b5",
       "maxDimM": [
         0.4,
-        2.0
+        2
       ],
       "styleTags": [
         "radiator",
@@ -1179,7 +1179,7 @@
       "sourceId": "6be3bba8ac6c452caf5cbdad6aaff656",
       "maxDimM": [
         0.4,
-        2.0
+        2
       ],
       "styleTags": [
         "radiator",
@@ -1208,6 +1208,62 @@
       "front": "+z",
       "status": "rejected",
       "reason": "a flat disc (no arms, no balls); not the multi-arm ceiling lamp"
+    },
+    {
+      "slug": "island_dining_integrated",
+      "name": "Kitchen island with integrated dining table",
+      "category": "kitchen_island",
+      "sourceId": "7b6d66743c9445d2927a0dfc80f9d01c",
+      "maxDimM": [
+        1.2,
+        3.5
+      ],
+      "styleTags": [
+        "modern",
+        "island",
+        "dining table",
+        "kitchen",
+        "concept"
+      ],
+      "status": "rejected",
+      "reason": "island with a T-shaped table extension is the right idea, but the file bundles a floor slab and has no usable unit (raw size 7594, 0.48 m tall at the nearest fit); would need hand re-scaling and cleaning"
+    },
+    {
+      "slug": "island_butcher_white",
+      "name": "White kitchen island, butcher block top",
+      "category": "kitchen_island",
+      "sourceId": "2c5b408f409e4acc83e244a366d9231a",
+      "maxDimM": [
+        0.9,
+        2.5
+      ],
+      "styleTags": [
+        "modern",
+        "island",
+        "white",
+        "kitchen",
+        "concept"
+      ],
+      "status": "rejected",
+      "reason": "cannot be simplified below 30000 triangles (34812 faces, dense turned details); over the HD budget"
+    },
+    {
+      "slug": "island_scandinavian",
+      "name": "Scandinavian kitchen island",
+      "category": "kitchen_island",
+      "sourceId": "a9738f4e651b4779acdddcfbb89516f6",
+      "maxDimM": [
+        0.9,
+        3
+      ],
+      "styleTags": [
+        "scandinavian",
+        "island",
+        "kitchen",
+        "concept"
+      ],
+      "status": "rejected",
+      "reason": "is a whole room shell (a box with a room inside), not an island"
     }
   ]
 }

@@ -170,6 +170,31 @@ export class Kit {
     this.b.quad([[x0, y0, z], [x1, y0, z], [x1, y1, z], [x0, y1, z]], [0, 0, 1], [[0, 0], [1, 0], [1, 1], [0, 1]], material, OWNER);
   }
 
+  /**
+   * A sharp-edged box turned about the vertical axis: the local box `[lx0,lx1] x [y0,y1] x [lz0,lz1]` is rotated by `phi`
+   * radians about the point `(px, pz)` (x = px + lx cos(phi) + lz sin(phi); z = pz - lx sin(phi) + lz cos(phi)), the usual
+   * right-handed turn about +y. For a swivel top or an angled leg; the box has no chamfer (12 triangles).
+   */
+  yawBox(material: string, px: number, pz: number, phi: number, lx0: number, y0: number, lz0: number, lx1: number, y1: number, lz1: number): void {
+    if (lx1 - lx0 < 1e-9 || y1 - y0 < 1e-9 || lz1 - lz0 < 1e-9) return;
+    const c = Math.cos(phi);
+    const s = Math.sin(phi);
+    const at = (lx: number, y: number, lz: number): Vec3 => [px + lx * c + lz * s, y, pz - lx * s + lz * c];
+    const dir = (nx: number, nz: number): Vec3 => [nx * c + nz * s, 0, -nx * s + nz * c];
+    const faces: { n: Vec3; c: [Vec3, Vec3, Vec3, Vec3]; m: Axis }[] = [
+      { n: dir(0, 1), c: [at(lx0, y0, lz1), at(lx1, y0, lz1), at(lx1, y1, lz1), at(lx0, y1, lz1)], m: 2 },
+      { n: dir(0, -1), c: [at(lx1, y0, lz0), at(lx0, y0, lz0), at(lx0, y1, lz0), at(lx1, y1, lz0)], m: 2 },
+      { n: dir(1, 0), c: [at(lx1, y0, lz1), at(lx1, y0, lz0), at(lx1, y1, lz0), at(lx1, y1, lz1)], m: 0 },
+      { n: dir(-1, 0), c: [at(lx0, y0, lz0), at(lx0, y0, lz1), at(lx0, y1, lz1), at(lx0, y1, lz0)], m: 0 },
+      { n: [0, 1, 0], c: [at(lx0, y1, lz1), at(lx1, y1, lz1), at(lx1, y1, lz0), at(lx0, y1, lz0)], m: 1 },
+      { n: [0, -1, 0], c: [at(lx0, y0, lz0), at(lx1, y0, lz0), at(lx1, y0, lz1), at(lx0, y0, lz1)], m: 1 },
+    ];
+    for (const f of faces) {
+      const uv = f.c.map((p) => uvOf(f.m, p)) as [[number, number], [number, number], [number, number], [number, number]];
+      this.b.quad(f.c, f.n, uv, material, OWNER);
+    }
+  }
+
   /** A box with sharp edges (12 triangles). */
   private sharpBox(material: string, x0: number, y0: number, z0: number, x1: number, y1: number, z1: number): void {
     const b = this.b;

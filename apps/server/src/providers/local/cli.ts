@@ -17,6 +17,7 @@
  *   --out DIR            another catalogue folder
  * `pnpm catalog:reclassify [--dry] [--out DIR]` recomputes category and mount of the existing entries offline (no download).
  * `pnpm catalog:refit [--dry] [--sku X] [--out DIR]` recomputes the orientation (quarter turn) and overall dims of the existing models offline (no download).
+ * `pnpm catalog:import-page <page.html> [--photos-dir DIR] [...]` adds a product from a page the user saved in their own browser (fully offline; `--help` lists the steps).
  * Ctrl-C finishes the product in hand, saves and stops; run the command again to resume.
  */
 import { readFileSync } from 'node:fs';
@@ -27,6 +28,7 @@ import { createNetwork } from '../http';
 import { createIkeaFrProvider } from '../ikea-fr';
 import type { ProviderContext } from '../types';
 import { buildCatalog, cleanTemp, refreshPrices, DEFAULTS } from './build';
+import { importSavedPage, type PageOverrides } from './import-page';
 import { DEFAULT_QUERIES, SEED_SKUS, parseQueriesFile, skusFromScene } from './queries';
 import { reclassifyCatalog } from './reclassify';
 import { refitCatalog } from './refit';
@@ -37,25 +39,32 @@ export const DEFAULT_DIR = here('../../../local-assets/ikea-fr');
 
 interface Args {
   command: string;
+  /** Arguments without `--` (the page file of `import-page`). */
+  positional: string[];
   flags: Map<string, string | true>;
 }
 
 export function parseArgs(argv: string[]): Args {
   const [command = 'help', ...rest] = argv;
   const flags = new Map<string, string | true>();
+  const positional: string[] = [];
   for (let i = 0; i < rest.length; i++) {
     const a = rest[i]!;
-    if (!a.startsWith('--')) throw new Error(`unexpected argument "${a}"`);
+    if (!a.startsWith('--')) {
+      if (command !== 'import-page') throw new Error(`unexpected argument "${a}"`);
+      positional.push(a);
+      continue;
+    }
     const key = a.slice(2);
     const next = rest[i + 1];
-    if (['refresh-prices', 'dry', 'no-photos', 'no-optimize', 'no-seeds', 'help'].includes(key)) flags.set(key, true);
+    if (['refresh-prices', 'dry', 'no-photos', 'no-optimize', 'no-seeds', 'help', 'force'].includes(key)) flags.set(key, true);
     else if (next === undefined || next.startsWith('--')) throw new Error(`--${key} needs a value`);
     else {
       flags.set(key, next);
       i++;
     }
   }
-  return { command, flags };
+  return { command, positional, flags };
 }
 
 const num = (flags: Args['flags'], key: string): number | undefined => {
@@ -79,8 +88,70 @@ function liveContext(log: (m: string) => void): { ctx: ProviderContext; provider
 
 const MB = 1024 * 1024;
 
+const IMPORT_HELP = `pnpm catalog:import-page <page.html> [options]       (OFFLINE: nothing is fetched, no cookie or login is used)
+
+Adds a product that has no 3D model and cannot be read automatically (a shop that blocks scripts, a marketplace item) to the
+local catalogue, from the page YOU saved in your own browser:
+  1. Open the product page in your browser, then Save the page: Cmd+S (Ctrl+S) -> Format "Web page, complete".
+     This writes <name>.html and a <name>_files folder with the pictures.
+  2. Run:  pnpm catalog:import-page ~/Downloads/<name>.html
+     It reads the product data (schema.org JSON-LD, Open Graph, the characteristics table: Largeur / Profondeur / Hauteur /
+     Longueur / Dimensions, colour, material), copies the main photo from <name>_files (320 px WebP) and writes a manual
+     entry (source "manual", personal use only, the page address kept in the gitignored catalogue only).
+  3. The product appears in the library and the search as "ikea-fr:<8 digits>" (the number is printed). Place it as usual:
+     it has no model, so the viewer draws the category's parametric stand-in at the listed size (a kitchen island, with a
+     swivel top and shelf / wine bays when its name says so). Prices are counted in the bill of materials.
+Options:
+  --photos-dir DIR   folder of the saved pictures (default: <page>_files next to the page)
+  --url URL          the product page address, when the saved file does not carry it
+  --name TEXT  --price 123.45  --currency EUR   fill in what the page does not give
+  --dims w,d,h       width, depth, height in cm (overrides the page), e.g. --dims 140,60,90
+  --sku 12345678     8-digit reference (default: the page's own 8-digit reference, else one taken from the address)
+  --category C       force a category (e.g. kitchen_island, table); default: from the product type and name
+  --dry              show what would be written, change nothing     --force   replace a shop product with the same reference
+  --out DIR          another catalogue folder
+Not available on purpose: fetching the page for you, or passing cookies / session tokens.`;
+
+async function runImportPage(file: string, flags: Args['flags'], dir: string): Promise<number> {
+  const known = new Set(['out', 'photos-dir', 'url', 'name', 'price', 'currency', 'dims', 'sku', 'category', 'dry', 'force', 'help']);
+  for (const k of flags.keys()) if (!known.has(k)) throw new Error(`unknown option --${k} (import-page works from the saved file only; see --help)`);
+  const text = (k: string) => (typeof flags.get(k) === 'string' ? String(flags.get(k)) : undefined);
+  const overrides: PageOverrides = {};
+  if (text('url')) overrides.url = text('url')!;
+  if (text('name')) overrides.name = text('name')!;
+  if (text('currency')) overrides.currency = text('currency')!;
+  if (text('sku')) overrides.sku = text('sku')!;
+  if (text('price')) {
+    const p = Number(text('price')!.replace(',', '.'));
+    if (!Number.isFinite(p) || p < 0) throw new Error('--price must be a number');
+    overrides.price = p;
+  }
+  if (text('dims')) {
+    const n = text('dims')!.split(/[,x;\s]+/).filter(Boolean).map((v) => Number(v.replace(',', '.')));
+    if (n.length !== 3 || n.some((v) => !Number.isFinite(v) || v <= 0)) throw new Error('--dims needs three numbers in cm: width,depth,height');
+    overrides.dims = { w: n[0]! / 100, d: n[1]! / 100, h: n[2]! / 100 };
+  }
+  const r = await importSavedPage({
+    dir,
+    file: fromUser(file),
+    ...(text('photos-dir') ? { photosDir: fromUser(text('photos-dir')!) } : {}),
+    overrides,
+    ...(text('category') ? { category: text('category')! } : {}),
+    force: flags.has('force'),
+    dryRun: flags.has('dry'),
+    log: (m) => console.log(m),
+  });
+  const rec = r.entry.record;
+  const cm = (v: number) => Math.round(v * 1000) / 10;
+  console.log(`${r.written ? (r.replaced ? 'updated' : 'added') : 'would add'} ${r.productId}  ${rec.name.slice(0, 80)}`);
+  console.log(`  ${rec.price} ${rec.currency}${rec.priceTtc ? ' TTC' : ''}; ${cm(rec.dims.w)} x ${cm(rec.dims.d)} x ${cm(rec.dims.h)} cm (w x d x h, ${rec.dimsSource}); category ${rec.category}, mount ${rec.mount}; colours: ${rec.colours.join(', ') || '-'}; photo: ${r.photo ?? 'none'}; no 3D model (parametric stand-in)`);
+  for (const f of r.entry.flags) console.log(`  note: ${f}`);
+  if (r.written) console.log('Search it in the app, or place it by id. The CLIP image index is not rebuilt here (pnpm imagegen:index later).');
+  return 0;
+}
+
 async function main(): Promise<number> {
-  const { command, flags } = parseArgs(process.argv.slice(2));
+  const { command, positional, flags } = parseArgs(process.argv.slice(2));
   const dir = flags.get('out') ? fromUser(String(flags.get('out'))) : DEFAULT_DIR;
   const log = (m: string) => console.log(m);
   if (command === 'status') {
@@ -102,8 +173,15 @@ async function main(): Promise<number> {
     console.log(`${flags.has('dry') ? 'would change' : 'changed'} ${r.changes.length} of ${r.withModel} models (${r.total} entries); ${r.skipped.length} skipped`);
     return 0;
   }
+  if (command === 'import-page') {
+    if (flags.has('help') || positional.length !== 1) {
+      console.log(IMPORT_HELP);
+      return flags.has('help') ? 0 : 2;
+    }
+    return runImportPage(positional[0]!, flags, dir);
+  }
   if (command !== 'build' || flags.has('help')) {
-    console.log(['usage: pnpm catalog:build [--limit N] [--queries file] [--from-scene file] [--refresh-prices] [--per-query N] [--max-products N] [--no-photos] [--no-optimize] [--no-seeds] [--out dir]', '       pnpm catalog:reclassify [--dry] [--out dir]', '       pnpm catalog:refit [--dry] [--sku X] [--out dir]', '       pnpm catalog:status'].join('\n'));
+    console.log(['usage: pnpm catalog:build [--limit N] [--queries file] [--from-scene file] [--refresh-prices] [--per-query N] [--max-products N] [--no-photos] [--no-optimize] [--no-seeds] [--out dir]', '       pnpm catalog:reclassify [--dry] [--out dir]', '       pnpm catalog:refit [--dry] [--sku X] [--out dir]', '       pnpm catalog:import-page <page.html> [--photos-dir dir] [--url U] [--name N] [--price P] [--dims w,d,h] [--sku S] [--category C] [--dry] [--force] [--out dir]  (offline; --help for the steps)', '       pnpm catalog:status'].join('\n'));
     return command === 'help' || flags.has('help') ? 0 : 2;
   }
 
