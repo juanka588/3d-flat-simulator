@@ -90,3 +90,39 @@ describe('room lamp bounce texture', () => {
     ambient.bounce.set({});
   });
 });
+
+describe('faces that belong to no wall side take the room they look into (the legacy sky ambient)', () => {
+  const walls = withRoomAmbient(shell.walls, scene, ambient);
+  /** Room texels of every triangle of one wall, by face. */
+  const texelsOf = (wallId: string, face: string): number[] => {
+    const out: number[] = [];
+    for (const owner of walls.owners) {
+      if (owner.kind !== 'wall' || owner.entityId !== wallId || owner.face !== face) continue;
+      for (let t = owner.start; t < owner.start + owner.count; t++) out.push(texelOf(walls.uv1, walls.indices[t * 3]!));
+    }
+    return out;
+  };
+
+  it('the end caps of a column in the bathroom are the bathroom, not the full sky (they glowed white in a dark room)', () => {
+    const ends = texelsOf('w-sdb-column', 'end');
+    expect(ends.length).toBeGreaterThan(0);
+    for (const texel of ends) expect(texel).toBe(ambient.indexOf('sdb'));
+  });
+
+  it('a few cm of wall face between two room polygons takes the darker room beside it, not the sky (a white strip in the bathroom)', () => {
+    // w-sdb-east, inner face: the hall's cupboard, a 7 cm slack between the polygons, then the bathroom.
+    const right = texelsOf('w-sdb-east', 'right');
+    expect(right).toContain(ambient.indexOf('sdb'));
+    expect(right).not.toContain(ambient.none);
+  });
+
+  it('the outer face of a party wall and of a facade keep the full sky (nothing is in front of them)', () => {
+    expect(texelsOf('w-sdb-east', 'left').every((t) => t === ambient.none)).toBe(true);
+    expect(texelsOf('w-south', 'left').every((t) => t === ambient.none)).toBe(true);
+  });
+
+  it('a windowless room is dark, and so is every face that looks into it', () => {
+    expect(value('sdb')).toBe(0);
+    expect(value('wc')).toBe(0);
+  });
+});

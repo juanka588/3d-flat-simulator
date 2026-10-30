@@ -5,6 +5,8 @@ export { buildWalls } from './walls';
 export { buildFittings } from './fittings';
 export { buildFloors, buildCeilings, roomCeilingHeight, DEFAULT_CEILING_HEIGHT } from './floors';
 export { buildShell } from './shell';
+export { MAX_GAP_AREA_M2, SLAB_LIFT_M, gapSlabPieces, slabPieces, wallSlabPieces } from './slab';
+export type { SlabPiece } from './slab';
 export { ZONE_OVERLAP_AREA, ZONE_TOLERANCE, floorParts, polygonIntersectionArea, remainderArea, zoneProblems } from './zones';
 export type { FloorPart, ZoneProblem } from './zones';
 export { BUILTIN_PAINT_PREFIX, PANELLING_DEFAULTS, PANEL_LAYOUT, fittingObstacles, layoutFace, paintMaterialId, wallFacePanelling } from './panelling';

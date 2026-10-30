@@ -14,11 +14,12 @@ import { pointInPolygon } from '../validate';
  * `glazedArea` sums width x height of the glazed openings (windows, doors with `glazed: true`)
  * of the room whose other side is outdoors (no indoor room there; balconies count as outdoors).
  * Examples: a living room with 4.7 m2 of French doors in 26 m2 -> 0.9; a 12 m2 bedroom with a
- * 1.5 m2 window -> 0.63; a WC -> 0.08; a hallway with a door to a lit room -> 0.08 + 0.15 x the brightest neighbour.
+ * 1.5 m2 window -> 0.63; a WC with its door shut -> 0 (it is dark: no window, no sky); a hallway with a door to a lit room -> 0.15 x the brightest neighbour.
+ * Sky only comes in through the facade: a wall towards the landing or a neighbour with no window and no facade finish is a party wall (see `wallExposure`) and its door (the front door) is no source of daylight.
  */
 export const DAYLIGHT_K = 5;
-/** Minimum factor of an indoor room with no glazing at all. */
-export const DAYLIGHT_FLOOR = 0.08;
+/** Minimum factor of an indoor room with no glazing at all: none. Daylight only comes through windows (and bounces from the rooms that have them), so a windowless room is dark until a lamp is on. */
+export const DAYLIGHT_FLOOR = 0;
 /** Fraction of an adjacent room's own factor borrowed through doors and passages. */
 export const DAYLIGHT_BORROW = 0.15;
 
@@ -154,6 +155,42 @@ export function wallSideRooms(scene: Scene): Record<string, WallSideRooms> {
       else segments.push({ from, to, ...(s.left ? { left: s.left.id } : {}), ...(s.right ? { right: s.right.id } : {}) });
     }
     out[wall.id] = { ...(mid.left ? { left: mid.left.id } : {}), ...(mid.right ? { right: mid.right.id } : {}), segments };
+  }
+  return out;
+}
+
+/**
+ * What a wall separates the flat from. Daylight only comes in through the facade:
+ *  - `facade`: an indoor room on one face and the open air on the other (no room there, or a balcony), with a window or a glazed door in
+ *    it, or finished as a facade (`finish` is a material whose id or name says "facade"). The only walls whose openings admit sky and sun.
+ *  - `party`: an indoor room on one face and nothing on the other, none of the above: the walls towards the landing, the stairwell and
+ *    the neighbours (the model has no room there; the viewer treats the space behind them as a dark interior, not as open sky).
+ *  - `interior`: everything else (partitions, a wall between a room and the balcony, the balcony's own rail).
+ * Derived from the plan alone (rooms, openings, finishes), so no flag has to be kept in step with the walls.
+ */
+export type WallExposure = 'facade' | 'party' | 'interior';
+
+const FACADE_FINISH = /fa[cç]ade/i;
+
+export function wallExposure(scene: Scene): Record<string, WallExposure> {
+  const roomsById = new Map(scene.rooms.map((r) => [r.id, r]));
+  const materialsById = new Map(scene.materials.map((m) => [m.id, m]));
+  const sidesOf = wallSideRooms(scene);
+  const out: Record<string, WallExposure> = {};
+  for (const wall of scene.walls) {
+    const entry = sidesOf[wall.id];
+    const segments = entry?.segments ?? [];
+    const indoor = (id: string | undefined) => (id ? isIndoor(roomsById.get(id) ?? { type: 'balcony' } as Room) : false);
+    // Most of the wall must face the outside: a gap of a few cm between two room polygons is a drawing slack, not a party wall.
+    const outside = segments.filter((s) => (indoor(s.left) && !s.right) || (indoor(s.right) && !s.left)).reduce((n, s) => n + (s.to - s.from), 0);
+    if (!(outside >= 0.5 * wallLength(wall))) {
+      out[wall.id] = 'interior';
+      continue;
+    }
+    const glazed = scene.openings.some((o) => o.wallId === wall.id && isGlazed(o));
+    const finishes = [wall.finish.left, wall.finish.right].filter((f): f is string => !!f);
+    const facadeFinish = finishes.some((f) => FACADE_FINISH.test(f) || FACADE_FINISH.test(materialsById.get(f)?.name ?? ''));
+    out[wall.id] = glazed || facadeFinish ? 'facade' : 'party';
   }
   return out;
 }

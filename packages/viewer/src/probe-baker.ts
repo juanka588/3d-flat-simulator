@@ -5,6 +5,7 @@ import { fieldFromAtlas, sanitizeAtlas } from './probe-field';
 import type { ProbeField } from './probe-field';
 import { bakeRuns, buildVisibility, hashString, probeCount, probeValidity } from './probe-grid';
 import type { PlanBox, ProbeLayout, ProbeSettings, Solid, Visibility } from './probe-grid';
+import type { Vec2 } from '@flat/scene';
 import { probeControls, setProbeControls, setProbeField, setProbeStats } from './probe-runtime';
 import type { ProbeControls } from './probe-runtime';
 
@@ -17,6 +18,8 @@ export interface BakeJob {
   settings: ProbeSettings;
   solids: readonly Solid[];
   boxes: readonly PlanBox[];
+  /** Floor polygons of the habitable rooms (not the balcony): the visibility keeps outdoor probes from lighting them. */
+  rooms: readonly (readonly Vec2[])[];
   /** 1 for probes that sit indoors: they are baked with their own sky brightness (`PROBE_INDOOR_SKY_GAIN`). */
   indoor: Uint8Array;
   /** Puts the scene into bake state (sky dome, ceilings, no overlays...) for probes indoors or outdoors and returns the function that undoes it. Called around every slice. */
@@ -100,11 +103,11 @@ export class ProbeBaker {
   }
 
   /** Mounts the (empty) displayed grid for `layout` so materials compile with a grid from their first frame. */
-  mount(layout: ProbeLayout, solids: readonly Solid[], boxes: readonly PlanBox[]): void {
+  mount(layout: ProbeLayout, solids: readonly Solid[], boxes: readonly PlanBox[], rooms: readonly (readonly Vec2[])[]): void {
     if (this.disposed) return;
     setProbeControls(this.controls);
     if (this.front) return;
-    this.front = this.makeSlot(layout, solids, boxes);
+    this.front = this.makeSlot(layout, solids, boxes, rooms);
     this.front.grid.visible = true;
   }
 
@@ -167,9 +170,9 @@ export class ProbeBaker {
     return this.bake(job);
   }
 
-  private makeSlot(layout: ProbeLayout, solids: readonly Solid[], boxes: readonly PlanBox[]): Slot {
+  private makeSlot(layout: ProbeLayout, solids: readonly Solid[], boxes: readonly PlanBox[], rooms: readonly (readonly Vec2[])[]): Slot {
     const max3d = (this.renderer.getContext() as WebGL2RenderingContext).getParameter(WebGL2RenderingContext.MAX_3D_TEXTURE_SIZE) as number;
-    const vis = buildVisibility(layout, solids, boxes, Math.max(1, max3d - 7 * (layout.res[2] + 2)));
+    const vis = buildVisibility(layout, solids, boxes, Math.max(1, max3d - 7 * (layout.res[2] + 2)), rooms);
     const [nx, ny, nz] = layout.res;
     const grid = new LightProbeGridWebGL(layout.size[0], layout.size[1], layout.size[2], nx, ny, nz);
     grid.name = 'probe-grid';
@@ -211,13 +214,13 @@ export class ProbeBaker {
       for (const sp of this.spares.filter((x) => x.layoutKey !== lk)) this.drop(sp);
       this.spares = this.spares.filter((x) => x.layoutKey === lk);
       let slot = this.spares.length >= SPARE_SLOTS ? this.spares[this.spares.length - 1]! : null;
-      if (!slot) slot = this.makeSlot(job.layout, job.solids, job.boxes);
+      if (!slot) slot = this.makeSlot(job.layout, job.solids, job.boxes, job.rooms);
       else {
         this.spares = this.spares.filter((x) => x !== slot);
         slot.key = null;
         slot.keyLux = null;
         const max3d = (this.renderer.getContext() as WebGL2RenderingContext).getParameter(WebGL2RenderingContext.MAX_3D_TEXTURE_SIZE) as number;
-        const vis = buildVisibility(job.layout, job.solids, job.boxes, Math.max(1, max3d - 7 * (job.layout.res[2] + 2)));
+        const vis = buildVisibility(job.layout, job.solids, job.boxes, Math.max(1, max3d - 7 * (job.layout.res[2] + 2)), job.rooms);
         this.uploadVisibility((slot.grid as unknown as GridInternals)._renderTarget!, vis, 7 * (job.layout.res[2] + 2));
       }
       const valid = probeValidity(job.layout, job.solids);

@@ -1,5 +1,5 @@
 import { DEFAULT_CEILING_HEIGHT, pointInPolygon, roomCeilingHeight, wallLength } from '@flat/scene';
-import type { Scene } from '@flat/scene';
+import type { Scene, Vec2 } from '@flat/scene';
 
 /**
  * Pure maths of the baked light-probe grid (the indirect-light default, see docs/photometry.md "Indirect light"):
@@ -30,6 +30,8 @@ export const MIN_SUBDIV = 6;
 export const MAX_SUBDIV = 16;
 /** A probe this close (metres) to a furniture box or inside a wall is not used. */
 const SOLID_EPS = 1e-4;
+/** Walls this close (metres) to a probe cell are tested against its visibility: a subcell centre moved out of a wall may leave the cell by this much. */
+const NEAR_PAD_M = 0.12;
 
 export interface ProbeLayout {
   /** World position of probe (0, 0, 0). */
@@ -106,11 +108,11 @@ export interface PlanBox {
 }
 
 /**
- * The walls as solid rectangles in the plan. Doors and passages are cut out (light and the probes' reach go through them);
- * windows stay solid: glass passes the sky to the probes that look at it, but the probes outside are not the probes of the room.
+ * The walls as solid rectangles in the plan. Doors and passages are cut out (light and the probes' reach go through them), except
+ * in the `closed` walls (the party walls, see `wallExposure`); windows stay solid: glass passes the sky to the probes that look at it, but the probes outside are not the probes of the room.
  * Wall ends not at a cut are extended by half the thickness so two walls meeting at a corner leave no gap.
  */
-export function wallSolids(scene: Pick<Scene, 'walls' | 'openings'>): Solid[] {
+export function wallSolids(scene: Pick<Scene, 'walls' | 'openings'>, closed: ReadonlySet<string> = new Set()): Solid[] {
   const out: Solid[] = [];
   for (const wall of scene.walls) {
     const len = wallLength(wall);
@@ -120,7 +122,8 @@ export function wallSolids(scene: Pick<Scene, 'walls' | 'openings'>): Solid[] {
     const ht = wall.thickness / 2;
     const cuts: [number, number][] = [];
     for (const o of scene.openings) {
-      if (o.wallId !== wall.id || o.type === 'window') continue;
+      // A door in a party wall (the flat's front door) leads to the landing, not to open air: nothing passes through it for the probes.
+      if (o.wallId !== wall.id || o.type === 'window' || closed.has(wall.id)) continue;
       cuts.push([Math.max(0, o.offset - o.width / 2), Math.min(len, o.offset + o.width / 2)]);
     }
     cuts.sort((a, b) => a[0] - b[0]);
@@ -149,6 +152,47 @@ const insideSolid = (s: Solid, x: number, z: number, grow = 0): boolean => {
   const dz = z - s.cz;
   return Math.abs(dx * s.ux + dz * s.uz) < s.hl + grow - SOLID_EPS && Math.abs(-dx * s.uz + dz * s.ux) < s.ht + grow - SOLID_EPS;
 };
+
+/** How far (metres) beyond a wall face a test point that stood inside the wall is put. */
+const PUSH_OUT_M = 0.002;
+
+/**
+ * `(x, z)` moved out of the walls it stands in, by the shortest way out of all of them (through a face of one wall into the next
+ * wall, and on out of that one, when that is the shortest: the corner where two walls meet leaves along the room side, not through
+ * the walls to the other side). A visibility subcell whose centre lies inside a wall belongs, as far as any surface that reads it
+ * goes, to the room at the face the subcell straddles: its centre must be tested from there, not from inside the wall, or the wall
+ * does not hide the probes on its far side from the 3 cm band of surface beside it. A point that no way leads out of stays where it is.
+ */
+export function outOfWalls(solids: readonly Solid[], x: number, z: number): [number, number] {
+  const inside = (px: number, pz: number) => solids.filter((s) => insideSolid(s, px, pz));
+  let best: [number, number] | null = null;
+  let bestD = Infinity;
+  let frontier: [number, number, number][] = [[x, z, 0]];
+  for (let depth = 0; depth < 4 && frontier.length > 0; depth++) {
+    const next: [number, number, number][] = [];
+    for (const [px, pz, d] of frontier) {
+      if (d >= bestD) continue;
+      const containing = inside(px, pz);
+      if (containing.length === 0) {
+        best = [px, pz];
+        bestD = d;
+        continue;
+      }
+      for (const s of containing) {
+        const dx = px - s.cx;
+        const dz = pz - s.cz;
+        const p = dx * s.ux + dz * s.uz;
+        const q = -dx * s.uz + dz * s.ux;
+        for (const [axis, sign] of [['q', 1], ['q', -1], ['p', 1], ['p', -1]] as const) {
+          const t = sign * ((axis === 'q' ? s.ht : s.hl) + PUSH_OUT_M) - (axis === 'q' ? q : p);
+          next.push(axis === 'q' ? [px - s.uz * t, pz + s.ux * t, d + Math.abs(t)] : [px + s.ux * t, pz + s.uz * t, d + Math.abs(t)]);
+        }
+      }
+    }
+    frontier = next.filter((c) => c[2] < bestD).sort((a, b) => a[2] - b[2]).slice(0, 32);
+  }
+  return best ?? [x, z];
+}
 
 /** True when the segment (ax, az)-(bx, bz) passes through the solid (slab test in the solid's own frame). */
 export function segmentHitsSolid(s: Solid, ax: number, az: number, bx: number, bz: number): boolean {
@@ -285,7 +329,7 @@ export function visibilitySize(l: ProbeLayout, maxDepth = Infinity): { subdiv: n
  * never reads a probe on the far side of it. Where no corner qualifies, the nearest valid corner is used regardless of walls
  * (a closet is lit by something rather than black); where none is valid at all it stays 0.
  */
-export function buildVisibility(l: ProbeLayout, solids: readonly Solid[], boxes: readonly PlanBox[], maxDepth = Infinity): Visibility {
+export function buildVisibility(l: ProbeLayout, solids: readonly Solid[], boxes: readonly PlanBox[], maxDepth = Infinity, rooms: readonly (readonly Vec2[])[] = []): Visibility {
   const [nx, ny, nz] = l.res;
   const { subdiv, slices } = visibilitySize(l, maxDepth);
   const cellsX = nx - 1;
@@ -302,67 +346,110 @@ export function buildVisibility(l: ProbeLayout, solids: readonly Solid[], boxes:
       cornerValid[ix + iz * nx] = planPointInWall(x, z, solids) ? 0 : planPointInFurniture(x, z, boxes) ? 1 : 2;
     }
   }
+  // Habitable rooms: a point in one is only ever lit by probes of the flat's own rooms (never by those outdoors), see "last resort" below.
+  const indoorAt = (x: number, z: number): boolean => rooms.some((r) => pointInPolygon([x, z], r));
+  const cornerIndoor = new Uint8Array(nx * nz);
+  if (rooms.length > 0) {
+    for (let iz = 0; iz < nz; iz++) for (let ix = 0; ix < nx; ix++) cornerIndoor[ix + iz * nx] = indoorAt(l.min[0] + ix * l.spacing[0], l.min[2] + iz * l.spacing[2]) ? 1 : 0;
+  }
+  interface Sub {
+    px: number;
+    pz: number;
+    /** Open corners (1/0) by the free-first, furniture-second rule; `any` when at least one is. */
+    res: [number, number, number, number];
+    any: boolean;
+  }
   const near: Solid[] = [];
+  const subs: Sub[] = [];
+  const blockedBetween = (ax: number, az: number, bx: number, bz: number): boolean => {
+    for (const s of near) {
+      // Only a point that could not be moved out of the wall it stands in (a corner of overlapping walls) is not held back by it.
+      if (insideSolid(s, ax, az)) continue;
+      if (segmentHitsSolid(s, ax, az, bx, bz)) return true;
+    }
+    return false;
+  };
   for (let cz = 0; cz < cellsZ; cz++) {
     for (let cx = 0; cx < cellsX; cx++) {
       const x0 = l.min[0] + cx * l.spacing[0];
       const z0 = l.min[2] + cz * l.spacing[2];
       const x1 = x0 + l.spacing[0];
       const z1 = z0 + l.spacing[2];
-      // Every segment from a point of the cell to its corners stays inside the cell: only the walls touching it matter.
+      // Every segment from a point of the cell to its corners stays inside the cell (plus the few cm a point is moved out of a wall): only the walls touching it matter.
       near.length = 0;
       for (const s of solids) {
         const ex = Math.abs(s.ux) * s.hl + Math.abs(s.uz) * s.ht;
         const ez = Math.abs(s.uz) * s.hl + Math.abs(s.ux) * s.ht;
-        if (s.cx + ex > x0 && s.cx - ex < x1 && s.cz + ez > z0 && s.cz - ez < z1) near.push(s);
+        if (s.cx + ex > x0 - NEAR_PAD_M && s.cx - ex < x1 + NEAR_PAD_M && s.cz + ez > z0 - NEAR_PAD_M && s.cz - ez < z1 + NEAR_PAD_M) near.push(s);
       }
       const corners = [
-        [x0, z0, cornerValid[cx + cz * nx]!],
-        [x1, z0, cornerValid[cx + 1 + cz * nx]!],
-        [x0, z1, cornerValid[cx + (cz + 1) * nx]!],
-        [x1, z1, cornerValid[cx + 1 + (cz + 1) * nx]!],
+        [x0, z0, cornerValid[cx + cz * nx]!, cornerIndoor[cx + cz * nx]!],
+        [x1, z0, cornerValid[cx + 1 + cz * nx]!, cornerIndoor[cx + 1 + cz * nx]!],
+        [x0, z1, cornerValid[cx + (cz + 1) * nx]!, cornerIndoor[cx + (cz + 1) * nx]!],
+        [x1, z1, cornerValid[cx + 1 + (cz + 1) * nx]!, cornerIndoor[cx + 1 + (cz + 1) * nx]!],
       ] as const;
+      subs.length = 0;
       for (let sz = 0; sz < subdiv; sz++) {
         for (let sx = 0; sx < subdiv; sx++) {
-          const px = x0 + ((sx + 0.5) / subdiv) * l.spacing[0];
-          const pz = z0 + ((sz + 0.5) / subdiv) * l.spacing[2];
-          const index = 1 + ((cz * cellsX + cx) * subdiv + sz) * subdiv + sx;
-          const at = index * 4;
-          let nearest = -1;
-          let nearestD = Infinity;
+          // A centre inside a wall is tested from the face it is nearest to (see `outOfWalls`).
+          const [px, pz] = outOfWalls(near, x0 + ((sx + 0.5) / subdiv) * l.spacing[0], z0 + ((sz + 0.5) / subdiv) * l.spacing[2]);
           const open = [false, false, false, false];
           for (let c = 0; c < 4; c++) {
             const [qx, qz, ok] = corners[c]!;
-            if (ok === 0) continue;
-            const d = (qx - px) ** 2 + (qz - pz) ** 2;
-            if (d < nearestD) {
-              nearestD = d;
-              nearest = c;
-            }
-            let blocked = false;
-            for (const s of near) {
-              // A point inside a wall (the 3 cm band of a subcell centre) is not held back by the wall it stands in.
-              if (insideSolid(s, px, pz, 0.005)) continue;
-              if (segmentHitsSolid(s, px, pz, qx, qz)) {
-                blocked = true;
-                break;
-              }
-            }
-            open[c] = !blocked;
+            if (ok !== 0) open[c] = !blockedBetween(px, pz, qx, qz);
           }
-          // Free corners first; furniture corners only when no free one is in view; else the nearest corner whatever stands between.
+          // Free corners first; furniture corners only when no free one is in view.
+          const res: Sub['res'] = [0, 0, 0, 0];
           let any = false;
           for (const wanted of [2, 1]) {
             for (let c = 0; c < 4; c++) {
               if (open[c] && corners[c]![2] === wanted) {
-                data[at + c] = 1;
+                res[c] = 1;
                 any = true;
               }
             }
             if (any) break;
           }
-          if (!any && nearest >= 0) data[at + nearest] = 1;
+          subs.push({ px, pz, res, any });
         }
+      }
+      for (const sub of subs) {
+        if (!sub.any) {
+          // No corner in view: take what the nearest point of this cell that can be reached without crossing a wall sees (a 3 cm
+          // band beside a wall corner must not read a probe the wall hides), else the nearest probe at all, but a point in a room
+          // only from probes in rooms: the sky-lit probes outdoors (the landing, the neighbours) never light a room through its wall.
+          let donor: Sub | null = null;
+          let donorD = Infinity;
+          for (const other of subs) {
+            if (!other.any) continue;
+            const d = (other.px - sub.px) ** 2 + (other.pz - sub.pz) ** 2;
+            if (d < donorD && !blockedBetween(sub.px, sub.pz, other.px, other.pz)) {
+              donor = other;
+              donorD = d;
+            }
+          }
+          if (donor) {
+            sub.res = donor.res;
+          } else {
+            const insideRoom = rooms.length > 0 && indoorAt(sub.px, sub.pz);
+            let nearest = -1;
+            let nearestD = Infinity;
+            for (let c = 0; c < 4; c++) {
+              const [qx, qz, ok, indoor] = corners[c]!;
+              if (ok === 0 || (insideRoom && indoor === 0)) continue;
+              const d = (qx - sub.px) ** 2 + (qz - sub.pz) ** 2;
+              if (d < nearestD) {
+                nearestD = d;
+                nearest = c;
+              }
+            }
+            if (nearest >= 0) sub.res[nearest] = 1;
+          }
+        }
+      }
+      for (let k = 0; k < subs.length; k++) {
+        const index = 1 + ((cz * cellsX + cx) * subdiv + Math.floor(k / subdiv)) * subdiv + (k % subdiv);
+        data.set(subs[k]!.res, index * 4);
       }
     }
   }

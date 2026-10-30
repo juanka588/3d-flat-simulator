@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import { loadSceneText, pointInPolygon } from '@flat/scene';
 import type { Scene } from '@flat/scene';
-import { LEVELS, bakeRuns, buildVisibility, keyOf, probeCount, probeIndex, probeIndoor, probeLayout, probePosition, probeValidity, segmentHitsSolid, visibilitySize, wallSolids } from './probe-grid';
+import charme from '@flat/scene/fixtures/charme-3205.flat.json';
+import { partyWallIds } from './derived-geometry';
+import { LEVELS, bakeRuns, buildVisibility, keyOf, outOfWalls, planPointInWall, probeCount, probeIndex, probeIndoor, probeLayout, probePosition, probeValidity, segmentHitsSolid, visibilitySize, wallSolids } from './probe-grid';
 
 type Plan = Pick<Scene, 'walls' | 'rooms' | 'openings'>;
 
@@ -146,5 +149,120 @@ describe('keys', () => {
   it('ignore float noise and change with real changes', () => {
     expect(keyOf({ a: [1.00001, 2], b: 'x' })).toBe(keyOf({ a: [1.00002, 2], b: 'x' }));
     expect(keyOf({ a: [1.5, 2] })).not.toBe(keyOf({ a: [1.6, 2] }));
+  });
+});
+
+describe('outOfWalls', () => {
+  const [mid] = wallSolids(twoRooms()).filter((s) => Math.abs(s.cx - 4) < 0.01 && Math.abs(s.ux) < 0.5);
+  it('moves a point inside a wall out through the nearest face, to just beyond it', () => {
+    const [x, z] = outOfWalls([mid!], 3.99, 2);
+    expect(x).toBeLessThan(3.965);
+    expect(x).toBeGreaterThan(3.95);
+    expect(z).toBeCloseTo(2);
+    expect(outOfWalls([mid!], 4.02, 2)[0]).toBeGreaterThan(4.035);
+  });
+  it('leaves a free point alone', () => {
+    expect(outOfWalls([mid!], 3.9, 2.2)).toEqual([3.9, 2.2]);
+  });
+  it('leaves a point where two flush walls overlap through the face that leads out of both (no ping-pong between them)', () => {
+    // A 24 cm column whose east face is the inner face of a 20 cm wall (x 6.39), its ends extended by half the thickness.
+    const plan = {
+      walls: [
+        { id: 'east', start: [6.49, 6], end: [6.49, 9], thickness: 0.2, height: 2.5, finish: {} },
+        { id: 'column', start: [6.27, 6.9], end: [6.27, 7.66], thickness: 0.24, height: 2.5, finish: {} },
+      ],
+      openings: [],
+    } as unknown as Pick<Scene, 'walls' | 'openings'>;
+    const solids = wallSolids(plan);
+    // The extended cap of the column (z 6.78 .. 6.9) is only a phantom solid: a point in it leaves to the north, not into the east wall.
+    const [x, z] = outOfWalls(solids, 6.38, 6.85);
+    expect(solids.some((s) => segmentHitsSolid(s, x, z, x, z + 1e-9))).toBe(false);
+    expect(x).toBeCloseTo(6.38);
+    expect(z).toBeLessThan(6.78);
+  });
+});
+
+describe('visibility never lets a point read a probe behind a wall (the strips of light along every wall)', () => {
+  /**
+   * The real flat: for a fine grid of free points in the plan, the corners the shader would read must be in exact view (no wall in the
+   * way) from the point, except where no corner of the cell is in view at all. Before the fix the 3 cm band beside every wall read the
+   * sky-lit probes on the other side of it.
+   */
+  const result = loadSceneText(JSON.stringify(charme));
+  if (!result.ok) throw new Error('fixture does not load');
+  const flat = result.scene;
+  const layout = probeLayout(flat, { spacing: 0.5 })!;
+  const solids = wallSolids(flat, partyWallIds(flat));
+  const habitable = flat.rooms.filter((r) => r.type !== 'balcony').map((r) => r.polygon);
+  const visibility = buildVisibility(layout, solids, [], Infinity, habitable);
+  const [nx] = layout.res;
+  const corners = (x: number, z: number) => {
+    const cx = Math.floor((x - layout.min[0]) / layout.spacing[0]);
+    const cz = Math.floor((z - layout.min[2]) / layout.spacing[2]);
+    return { cx, cz, pos: [0, 1, 2, 3].map((i) => [layout.min[0] + (cx + (i & 1)) * layout.spacing[0], layout.min[2] + (cz + (i >> 1)) * layout.spacing[2]] as [number, number]) };
+  };
+  const read = (x: number, z: number): number[] => {
+    const gx = (x - layout.min[0]) / layout.spacing[0];
+    const gz = (z - layout.min[2]) / layout.spacing[2];
+    const cx = Math.floor(gx);
+    const cz = Math.floor(gz);
+    const sx = Math.min(visibility.subdiv - 1, Math.floor((gx - cx) * visibility.subdiv));
+    const sz = Math.min(visibility.subdiv - 1, Math.floor((gz - cz) * visibility.subdiv));
+    const index = 1 + ((cz * (nx - 1) + cx) * visibility.subdiv + sz) * visibility.subdiv + sx;
+    return Array.from(visibility.data.subarray(index * 4, index * 4 + 4));
+  };
+  const free = (x: number, z: number) => !planPointInWall(x, z, solids);
+  const inRoom = (x: number, z: number) => habitable.some((p) => pointInPolygon([x, z], p));
+  // The probes standing in a doorway are part of the opening, not outside: the walls without their cut-outs tell.
+  const uncut = wallSolids({ ...flat, openings: [] });
+  const inAnyRoom = (x: number, z: number) => flat.rooms.some((r) => pointInPolygon([x, z], r.polygon));
+
+  it('a point in a room, however close to a wall, never reads a probe outside the flat that it cannot see (the landing, the neighbours, the street)', () => {
+    let checked = 0;
+    let anyLeak = 0;
+    const outdoors: string[] = [];
+    // Every 1.5 cm over the whole flat: the bands beside every wall, door jamb, column and corner are in it.
+    for (let x = -0.2; x <= 10.2; x += 0.015) {
+      for (let z = -0.2; z <= 8.4; z += 0.015) {
+        if (!free(x, z) || !inRoom(x, z)) continue;
+        const v = read(x, z);
+        const { pos } = corners(x, z);
+        const visible = pos.map(([qx, qz]) => !solids.some((s) => segmentHitsSolid(s, x, z, qx, qz)));
+        checked++;
+        v.forEach((w, i) => {
+          if (w !== 1 || visible[i]) return;
+          anyLeak++;
+          if (!inAnyRoom(pos[i]![0], pos[i]![1]) && !planPointInWall(pos[i]![0], pos[i]![1], uncut)) outdoors.push(`(${x.toFixed(3)}, ${z.toFixed(3)}) reads the outdoor corner (${pos[i]![0].toFixed(2)}, ${pos[i]![1].toFixed(2)})`);
+        });
+      }
+    }
+    expect(checked).toBeGreaterThan(100000);
+    expect(outdoors.slice(0, 5)).toEqual([]);
+    // Rooms next to each other keep a rare deviation at wall ends (a 6 cm subcell is tested from its centre), not a band along every wall.
+    expect(anyLeak / checked).toBeLessThan(0.02);
+  });
+
+  it('a point in a room never reads a probe outdoors when it has no corner in view (the landing never lights the bathroom)', () => {
+    const outdoors: string[] = [];
+    for (let x = 3.8; x <= 6.4; x += 0.02) {
+      for (let z = 6.1; z <= 8.28; z += 0.02) {
+        if (!free(x, z) || !inRoom(x, z)) continue;
+        const v = read(x, z);
+        const { pos } = corners(x, z);
+        v.forEach((w, i) => {
+          if (w === 1 && !inRoom(pos[i]![0], pos[i]![1]) && !planPointInWall(pos[i]![0], pos[i]![1], solids)) outdoors.push(`(${x.toFixed(2)}, ${z.toFixed(2)}) reads (${pos[i]![0].toFixed(2)}, ${pos[i]![1].toFixed(2)})`);
+        });
+      }
+    }
+    expect(outdoors.slice(0, 5)).toEqual([]);
+  });
+
+  it('the front door, in a party wall, is no gap for the probes of the landing', () => {
+    const open = wallSolids(flat);
+    const closed = wallSolids(flat, partyWallIds(flat));
+    const doorCentre: [number, number] = [7.78, 6.115];
+    const through = (list: typeof open) => list.some((s) => segmentHitsSolid(s, doorCentre[0], 5.9, doorCentre[0], 6.5));
+    expect(through(open)).toBe(false);
+    expect(through(closed)).toBe(true);
   });
 });

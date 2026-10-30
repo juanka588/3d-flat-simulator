@@ -1,6 +1,7 @@
-import { ownerAt } from '@flat/scene';
-import type { MeshData, ShellMeshes, SiteContext } from '@flat/scene';
+import { ownerAt, wallExposure, wallLeftNormal, wallLength, wallSideRooms } from '@flat/scene';
+import type { MeshData, Scene, ShellMeshes, SiteContext } from '@flat/scene';
 import { BufferAttribute, BufferGeometry, Color } from 'three';
+import type { Object3D } from 'three';
 
 const GROUND = 'builtin:ground';
 
@@ -85,6 +86,191 @@ export function shadowCasterGeometry(shell: ShellMeshes): BufferGeometry {
   const geometry = new BufferGeometry();
   geometry.setAttribute('position', new BufferAttribute(merged.positions, 3));
   geometry.setIndex(new BufferAttribute(merged.indices, 1));
+  return geometry;
+}
+
+/** How far (metres) the ceilings of the closed casters are lifted: more than the sun's depth bias seen along a ray at low elevation, so the top of every wall under the roof is in shadow. */
+export const CEILING_CASTER_LIFT_M = 0.02;
+
+/** How far (metres) the walls of the closed casters are swollen: less than the depth bias of the sun (15 mm) and of the lamps (20 mm), so the lit faces of a wall still count as lit, more than the float noise of two walls meeting. */
+export const CLOSED_CASTER_SWELL_M = 0.004;
+
+/**
+ * The walls and ceilings once more, as closed solids for every shadow: drawn from BOTH sides (the mesh is shadowed with `DoubleSide`),
+ * the walls swollen by `CLOSED_CASTER_SWELL_M` and the ceilings lifted by `CEILING_CASTER_LIFT_M`. A shadow pass draws back faces and rasterizes every mesh on its own, which left two kinds of hairline of
+ * direct sun in a closed room: (1) a ray that goes through a wall before it reaches the surface beside it stored the wall's own exit
+ * face, just in front of that surface and inside the depth bias; (2) where two walls (or a wall and the ceiling) meet flush, their
+ * edges are rasterized separately and a 1 px crack between them lets the sun slide through along the joint. With the entry faces
+ * drawn and every solid overlapping its neighbours by a few mm, nothing lets light in along a joint. The lit faces of the walls
+ * stay lit: they sit a few mm behind the swollen entry face, well inside the biases (see `sunShadowBias`, `LAMP_SHADOW_BIAS_M`).
+ *
+ * Swelling moves every vertex along the area-weighted mean of the normals of the faces that share its position (welded to 0.1 mm),
+ * so a box stays closed.
+ */
+export function closedCasterGeometry(shell: Pick<ShellMeshes, 'walls' | 'ceilings'>, extra: BufferGeometry | null = null, swell = CLOSED_CASTER_SWELL_M, lift = CEILING_CASTER_LIFT_M): BufferGeometry {
+  const parts = [shell.walls, shell.ceilings].filter((m) => m.indices.length > 0);
+  const wallVertices = shell.walls.indices.length > 0 ? shell.walls.positions.length / 3 : 0;
+  const vertexCount = parts.reduce((n, m) => n + m.positions.length / 3, 0);
+  const positions = new Float32Array(vertexCount * 3);
+  const sums = new Map<string, [number, number, number]>();
+  const keys: string[] = [];
+  let at = 0;
+  for (const m of parts) {
+    const n = m.positions.length / 3;
+    for (let v = 0; v < n; v++) {
+      const x = m.positions[v * 3]!;
+      const y = m.positions[v * 3 + 1]!;
+      const z = m.positions[v * 3 + 2]!;
+      positions[(at + v) * 3] = x;
+      positions[(at + v) * 3 + 1] = y;
+      positions[(at + v) * 3 + 2] = z;
+      keys.push(`${Math.round(x * 1e4)},${Math.round(y * 1e4)},${Math.round(z * 1e4)}`);
+    }
+    // Each triangle adds its area-weighted face normal (the cross product) to the vertices it uses.
+    for (let t = 0; t + 2 < m.indices.length; t += 3) {
+      const [a, b, c] = [m.indices[t]!, m.indices[t + 1]!, m.indices[t + 2]!];
+      const ux = m.positions[b * 3]! - m.positions[a * 3]!;
+      const uy = m.positions[b * 3 + 1]! - m.positions[a * 3 + 1]!;
+      const uz = m.positions[b * 3 + 2]! - m.positions[a * 3 + 2]!;
+      const vx = m.positions[c * 3]! - m.positions[a * 3]!;
+      const vy = m.positions[c * 3 + 1]! - m.positions[a * 3 + 1]!;
+      const vz = m.positions[c * 3 + 2]! - m.positions[a * 3 + 2]!;
+      const nx = uy * vz - uz * vy;
+      const ny = uz * vx - ux * vz;
+      const nz = ux * vy - uy * vx;
+      for (const i of [a, b, c]) {
+        const key = keys[at + i]!;
+        const sum = sums.get(key) ?? [0, 0, 0];
+        sum[0] += nx;
+        sum[1] += ny;
+        sum[2] += nz;
+        sums.set(key, sum);
+      }
+    }
+    at += n;
+  }
+  // The ceilings are lifted, not swollen: a wall's top few mm sit under the roof, and a caster that close in front of them (inside the depth bias) would leave them lit.
+  for (let v = wallVertices; v < vertexCount; v++) positions[v * 3 + 1] = positions[v * 3 + 1]! + lift;
+  for (let v = 0; v < wallVertices; v++) {
+    const sum = sums.get(keys[v]!);
+    if (!sum) continue;
+    const len = Math.hypot(sum[0], sum[1], sum[2]);
+    if (!(len > 1e-12)) continue;
+    positions[v * 3] = positions[v * 3]! + (sum[0] / len) * swell;
+    positions[v * 3 + 1] = positions[v * 3 + 1]! + (sum[1] / len) * swell;
+    positions[v * 3 + 2] = positions[v * 3 + 2]! + (sum[2] / len) * swell;
+  }
+  const indexCount = parts.reduce((n, m) => n + m.indices.length, 0);
+  const indices = new Uint32Array(indexCount);
+  let iAt = 0;
+  let base = 0;
+  for (const m of parts) {
+    for (let i = 0; i < m.indices.length; i++) indices[iAt + i] = m.indices[i]! + base;
+    iAt += m.indices.length;
+    base += m.positions.length / 3;
+  }
+  // `extra` (the recess behind the front door) joins as it is, so the sun's pass costs one draw call for all of it.
+  const ePos = extra ? (extra.getAttribute('position').array as Float32Array) : new Float32Array(0);
+  const eIdx = extra?.getIndex();
+  const allPositions = new Float32Array(positions.length + ePos.length);
+  allPositions.set(positions);
+  allPositions.set(ePos, positions.length);
+  const allIndices = new Uint32Array(indices.length + (eIdx?.count ?? 0));
+  allIndices.set(indices);
+  for (let i = 0; i < (eIdx?.count ?? 0); i++) allIndices[indices.length + i] = eIdx!.getX(i) + positions.length / 3;
+  const geometry = new BufferGeometry();
+  geometry.setAttribute('position', new BufferAttribute(allPositions, 3));
+  geometry.setIndex(new BufferAttribute(allIndices, 1));
+  return geometry;
+}
+
+/**
+ * Makes a caster mesh draw in the sun's shadow pass only (the sun is the one orthographic shadow camera). The lamps' passes get an
+ * empty draw range: no draw call, and their shadows keep the back faces of the plain casters, which keep lit walls lit.
+ */
+export function sunShadowOnly(mesh: Object3D | null): void {
+  if (!mesh) return;
+  mesh.onBeforeShadow = (_renderer, _scene, _camera, shadowCamera, geometry) => {
+    geometry.setDrawRange(0, (shadowCamera as { isOrthographicCamera?: boolean }).isOrthographicCamera ? Infinity : 0);
+  };
+}
+
+/** Depth (metres) of the dark recess behind an opening in a party wall: deeper than a door leaf is wide, so an open leaf stays inside. */
+export const PARTY_RECESS_DEPTH_M = 1.2;
+
+/**
+ * Ids of the walls whose openings lead to the landing, the stairwell or a neighbour instead of the open air (`wallExposure`).
+ */
+export function partyWallIds(scene: Pick<Scene, 'walls' | 'rooms' | 'openings' | 'materials'>): Set<string> {
+  const exposure = wallExposure(scene as Scene);
+  return new Set(Object.entries(exposure).filter(([, e]) => e === 'party').map(([id]) => id));
+}
+
+/**
+ * What lies behind a door in a party wall (the flat's front door): a closed recess, dark inside, instead of the sky and the ground
+ * the model would show there. Without it the sun and the sky come through the front door as through an open window, and the hall
+ * is lit by a landing that is, in the real building, an enclosed stairwell. Five faces (back, two sides, top, bottom) facing
+ * INTO the box, so they are seen from the door and shut the sun out, and are invisible (culled) from outside, where nothing
+ * is drawn: the orbit view shows no stub. Position-only geometry plus normals; null when no party wall has an opening.
+ */
+export function partyRecessGeometry(scene: Pick<Scene, 'walls' | 'rooms' | 'openings' | 'materials'>, depth = PARTY_RECESS_DEPTH_M): BufferGeometry | null {
+  const party = partyWallIds(scene);
+  if (party.size === 0) return null;
+  const walls = new Map(scene.walls.map((w) => [w.id, w]));
+  const sides = wallSideRooms(scene as Scene);
+  const rooms = new Map(scene.rooms.map((r) => [r.id, r]));
+  const positions: number[] = [];
+  const normals: number[] = [];
+  const indices: number[] = [];
+  const quad = (a: number[], b: number[], c: number[], d: number[], n: number[]) => {
+    const base = positions.length / 3;
+    for (const p of [a, b, c, d]) {
+      positions.push(p[0]!, p[1]!, p[2]!);
+      normals.push(n[0]!, n[1]!, n[2]!);
+    }
+    // The winding is fixed up so the face looks along `n`.
+    const e1 = [b[0]! - a[0]!, b[1]! - a[1]!, b[2]! - a[2]!];
+    const e2 = [c[0]! - a[0]!, c[1]! - a[1]!, c[2]! - a[2]!];
+    const cross = [e1[1]! * e2[2]! - e1[2]! * e2[1]!, e1[2]! * e2[0]! - e1[0]! * e2[2]!, e1[0]! * e2[1]! - e1[1]! * e2[0]!];
+    if (cross[0]! * n[0]! + cross[1]! * n[1]! + cross[2]! * n[2]! >= 0) indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
+    else indices.push(base, base + 2, base + 1, base, base + 3, base + 2);
+  };
+  for (const o of scene.openings) {
+    const wall = walls.get(o.wallId);
+    if (!wall || !party.has(wall.id) || o.type === 'window') continue;
+    const len = wallLength(wall);
+    if (len < 1e-9) continue;
+    const at = Math.min(len, Math.max(0, o.offset));
+    const segment = sides[wall.id]?.segments.find((s) => at >= s.from - 1e-6 && at <= s.to + 1e-6);
+    const indoor = (id: string | undefined) => !!id && rooms.get(id)?.type !== 'balcony';
+    // The outside is the face with no room on it, the room the other one.
+    const outLeft = !segment?.left && indoor(segment?.right);
+    const outRight = !segment?.right && indoor(segment?.left);
+    if (!outLeft && !outRight) continue;
+    const n = wallLeftNormal(wall);
+    const out: [number, number] = outLeft ? n : [-n[0], -n[1]];
+    const ux = (wall.end[0] - wall.start[0]) / len;
+    const uz = (wall.end[1] - wall.start[1]) / len;
+    const hw = Math.min(o.width, len) / 2;
+    const y0 = Math.max(0, o.sill);
+    const y1 = Math.min(wall.height, o.sill + o.height);
+    const cx = wall.start[0] + ux * at;
+    const cz = wall.start[1] + uz * at;
+    const near = wall.thickness / 2 - 0.01;
+    const far = wall.thickness / 2 + depth;
+    const pt = (lateral: number, dist: number, y: number): number[] => [cx + ux * lateral + out[0] * dist, y, cz + uz * lateral + out[1] * dist];
+    // Inward normals: back faces the door (-out), sides face each other, top faces down, bottom up.
+    quad(pt(-hw, far, y0), pt(hw, far, y0), pt(hw, far, y1), pt(-hw, far, y1), [-out[0], 0, -out[1]]);
+    quad(pt(-hw, near, y0), pt(-hw, far, y0), pt(-hw, far, y1), pt(-hw, near, y1), [ux, 0, uz]);
+    quad(pt(hw, near, y0), pt(hw, far, y0), pt(hw, far, y1), pt(hw, near, y1), [-ux, 0, -uz]);
+    quad(pt(-hw, near, y1), pt(hw, near, y1), pt(hw, far, y1), pt(-hw, far, y1), [0, -1, 0]);
+    quad(pt(-hw, near, y0), pt(hw, near, y0), pt(hw, far, y0), pt(-hw, far, y0), [0, 1, 0]);
+  }
+  if (indices.length === 0) return null;
+  const geometry = new BufferGeometry();
+  geometry.setAttribute('position', new BufferAttribute(Float32Array.from(positions), 3));
+  geometry.setAttribute('normal', new BufferAttribute(Float32Array.from(normals), 3));
+  geometry.setIndex(new BufferAttribute(Uint32Array.from(indices), 1));
   return geometry;
 }
 

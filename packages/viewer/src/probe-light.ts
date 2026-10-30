@@ -12,11 +12,16 @@ export interface BakeSky {
   ground: RGB;
 }
 
-/** Share of the sky's illuminance that still reaches every surface as plain ambient fill when the probes carry the sky (none: windows and walls decide). */
+/**
+ * Share of the sky's illuminance that reaches the surfaces OUTSIDE the probe grid (the neighbouring buildings, the ground, the host
+ * facade) as plain ambient fill when the probes carry the sky. Inside the grid (the flat plus a margin) the fill is switched off by
+ * the shader (`probeFillWeight`, probe-shader.ts): windows and walls decide, a windowless room is dark.
+ */
 export const PROBE_SKY_FILL = 0.06;
 /**
  * Share of the ambient that the environment map delivers when probes carry the sky. The map is kept for the reflections of glossy
- * surfaces, but three.js also lights diffuse surfaces with it (unoccluded, so a windowless room would glow), hence a small share.
+ * surfaces, but three.js also lights diffuse surfaces with it (unoccluded; inside the probe grid that part is switched off like the
+ * hemisphere fill, see `probeFillWeight`), hence a small share for what lies outside the grid.
  */
 export const PROBE_ENV_SHARE = 0.03;
 

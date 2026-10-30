@@ -139,11 +139,45 @@ vec3 getLightProbeGridIrradiance( vec3 worldPos, vec3 worldNormal ) {
 #endif
 `;
 
+/** Distance (metres) beyond the probe grid over which the diffuse fill (hemisphere, environment) fades back in. */
+export const FILL_FADE_M = 0.3;
+
+/**
+ * 1 outside the grid, 0 inside it, for a view-space position: the sky fill (hemisphere light and the diffuse part of the environment
+ * map) is unoccluded and so cannot tell a room from the open air. Inside the grid (the flat plus a margin) the probes carry the sky
+ * through windows and bounces, so a windowless room stays dark; the fill only remains for what the grid does not cover (the
+ * neighbouring buildings, the ground and the host facade below the flat). Y is padded by one probe level beyond the first and last.
+ */
+export const FILL_CHUNK = /* glsl */ `
+#ifdef USE_LIGHT_PROBES_GRID
+
+float probeFillWeight( vec3 viewPos ) {
+
+	vec3 worldPos = ( ( vec4( viewPos, 1.0 ) - viewMatrix[ 3 ] ) * viewMatrix ).xyz;
+	vec3 pad = vec3( 0.0, 0.35, 0.0 );
+	vec3 beyond = max( max( probesMin - pad - worldPos, worldPos - probesMax - pad ), vec3( 0.0 ) );
+	return smoothstep( 0.0, ${FILL_FADE_M.toFixed(2)}, max( max( beyond.x, beyond.y ), beyond.z ) );
+
+}
+
+#endif
+`;
+
 let installed = false;
 
 /** Swaps three's light-probe chunk for the wall-aware one (idempotent). Call before the first material compiles with a grid. */
 export function installProbeShader(): void {
   if (installed) return;
   installed = true;
-  (ShaderChunk as Record<string, string>)['lightprobes_pars_fragment'] = PROBE_CHUNK;
+  const chunks = ShaderChunk as Record<string, string>;
+  chunks['lightprobes_pars_fragment'] = PROBE_CHUNK + FILL_CHUNK;
+  chunks['lights_fragment_begin'] = patchFill(chunks['lights_fragment_begin']!, 'irradiance += getHemisphereLightIrradiance( hemisphereLights[ i ], geometryNormal );', 'probeFillWeight( geometryPosition ) * getHemisphereLightIrradiance( hemisphereLights[ i ], geometryNormal )');
+  chunks['lights_fragment_maps'] = patchFill(chunks['lights_fragment_maps']!, 'iblIrradiance += getIBLIrradiance( geometryNormal );', 'probeFillWeight( geometryPosition ) * getIBLIrradiance( geometryNormal )');
+}
+
+/** `chunk` with the single fill statement `from` (`target += expr;`) multiplied by the fill weight when a probe grid is bound (unchanged otherwise). */
+export function patchFill(chunk: string, from: string, weighted: string): string {
+  if (!chunk.includes(from)) throw new Error(`three.js shader chunk changed: "${from}" not found (probe fill occlusion)`);
+  const target = from.slice(0, from.indexOf('+='));
+  return chunk.replace(from, `#ifdef USE_LIGHT_PROBES_GRID\n\t${target}+= ${weighted};\n#else\n\t${from}\n#endif`);
 }

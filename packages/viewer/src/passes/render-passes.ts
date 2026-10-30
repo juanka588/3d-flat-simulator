@@ -106,7 +106,7 @@ export interface PassesResult {
 /** Objects that are tooling, never part of the flat: hidden in every pass, including the clean colour one. */
 const HELPER_NAMES = new Set(['selection-highlight', 'person', 'structural-overlay', 'editor-overlay']);
 /** Objects that only exist for the final look (sky, soft shadow decals, shadow-only casters, ghost outlines): hidden in the geometric passes. */
-const VISUAL_NAMES = new Set(['sky', 'shadow-casters', 'contact-shadows', 'context-canopy', 'host-ghost', 'host-ghost-edges', 'host-facade-edges']);
+const VISUAL_NAMES = new Set(['sky', 'shadow-casters', 'shadow-casters-closed', 'party-recess', 'contact-shadows', 'context-canopy', 'host-ghost', 'host-ghost-edges', 'host-facade-edges']);
 
 /** Debug markers and tooling: the selection tint, the person ghost, plan overlays, editor gizmos and the glowing bulb sphere of a point lamp. */
 export function isHelper(o: Object3D): boolean {

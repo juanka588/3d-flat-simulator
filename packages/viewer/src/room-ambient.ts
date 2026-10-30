@@ -1,6 +1,9 @@
 import { ownerAt, pointInPolygon, roomDaylightFactors, wallLeftNormal, wallSideRooms } from '@flat/scene';
-import type { MeshData, Scene, WallSideRooms } from '@flat/scene';
+import type { MeshData, Scene, WallSideRooms, WallSideSegment } from '@flat/scene';
 import { DataTexture, DataUtils, HalfFloatType, NearestFilter, RGBAFormat, RedFormat, UnsignedByteType } from 'three';
+
+/** Longest stretch (metres) of a wall face with no room on it that still counts as slack between two room polygons. */
+const MAX_GAP_M = 0.3;
 
 /** A face whose normal is less horizontal than this (tops, undersides) belongs to no room. */
 const MIN_HORIZONTAL = 0.5;
@@ -29,6 +32,8 @@ export interface RoomAmbient {
   itemIndexOf: (roomId: string) => number;
   /** Rooms on the two faces of every wall (`wallSideRooms`). */
   sides: Record<string, WallSideRooms>;
+  /** Daylight factor of every room (`roomDaylightFactors`). */
+  daylight: Record<string, number>;
   none: number;
   /** Texels in the layout: rooms, `none`, then one per room for its furniture. */
   texels: number;
@@ -92,6 +97,7 @@ export function createRoomAmbient(scene: Scene): RoomAmbient {
     indexOf: (id) => index.get(id) ?? n,
     itemIndexOf: (id) => (index.has(id) ? n + 1 + index.get(id)! : n),
     sides: wallSideRooms(scene),
+    daylight: factors,
     none: n,
     texels,
     dispose: () => {
@@ -111,7 +117,9 @@ const cache = new WeakMap<MeshData, WeakMap<RoomAmbient, RoomMeshData>>();
 /**
  * Adds the room-texel `uv1` attribute to a mesh. Floors and ceilings belong to their room, the
  * left/right face of a wall to the room on that face (`wallSideRooms`, per stretch of wall), and
- * a fitting's vertical faces to the room they look at; tops, ends, jambs, undersides and faces
+ * a fitting's vertical faces to the room they look at. A wall's end cap belongs to the room it
+ * looks into, a jamb (the reveal of a door or window) to the indoor room on either face of its
+ * wall: a column's end in a windowless bathroom is as dark as the bathroom. Tops and faces
  * looking outside belong to no room (full sky).
  * A vertex shared by triangles of different rooms is duplicated, so triangle indices and
  * `owners` (picking) stay valid.
@@ -138,6 +146,32 @@ function build(mesh: MeshData, scene: SceneRooms, ambient: RoomAmbient): RoomMes
   const itemsById = new Map((scene.items ?? []).map((i) => [i.id, i]));
   const openingWall = new Map(scene.openings.map((o) => [o.id, o.wallId]));
   const wallOf = (kind: 'wall' | 'opening', id: string) => wallsById.get(kind === 'wall' ? id : (openingWall.get(id) ?? ''));
+  /**
+   * A short stretch of a wall face with no room on it, between two stretches that have one, is the slack between two room polygons
+   * (the sampling of `wallSideRooms` is 25 cm), not the open air: it takes the darker of the two rooms beside it.
+   */
+  const gapRoom = (segments: readonly WallSideSegment[], gap: WallSideSegment, left: boolean): string | undefined => {
+    if (gap.to - gap.from > MAX_GAP_M) return undefined;
+    const at = segments.indexOf(gap);
+    const ids = [segments[at - 1], segments[at + 1]].map((s) => (s ? (left ? s.left : s.right) : undefined)).filter((id): id is string => id !== undefined);
+    if (ids.length === 0) return undefined;
+    return ids.reduce((a, b) => ((ambient.daylight[b] ?? 1) < (ambient.daylight[a] ?? 1) ? b : a));
+  };
+  const indoorRoom = new Set(scene.rooms.filter((r) => r.type !== 'balcony').map((r) => r.id));
+  /** The room an end cap or a jamb of `wall`, centred at `at` with normal `normal`, belongs to (see `withRoomAmbient`). */
+  const reveal = (wall: Scene['walls'][number], face: 'end' | 'jamb', at: [number, number, number], normal: [number, number, number]): string | undefined => {
+    if (face === 'end') {
+      // The room just in front of the cap, 5 cm away along its normal.
+      const point: [number, number] = [at[0] + normal[0] * 0.05, at[2] + normal[2] * 0.05];
+      return scene.rooms.find((r) => r.type !== 'balcony' && pointInPolygon(point, r.polygon))?.id;
+    }
+    const len = Math.hypot(wall.end[0] - wall.start[0], wall.end[1] - wall.start[1]) || 1;
+    const along = ((at[0] - wall.start[0]) * (wall.end[0] - wall.start[0]) + (at[2] - wall.start[1]) * (wall.end[1] - wall.start[1])) / len;
+    const entry = ambient.sides[wall.id];
+    const segment = entry?.segments.find((s) => along >= s.from - 1e-6 && along <= s.to + 1e-6);
+    const ids = [segment ? segment.left : entry?.left, segment ? segment.right : entry?.right];
+    return ids.find((id) => id !== undefined && indoorRoom.has(id)) ?? undefined;
+  };
 
   for (let t = 0; t < triangles; t++) {
     const owner = ownerAt(mesh.owners, t);
@@ -153,6 +187,10 @@ function build(mesh: MeshData, scene: SceneRooms, ambient: RoomAmbient): RoomMes
       const b = mesh.indices[t * 3 + 1]!;
       const c = mesh.indices[t * 3 + 2]!;
       const wall = wallOf(owner.kind, owner.entityId);
+      if (wall && owner.kind === 'wall' && (owner.face === 'end' || owner.face === 'jamb')) {
+        const id = reveal(wall, owner.face, [p[a * 3]! + p[b * 3]! + p[c * 3]!, p[a * 3 + 1]! + p[b * 3 + 1]! + p[c * 3 + 1]!, p[a * 3 + 2]! + p[b * 3 + 2]! + p[c * 3 + 2]!].map((v) => v / 3) as [number, number, number], [n[a * 3]!, n[a * 3 + 1]!, n[a * 3 + 2]!]);
+        if (id) room = ambient.indexOf(id);
+      }
       const nx = n[a * 3]!;
       const nz = n[a * 3 + 2]!;
       if (wall && Math.hypot(nx, nz) >= MIN_HORIZONTAL && (owner.kind === 'opening' || owner.face === 'left' || owner.face === 'right')) {
@@ -163,7 +201,8 @@ function build(mesh: MeshData, scene: SceneRooms, ambient: RoomAmbient): RoomMes
         const left = owner.kind === 'wall' ? owner.face === 'left' : nx * wallLeftNormal(wall)[0] + nz * wallLeftNormal(wall)[1] > 0;
         const entry = ambient.sides[wall.id];
         const segment = entry?.segments.find((s) => along >= s.from - 1e-6 && along <= s.to + 1e-6);
-        const id = segment ? (left ? segment.left : segment.right) : left ? entry?.left : entry?.right;
+        let id = segment ? (left ? segment.left : segment.right) : left ? entry?.left : entry?.right;
+        if (!id && segment && entry) id = gapRoom(entry.segments, segment, left);
         if (id) room = ambient.indexOf(id);
       }
     }

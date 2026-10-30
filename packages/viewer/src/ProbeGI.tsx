@@ -15,6 +15,7 @@ import type { ProbeSettings } from './probe-grid';
 import { PROBE_INDOOR_SKY_GAIN, bakeSky, skyLitRadiance, tuning } from './probe-light';
 import { probeStats, resetProbeStats, setProbeStats, subscribeProbeStats } from './probe-runtime';
 import { installProbeShader } from './probe-shader';
+import { partyWallIds } from './derived-geometry';
 import { shellFor } from './shell-cache';
 import { textureStats } from './texture-cache';
 import { modelStats } from './model-runtime';
@@ -114,7 +115,7 @@ export function ProbeGI({ scene, model, context }: { scene: Scene; model: OkMode
   const layout = useMemo(() => (settings ? probeLayout(scene, settings) : null), [scene, settings]);
   const geometry = useMemo(() => {
     const shell = shellFor(scene);
-    return { solids: wallSolids(scene), boxes: itemBoxes(shell.items) };
+    return { solids: wallSolids(scene, partyWallIds(scene)), boxes: itemBoxes(shell.items), rooms: scene.rooms.filter((r) => r.type !== 'balcony').map((r) => r.polygon) };
   }, [scene]);
   const sky = useMemo(() => makeSky(), []);
   const bakeMaterials = useMemo(() => new BakeMaterials(), []);
@@ -142,7 +143,7 @@ export function ProbeGI({ scene, model, context }: { scene: Scene; model: OkMode
   }, [three, sky]);
 
   useLayoutEffect(() => {
-    if (layout) baker.mount(layout, geometry.solids, geometry.boxes);
+    if (layout) baker.mount(layout, geometry.solids, geometry.boxes, geometry.rooms);
     resetProbeStats('probes');
     const canvas = gl.domElement;
     const restored = () => baker.contextRestored();
@@ -184,6 +185,7 @@ export function ProbeGI({ scene, model, context }: { scene: Scene; model: OkMode
       settings,
       solids: geometry.solids,
       boxes: geometry.boxes,
+      rooms: geometry.rooms,
       indoor: probeIndoor(layout, scene),
       prepare: (indoor) => {
         const radiance = indoor ? indoorSky : outdoorSky;

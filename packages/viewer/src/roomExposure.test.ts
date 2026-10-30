@@ -18,17 +18,20 @@ function noon(lamps: LightingView['lamps'] = {}) {
 const factors = roomDaylightFactors(scene);
 
 describe('roomExposureGain: a camera in a windowless room opens up', () => {
-  it('lifts the exposure of the bathroom at noon with the lamps off (it rendered black)', () => {
+  it('opens the exposure up in a room that gets only borrowed light (the hall), not in a sealed one (the bathroom stays dark)', () => {
     const m = noon(allOff);
-    expect(factors.sdb).toBeLessThan(0.2);
-    const gain = roomExposureGain(m, factors.sdb!, 0);
-    expect(gain).toBeGreaterThan(4);
+    // The bathroom has no window and its door leads to the hall, which has none either: no sky reaches it, so it is dark and the exposure does not chase it.
+    expect(factors.sdb).toBe(0);
+    expect(roomExposureGain(m, factors.sdb!, 0)).toBe(1);
+    // The hall borrows a share of the living room's light through its door; the camera adapts to that.
+    expect(factors.entree).toBeGreaterThan(0.1);
+    expect(factors.entree).toBeLessThan(0.2);
+    const gain = roomExposureGain(m, factors.entree!, 0);
+    expect(gain).toBeGreaterThan(3);
     expect(gain).toBeLessThanOrEqual(MAX_ROOM_EXPOSURE_GAIN);
     // Wall radiance at that exposure (albedo x sky x factor / pi x exposure) is a readable mid tone, not black.
-    const before = (0.8 * m.ambientIntensity * factors.sdb! * m.exposure) / Math.PI;
-    const after = before * gain;
-    expect(before).toBeLessThan(0.08);
-    expect(after).toBeGreaterThan(0.25);
+    const before = (0.8 * m.ambientIntensity * factors.entree! * m.exposure) / Math.PI;
+    expect(before * gain).toBeGreaterThan(0.25);
   });
 
   it('leaves a daylit room and a room as bright as the flat alone, and never darkens', () => {
@@ -40,9 +43,9 @@ describe('roomExposureGain: a camera in a windowless room opens up', () => {
 
   it('the room`s own lamp lowers the gain, and garbage degrades to 1', () => {
     const m = noon();
-    expect(roomExposureGain(m, 0.08, 300)).toBeLessThan(roomExposureGain(m, 0.08, 0));
+    expect(roomExposureGain(m, 0.14, 300)).toBeLessThan(roomExposureGain(m, 0.14, 0));
     expect(roomExposureGain(m, Number.NaN, 0)).toBeCloseTo(1, 1);
-    expect(roomExposureGain({ ...m, sunIntensity: 0, ambientIntensity: 0, keyLux: 0 }, 0.08, 0)).toBe(1);
+    expect(roomExposureGain({ ...m, sunIntensity: 0, ambientIntensity: 0, keyLux: 0 }, 0.14, 0)).toBe(1);
   });
 
   it('finds the room under a point and the lamp lux per room', () => {

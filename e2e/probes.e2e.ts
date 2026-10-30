@@ -109,7 +109,7 @@ test.describe('probes: the default indirect light', () => {
       floorPoint(9.2, 5.6),
       floorPoint(4.7, 6.9), // floor beside the Séjour/bathroom partition
     ]);
-    expect(sejour!).toBeGreaterThan(0.15);
+    expect(sejour!).toBeGreaterThan(0.1); // 0.15 while the sky fill lit every room; the probes alone carry the window light now
     for (const [name, value] of Object.entries({ sdbFloor, sdbFar, wc, sdbWall })) expect(value, `${name}: ${value} (Séjour ${sejour})`).toBeLessThan(0.06);
   });
 

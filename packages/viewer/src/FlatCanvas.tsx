@@ -3,6 +3,7 @@ import type { RootState } from '@react-three/fiber';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import type { PointerEvent as ReactPointerEvent, ReactNode } from 'react';
 import { BUILTIN_MATERIALS } from '@flat/scene';
+import { DoubleSide } from 'three';
 import { buildItems } from '@flat/assets';
 import type { ShellMeshes } from '@flat/scene';
 import type { Scene, SiteContext } from '@flat/scene';
@@ -27,7 +28,7 @@ import { useProbesActive } from './ProbeGI';
 import { shellFor } from './shell-cache';
 import { withHitContext } from './selection';
 import { MAX_ANISOTROPY, textureCache } from './texture-cache';
-import { shadowCasterGeometry } from './derived-geometry';
+import { closedCasterGeometry, partyRecessGeometry, shadowCasterGeometry, sunShadowOnly } from './derived-geometry';
 import { ContactShadows } from './ContactShadows';
 import { LightingRig } from './LightingRig';
 import { computeLighting, resolveLamps, roomLampBounce } from './lighting';
@@ -286,6 +287,10 @@ function Shell({ scene, view, onSelect }: { scene: Scene; view: ViewState; onSel
   const selectedId = view.selection?.entityId;
   const casters = useMemo(() => shadowCasterGeometry(shell), [shell]);
   useEffect(() => () => casters.dispose(), [casters]);
+  const recess = useMemo(() => partyRecessGeometry(scene), [scene]);
+  useEffect(() => () => recess?.dispose(), [recess]);
+  const closedCasters = useMemo(() => closedCasterGeometry(shell, recess), [shell, recess]);
+  useEffect(() => () => closedCasters.dispose(), [closedCasters]);
   const meshes = [shell.walls, shell.floors, shell.fittings, shell.items, shell.glass, ...(walk ? [shell.ceilings] : [])];
 
   return (
@@ -294,6 +299,16 @@ function Shell({ scene, view, onSelect }: { scene: Scene; view: ViewState; onSel
       <mesh name="shadow-casters" geometry={casters} castShadow raycast={noop}>
         <meshBasicMaterial colorWrite={false} depthWrite={false} />
       </mesh>
+      {/* Walls, ceilings and the front-door recess once more as closed solids for the sun only (swollen, shadowed from both sides), so no light slides along a joint. */}
+      <mesh name="shadow-casters-closed" geometry={closedCasters} castShadow raycast={noop} ref={sunShadowOnly}>
+        <meshBasicMaterial colorWrite={false} depthWrite={false} shadowSide={DoubleSide} />
+      </mesh>
+      {/* Behind the front door: a dark closed recess, not the open sky (see partyRecessGeometry). Seen from outside it is culled. */}
+      {recess && (
+        <mesh name="party-recess" geometry={recess} raycast={noop}>
+          <meshBasicMaterial color="#17181a" />
+        </mesh>
+      )}
       <ShellMesh name="walls" data={roomMeshes.walls} materials={materials} receiveShadow onSelect={pick} />
       <ShellMesh name="floors" data={roomMeshes.floors} materials={materials} receiveShadow onSelect={pick} />
       {/* Ceilings are hidden in orbit/top so the interior stays visible from above. */}

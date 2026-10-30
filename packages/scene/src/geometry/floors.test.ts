@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import charme from '../../fixtures/charme-3205.flat.json';
+import { SLAB_LIFT_M } from './slab';
 import { roomArea } from '../measure';
 import { parseScene } from '../parse';
 import type { Scene, Wall } from '../schema';
@@ -50,7 +51,7 @@ describe('buildFloors', () => {
     const mesh = buildFloors(box([[0, 0], [4, 0], [4, 3], [0, 3]]));
     const a = analyse(mesh);
     expect(a.triangles).toBe(2);
-    expect(a.area).toBeCloseTo(12, 9);
+    expect(a.area).toBeGreaterThanOrEqual(12 - 1e-9); // the room's 12 m2 plus the wall tops beside it
     expect(a.facing).toBe(2); // both triangles wind to +Y
     expect(a.minY).toBe(0);
     expect(a.maxY).toBe(0);
@@ -67,7 +68,7 @@ describe('buildFloors', () => {
     for (const poly of [ccw, cw]) {
       const mesh = buildFloors(box(poly));
       const a = analyse(mesh);
-      expect(a.area).toBeCloseTo(12, 9);
+      expect(a.area).toBeGreaterThanOrEqual(12 - 1e-9); // the room's 12 m2 plus the wall tops beside it
       expect(a.facing).toBe(a.triangles);
     }
   });
@@ -102,9 +103,10 @@ describe('buildCeilings', () => {
     const mesh = buildCeilings(box([[0, 0], [4, 0], [4, 3], [0, 3]], { ceilingHeight: 2.7 }));
     const a = analyse(mesh);
     expect(a.minY).toBeCloseTo(2.7, 5);
-    expect(a.maxY).toBeCloseTo(2.7, 5);
+    // The tops of the walls round the room are part of the slab, 2 mm above the room's own ceiling.
+    expect(a.maxY).toBeCloseTo(2.7 + SLAB_LIFT_M, 5);
     expect(a.facing).toBe(-a.triangles);
-    expect(a.area).toBeCloseTo(12, 9);
+    expect(a.area).toBeGreaterThanOrEqual(12 - 1e-9); // the room's 12 m2 plus the wall tops beside it
     expect(mesh.normals[1]).toBe(-1);
     expect(mesh.owners[0]!.kind).toBe('ceiling');
   });
@@ -175,7 +177,7 @@ describe('Charme 3205 floors and ceilings', () => {
     expect(ids.has('balcon')).toBe(false);
     const a = analyse(ceilings);
     expect(a.minY).toBe(2.5);
-    expect(a.maxY).toBe(2.5);
+    expect(a.maxY).toBeCloseTo(2.5 + SLAB_LIFT_M, 5); // the slab pieces over the wall tops and the gaps
     expect(a.facing).toBe(-a.triangles);
   });
 

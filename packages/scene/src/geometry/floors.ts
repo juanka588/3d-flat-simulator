@@ -3,6 +3,8 @@ import type { Room, Scene, Vec2, Wall } from '../schema';
 import { MeshBuilder } from './builder';
 import { ceilingMaterial, floorMaterial } from './materials';
 import type { MeshData } from './types';
+import { SLAB_LIFT_M, slabPieces } from './slab';
+import type { SlabPiece } from './slab';
 import { floorParts } from './zones';
 
 /** Ceiling height used when a room has no `ceilingHeight` and no bounding wall is found. */
@@ -120,6 +122,23 @@ function addRoomSurface(
   }
 }
 
+/** A rectangle of the slab (see slab.ts) as two triangles at height `y`, facing up or down, owned by `room`. */
+function addSlabPiece(builder: MeshBuilder, piece: SlabPiece, y: number, up: boolean, materialId: string, kind: 'floor' | 'ceiling'): void {
+  const normal: [number, number, number] = [0, up ? 1 : -1, 0];
+  const base = piece.corners.map((p) => builder.vertex([p[0], y, p[1]], normal, [p[0], p[1]]));
+  for (const [a, b0, c0] of [[0, 1, 2], [0, 2, 3]] as const) {
+    let b: number = b0;
+    let c: number = c0;
+    const pa = piece.corners[a]!;
+    const pb = piece.corners[b]!;
+    const pc = piece.corners[c]!;
+    const ny = (pb[1] - pa[1]) * (pc[0] - pa[0]) - (pb[0] - pa[0]) * (pc[1] - pa[1]);
+    if (Math.abs(ny) < 1e-12) continue;
+    if (up !== ny > 0) [b, c] = [c, b];
+    builder.triangle(base[a]!, base[b]!, base[c]!, materialId, { kind, entityId: piece.roomId });
+  }
+}
+
 /** One convex piece of a floor part (fan-triangulated, facing up), UVs = plan coordinates in metres. */
 function addFloorPiece(builder: MeshBuilder, piece: readonly Vec2[], roomId: string, zoneId: string | undefined, materialId: string): void {
   const base = piece.map((p) => builder.vertex([p[0], 0, p[1]], [0, 1, 0], [p[0], p[1]]));
@@ -150,15 +169,32 @@ export function buildFloors(scene: Scene): MeshData {
       for (const piece of part.pieces) addFloorPiece(builder, piece, room.id, part.zoneId, part.materialId);
     }
   }
+  // The gaps the room polygons and the walls leave inside the flat (a placard front, a recess): a floor under them, 2 mm below the rooms'.
+  const rooms = new Map(scene.rooms.map((r) => [r.id, r]));
+  for (const piece of slabPieces(scene).gaps) {
+    const room = rooms.get(piece.roomId);
+    if (room) addSlabPiece(builder, piece, -SLAB_LIFT_M, true, floorMaterial(scene, room), 'floor');
+  }
   return builder.build();
 }
 
-/** Ceiling per room, facing down (-Y) at the room's ceiling height. Balconies get none. */
+/**
+ * Ceiling per room, facing down (-Y) at the room's ceiling height, plus the rest of the slab (see slab.ts): the top of every wall that
+ * stands beside a habitable room and the gaps the polygons and walls leave between them, so the flat has no hole in its ceiling.
+ * Those pieces take the nearest room (finish, picking, sky ambient) and sit 2 mm above its ceiling, so a room's own ceiling is the
+ * nearer surface where they overlap. Balconies get none (they are open to the sky).
+ */
 export function buildCeilings(scene: Scene): MeshData {
   const builder = new MeshBuilder();
   for (const room of scene.rooms) {
     if (room.type === 'balcony') continue;
     addRoomSurface(builder, room, roomCeilingHeight(scene, room), false, ceilingMaterial(scene, room), 'ceiling');
+  }
+  const rooms = new Map(scene.rooms.map((r) => [r.id, r]));
+  const { walls, gaps } = slabPieces(scene);
+  for (const piece of [...walls, ...gaps]) {
+    const room = rooms.get(piece.roomId);
+    if (room) addSlabPiece(builder, piece, roomCeilingHeight(scene, room) + SLAB_LIFT_M, false, ceilingMaterial(scene, room), 'ceiling');
   }
   return builder.build();
 }
