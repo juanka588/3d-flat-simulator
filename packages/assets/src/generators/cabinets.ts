@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { Generator } from '@flat/scene';
 import { ITEM_MATERIALS } from '../materials/item-materials';
-import { FRONT, HANDLE, Kit, addFronts, boxAnchors, count, finish, finishMaterial, metres } from './kit';
+import { FRONT, HANDLE, Kit, addFronts, boxAnchors, count, finish, finishMaterial, metres, type Finish } from './kit';
 
 /** Cabinet-like generators: wardrobe, kitchen base / wall units, sideboard, TV unit, nightstand. */
 
@@ -57,6 +57,12 @@ const wardrobeParams = z.strictObject({
   doors: count('Number of doors across the front.', 3, 1, 8),
   doorType: z.enum(['hinged', 'sliding']).default('sliding').describe('"hinged" doors swing open (need front clearance); "sliding" doors glide past each other. Defaults to "sliding".'),
   finish: finish('white'),
+  style: z.enum(['cabinet', 'builtin']).default('cabinet').describe('"cabinet" is a freestanding wardrobe (carcass, sides, top, back). "builtin" is a closet in the wall: no carcass, only the sliding doors in their top and bottom tracks plus white shelves (and an optional hanging rail) spanning the whole cavity between the walls; w x d is that cavity. Defaults to "cabinet".'),
+  doorW: z.number().min(0.3).max(5).optional().describe('Builtin only: width of the door opening (default: all of w). The shelves still run wall to wall behind the stub that hides the rest.'),
+  doorShift: z.number().min(-2.5).max(2.5).default(0).describe('Builtin only: offset (m, along the item x axis) of the door opening centre from the cavity centre. Defaults to 0.'),
+  doorProud: z.number().min(0).max(0.3).default(0).describe('Builtin only: how far the door plane stands in front of the cavity footprint (m), e.g. to reach the wall face past a jamb stub. Defaults to 0.'),
+  shelves: count('Builtin only: number of white shelves, the top one at about 2.0 m (at least 1).', 4, 1, 8),
+  rail: z.boolean().default(false).describe('Builtin only: a hanging rail under the top shelf. Defaults to false.'),
 });
 type WardrobeParams = z.infer<typeof wardrobeParams>;
 
@@ -70,9 +76,13 @@ export const wardrobe: Generator<WardrobeParams> = {
     anchors: boxAnchors(w, d, h),
     clearance: { front: doorType === 'hinged' ? Math.min(0.9, Math.max(0.3, w / doors)) : 0.6, back: 0 },
   }),
-  generate({ w, d, h, doors, doorType, finish: f }) {
+  generate({ w, d, h, doors, doorType, finish: f, style, doorW, doorShift, doorProud, shelves, rail }) {
     const kit = new Kit();
     const mat = finishMaterial(f);
+    if (style === 'builtin') {
+      builtinCloset(kit, { w, d, h, doors, finish: f, doorW: doorW ?? w, doorShift, doorProud, shelves, rail });
+      return kit.build();
+    }
     const ph = Math.min(0.06, h * 0.05);
     const zFace = d / 2 - HANDLE;
     if (doorType === 'hinged') {
@@ -110,6 +120,60 @@ export const wardrobe: Generator<WardrobeParams> = {
     return kit.build();
   },
 };
+
+/**
+ * A closet built into the wall: no carcass (the room walls are the sides, back and top). Footprint `w x d` is the cavity;
+ * the sliding doors (two layers in an aluminium top and bottom track) span `doorW` at the front, floor to ceiling, and
+ * white shelves (plus an optional hanging rail) run wall to wall behind them.
+ */
+function builtinCloset(kit: Kit, s: { w: number; d: number; h: number; doors: number; finish: Finish; doorW: number; doorShift: number; doorProud: number; shelves: number; rail: boolean }): void {
+  const { w, d, h, doors, doorW, doorShift, doorProud } = s;
+  const mat = finishMaterial(s.finish);
+  const alu = ITEM_MATERIALS.aluminium;
+  const gap = 0.004;
+  const zFront = d / 2 + doorProud; // outer face of the front door layer
+  const zBackDoor = zFront - 2 * FRONT - gap; // inner face of the rear door layer
+  const dW = Math.min(doorW, w);
+  const shift = Math.max(-(w - dW) / 2, Math.min((w - dW) / 2, doorShift)); // the opening stays inside the cavity
+  const dx0 = shift - dW / 2;
+  const dx1 = shift + dW / 2;
+  const trackB = 0.02;
+  const trackT = 0.03;
+  // Tracks: a shallow aluminium channel under and over the two door layers.
+  kit.box(alu, dx0, 0, zBackDoor - 0.006, dx1, trackB, zFront);
+  kit.box(alu, dx0, h - trackT, zBackDoor - 0.006, dx1, h, zFront);
+  const overlap = 0.03;
+  const dw = (dx1 - dx0 + (doors - 1) * overlap) / doors;
+  const y0 = trackB + 0.002;
+  const y1 = h - trackT - 0.002;
+  for (let i = 0; i < doors; i++) {
+    const front = doors === 1 || i % 2 === 1;
+    const face = front ? zFront : zFront - FRONT - gap;
+    const xa = dx0 + i * (dw - overlap);
+    if (s.finish === 'grey') {
+      const pr = 0.022;
+      kit.box(mat, xa + 0.016, y0 + pr, face - FRONT, xa + dw - 0.016, y1 - pr, face - 0.002, 0);
+      kit.box(alu, xa, y0, face - FRONT, xa + dw, y0 + pr, face, 0.001);
+      kit.box(alu, xa, y1 - pr, face - FRONT, xa + dw, y1, face, 0.001);
+      kit.box(alu, xa, y0 + pr, face - FRONT, xa + 0.016, y1 - pr, face, 0.001);
+      kit.box(alu, xa + dw - 0.016, y0 + pr, face - FRONT, xa + dw, y1 - pr, face, 0.001);
+    } else {
+      kit.box(mat, xa, y0, face - FRONT, xa + dw, y1, face);
+    }
+  }
+  // Shelves: white boards wall to wall. Behind the doors they stop at the rear door layer; the hidden part beside the
+  // door opening (behind a jamb stub) reaches the cavity front when the doors stand proud of it.
+  const t = 0.025;
+  const top = Math.min(2.0, h - 0.4);
+  const doorFront = zBackDoor - 0.006;
+  const hiddenFront = doorProud > 0 ? d / 2 : doorFront;
+  const shelfAt = (y: number) => {
+    kit.box(ITEM_MATERIALS.white, -w / 2, y - t, -d / 2, w / 2, y, hiddenFront);
+    if (doorFront > hiddenFront) kit.box(ITEM_MATERIALS.white, dx0, y - t, hiddenFront, dx1, y, doorFront);
+  };
+  for (let i = 0; i < s.shelves; i++) shelfAt(i === 0 ? top : top - (i * (top - 0.35)) / s.shelves);
+  if (s.rail) kit.tube(alu, [-w / 2, top - t - 0.07, 0], [w / 2, top - t - 0.07, 0], 0.0125, 8);
+}
 
 // ---------------------------------------------------------------------------------------------
 // Kitchen units

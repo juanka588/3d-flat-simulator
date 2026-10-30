@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import charme from '@flat/scene/fixtures/charme-3205.flat.json';
 import { analyzeWalkways, billOfMaterials, buildShell, DEFAULT_LIGHTING, describeRoom, footprintOf, frontOf, GENERATORS, itemDims, layoutContext, openingZones, ownerAt, parseScene, penetration, pointInPolygon, validateLayout, wallLength } from '@flat/scene';
 import { buildItems } from './meshes/build-items';
+import { ITEM_MATERIALS } from './materials/item-materials';
 import type { Item, Scene, Vec2 } from '@flat/scene';
 import './register';
 
@@ -103,6 +104,30 @@ describe('fixed fixtures: locked, existing, exact', () => {
   });
 });
 
+/** The built placard-ch2 mesh: per material, the vertex bounds and the distinct rounded heights of its vertices. */
+function placardMesh() {
+  const shell = buildShell(scene, { items: buildItems }).items;
+  const matOf = (t: number) => shell.groups.find((g) => t * 3 >= g.start && t * 3 < g.start + g.count)!.materialId;
+  const byMaterial = new Map<string, { min: number[]; max: number[]; ys: Set<number> }>();
+  for (let t = 0; t < shell.indices.length / 3; t++) {
+    if (ownerAt(shell.owners, t)?.entityId !== 'placard-ch2') continue;
+    const e = byMaterial.get(matOf(t)) ?? { min: [Infinity, Infinity, Infinity], max: [-Infinity, -Infinity, -Infinity], ys: new Set<number>() };
+    byMaterial.set(matOf(t), e);
+    for (let k = 0; k < 3; k++) {
+      for (let a = 0; a < 3; a++) {
+        const c = shell.positions[shell.indices[t * 3 + k]! * 3 + a]!;
+        e.min[a] = Math.min(e.min[a]!, c);
+        e.max[a] = Math.max(e.max[a]!, c);
+      }
+      e.ys.add(Math.round(shell.positions[shell.indices[t * 3 + k]! * 3 + 1]! * 1000));
+    }
+  }
+  const all = [...byMaterial.values()];
+  const max = [0, 1, 2].map((a) => Math.max(...all.map((e) => e.max[a]!)));
+  const alu = byMaterial.get(ITEM_MATERIALS.aluminium)!;
+  return { max, byMaterial, doorMinX: alu.min[0]!, doorMaxX: alu.max[0]! };
+}
+
 describe('placard of Chambre 2: a closet in the wall, doors onto the Entrée', () => {
   const doorFrom = () => wall('w-ch2-south').start[0] + 0.52 - 0.4;
 
@@ -120,13 +145,21 @@ describe('placard of Chambre 2: a closet in the wall, doors onto the Entrée', (
     const back = wall('w-placard-ch2-back');
     const east = wall('w-placard-ch2-east');
     const stub = wall('w-ch2-south-west');
-    near(r.minY, back.start[1] + back.thickness / 2); // against the back wall's face
-    // front flush with the hall face of the south wall: the closet fills the slot between the stub and w-sejour-entree
-    near(r.maxY, wall('w-ch2-south').start[1] + wall('w-ch2-south').thickness / 2);
-    near(wall('w-sejour-entree').start[1], r.maxY); // the séjour wall starts at the closet front
-    near(r.maxX, east.start[0] - east.thickness / 2); // against the east side wall
-    near(r.minX, stub.end[0]); // against the end of the stub that closes the séjour side
-    expect(r.maxX - r.minX).toBeGreaterThan(1.4); // the plan's 1.45 m
+    const sejour = wall('w-sejour-ch2');
+    // the footprint is the cavity: no gap to the three walls (back, séjour side, east side), stopping at the stub's back face
+    near(r.minY, back.start[1] + back.thickness / 2);
+    near(r.minX, sejour.start[0] + sejour.thickness / 2);
+    near(r.maxX, east.start[0] - east.thickness / 2);
+    near(r.maxY, stub.start[1] - stub.thickness / 2);
+    // the doors stand on the hall face of the south wall, spanning the opening from the stub's end to w-ch2-south
+    const hallFace = wall('w-ch2-south').start[1] + wall('w-ch2-south').thickness / 2;
+    near(wall('w-sejour-entree').start[1], hallFace); // the séjour wall starts at the closet front plane
+    const doorSpan = [stub.end[0], wall('w-ch2-south').start[0]] as const;
+    const m = placardMesh();
+    near(m.max[2]!, hallFace, 2e-3);
+    near(m.doorMinX, doorSpan[0], 2e-3);
+    near(m.doorMaxX, doorSpan[1], 2e-3);
+    expect(r.maxX - r.minX).toBeGreaterThan(1.6); // wider than the doors: the shelves reach the hidden part behind the stub
     // it is carved out of the kept polygon of Chambre 2 (official area 11.13 m2 includes the closet); only its front 3.5 cm
     // lie in the wall thickness, and none of it is in the Entrée
     const ch2 = scene.rooms.find((x) => x.id === 'ch2')!.polygon;
@@ -155,8 +188,27 @@ describe('placard of Chambre 2: a closet in the wall, doors onto the Entrée', (
     near(min[0]!, r.minX, 2e-3);
     near(max[0]!, r.maxX, 2e-3);
     near(min[2]!, r.minY, 2e-3);
-    near(max[2]!, r.maxY, 2e-3); // the door handles stand 8 mm proud of the doors, flush with the footprint
+    near(max[2]!, wall('w-ch2-south').start[1] + wall('w-ch2-south').thickness / 2, 2e-3); // doors on the hall face
     expect(max[1]!).toBeLessThanOrEqual(wall('w-placard-ch2-back').height + 1e-6); // up to the ceiling, never through it
+  });
+
+  it('has no carcass: no back, side or top panel, only doors in tracks and shelves spanning wall to wall', () => {
+    const r = rect('placard-ch2');
+    const { byMaterial } = placardMesh();
+    const white = byMaterial.get(ITEM_MATERIALS.white)!;
+    const alu = byMaterial.get(ITEM_MATERIALS.aluminium)!;
+    // the white parts are the shelves: wall to wall in x, against the back wall, none higher than the top shelf (a back
+    // or side panel would reach the ceiling), at least four boards (two faces each)
+    near(white.min[0]!, r.minX, 1e-3);
+    near(white.max[0]!, r.maxX, 1e-3);
+    near(white.min[2]!, r.minY, 1e-3);
+    expect(white.max[1]!).toBeLessThanOrEqual(2.05);
+    expect(white.ys.size).toBeGreaterThanOrEqual(8);
+    // the doors and their tracks go floor to ceiling
+    near(alu.min[1]!, 0, 1e-3);
+    near(alu.max[1]!, 2.5, 1e-3);
+    // nothing else is white or aluminium: the grey door panels are the only other material
+    expect([...byMaterial.keys()].filter((m) => m !== ITEM_MATERIALS.white && m !== ITEM_MATERIALS.aluminium)).toHaveLength(1);
   });
 
   it('leaves door-ch2 exactly where it was (world centre x = 6.315) with the same swing, clear of the closet', () => {

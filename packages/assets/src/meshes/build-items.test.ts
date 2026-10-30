@@ -234,7 +234,7 @@ describe('built-in placard of Chambre 1 (M5.17, transcribed from the plan, locke
 
   it.each(wardrobes)('$id is a locked sliding wardrobe flush against the inner face of $wall, opening north into the room', ({ id, room, wall }) => {
     const item = flat.items.find((i) => i.id === id)!;
-    expect(item).toMatchObject({ assetId: 'param:wardrobe', locked: true, roomId: room, mount: 'floor', rotation: 180, mesh: { kind: 'parametric', generator: 'wardrobe', params: { doorType: 'sliding', h: 2.4 } } });
+    expect(item).toMatchObject({ assetId: 'param:wardrobe', locked: true, roomId: room, mount: 'floor', rotation: 180, mesh: { kind: 'parametric', generator: 'wardrobe', params: { doorType: 'sliding', style: 'builtin', h: 2.5 } } });
     expect(item.product).toBeUndefined(); // existing furniture: no invented product, EUR 0 in the budget
     expect(itemFrontDirection(item)).toEqual([expect.closeTo(0, 9), -1]);
 
@@ -242,9 +242,9 @@ describe('built-in placard of Chambre 1 (M5.17, transcribed from the plan, locke
     const face = w.start[1] - w.thickness / 2; // north (room) face of a south wall
     const { min, max } = bounds(buildShell(flat, { items: buildItems }).items, id);
     expect(max[2]!).toBeCloseTo(face, 3);
-    expect(max[1]! - min[1]!).toBeCloseTo(2.4, 3);
+    expect(max[1]! - min[1]!).toBeCloseTo(2.5, 3); // floor to ceiling
     expect(max[2]! - min[2]!).toBeCloseTo(0.6, 3);
-    expect(max[1]!).toBeLessThan(w.height);
+    expect(max[1]!).toBeLessThanOrEqual(w.height + 1e-6);
 
     const poly = flat.rooms.find((r) => r.id === room)!.polygon;
     for (const [x, z] of [[min[0]!, min[2]!], [max[0]!, min[2]!], [max[0]!, max[2]!], [min[0]!, max[2]!]] as Vec2[]) {

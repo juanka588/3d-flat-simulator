@@ -36,7 +36,7 @@ function expectSound(g: AnyGenerator, rawParams: Record<string, unknown>) {
   const expected = [
     [-dims.w / 2, dims.w / 2],
     [0, dims.h],
-    [-dims.d / 2, dims.d / 2],
+    [-dims.d / 2, dims.d / 2 + ((params as { style?: string }).style === 'builtin' ? ((params as { doorProud?: number }).doorProud ?? 0) : 0)], // built-in closet doors may stand proud of the cavity
   ] as const;
   for (let a = 0; a < 3; a++) {
     expect(Math.abs(min[a]! - expected[a]![0]), `${g.id} min axis ${a}`).toBeLessThan(MM);
@@ -221,6 +221,17 @@ describe('generator specifics', () => {
     expect(sliding.clearance.front).toBeLessThan(hinged.clearance.front! + 0.1);
     expect(hash(w.generate(w.params.parse({ doors: 2 })))).not.toBe(hash(w.generate(w.params.parse({ doors: 4 }))));
     for (const doorType of ['hinged', 'sliding']) for (const doors of [1, 2, 8]) expectSound(w, { doors, doorType });
+  });
+
+  it('wardrobe builtin: no carcass, so it is a different (and lighter) mesh; shelves/rail/door span are honoured', () => {
+    const w = gen('wardrobe');
+    const base = { w: 1.655, d: 0.53, h: 2.5, doors: 2, finish: 'grey' };
+    const cab = w.generate(w.params.parse(base));
+    const bi = w.generate(w.params.parse({ ...base, style: 'builtin', doorW: 1.44, doorShift: 0.1075, doorProud: 0.07 }));
+    expect(hash(bi)).not.toBe(hash(cab));
+    expect(w.describeParams(w.params.parse({ ...base, style: 'builtin', doorProud: 0.07 })).dims).toEqual({ w: 1.655, d: 0.53, h: 2.5 });
+    expect(hash(w.generate(w.params.parse({ ...base, style: 'builtin', shelves: 1, rail: true })))).not.toBe(hash(w.generate(w.params.parse({ ...base, style: 'builtin', shelves: 1 }))));
+    for (const doors of [1, 2, 3]) expectSound(w, { ...base, doors, style: 'builtin', doorW: 1.2, doorShift: 0.2, doorProud: 0.07, rail: true });
   });
 
   it('kitchenBase: modules placed edge to edge give one continuous worktop', () => {

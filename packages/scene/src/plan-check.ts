@@ -1,6 +1,6 @@
 import type { BatchCommand, LeafCommand } from './commands/schema';
 import { isSimplePolygon, polygonArea } from './measure';
-import { footprintOf } from './placement/footprint';
+import { footprintOf, frontOf } from './placement/footprint';
 import { findForeignRecesses } from './plan-recess';
 import type { Room, Scene, Vec2, Wall } from './schema';
 import { isStructural } from './structural';
@@ -116,9 +116,13 @@ function lockedFittings(scene: Scene): LockedRect[] {
     if (item.locked !== true) continue;
     const dims = item.dims ?? item.product?.dims;
     if (!dims) continue;
-    const hw = dims.w / 2 + 0.02;
-    const hd = dims.d / 2 + 0.02;
-    out.push({ id: item.id, polygon: footprintOf(item.position, item.rotation ?? 0, { w: hw * 2, d: hd * 2 }) });
+    // A built-in closet whose doors stand proud of its cavity (past a jamb stub) closes the plan up to the door plane.
+    const proudRaw = item.mesh?.kind === 'parametric' ? (item.mesh.params as { doorProud?: unknown }).doorProud : undefined;
+    const proud = typeof proudRaw === 'number' && proudRaw > 0 ? proudRaw : 0;
+    const rot = item.rotation ?? 0;
+    const f = frontOf(rot);
+    const centre: Vec2 = [item.position[0] + (f[0] * proud) / 2, item.position[1] + (f[1] * proud) / 2];
+    out.push({ id: item.id, polygon: footprintOf(centre, rot, { w: dims.w + 0.04, d: dims.d + proud + 0.04 }) });
   }
   return out;
 }
