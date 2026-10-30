@@ -90,3 +90,16 @@ export function checkDims(kind: ModelKind, size: readonly [number, number, numbe
   const limit = DIMS_MISMATCH_LIMIT[kind];
   return { distortion, limit, mismatch: distortion > limit };
 }
+
+/** An axis counts as "off" when the model's extent differs from the listed one by more than this fraction. */
+export const AXIS_OFF_LIMIT = 0.15;
+
+/**
+ * True when the model (as authored, front +z) is clearly the wrong way round for the listed size: its x extent misses
+ * the listed width AND its z extent misses the listed depth. A model that matches on ONE axis is authored the right way
+ * (a bed whose headboard is wider than the frame, a desk with a return): a quarter turn would only make it worse.
+ */
+export function bothAxesOff(size: readonly [number, number, number], dims: Dims, limit = AXIS_OFF_LIMIT): boolean {
+  const off = (native: number, listed: number) => !(listed > 1e-9) || Math.abs(native / listed - 1) > limit;
+  return off(size[0], dims.w) && off(size[2], dims.d);
+}

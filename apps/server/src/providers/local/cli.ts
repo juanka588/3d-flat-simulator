@@ -16,6 +16,7 @@
  *   --no-optimize        keep textures and geometry as downloaded (fit checks still run)
  *   --out DIR            another catalogue folder
  * `pnpm catalog:reclassify [--dry] [--out DIR]` recomputes category and mount of the existing entries offline (no download).
+ * `pnpm catalog:refit [--dry] [--sku X] [--out DIR]` recomputes the orientation (quarter turn) and overall dims of the existing models offline (no download).
  * Ctrl-C finishes the product in hand, saves and stops; run the command again to resume.
  */
 import { readFileSync } from 'node:fs';
@@ -28,6 +29,7 @@ import type { ProviderContext } from '../types';
 import { buildCatalog, cleanTemp, refreshPrices, DEFAULTS } from './build';
 import { DEFAULT_QUERIES, SEED_SKUS, parseQueriesFile, skusFromScene } from './queries';
 import { reclassifyCatalog } from './reclassify';
+import { refitCatalog } from './refit';
 import { formatStatus, statusReport } from './status';
 
 const here = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));
@@ -91,8 +93,17 @@ async function main(): Promise<number> {
     console.log(`${flags.has('dry') ? 'would change' : 'changed'} ${r.changes.length} of ${r.total} entries (category and mount only)`);
     return 0;
   }
+  if (command === 'refit') {
+    const sku = flags.get('sku');
+    const r = await refitCatalog(dir, { dryRun: flags.has('dry'), ...(typeof sku === 'string' ? { sku } : {}) });
+    const cm = (d: { w: number; d: number; h: number }) => `${Math.round(d.w * 1000) / 10}x${Math.round(d.d * 1000) / 10}x${Math.round(d.h * 1000) / 10}`;
+    for (const c of r.changes) console.log(`  ${c.sku} ${c.name.slice(0, 55)}  [${c.typeName}]  turn ${c.turn.from} -> ${c.turn.to}; dims (w x d x h cm) ${cm(c.dims.from)} -> ${cm(c.dims.to)}`);
+    for (const k of r.skipped) console.log(`  skipped ${k.sku} ${k.name.slice(0, 45)}: ${k.reason}`);
+    console.log(`${flags.has('dry') ? 'would change' : 'changed'} ${r.changes.length} of ${r.withModel} models (${r.total} entries); ${r.skipped.length} skipped`);
+    return 0;
+  }
   if (command !== 'build' || flags.has('help')) {
-    console.log(['usage: pnpm catalog:build [--limit N] [--queries file] [--from-scene file] [--refresh-prices] [--per-query N] [--max-products N] [--no-photos] [--no-optimize] [--no-seeds] [--out dir]', '       pnpm catalog:reclassify [--dry] [--out dir]', '       pnpm catalog:status'].join('\n'));
+    console.log(['usage: pnpm catalog:build [--limit N] [--queries file] [--from-scene file] [--refresh-prices] [--per-query N] [--max-products N] [--no-photos] [--no-optimize] [--no-seeds] [--out dir]', '       pnpm catalog:reclassify [--dry] [--out dir]', '       pnpm catalog:refit [--dry] [--sku X] [--out dir]', '       pnpm catalog:status'].join('\n'));
     return command === 'help' || flags.has('help') ? 0 : 2;
   }
 

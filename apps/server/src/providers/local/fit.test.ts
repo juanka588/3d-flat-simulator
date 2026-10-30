@@ -49,4 +49,53 @@ describe('fit rules (the viewer\'s own, run at build time)', () => {
     expect(fit.betterAxes).toBeDefined();
     expect(fit.reason).toMatch(/lies on its side/);
   });
+
+  describe('authored orientation first (a model that matches on one axis is the right way round)', () => {
+    const BED = { w: 1.6, d: 2.02, h: 0.676 };
+    const bedHint = { category: 'bed', typeName: 'Structure lit avec tête de lit' };
+
+    it('keeps a bed whose headboard is wider than the frame unrotated and takes the overall dims from the model', () => {
+      // MANDAL: 240 cm headboard, 205.6 deep, 83.5 high; listed frame 160 x 202
+      const fit = chooseFit([2.4, 0.835, 2.056], BED, bedHint);
+      expect(fit.quarterTurn).toBe(false);
+      expect(fit.dims).toEqual({ w: 2.4, d: 2.056, h: 0.835 });
+      expect(fit.dimsFrom).toBe('model');
+      expect(fit.verdict).toBe('ok');
+      expect(fit.size).toEqual([2.4, 0.835, 2.056]);
+    });
+
+    it('does not turn on a one-axis match even without a type hint (the viewer uses the same both-axes test)', () => {
+      expect(chooseFit([2.4, 0.835, 2.056], BED).quarterTurn).toBe(false);
+    });
+
+    it('still turns a genuinely sideways model (wrong in both axes, fits once turned)', () => {
+      const fit = chooseFit([2.02, 0.676, 1.6], BED, bedHint);
+      expect(fit.quarterTurn).toBe(true);
+      expect(fit.size).toEqual([1.6, 0.676, 2.02]);
+      expect(fit.dims).toBeUndefined();
+    });
+
+    it('turns a sideways bed only for a near-exact fit', () => {
+      expect(chooseFit([2.02 * 1.08, 0.7, 1.6 * 1.08], BED, bedHint).quarterTurn).toBe(false);
+    });
+
+    it('adopts the model dims only for plausible overhangs, only for types that may overhang, and not for shrunken models', () => {
+      expect(chooseFit([1.6 * 1.18, 0.7, 2.02], BED, bedHint).dims).toBeUndefined(); // 18%: a loose model, kept and flagged
+      expect(chooseFit([2.4, 0.835, 2.056], BED, { category: 'table' }).dims).toBeUndefined();
+      expect(chooseFit([0.8, 0.676, 2.02], BED, bedHint).dims).toBeUndefined(); // smaller than listed
+      expect(chooseFit([4.0, 0.835, 2.056], BED, bedHint).dims).toBeUndefined(); // 2.5x: not a headboard
+    });
+
+    it('swaps the listed width and depth of a desk instead of turning the model (the shop lists the length as depth)', () => {
+      const fit = chooseFit([1.4, 0.735, 0.6], { w: 0.6, d: 1.4, h: 0.73 }, { category: 'desk', typeName: 'Bureau' });
+      expect(fit.quarterTurn).toBe(false);
+      expect(fit.dims).toEqual({ w: 1.4, d: 0.6, h: 0.73 });
+      expect(fit.dimsFrom).toBe('swap');
+      expect(fit.verdict).toBe('ok');
+    });
+
+    it('still turns a symmetric island (both axes off, no front to protect)', () => {
+      expect(chooseFit([1.26, 0.9, 0.77], DIMS, { category: 'table' }).quarterTurn).toBe(true);
+    });
+  });
 });

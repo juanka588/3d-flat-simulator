@@ -3,7 +3,7 @@ import type { Item, MeshSource } from '@flat/scene';
 import type { Loaded, MeshAsset, MeshCatalog, MeshResolveContext, ModelCache, ModelHandle, ResolvedMesh } from '@flat/assets';
 import { catalogWithout, providerModelUrl } from '@flat/assets';
 import { libraryModelUrl } from './model-env';
-import { HARD_DIMS_LIMIT, checkDims, rotateBoxY, boxSize, frontRotationY } from './model-math';
+import { HARD_DIMS_LIMIT, bothAxesOff, checkDims, rotateBoxY, boxSize, frontRotationY } from './model-math';
 import type { Box, Dims, Front, ModelKind } from './model-math';
 import type { DimsWarning, ModelSource, ModelStats } from './model-types';
 
@@ -340,7 +340,7 @@ export class ModelController<T extends ModelLike> {
         let front = forced ?? target.front;
         let check = checkDims(target.kind, boxSize(rotateBoxY(handle.value.box, frontRotationY(front))), state.dims);
         let turned = false;
-        if (target.kind === 'provider' && forced === undefined && check.mismatch) {
+        if (target.kind === 'provider' && forced === undefined && check.mismatch && bothAxesOff(boxSize(rotateBoxY(handle.value.box, frontRotationY(front))), state.dims)) {
           // Shops disagree with their own models about which side is the width: IKEA lists an island as "Largeur 77, Longueur 126"
           // (stored as w 0.77, d 1.26) while its model is 1.26 along x. Try the model turned a quarter; keep it when it fits clearly better.
           const alt: Front = '+x';

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { makeGlb } from './fixtures';
-import { measureDocument, normaliseGlb, readGlb } from './normalise';
+import { measureDocument, normaliseGlb, readGlb, undoQuarterTurn } from './normalise';
 
 const near = (a: number, b: number, tol = 0.005) => expect(Math.abs(a - b)).toBeLessThanOrEqual(tol);
 
@@ -71,5 +71,29 @@ describe('GLB normalisation at build time', () => {
     const input = await makeGlb({ size: [1, 1, 1], textureSide: 64 });
     const r = await normaliseGlb(input, { w: 1, d: 1, h: 1 }, { optimize: false });
     expect(r.ok).toBe(true);
+  });
+});
+
+describe('quarter turn, undone and baked again', () => {
+  it('a bed with a wider headboard ships unrotated with the model dims', async () => {
+    const input = await makeGlb({ size: [2.4, 0.835, 2.056] });
+    const r = await normaliseGlb(input, { w: 1.6, d: 2.02, h: 0.676 }, { optimize: false, hint: { category: 'bed', typeName: 'Structure lit avec tête de lit' } });
+    if (!r.ok) throw new Error(r.reason);
+    expect(r.fit.quarterTurn).toBe(false);
+    expect(r.dims).toEqual({ w: 2.4, d: 2.056, h: 0.835 });
+    expect(r.flags.join()).toMatch(/overall size taken from the 3D model/);
+    near(r.after.size[0], 2.4);
+  });
+
+  it('undoQuarterTurn exactly reverses the baked wrapper', async () => {
+    const input = await makeGlb({ size: [1.26, 0.9, 0.77] });
+    const r = await normaliseGlb(input, { w: 0.77, d: 1.26, h: 0.9 }, { optimize: false });
+    if (!r.ok) throw new Error(r.reason);
+    const doc = await readGlb(r.bytes);
+    expect(undoQuarterTurn(doc)).toBe(true);
+    const size = measureDocument(doc).size;
+    near(size[0], 1.26, 0.001);
+    near(size[2], 0.77, 0.001);
+    expect(undoQuarterTurn(doc)).toBe(false);
   });
 });

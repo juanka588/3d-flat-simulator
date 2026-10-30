@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Matrix4 } from 'three';
-import { boxSize, checkDims, frontRotationY, itemMatrix, rotateBoxY, scaleDistortion, scaleToDims, transformBox } from './model-math';
+import { bothAxesOff, boxSize, checkDims, frontRotationY, itemMatrix, rotateBoxY, scaleDistortion, scaleToDims, transformBox } from './model-math';
 import type { Box, Front } from './model-math';
 
 // A 2 x 1 x 0.5 model whose pivot is far from where the item frame wants it.
@@ -130,5 +130,15 @@ describe('distortion and dims_mismatch thresholds', () => {
     expect(checkDims('lookalike', size, dims).mismatch).toBe(false);
     expect(checkDims('lookalike', [2, 1, 1.6], dims).mismatch).toBe(true);
     expect(checkDims('lookalike', [2, 1, 1.6], dims).limit).toBe(0.25);
+  });
+});
+
+describe("bothAxesOff (the load-time quarter turn needs a miss on both axes)", () => {
+  const dims = { w: 1.6, h: 0.676, d: 2.02 };
+  it("a headboard wider than the frame matches on depth: not off on both axes", () => {
+    expect(bothAxesOff([2.4, 0.835, 2.056], dims)).toBe(false);
+  });
+  it("a model that really runs the other way is off on both axes", () => {
+    expect(bothAxesOff([2.02, 0.676, 1.6], dims)).toBe(true);
   });
 });

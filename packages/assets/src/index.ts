@@ -35,6 +35,8 @@ export {
 export type { CatalogLoaderOptions, CatalogLoaderUrls } from './library/catalog-loader';
 export { ASSET_PATH_PREFIX, ASSET_ROUTES, libraryModelUrl, providerModelUrl, serverMeshUrl } from './library/urls';
 export {
+  AXIS_OFF_LIMIT,
+  bothAxesOff,
   DIMS_MISMATCH_LIMIT,
   HARD_DIMS_LIMIT,
   boxSize,

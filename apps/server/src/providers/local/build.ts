@@ -185,13 +185,15 @@ export async function buildCatalog(o: BuildOptions): Promise<BuildReport> {
   };
 
   /** Model (and photo) of a record; returns the parts for the entry. */
-  async function attachParts(rec: ProductRecord, prev?: LocalEntry, downloaded?: Uint8Array): Promise<Pick<LocalEntry, 'has3d' | 'noModelReason' | 'model' | 'photo' | 'flags' | 'incomplete'>> {
+  async function attachParts(rec: ProductRecord, typeName: string, prev?: LocalEntry, downloaded?: Uint8Array): Promise<Pick<LocalEntry, 'has3d' | 'noModelReason' | 'model' | 'photo' | 'flags' | 'incomplete'> & { dims?: ProductRecord['dims']; dimsFrom?: 'model' | 'swap' }> {
     const flags: string[] = [];
     const incomplete: ('model' | 'photo')[] = [];
     const sku = rec.sku;
     let has3d = false;
     let noModelReason: string | undefined;
     let model: LocalEntry['model'];
+    let dims: ProductRecord['dims'] | undefined;
+    let dimsFrom: 'model' | 'swap' | undefined;
     const needModel = !prev || prev.incomplete.includes('model');
     if (!needModel && prev) {
       ({ has3d, noModelReason, model } = prev);
@@ -201,7 +203,7 @@ export async function buildCatalog(o: BuildOptions): Promise<BuildReport> {
     } else {
       try {
         const bytes = downloaded ?? (await readCapped((await o.provider.fetchModel!(sku, o.ctx)).stream, 20 * 1024 * 1024));
-        const r = await normaliseGlb(bytes, rec.dims, { optimize, ...(o.textureMax ? { textureMax: o.textureMax } : {}) });
+        const r = await normaliseGlb(bytes, rec.dims, { optimize, hint: { category: rec.category, typeName, name: rec.name }, ...(o.textureMax ? { textureMax: o.textureMax } : {}) });
         if (r.ok) {
           const file = `models/${sku}.glb` as const;
           await writeAtomic(join(o.dir, file), r.bytes);
@@ -217,6 +219,10 @@ export async function buildCatalog(o: BuildOptions): Promise<BuildReport> {
             bytesBefore: r.bytesBefore,
           };
           flags.push(...r.flags);
+          if (r.fit.dims) {
+            dims = r.dims;
+            dimsFrom = r.fit.dimsFrom;
+          }
           report.models.count++;
           report.models.bytesBefore += r.bytesBefore;
           report.models.bytesAfter += r.bytes.byteLength;
@@ -256,7 +262,7 @@ export async function buildCatalog(o: BuildOptions): Promise<BuildReport> {
         problem(sku, 'photo', e instanceof Error ? e.message : String(e));
       }
     }
-    return { has3d, ...(noModelReason ? { noModelReason } : {}), ...(model ? { model } : {}), ...(photo ? { photo } : {}), flags: flags.slice(0, 12), incomplete };
+    return { has3d, ...(dims ? { dims, dimsFrom } : {}), ...(noModelReason ? { noModelReason } : {}), ...(model ? { model } : {}), ...(photo ? { photo } : {}), flags: flags.slice(0, 12), incomplete };
   }
 
   /** `product_dims_missing` with exactly one dimension unknown: derive it from the model's proportions, scaled to the two known sizes. */
@@ -325,8 +331,8 @@ export async function buildCatalog(o: BuildOptions): Promise<BuildReport> {
         checkStop();
         // Retry the missing parts from the stored record (no page read).
         o.ctx.cache.set(`product:${sku}`, existing.record, 600_000, 4096);
-        const parts = await attachParts(existing.record, existing);
-        bySku.set(sku, { ...existing, ...stripParts(parts, existing) });
+        const parts = await attachParts(existing.record, existing.typeName, existing);
+        bySku.set(sku, { ...existing, ...stripParts(parts, existing), ...(parts.dims ? { record: { ...existing.record, dims: parts.dims, ...(parts.dimsFrom === 'model' ? { dimsSource: 'model' as const } : {}) } } : {}) });
         unsaved++;
         return 'kept';
       }
@@ -379,9 +385,11 @@ export async function buildCatalog(o: BuildOptions): Promise<BuildReport> {
       unsaved++;
       return 'rejected';
     }
-    const parts = await attachParts(rec, undefined, downloaded);
+    const derived = rec.dimsSource === 'model';
+    const { dims: modelDims, dimsFrom: modelDimsFrom, ...parts } = await attachParts(rec, hit?.typeName ?? '', undefined, downloaded);
+    if (modelDims) rec = { ...rec, dims: modelDims, ...(modelDimsFrom === 'model' ? { dimsSource: 'model' as const } : {}) };
     const flags = [...parts.flags];
-    if (rec.dimsSource === 'model') flags.push('a dimension missing on the page was derived from the 3D model');
+    if (derived) flags.push('a dimension missing on the page was derived from the 3D model');
     if (rec.category === 'other') flags.push('category other: the shop type was not recognised');
     const iso = now().toISOString();
     const entry: LocalEntry = LocalEntry.parse({
@@ -400,7 +408,7 @@ export async function buildCatalog(o: BuildOptions): Promise<BuildReport> {
     return 'added';
   }
 
-  const stripParts = (parts: Awaited<ReturnType<typeof attachParts>>, prev: LocalEntry): Partial<LocalEntry> => ({
+  const stripParts = (parts: Omit<Awaited<ReturnType<typeof attachParts>>, 'dims' | 'dimsFrom'>, prev: LocalEntry): Partial<LocalEntry> => ({
     has3d: parts.has3d,
     noModelReason: parts.noModelReason,
     model: parts.model ?? prev.model,

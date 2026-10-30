@@ -21,6 +21,7 @@
     "mcp:setup": "node scripts/mcp-setup.mjs",
     "catalog:build": "pnpm --silent --filter @flat/server run catalog:build",
     "catalog:reclassify": "pnpm --silent --filter @flat/server run catalog:reclassify",
+    "catalog:refit": "pnpm --silent --filter @flat/server run catalog:refit",
     "catalog:status": "pnpm --silent --filter @flat/server run catalog:status",
     "providers:probe": "pnpm --silent --filter @flat/server exec tsx src/providers/probe.ts",
     "materials:build": "node scripts/materials/build.mjs",

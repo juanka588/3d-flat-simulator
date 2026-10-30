@@ -5,7 +5,7 @@ import { dedup, getBounds, meshopt, prune, quantize, textureCompress } from '@gl
 import draco3d from 'draco3d';
 import { MeshoptDecoder, MeshoptEncoder } from 'meshoptimizer';
 import sharp from 'sharp';
-import { chooseFit, type Dims, type FitChoice } from './fit';
+import { chooseFit, type Dims, type FitChoice, type FitHint } from './fit';
 
 /**
  * Build-time normaliser of one downloaded GLB (BUILD SCRIPT ONLY; the server never runs it):
@@ -112,14 +112,35 @@ export function measureDocument(doc: Document): GlbMeasure {
 }
 
 /** Wraps the scene content in a node turned a quarter about +y: what the viewer does at run time for `front: '+x'`. */
-function bakeQuarterTurn(doc: Document): void {
+export const QUARTER_TURN_NODE = 'quarter-turn';
+export function bakeQuarterTurn(doc: Document): void {
   const scene = doc.getRoot().getDefaultScene() ?? doc.getRoot().listScenes()[0]!;
-  const wrapper = doc.createNode('quarter-turn').setRotation([0, -Math.SQRT1_2, 0, Math.SQRT1_2]); // -90 degrees about y
+  const wrapper = doc.createNode(QUARTER_TURN_NODE).setRotation([0, -Math.SQRT1_2, 0, Math.SQRT1_2]); // -90 degrees about y
   for (const child of scene.listChildren()) {
     scene.removeChild(child);
     wrapper.addChild(child);
   }
   scene.addChild(wrapper);
+}
+
+/**
+ * Removes a baked quarter turn again: the wrapper node is dissolved and its children go back under the scene (the wrapper
+ * carries no translation or scale, so this is exact and deterministic). Returns false when there is no such wrapper.
+ */
+export function undoQuarterTurn(doc: Document): boolean {
+  const scene = doc.getRoot().getDefaultScene() ?? doc.getRoot().listScenes()[0];
+  const wrapper = scene?.listChildren().find((n) => n.getName() === QUARTER_TURN_NODE);
+  if (!scene || !wrapper) return false;
+  const t = wrapper.getTranslation();
+  const sc = wrapper.getScale();
+  if (t.some((v) => Math.abs(v) > 1e-9) || sc.some((v) => Math.abs(v - 1) > 1e-9) || wrapper.getMesh()) return false;
+  for (const child of wrapper.listChildren()) {
+    wrapper.removeChild(child);
+    scene.addChild(child);
+  }
+  scene.removeChild(wrapper);
+  wrapper.dispose();
+  return true;
 }
 
 export type NormaliseResult =
@@ -128,6 +149,8 @@ export type NormaliseResult =
       bytes: Uint8Array;
       sha256: string;
       fit: FitChoice;
+      /** The dims the record must carry: the listed ones, or the model's overall size when it is bigger than the listed frame (`fit.dims`). */
+      dims: Dims;
       before: GlbMeasure;
       after: GlbMeasure;
       bytesBefore: number;
@@ -139,6 +162,8 @@ export interface NormaliseOptions {
   textureMax?: number;
   /** Skip the texture / Meshopt work (fit checks only; the file is re-written as read). */
   optimize?: boolean;
+  /** Product type (category, shop type, name): beds, desks and corner units may legitimately be bigger than their listed frame. */
+  hint?: FitHint;
 }
 
 /** Validates, fits and shrinks a downloaded GLB. Never throws for a bad model: returns `{ ok: false, reason }`. */
@@ -153,7 +178,7 @@ export async function normaliseGlb(input: Uint8Array, dims: Dims, opts: Normalis
     return { ok: false, reason: e instanceof GlbError ? `model ${e.message}` : `model unreadable: ${e instanceof Error ? e.message : String(e)}` };
   }
   if (before.triangles > MAX_TRIANGLES) return { ok: false, reason: `model has ${before.triangles} triangles (limit ${MAX_TRIANGLES})`, before };
-  const fit = chooseFit(before.size, dims);
+  const fit = chooseFit(before.size, dims, opts.hint);
   if (fit.verdict === 'reject') return { ok: false, reason: fit.reason ?? 'model does not fit the listed size', before, fit };
 
   const flags: string[] = [];
@@ -166,6 +191,8 @@ export async function normaliseGlb(input: Uint8Array, dims: Dims, opts: Normalis
       bakeQuarterTurn(doc);
       flags.push('quarter turn baked in (the model ran along the other axis than the listed width/depth)');
     }
+    if (fit.dims && fit.dimsFrom === 'swap') flags.push('width and depth swapped (the shop lists the length as the depth; the model keeps its authored front)');
+    else if (fit.dims) flags.push(`overall size taken from the 3D model (${Math.round(fit.dims.w * 100)}x${Math.round(fit.dims.d * 100)}x${Math.round(fit.dims.h * 100)} cm w x d x h; the listed ${Math.round(dims.w * 100)}x${Math.round(dims.d * 100)}x${Math.round(dims.h * 100)} cm describe the frame only)`);
     if (fit.verdict === 'warn') flags.push(`dims_mismatch ${Math.round(fit.distortion * 100)}%`);
     if (opts.optimize !== false) {
       if (before.maxTextureSide > textureMax) flags.push(`textures resized ${before.maxTextureSide} -> ${textureMax} px`);
@@ -177,13 +204,15 @@ export async function normaliseGlb(input: Uint8Array, dims: Dims, opts: Normalis
     const out = await (await getIO()).writeBinary(doc);
     // Read the shipped bytes back: the numbers describe the file as the browser will decode it, and a file that cannot be re-read is dropped here.
     const after = measureDocument(await readGlb(out));
-    const finalFit = chooseFit(after.size, dims);
+    const finalDims = fit.dims ?? dims;
+    const finalFit = chooseFit(after.size, finalDims, opts.hint);
     if (finalFit.verdict === 'reject' || finalFit.quarterTurn) return { ok: false, reason: `normalised model no longer fits the listed size (${Math.round(finalFit.distortion * 100)}% distortion)`, before, fit: finalFit };
     return {
       ok: true,
       bytes: out,
       sha256: createHash('sha256').update(out).digest('hex'),
       fit: { ...fit, distortion: finalFit.distortion, size: finalFit.size },
+      dims: finalDims,
       before,
       after,
       bytesBefore: input.byteLength,

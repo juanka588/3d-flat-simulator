@@ -10,7 +10,7 @@ import { Matrix4 } from 'three';
  */
 
 export type { Box, DimsCheck, Front, ModelKind, Vec3 } from '@flat/assets';
-export { DIMS_MISMATCH_LIMIT, HARD_DIMS_LIMIT, boxSize, checkDims, frontRotationY, rotateBoxY, scaleDistortion } from '@flat/assets';
+export { DIMS_MISMATCH_LIMIT, HARD_DIMS_LIMIT, bothAxesOff, boxSize, checkDims, frontRotationY, rotateBoxY, scaleDistortion } from '@flat/assets';
 export { scaleSizeToDims as scaleToDims } from '@flat/assets';
 export interface Dims {
   w: number;
