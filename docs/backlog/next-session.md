@@ -1,4 +1,16 @@
-# Next session: where we stopped (2026-10-29 evening)
+# Next session: where we stopped (2026-11-05, after run 3)
+
+## Run 3 (French Parisian, all rooms) — published to the user's 8787 scene
+- Base template (with the plan fixes of 2026-11-04) + 9 targets, chained; runs 3 and 4 (re-run of the targets that failed while
+  the Mac slept). Best scores: séjour living 0.65, kitchen 0.48, sdb 0.47, wc 0.41, ch1 0.59, alcove 0.51, balcon 0.66,
+  ch2 0.58, entrée 0.52. Mandatory products placed: MANDAL in ch1, the LED island (imported page) in the kitchen.
+  Products ~3,700 EUR. Outputs: `.tmp/design-closegap/french-parisian/<target>/` (contact-sheet.png, scores.md,
+  gap-report.md, bom.md); backup of the scene it replaced in the same folder.
+- Lessons: wrap long runs in `caffeinate -dimsu` (the Mac idle-slept: images 75 s -> 1966 s, renders timed out); run your
+  own sidecar on another port (`IMAGEGEN_PORT=8795 pnpm imagegen`, `IMAGEGEN_URL=...` for the runner).
+- Next: review the run with the user (scores are modest: kitchen/sdb/wc lowest); aesthetic score still skipped (weights not
+  downloaded); the alcove room type is office in the base plan.
+
 
 ## Done today (all on main)
 - CG5 scoring + critic + `close_the_gap`; CG7 runner `--close-gap` (multi-view per zone, `sejour:kitchen` as its own
