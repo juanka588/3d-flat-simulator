@@ -143,7 +143,7 @@ class TexturedMaterial {
       const scale = this.spec.scale ?? t.tileSizeM;
       for (const map of [this.applied.color, this.applied.normal, this.applied.roughness]) map.repeat.set(1 / scale, 1 / scale);
       m.roughness = Math.min(1, this.spec.roughness / Math.max(t.roughness, 1e-6));
-      if (this.spec.retarget) {
+      if (this.spec.retarget && t.meanLinear) {
         const target = clampAlbedo(this.spec.color);
         m.color.copy(retargetFactor(new Color(target), t.meanLinear));
         setAlbedo(m, target);
@@ -361,7 +361,8 @@ export function createMaterialLibrary(initial: Pick<Scene, 'materials'> | null =
     return m;
   };
   const isGlass = (id: string) => id === BUILTIN_MATERIALS.glass;
-  const specOf = (m: SceneMaterial): TextureSpec => ({ color: m.color, roughness: m.roughness, url: m.textureUrl, scale: m.textureScale });
+  // A scene texture's `color` is its tint (schema): the map keeps its pattern and is steered to that average colour.
+  const specOf = (m: SceneMaterial): TextureSpec => ({ color: m.color, roughness: m.roughness, url: m.textureUrl, scale: m.textureScale, retarget: true });
   const same = (a: SceneMaterial, b: SceneMaterial) =>
     a.kind === b.kind && a.color === b.color && a.roughness === b.roughness && a.textureUrl === b.textureUrl && a.textureScale === b.textureScale && a.pattern === b.pattern && a.plankWidthMm === b.plankWidthMm;
 

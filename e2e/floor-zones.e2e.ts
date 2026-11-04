@@ -38,7 +38,7 @@ test.describe('floor zones (desktop)', () => {
     await rendered(page);
     const panel = properties(page);
     await expect(panel.locator('h2')).toHaveText('Cuisine (floor zone)');
-    await expect(panel.getByTestId('finish-zone')).toContainText('Grey floor tiles');
+    await expect(panel.getByTestId('finish-zone')).toContainText('Light grey floor tiles');
     await expect(panel.getByRole('button', { name: /^This zone/ })).toHaveAttribute('aria-pressed', 'true');
     await page.screenshot({ path: test.info().outputPath('e2e-selected-zone.png') });
 

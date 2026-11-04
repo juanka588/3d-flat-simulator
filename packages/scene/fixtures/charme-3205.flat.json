@@ -18,7 +18,7 @@
     { "id": "floor-tile", "name": "Light grey tile", "kind": "paint", "color": "#cfccc6", "roughness": 0.4 },
     { "id": "floor-deck", "name": "Balcony slab", "kind": "paint", "color": "#9a958c", "roughness": 0.9 },
     { "id": "lib-parquet-light-oak", "name": "Light oak parquet", "kind": "texture", "color": "#9b7b5e", "roughness": 0.5, "textureUrl": "lib:parquet-light-oak", "textureScale": 1.8 },
-    { "id": "floor-tile-grey", "name": "Grey floor tiles", "kind": "texture", "color": "#767774", "roughness": 0.45, "textureUrl": "lib:tile-grey-large", "textureScale": 1.2 },
+    { "id": "floor-tile-grey", "name": "Light grey floor tiles", "kind": "texture", "color": "#8f9196", "roughness": 0.45, "textureUrl": "lib:tile-grey-large", "textureScale": 1.2 },
     { "id": "lib-turf-artificial-green", "name": "Artificial turf (short green)", "kind": "texture", "color": "#66842c", "roughness": 0.95, "textureUrl": "lib:turf-artificial-green", "textureScale": 1 },
     { "id": "lib-tile-limestone-beige", "name": "Beige floor tiles", "kind": "texture", "color": "#b9a68c", "roughness": 0.45, "textureUrl": "lib:tile-limestone-beige", "textureScale": 1.2 }
   ],
