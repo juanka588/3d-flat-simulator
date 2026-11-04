@@ -202,3 +202,15 @@ The API, seeds (`seed + i` per image) and prompts are identical. The output is *
 - TypeScript (`pnpm test`): provider, prompts and the `generate_reference` tool with `FakeImageProvider`.
 - Docker: `docker build tools/imagegen` is build-only in CI (manual dispatch: the image is large). Built and `preflight`-checked on linux/amd64 without a GPU during CG2 (it reports "no GPU" cleanly).
 - Live: see "Live test" above (`IMAGEGEN_LIVE=1`).
+
+## Offline coherence evaluation (`imagegen.eval`)
+
+Scores restyled images against the passes of our render and drives the generation methods of the restyle spike (method and results: `docs/research/cg-restyle-spike.md`). Needs the `eval` extra; models (Depth Anything V2-small Apache-2.0, UperNet ConvNeXt-S MIT, the CLIP model above MIT) are read from the sidecar cache (`IMAGEGEN_HF_HOME`), offline unless `--download`.
+
+```sh
+pnpm imagegen:eval -- inputs   --views V --out IN
+pnpm imagegen:eval -- generate --method qwen-cn|qwen21-edit|klein --inputs IN --out OUT --seeds 3205,4242 [--dry]
+pnpm imagegen:eval -- score    --render R --edges E --depth D --ids I --image X [--json]
+pnpm imagegen:eval -- sheet    --views V --columns name=dir,... --out DIR [--score --cache scores.json]
+```
+The unit tests (`pnpm imagegen:test`) use synthetic images and fake estimators: no model, no download.

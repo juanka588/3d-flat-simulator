@@ -41,7 +41,8 @@
     "imagegen": "uv run --directory tools/imagegen --extra mflux --extra clip python -m imagegen serve",
     "imagegen:index": "uv run --directory tools/imagegen --extra mflux --extra clip python -m imagegen index",
     "imagegen:setup": "uv sync --directory tools/imagegen --extra mflux --extra clip && uv run --directory tools/imagegen --extra mflux --extra clip python -m imagegen check",
-    "imagegen:test": "uv run --with pillow --directory tools/imagegen python -m unittest discover -s tests -v"
+    "imagegen:eval": "uv run --directory tools/imagegen --extra mflux --extra clip --extra eval python -m imagegen.eval",
+    "imagegen:test": "uv run --with pillow --with numpy --with scipy --directory tools/imagegen python -m unittest discover -s tests -v"
   },
   "devDependencies": {
     "@anthropic-ai/sdk": "^1.3.0",

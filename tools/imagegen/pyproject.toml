@@ -26,6 +26,11 @@ cuda = [
 # torch is left to the other extra when present (cuda pins 2.8.0); alone, any torch >= 2.4 will do.
 clip = ["open_clip_torch>=2.32,<4", "torch>=2.4", "pillow>=11"]
 
+# Offline coherence evaluation of restyled images (`python -m imagegen.eval`, `pnpm imagegen:eval`): Depth Anything V2-small (Apache-2.0),
+# UperNet ConvNeXt-S (MIT) and the CLIP model above, all via transformers/open_clip. Add it next to a backend extra:
+# `uv run --extra mflux --extra clip --extra eval python -m imagegen.eval ...`. The pure maths needs only numpy + scipy.
+eval = ["numpy>=1.26", "scipy>=1.13", "transformers>=4.50,<6", "open_clip_torch>=2.32,<4", "torch>=2.4", "pillow>=11"]
+
 [tool.uv]
 package = false
 conflicts = [[{ extra = "mflux" }, { extra = "cuda" }]]

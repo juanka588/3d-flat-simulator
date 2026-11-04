@@ -64,6 +64,14 @@ Status: CG0 spike done; CG1 to CG4 implemented (CG4: `record_reference`, `match_
 Order: CG0 → (CG1 ∥ CG2) → CG3 → CG4 → CG5 → CG6 → CG7. CG0 decides whether the local model is good enough. If it isn't,
 the plan falls back to an API provider behind the same interface, once the user provides a key.
 
+### Restyle spike and where things live
+Method and results of the restyle comparison (Nano Banana v1/v2, Qwen ControlNet, Qwen-Image-2.1 edit, klein) and the manual fallback: [docs/research/cg-restyle-spike.md](../research/cg-restyle-spike.md).
+
+- **Prompt generator:** `apps/mcp/src/reference/*` (views, blockout, descriptor, engine), `apps/mcp/src/tools/reference.ts`, style files `apps/mcp/styles/*`.
+- **Orchestration:** `apps/mcp/src/styles.ts` (`close_the_gap` prompt), `scripts/mcp-demo/close-gap.mjs`, `design-flat.mjs`, `views-sheet.mjs`.
+- **In-loop scoring:** `apps/mcp/src/imagegen/fidelity.ts`, `controlBlend.ts`, `passControls.ts`, `apps/mcp/src/tools/score.ts`, `apps/mcp/src/score/`.
+- **Offline evaluation and generation drivers:** `tools/imagegen/imagegen/eval` (`pnpm imagegen:eval -- score|sheet|inputs|generate`), tests in `tools/imagegen/tests/test_eval.py`.
+
 ### Constraints carried over
 - Real products only in the scene; generated imagery is never an asset and always labelled.
 - IKEA photos and models are personal use, local only, never committed or published, and never sent to external APIs
