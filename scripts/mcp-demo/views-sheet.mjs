@@ -6,6 +6,7 @@
  *
  *   pnpm mcp:views-sheet [--out .tmp/views-sheet] [--rooms all|wc,sdb,...] [--size 640x480] [--scene file.flat.json]
  *
+ * `--preset day|evening|night` sets the lighting (default day: noon, lamps off; windowless rooms need evening).
  * Needs the built viewer (`pnpm mcp:setup`) or FLAT_WEB_URL. Writes <out>/views-contact-sheet.png, <out>/<room>/<view>.png and
  * <out>/views.json (poses and the visibility checks of each view).
  */
@@ -48,7 +49,7 @@ try {
       const pose = { mode: 'walk', position: v.eye, eyeHeight: 1.55, headingDeg: v.headingDeg, pitchDeg: 0, fovDeg: v.fovDeg };
       let r;
       for (let t = 0; t < 8; t++) {
-        r = await call('render_view', { view: 'walk', roomId, pose, preset: 'day', size: { width: W, height: H }, waitForModelsS: 60 });
+        r = await call('render_view', { view: 'walk', roomId, pose, preset: arg('preset', 'day'), size: { width: W, height: H }, waitForModelsS: 60 });
         if (r.structuredContent?.code !== 'rate_limited') break;
         await new Promise((ok) => setTimeout(ok, (r.structuredContent.retryAfterMs ?? 3000) + 300));
       }
