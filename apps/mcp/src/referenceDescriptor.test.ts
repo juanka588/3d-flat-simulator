@@ -117,7 +117,7 @@ describe('record_reference', () => {
     expect(rec).toMatchObject({ roomId: 'sdb', items: 6, planStatus: 'ok' });
     // the depth render uses the same room camera as the reference render, depth pass only
     const depthCall = calls.find((c) => c.kinds.length === 1 && c.kinds[0] === 'depth')!;
-    const refCall = calls.find((c) => c.kinds.includes('edges'))!;
+    const refCall = calls.find((c) => c.kinds.includes('edgesItems'))!;
     expect(depthCall.spec['pose']).toEqual(refCall.spec['pose']);
     expect(depthCall.spec).toMatchObject({ view: 'walk', roomId: 'sdb', size: { width: W, height: H } });
     const tub = rec.positions.tub;

@@ -233,6 +233,7 @@ const islandParams = z.strictObject({
   topLength: metres('Length of a swivel / extendable top that pivots on a post at the right (+x) end of the island and lies on it: aligned with the island at topAngle 0, swung out over the stool side (-z) at 90 to make a dining table. 0 for no swivel top. Typical 1.4-1.8.', 0, 0, 3),
   topWidth: metres('Width of the swivel top (only with topLength > 0); clamped to the island length.', 0.55, 0.3, 1),
   topAngle: z.number().min(0).max(90).default(0).describe('Swivel angle of the top in degrees, 0-90 (only with topLength > 0): 0 = closed, aligned with the island; 90 = turned square to it as a dining table. Defaults to 0.'),
+  led: z.boolean().default(false).describe('A warm LED strip under the worktop, along the stool side (-z), as on bar tables with built-in lighting. Defaults to false.'),
   finish: finish('white'),
 });
 type IslandParams = z.infer<typeof islandParams>;
@@ -305,6 +306,11 @@ export const island: Generator<IslandParams> = {
       kit.box(mat, w / 2 - t, baseH, -d / 2, w / 2, bodyTop, z0);
     }
     kit.box(ITEM_MATERIALS.worktop, -w / 2, bodyTop, -d / 2, w / 2, worktopTop, d / 2);
+    // LED strip: a thin warm line under the worktop, just inside its stool-side edge (under the overhang, or on the body's back when there is none)
+    if (p.led) {
+      const zs = over > 0.05 ? -d / 2 + 0.03 : z0 + 0.01;
+      kit.box(ITEM_MATERIALS.ledStrip, -w / 2 + 0.04, bodyTop - 0.012, zs, w / 2 - 0.04, bodyTop, zs + 0.014, 0);
+    }
     addFronts(kit, { x0: -w / 2, x1: xb, y0: baseH, y1: bodyTop, zFace, doors, drawers, frontMaterial: mat });
 
     // Open bays: a shell of 18 mm panels, then shelves or bottle rows in each bay.

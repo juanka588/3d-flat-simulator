@@ -35,6 +35,9 @@
  *   Needs the image service (`pnpm imagegen`, CLIP indexes from `pnpm imagegen:index`): checked first, with instructions.
  *   --dry runs it end to end with a scripted fake model, the FakeImageProvider and a fake image service (output .tmp/design-closegap-dry/).
  *   Output: .tmp/design-closegap/<style>/<room>/ (contact-sheet.png, score-curve.png, target.png, gap-report.md, bom.md, final.png, ...).
+ *   --brief "text" / --brief-file brief.md   the lead's wishes for every target's session (close-gap too). In a file, a `## sejour:living, sdb` heading starts
+ *   a part for those targets only (`## sejour` = both zones, `## all` = everybody); text before the first heading is for all.
+ *   --require ch1=ikea-fr:89094948 (repeatable)   a MANDATORY product for a target: the prompt says so and the final scene is checked for it (result.json: requiredMissing).
  *   --force-memory  go on although the image service reports too little free memory (the preflight refuses below ~23 GB available).
  *   --no-render   skip the final renders
  *   --list-styles
@@ -59,6 +62,8 @@ const opt = (name) => {
   if (i < 0) return undefined;
   return argv[i].includes('=') ? argv[i].slice(name.length + 1) : argv[i + 1];
 };
+/** Every value of a repeatable `--name value` / `--name=value`. */
+const optAll = (name) => argv.flatMap((a, i) => (a === name ? [argv[i + 1]] : a.startsWith(`${name}=`) ? [a.slice(name.length + 1)] : [])).filter((x) => x !== undefined);
 const MOCK = args.has('--mock');
 const DRY = args.has('--dry');
 const TEAM = args.has('--team');
@@ -567,6 +572,9 @@ if (CLOSE_GAP) {
     viewsSpec: VIEWS_ARG,
     resume: RESUME,
     publish: PUBLISH,
+    brief: BRIEF,
+    briefFile: opt('--brief-file'),
+    require: optAll('--require'),
     dryRegress: args.has('--dry-regress'),
   });
   process.exit(code);

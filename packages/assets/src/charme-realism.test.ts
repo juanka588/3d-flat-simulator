@@ -18,16 +18,19 @@ const rect = (id: string) => {
 };
 
 describe('WC hand basin', () => {
-  it('hangs on the north wall of the WC, clear of the toilet and of the door swing, at 40 x 25 cm', () => {
+  it('hangs on the east (back) wall of the WC, to the RIGHT of the toilet as seen from the doorway, clear of the door swing, at 40 x 25 cm', () => {
     const b = item('wc-handbasin');
     expect(b).toMatchObject({ locked: true, roomId: 'wc', mount: 'wall', mesh: { generator: 'handBasin' } });
     expect(b.dims).toEqual({ w: 0.4, d: 0.25, h: 0.22 });
     const r = rect('wc-handbasin');
-    expect(r.minY).toBeCloseTo(4.49, 3); // back on the north face of w-ch1-south
+    expect(r.maxX).toBeCloseTo(10.05, 3); // back on the east face of the WC, the wall the toilet stands against
     const t = rect('wc-toilet');
-    expect(t.minX - r.maxX).toBeGreaterThan(0.15);
-    // the door (west wall, y 4.95-5.65) opens outwards; the basin is on the other side of the room from it
-    expect(r.maxY).toBeLessThan(4.95);
+    expect(t.maxX).toBeCloseTo(10.05, 3);
+    // the doorway camera looks east (+x): its right hand is south (+y). The basin is south of the toilet with 15+ cm between them
+    expect(r.minY - t.maxY).toBeGreaterThan(0.15);
+    expect(r.maxY).toBeLessThan(6.03 - 0.15); // and not jammed into the south corner: room to stand beside it
+    // reachable: the door (west wall) opens outwards (x < 8.77), so nothing of the swing reaches the basin; standing room in front of it
+    expect(r.minX).toBeGreaterThan(8.77 + 0.7);
     expect(b.elevation + b.dims!.h).toBeGreaterThan(0.85);
     expect(b.elevation + b.dims!.h).toBeLessThan(1.0);
   });

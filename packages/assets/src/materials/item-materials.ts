@@ -66,6 +66,8 @@ export const ITEM_MATERIALS = {
   glassClear: 'builtin:furniture-glass-clear',
   /** Anodised aluminium profile (grey, satin). */
   aluminium: 'builtin:furniture-aluminium',
+  /** Warm-white LED strip under a worktop or shelf (drawn as a bright cream line; the viewer has no emissive item materials). */
+  ledStrip: 'builtin:furniture-led-strip',
 } as const;
 
 /**
@@ -193,6 +195,7 @@ const BASE_SPECS: Readonly<Record<(typeof ITEM_MATERIALS)[keyof typeof ITEM_MATE
   'builtin:furniture-oak': { color: '#cfa978', roughness: 0.5, metalness: 0, texture: { slug: 'oak-veneer' } },
   'builtin:furniture-walnut': { color: '#7a5a42', roughness: 0.5, metalness: 0, texture: { slug: 'wood-walnut' } },
   'builtin:furniture-white-matte': { color: '#ecebe6', roughness: 0.8, metalness: 0 },
+  'builtin:furniture-led-strip': { color: '#fff1c9', roughness: 0.35, metalness: 0 },
   'builtin:furniture-anthracite': { color: '#3a3b3f', roughness: 0.72, metalness: 0.05 },
   'builtin:furniture-ceramic': { color: '#f4f4f2', roughness: 0.1, metalness: 0 },
   'builtin:furniture-glass': { color: '#0b0c0f', roughness: 0.04, metalness: 0.3 },

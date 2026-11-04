@@ -96,7 +96,13 @@ export async function connectLikeClaudeCode({ serverUrl, clientName = 'claude-co
   let stderr = '';
   transport.stderr?.on('data', (d) => (stderr += d));
   const client = new Client({ name: clientName, version: '1.0.0' });
-  await client.connect(transport);
+  try {
+    await client.connect(transport);
+  } catch (e) {
+    // a server that dies at start says why on stderr (a pnpm that is not on PATH, a missing build): show it instead of "Connection closed"
+    await new Promise((r) => setTimeout(r, 200));
+    throw new Error(`could not start the MCP server (\`${command} ${args.join(' ')}\`): ${e instanceof Error ? e.message : String(e)}${stderr.trim() ? `\n${stderr.trim().slice(-1500)}` : ''}`, { cause: e });
+  }
   return { client, stderr: () => stderr, close: () => client.close() };
 }
 

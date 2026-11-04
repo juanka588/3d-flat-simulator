@@ -98,7 +98,7 @@ export const ROOM_TEMPLATES: Record<RoomType, RoomTemplate> = {
 
 const BASE_NEGATIVE = 'text, watermark, logo, people, distorted perspective, blurry, low quality, cartoon, 3d render, sketch, painting';
 
-const lc = (s: string) => s.replace(/^[A-Z]/, (c) => c.toLowerCase());
+const lc = (s: string) => s.replace(/^[A-Z](?![A-Z])/, (c) => c.toLowerCase());
 const clip = (xs: readonly string[], n: number) => xs.slice(0, n).map(lc).join(', ');
 const tone = (kelvin: number) => (kelvin <= 3200 ? `warm ${kelvin} K evening light` : kelvin <= 4000 ? 'soft neutral daylight' : 'bright daylight');
 
@@ -111,8 +111,45 @@ export interface BuiltPrompt {
   roomType: RoomType;
 }
 
+// -- prompt v2 rules (restyle spike) -----------------------------------------------------------------------------------------------
+
+/**
+ * The model reads "Haussmann" as a Haussmann room: 3.5 m ceilings, tall windows, a cornice, three windows on the facade. Our flat is a
+ * modern 2010s building with a 2.5 m ceiling, so the word never reaches the image prompt, nor a cornice or a ceiling rose.
+ */
+export function plain(s: string): string {
+  return s
+    .replace(/\s*\([^)]*paint material[^)]*\)/gi, '')
+    .replace(/\s*\(Haussmann(ian)?\)/gi, '')
+    .replace(/Haussmann(ian)?/gi, 'Parisian')
+    .replace(/,?\s*(and )?(a |an )?(ceiling )?(cornice|crown moulding|crown molding|ceiling rose|medallion)s?( [a-z ,-]+)?(?=[,.;]|$)/gi, '')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/\s+([,.;])/g, '$1')
+    .trim();
+}
+/** A style's name as it reads in an image prompt. */
+export const plainName = (meta: StyleMeta): string => plain(meta.name);
+
+const BUILDING =
+  'The building is a modern 2010s French residential block: a flat white ceiling exactly 2.5 m high (only about a quarter taller than a standard 2.04 m door) without cornice, moulding or ceiling rose, standard-height white double-glazed windows and doors, smooth walls; do not make the room taller, wider or longer, do not zoom out.';
+/** The same without the word "window": a model told about windows in a picture that has none draws one. */
+const BUILDING_CLOSED =
+  'The building is a modern 2010s French residential block: a flat white ceiling exactly 2.5 m high (only about a quarter taller than a standard 2.04 m door) without cornice, moulding or ceiling rose, standard white interior doors, smooth plain walls; do not make the room taller, wider or longer, do not zoom out.';
+const OUTDOOR_BUILDING = 'A balcony of a modern 2010s French residential block seen in daylight: a railing, a facade with standard-height white double-glazed french doors, no cornice.';
+const WINDOWLESS_VIEW = 'There is no window, no skylight and no extra door in this picture (the windows of the room are out of frame): the walls in view are solid, plain and closed; do not add a window or a door.';
+const WINDOWLESS = 'There is no window, no skylight and no extra door anywhere in this picture: every wall is solid, plain and closed, lit only by artificial light (ceiling spots, wall lights, mirror light).';
+/** Always in the negative prompt of an indoor reference. */
+const BUILDING_NEGATIVE = 'Haussmann, cornice, ceiling rose, ceiling moulding, high ceiling, tall windows, extra windows, extra doors, changed room proportions';
+const WINDOWLESS_NEGATIVE = 'window, skylight, extra door, daylight from a window, glass door, balcony, curtains, blinds, light through a window';
+const FIXED_ONLY_BATHROOM =
+  'only its fixed fittings (listed below), with towels, a bath mat, a small plant, a framed print and a small mirror as decor; no other sanitary ware, no extra vanity, no shower, no large mirror, the room keeps its small size';
+
 /** What a multi-view reference adds to the prompt (see `reference/views.ts`). */
 export interface ReferenceExtras {
+  /** What the camera sees, read from the scene (`reference/facts.ts`): the openings and the fixed fittings of the picture. */
+  facts?: { openingsText: string; fittingsText: string; windowless: boolean; roomWindowless?: boolean } | undefined;
+  /** A bathroom or WC seen with its fittings: the picture holds those and decor, nothing else. */
+  fixedOnly?: boolean | undefined;
   /** `kitchen`: the kitchen zone of a larger room, drawn with the kitchen template. */
   zone?: 'kitchen' | undefined;
   /** The open kitchen is in the picture of a living view: do not forbid it. */
@@ -127,31 +164,47 @@ export interface ReferenceExtras {
 export function buildReferencePrompt(meta: StyleMeta, roomType: RoomType, extra: ReferenceExtras = {}): BuiltPrompt {
   const kitchenZone = extra.zone === 'kitchen';
   const t = ROOM_TEMPLATES[kitchenZone ? 'kitchen' : roomType] ?? ROOM_TEMPLATES.other;
-  const forms = t.useForms ? meta.forms.filter((f) => !(roomType === 'bedroom' || roomType === 'office' ? SEATING.test(f) : false)) : [];
-  const textiles = t.textiles ? meta.textiles.filter((x) => t.textiles!.test(x)) : [];
-  const parts = [
-    `Professional interior design photograph of ${kitchenZone ? 'the open kitchen of a flat' : t.subject}${extra.kitchenVisible && !kitchenZone ? ' with an open kitchen in the background' : ''}, ${meta.name} style: ${lc(meta.summary).replace(/\.$/, '')}.`,
-    `It contains ${t.furnishings}.`,
-    extra.viewHint ?? '',
-    extra.layout ?? '',
-    `Palette: ${paletteWords(meta).join(', ')}.`,
-    `Materials: ${clip(meta.materials, 4)}.`,
-    forms.length ? `Shapes: ${clip(forms, 3)}.` : '',
-    textiles.length ? `Textiles: ${clip(textiles, 3)}.` : '',
-    meta.decor.length ? `Decor: ${clip(meta.decor, 2)}.` : '',
-    `Lighting: ${tone(meta.lighting.kelvin)}, ${clip(meta.lighting.layers, 2)}.`,
-    'Photorealistic, natural materials, sharp focus, shot on a 24 mm lens, architectural magazine quality. The room keeps exactly the layout, walls, windows and doors of the line drawing.',
-  ].filter(Boolean);
+  const forms = t.useForms ? meta.forms.filter((f) => !(roomType === 'bedroom' || roomType === 'office' ? SEATING.test(f) : false)).map(plain) : [];
+  const outdoor = roomType === 'balcony';
+  const windowless = Boolean(extra.facts?.windowless) && !outdoor;
+  const artificial = windowless && Boolean(extra.facts?.roomWindowless);
+  const textiles = t.textiles ? meta.textiles.filter((x) => t.textiles!.test(x) && !(windowless && /curtain/i.test(x))).map(plain) : [];
+  const furnishings = windowless ? t.furnishings.replace(/,?\s*(and )?curtains at the windows/, '') : t.furnishings;
+  const fixedOnly = extra.fixedOnly && roomType === 'bathroom' && !kitchenZone;
+  const parts: [string, string][] = [
+    ['subject', `Professional interior design photograph of ${kitchenZone ? 'the open kitchen of a flat' : t.subject}${extra.kitchenVisible && !kitchenZone ? ' with an open kitchen in the background' : ''}, ${plainName(meta)} style: ${plain(lc(meta.summary)).replace(/\.$/, '')}.`],
+    ['building', outdoor ? OUTDOOR_BUILDING : windowless ? BUILDING_CLOSED : BUILDING],
+    ['contains', `It contains ${fixedOnly ? FIXED_ONLY_BATHROOM : furnishings}.`],
+    ['openings', extra.facts?.openingsText ?? ''],
+    ['fittings', extra.facts?.fittingsText ?? ''],
+    ['windowless', windowless ? (artificial ? WINDOWLESS : WINDOWLESS_VIEW) : ''],
+    ['hint', extra.viewHint ?? ''],
+    ['layout', extra.layout ?? ''],
+    ['palette', `Palette: ${paletteWords(meta).map(plain).join(', ')}.`],
+    ['materials', `Materials: ${clip(meta.materials.map(plain).filter(Boolean), 4)}.`],
+    ['shapes', forms.length ? `Shapes: ${clip(forms, 3)}.` : ''],
+    ['textiles', textiles.length ? `Textiles: ${clip(textiles, 3)}.` : ''],
+    ['decor', meta.decor.length ? `Decor: ${clip(meta.decor.map(plain), 2)}.` : ''],
+    ['lighting', `Lighting: ${artificial ? 'warm artificial light, no daylight' : tone(meta.lighting.kelvin)}, ${clip(meta.lighting.layers.map(plain), 2)}.`],
+    ['closing', windowless ? 'Photorealistic, natural materials, sharp focus, shot on a 24 mm lens, architectural magazine quality. The room keeps exactly the layout, walls and doors of the line drawing; do not add, remove or move any door or opening.' : 'Photorealistic, natural materials, sharp focus, shot on a 24 mm lens, architectural magazine quality. The room keeps exactly the layout, walls, windows and doors of the line drawing; do not add, remove, move, widen or heighten any window or door.'],
+  ];
+  // The image service takes at most 2000 characters: drop the least useful style detail first, never the geometry (openings, fittings, layout).
+  const MAX_CHARS = 1900;
+  const keep = new Map(parts.filter(([, text]) => text));
+  for (const k of ['decor', 'textiles', 'shapes', 'materials', 'hint', 'lighting', 'palette']) {
+    if ([...keep.values()].join(' ').length <= MAX_CHARS) break;
+    keep.delete(k);
+  }
   const avoidBase = extra.kitchenVisible && !kitchenZone ? t.avoid.replace(/,?\s*kitchen counter/, '') : t.avoid;
-  const avoid = [avoidBase, ...meta.avoid.slice(0, 3).map(lc)].filter(Boolean).join(', ');
-  return { prompt: parts.join(' '), negativePrompt: `${BASE_NEGATIVE}, ${avoid}`, roomType };
+  const avoid = [avoidBase, ...meta.avoid.slice(0, 3).map(lc), ...(outdoor ? [] : [BUILDING_NEGATIVE]), ...(windowless ? [WINDOWLESS_NEGATIVE] : []), ...(fixedOnly ? ['vanity, shower, large mirror, extra sink'] : [])].filter(Boolean).join(', ');
+  return { prompt: [...keep.values()].join(' '), negativePrompt: `${BASE_NEGATIVE}, ${avoid}`.slice(0, MAX_CHARS), roomType };
 }
 
 /** Prompt of the klein edit that turns our clean render into a photograph ("visualisation"). */
 export function buildVisualisationPrompt(meta: StyleMeta, roomType: RoomType): BuiltPrompt {
   const t = ROOM_TEMPLATES[roomType] ?? ROOM_TEMPLATES.other;
   const prompt =
-    `Turn this 3D render of ${t.subject} into a realistic interior photograph, ${meta.name} style, ${tone(meta.lighting.kelvin)}. ` +
+    `Turn this 3D render of ${t.subject} into a realistic interior photograph, ${plainName(meta)} style, ${tone(meta.lighting.kelvin)}. ` +
     `Keep the room layout, camera, walls, windows, doors and every piece of furniture where they are; ${clip(meta.materials, 3)}; palette: ${paletteWords(meta).slice(0, 3).join(', ')}. ` +
     'Realistic materials, soft shadows, no new objects.';
   return { prompt, negativePrompt: BASE_NEGATIVE, roomType };

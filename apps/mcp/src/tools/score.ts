@@ -7,7 +7,7 @@ import { toolError, toolOk } from '../errors';
 import { ImageProviderError, SimilarityError, cosine, getImageProvider, getImageScorer, type ImageScorer } from '../imagegen';
 import { RenderError, resolvePose, sharedMcpRenderer } from '../render';
 import { getReference, referencesOfRoom, type StoredReference } from '../reference/engine';
-import { layoutIntent } from '../reference/views';
+import { layoutIntent, roomWindowless } from '../reference/views';
 import { kmeansLab } from '../score/color';
 import { DEFAULT_SCORE_WEIGHTS, clamp01, comparePalettes, compareLayouts, diffList, itemBoxes, overallScore, round, type InstanceLegendEntry, type OurItem } from '../score/metrics';
 import { decodePng, downscale, encodePng, type Rgba } from '../score/png';
@@ -145,7 +145,8 @@ async function scoreOne(ctx: ToolContext, scene: Scene, t: { jobId: string; inde
   try {
     pose = t.pose ?? meta?.pose ?? resolvePose(scene, { view: 'walk', roomId }, SIZE.width / SIZE.height).pose;
     const r: Renderer = ctx.renderer ?? sharedMcpRenderer(ctx.flat, { webUrl: ctx.config.webUrl, renderChannel: ctx.config.renderChannel, log: ctx.config.log });
-    const out = await r.render({ view: 'walk', roomId, pose, size: { ...SIZE } }, { format: 'png', session: ctx.session, passes: { kinds: ['instances'] } });
+    // a room without a window is black at noon: its pictures are scored with the lamps on (the evening preset)
+    const out = await r.render({ view: 'walk', roomId, pose, size: { ...SIZE }, ...(roomWindowless(scene, roomId) ? { preset: 'evening' as const } : {}) }, { format: 'png', session: ctx.session, passes: { kinds: ['instances'] } });
     oursB64 = out.image;
     ours = decodePng(Buffer.from(out.image, 'base64'));
     const url = out.passes?.images['instances'];

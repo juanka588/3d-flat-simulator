@@ -101,3 +101,48 @@ export const wallTiles: Generator<WallTilesParams> = {
     return kit.build();
   },
 };
+
+// ---------------------------------------------------------------------------------------------
+// Slat wall panel (TV wall, acoustic)
+// ---------------------------------------------------------------------------------------------
+
+const slatPanelParams = z.strictObject({
+  w: metres('Width of the panel along the wall (a TV wall: 2.4 to 3.5).', 2.4, 0.3, 5),
+  h: metres('Height of the panel; 2.5 runs floor to ceiling in a 2.5 m room.', 2.5, 0.4, 2.7),
+  d: metres('How far the slats stand out of the wall, felt included (slats 22-28 mm plus the felt).', 0.03, 0.012, 0.08),
+  slat: metres('Width of one slat.', 0.028, 0.02, 0.1),
+  gap: metres('Gap between two slats (the felt shows in it).', 0.018, 0.01, 0.08),
+  wood: z.enum(['oak', 'walnut']).default('oak').describe('Slat veneer: "oak" (light) or "walnut" (dark). Defaults to "oak".'),
+  felt: z.boolean().default(true).describe('Black acoustic felt behind the slats. Defaults to true.'),
+});
+type SlatPanelParams = z.infer<typeof slatPanelParams>;
+
+/**
+ * How many slats of width `slat` fit across `w` with at least `gap` between them, and the gap that makes the first and the last
+ * slat touch the two ends exactly (the panel is exactly `w` wide). One slat fills the whole width.
+ */
+export function slatLayout(w: number, slat: number, gap: number): { n: number; slat: number; gap: number } {
+  const n = Math.max(1, Math.floor((w + gap) / (slat + gap)));
+  if (n === 1) return { n, slat: Math.min(slat, w), gap: 0 };
+  return { n, slat, gap: (w - n * slat) / (n - 1) };
+}
+
+export const slatPanel: Generator<SlatPanelParams> = {
+  id: 'slatPanel',
+  label: 'Slatted oak or walnut wall panel on acoustic felt: TV or accent wall (mount "wall", wall at the back)',
+  category: 'decor',
+  params: slatPanelParams,
+  describeParams: ({ w, d, h }) => ({ dims: { w, d, h }, anchors: boxAnchors(w, d, h), clearance: { front: 0.3, back: 0 } }),
+  generate({ w, h, d, slat, gap, wood, felt }) {
+    const kit = new Kit();
+    const feltT = felt ? Math.min(0.008, d / 3) : 0;
+    const m = wood === 'walnut' ? ITEM_MATERIALS.walnut : ITEM_MATERIALS.oak;
+    if (felt) kit.box(ITEM_MATERIALS.dark, -w / 2, 0, -d / 2, w / 2, h, -d / 2 + feltT, 0);
+    const lay = slatLayout(w, slat, gap);
+    for (let i = 0; i < lay.n; i++) {
+      const x0 = lay.n === 1 ? -lay.slat / 2 : -w / 2 + i * (lay.slat + lay.gap);
+      kit.box(m, x0, 0, -d / 2 + feltT, x0 + lay.slat, h, d / 2, 0);
+    }
+    return kit.build();
+  },
+};

@@ -2,7 +2,7 @@ export * from './types';
 export { LocalSidecarProvider, DEFAULT_SIDECAR_URL, type LocalSidecarOptions } from './localSidecar';
 export { OpenAIImageProvider, GeminiImageProvider, assertOwnImages } from './apiProviders';
 export { FakeImageProvider, TINY_PNG_B64 } from './fake';
-export { buildReferencePrompt, buildVisualisationPrompt, ROOM_TEMPLATES, type BuiltPrompt } from './prompts';
+export { buildReferencePrompt, buildVisualisationPrompt, plain, plainName, ROOM_TEMPLATES, type BuiltPrompt } from './prompts';
 export { passControlSource } from './passControls';
 export { blendControl, inverseDepthGray } from './controlBlend';
 export { FIDELITY_THRESHOLDS, fidelityRef, scoreFidelity, type Fidelity, type FidelityRef } from './fidelity';

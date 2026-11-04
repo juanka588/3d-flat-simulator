@@ -154,3 +154,73 @@ function encode16(raw: Buffer, w: number, h: number): Buffer {
   }
   return PNG.sync.write(p, { bitDepth: 16, colorType: 0, inputColorType: 6, inputHasAlpha: true });
 }
+
+describe('solid walls (a view that must not gain a window)', () => {
+  const w = 128;
+  const h = 96;
+  // a wall everywhere below the top quarter (ceiling), with a "dent" in the depth where a window could grow
+  const wallIds = makePng(w, h, (_x, y) => (y < h / 4 ? [200, 200, 255] : [128, 128, 128]));
+  const wallEdges = makePng(w, h, () => [0, 0, 0]);
+  const dent = (x: number, y: number) => (x > 40 && x < 80 && y > 40 && y < 70 ? 3000 : 2000);
+  const raw = Buffer.alloc(w * h * 2);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) raw.writeUInt16BE(dent(x, y), (y * w + x) * 2);
+  const depth = b64(encode16(raw, w, h));
+
+  it('flattens the depth structure of the wall pixels and outlines the wall region', () => {
+    const plain = PNG.sync.read(Buffer.from(blendControl(depth, b64(wallEdges)), 'base64'));
+    const solid = PNG.sync.read(Buffer.from(blendControl(depth, b64(wallEdges), { idsPngB64: b64(wallIds) }), 'base64'));
+    const at = (p: PNG, x: number, y: number) => p.data[(y * w + x) * 4]!;
+    // the dent is a visible step without the option and a soft slope with it
+    const step = (p: PNG) => Math.max(...Array.from({ length: 30 }, (_, k) => Math.abs(at(p, 31 + k, 55) - at(p, 30 + k, 55))));
+    expect(step(plain)).toBeGreaterThan(10);
+    expect(step(solid)).toBeLessThan(step(plain));
+    // the wall/ceiling boundary is drawn white and thick only with the option
+    expect(at(plain, 60, h / 4 + 3)).toBeLessThan(255);
+    expect(at(solid, 60, h / 4 + 1)).toBe(255);
+    expect(at(solid, 60, h / 4 - 1)).toBe(255);
+  });
+});
+
+describe('windowless fidelity: no window-like patch on the walls', () => {
+  const wallsIds = makePng(W, H, (_x, y) => (y < H / 3 ? [200, 200, 255] : [128, 128, 128]));
+  const wall = (x: number, y: number, patch: boolean): [number, number, number] => (y < H / 3 ? [235, 232, 225] : patch && x > 90 && x < 140 && y > 80 && y < 150 ? [250, 252, 255] : [120, 110, 100]);
+
+  it('fails a picture with a bright pane on the wall, passes the same room without it, and is off for rooms with windows', () => {
+    const ref = fidelityRef(b64(wallsIds), b64(edges), { windowless: true });
+    const good = scoreFidelity(makePng(W, H, (x, y) => wall(x, y, false)), ref);
+    expect(good.windowPatch).toBe(0);
+    expect(good.ok, good.reasons.join('; ')).toBe(true);
+    const bad = scoreFidelity(makePng(W, H, (x, y) => wall(x, y, true)), ref);
+    expect(bad.windowPatch!).toBeGreaterThanOrEqual(FIDELITY_THRESHOLDS.windowPatch);
+    expect(bad.ok).toBe(false);
+    expect(bad.reasons.join(' ')).toMatch(/window-like bright patch/);
+    expect(bad.score).toBeLessThan(good.score);
+    // a normal room (with windows) is not checked
+    const open = scoreFidelity(makePng(W, H, (x, y) => wall(x, y, true)), fidelityRef(b64(wallsIds), b64(edges)));
+    expect(open.windowPatch).toBeUndefined();
+  });
+
+  it('a thin bright sliver (a lamp reflection) is not a window', () => {
+    const ref = fidelityRef(b64(wallsIds), b64(edges), { windowless: true });
+    const sliver = scoreFidelity(makePng(W, H, (x, y) => (y >= H / 3 && x === 100 && y > 80 && y < 150 ? [255, 255, 255] : wall(x, y, false))), ref);
+    expect(sliver.windowPatch).toBe(0);
+  });
+
+  it('generate_reference draws solid walls and enables the check only for a picture without windows', async () => {
+    const { client } = await connect();
+    const seen: ControlImagesRequest[] = [];
+    setImageProvider(new FakeImageProvider());
+    setControlImageSource({
+      async getControlImages(req) {
+        seen.push(req);
+        return { canny: input(edges), check: { ids: input(ids), edges: input(edges) } };
+      },
+    });
+    await call(client, { roomId: 'wc', styleId: 'french-parisian', view: 'main' });
+    await call(client, { roomId: 'sejour', styleId: 'french-parisian', view: 'windows' });
+    await call(client, { roomId: 'balcon', styleId: 'french-parisian', view: 'windows' });
+    expect(seen[0]!.solidWalls).toBe(true);
+    expect(seen[1]!.solidWalls).toBeUndefined();
+    expect(seen[2]!.solidWalls).toBeUndefined();
+  });
+});

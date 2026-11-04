@@ -88,7 +88,7 @@ const r1 = (n: number) => Math.round(n * 10) / 10;
 const pt = (p: Vec2): Vec2 => [r2(p[0]), r2(p[1])];
 const norm360 = (d: number) => ((d % 360) + 360) % 360;
 /** Plan heading (degrees clockwise from plan-up) of the direction `d`. */
-const headingOf = (d: Vec2) => norm360((Math.atan2(d[0], -d[1]) * 180) / Math.PI);
+export const headingOf = (d: Vec2) => norm360((Math.atan2(d[0], -d[1]) * 180) / Math.PI);
 const dirOfHeading = (h: number): Vec2 => [Math.sin(h * DEG), -Math.cos(h * DEG)];
 
 function distToPolygonEdges(p: Vec2, poly: readonly Vec2[]): number {
@@ -157,7 +157,7 @@ export function findZone(zones: ZoneInfo[], word: string | undefined): ZoneInfo 
 
 // -- the room read as edges, openings and focal pieces ---------------------------------------------------------------------
 
-interface Edge {
+export interface Edge {
   index: number;
   a: Vec2;
   b: Vec2;
@@ -168,7 +168,7 @@ interface Edge {
   openings: OpeningInfo[];
 }
 
-interface OpeningInfo {
+export interface OpeningInfo {
   id: string;
   type: Opening['type'];
   centre: Vec2;
@@ -182,7 +182,7 @@ interface OpeningInfo {
   inward: Vec2;
 }
 
-function roomEdges(scene: Scene, room: Room): Edge[] {
+export function roomEdges(scene: Scene, room: Room): Edge[] {
   const poly = room.polygon;
   const edges: Edge[] = poly.map((a, i) => {
     const b = poly[(i + 1) % poly.length]!;
@@ -378,6 +378,8 @@ export interface ViewChecks {
   seen: string[];
   /** Share (0 to 1) of the target's sample points that are in the picture. */
   share: number;
+  /** Fittings NOT in the picture (under half of their sample points). Set by the doorway camera of a small room, which needs ALL its fittings. */
+  missing?: string[];
   /** Why the first choice was replaced, when it was. */
   fallback?: string;
 }
@@ -460,14 +462,18 @@ export function doorwayPose(scene: Scene, roomId: string, fittings: Item[], opts
           // near the door (the fitting looks bigger), not behind the open leaf, and the other fittings in the picture too
           const halfFov = (fov * DEG) / 2;
           const leafInView = leaves.some(([h, e]) => [h, e].some((q) => len(sub(q, p)) < 3 && Math.abs(((headingOf(sub(q, p)) - headingDeg + 540) % 360) - 180) * DEG < halfFov + 3 * DEG));
-          const score = shares[0]! * 3 + shares.slice(1).reduce((a, v) => a + v, 0) - 0.3 * Math.max(0, -t) - 0.2 * Math.abs(s) - (leafInView ? 0.8 : 0);
+          const allSeen = shares.every((v) => v >= 0.5);
+          const score = (allSeen ? 10 : 0) + shares[0]! * 3 + shares.slice(1).reduce((a, v) => a + v, 0) - 0.3 * Math.max(0, -t) - 0.2 * Math.abs(s) - (leafInView ? 0.8 : 0);
           if (!best || score > best.score + 1e-9) best = { pose, score, seen: fittings.filter((_, k) => shares[k]! >= 0.5).map((i) => i.id), share: shares[0]! };
         }
       }
     }
   }
   if (!best) return undefined;
-  return { pose: best.pose, checks: { ok: true, seen: best.seen, share: r2(best.share) } };
+  // Every locked fitting must be in the picture (the spike found the WC basin hidden behind the door jamb). When no candidate shows
+  // all of them the best one is returned with ok false and the fittings it misses: move the fitting or the camera, do not score a blind view.
+  const missing = fittings.filter((i) => !best!.seen.includes(i.id)).map((i) => i.id);
+  return { pose: best.pose, checks: { ok: missing.length === 0, seen: best.seen, share: r2(best.share), ...(missing.length ? { missing } : {}) } };
 }
 
 function checkView(scene: Scene, pose: WalkPose, fittings: Item[]): ViewChecks {
@@ -517,6 +523,13 @@ function mainTargets(scene: Scene, room: Room, edges: Edge[]): Target[] {
   } else if (room.type === 'living' || room.type === 'dining') {
     const e = longestBlankEdge(edges);
     if (e) out.push({ kind: 'focus', aim: mul(add(e.a, e.b), 0.5), from: e.inward, label: 'towards the feature wall', faces: `the plain wall${e.wallId ? ` ${e.wallId}` : ''}`, ignore: [] });
+  }
+  else if (room.type === 'hallway') {
+    // an entrance hall: the camera looks at the front door (the hall's reason to exist), the second view looks back
+    const doors = edges.flatMap((e) => e.openings.filter((o) => o.type === 'door' && !o.otherType));
+    const entry = doors[0] ?? edges.flatMap((e) => e.openings.filter((o) => o.entry))[0];
+    const edge = entry ? edges.find((e) => e.openings.includes(entry)) : undefined;
+    if (entry && edge) out.push({ kind: 'focus', aim: entry.centre, from: edge.inward, label: 'towards the entrance door', faces: `${entry.id}${edge.wallId ? ` on ${edge.wallId}` : ''}`, ignore: [] });
   }
   // the edge with the most light: its openings are the second target
   const lit = [...edges].map((e) => ({ e, w: e.openings.filter((o) => o.light).reduce((a, o) => a + o.width, 0) })).filter((x) => x.w > 0).sort((p, q) => q.w - p.w)[0];
@@ -693,6 +706,7 @@ export function roomViews(scene: Scene, roomId: string, opts: ViewOpts = {}): Vi
 const SOFA = { w: 2.1, d: 0.95 };
 const TABLE = { w: 1.0, d: 0.55 };
 const CIRC_W = 0.9;
+const SMALL_BEDROOM_M2 = 12;
 
 function sampleRect(centre: Vec2, rotationDeg: number, w: number, d: number): Vec2[] {
   const out: Vec2[] = [];
@@ -955,19 +969,162 @@ function officeIntent(scene: Scene, room: Room, zone: ZoneInfo): LayoutIntent | 
   const place: LayoutIntent['place'] = [];
   const notes: string[] = [];
   place.push({ role: 'gaming desk', category: 'desk', relation: { kind: 'at', position: pt(s.desk.centre), rotation: r1(s.desk.rotation) }, note: `${r2(s.desk.w)} m wide, back flat to ${wall ?? 'the wall'}${s.light ? `, beside ${s.light.id}` : ''}` });
-  place.push({ role: 'gaming chair', category: 'chair', relation: { kind: 'at', position: pt(add(s.desk.centre, mul(s.edge.inward, DESK.d / 2 + 0.36))), rotation: r1(s.chair.rotation) }, note: `facing the desk, its front edge against the desk edge (the solver does not allow tucking under);  m of floor behind the desk edge to roll back` });
+  place.push({ role: 'gaming chair', category: 'chair', relation: { kind: 'at', position: pt(add(s.desk.centre, mul(s.edge.inward, DESK.d / 2 + 0.36))), rotation: r1(s.chair.rotation) }, note: `facing the desk, its front edge against the desk edge (the solver does not allow tucking under); ${r1(CHAIR_BACK)} m of floor behind the desk edge to roll back` });
   place.push({ role: 'monitor stand', category: 'desk', relation: { kind: 'on', itemId: '<desk id>' }, note: 'one or two screens on a stand or arm, centred on the desk' });
   place.push({ role: 'wall shelves', category: 'shelf', relation: { kind: 'against_wall', ...(wall ? { wallId: wall } : {}) }, note: 'above the desk, 1.3-1.6 m up: headset, controllers, a light strip underneath' });
   if (s.cat) place.push({ role: 'cat climbing wall', category: 'decor', relation: { kind: 'at', position: pt(s.cat.centre), rotation: r1(s.cat.rotation), elevation: 0.2 }, note: `${r1(s.cat.length)} m of ${s.cat.edge.wallId ?? 'wall'}, steps rising to a bridge (generator catWall, a concept)` });
   if (s.tree) place.push({ role: 'cat tree', category: 'decor', relation: { kind: 'at', position: pt(s.tree.centre), rotation: r1(s.tree.rotation) }, note: 'against a wall as near the window as the door and the radiator allow (generator catTree, a concept)' });
   notes.push(`Gaming desk (${r2(s.desk.w)} x ${DESK.d} m) flat to ${wall ?? 'the wall'}${s.light ? `, with ${s.light.id} at the SIDE of the screens (glare factor ${r2(s.desk.glare)}; 0 = window exactly beside the screens, 1 = straight behind or in front of them)` : ''}: never turn the screens towards a window.`);
-  notes.push(`Gaming chair on the room side of the desk, with  m of free floor in front of the desk edge for the roll back; the door swing, the 1.1 m landing in front of the doors and the radiator (15 cm in front of it) stay clear.`);
+  notes.push(`Gaming chair on the room side of the desk, with ${r1(CHAIR_BACK)} m of free floor behind the chair for the roll back; the door swing, the 1.1 m landing in front of the doors and the radiator (15 cm in front of it) stay clear.`);
   if (s.cat) notes.push(`Cat climbing wall on ${s.cat.edge.wallId ?? 'a wall'} (${r1(s.cat.length)} m, boards ${CAT_DEPTH} m deep, at most 0.45 m between boards, a bridge on top, a cave and a sisal post), never on the window wall.`);
   if (s.tree) notes.push(`Cat tree (${TREE.w} x ${TREE.d} m) at ${pt(s.tree.centre).join(', ')}, against the wall, as near the window as the door and the radiator allow, so the cats can watch outside.`);
   notes.push('Cables: one power strip under the desk along the wall and a single cable run down the wall behind the desk (nothing loose in the walkway); lamps and LED strips plug into the same strip.');
   const promptText = `Layout: a gaming desk with two screens flat to the wall beside the window (the window at the side of the screens), a gaming chair, ${s.cat ? 'a cat climbing wall of wooden boards on the opposite side, ' : ''}${s.tree ? 'a cat tree in the corner, ' : ''}a light strip under the shelves above the desk.`;
   const text = `Layout decided from the room, not from any image (zone ${zone.id}):\n- ${notes.join('\n- ')}\nCameras and prompts only show this layout; follow it for the pieces listed under "place", whatever an image shows.`;
   return { zone: zone.id, text, promptText, place, circulation: [], fixes: ['desk', 'chair'] };
+}
+
+// -- hallway and balcony -----------------------------------------------------------------------------------------------------
+
+/** Where the item's front points in the plan (at rotation 0 it faces plan +y; the solver turns counter-clockwise seen from above). */
+const frontOf = (rotationDeg: number): Vec2 => [Math.sin(rotationDeg * DEG), Math.cos(rotationDeg * DEG)];
+
+/** Floor rectangles that must stay free: door swings into the room, 0.9 m landings in front of every door, the fronts of locked cupboards. */
+function keepClear(scene: Scene, room: Room, edges: Edge[]): { poly: Vec2[]; why: string }[] {
+  const out: { poly: Vec2[]; why: string }[] = [];
+  for (const o of scene.openings) {
+    if (o.type === 'window') continue;
+    const edge = edges.find((e) => e.openings.some((x) => x.id === o.id));
+    const oi = edge?.openings.find((x) => x.id === o.id);
+    const f = openingFrame(scene, o);
+    if (!edge || !oi || !f) continue;
+    const n = edge.inward;
+    const half = o.width / 2 + 0.1;
+    const u: Vec2 = [-n[1], n[0]];
+    out.push({ poly: [add(oi.centre, mul(u, half)), add(oi.centre, mul(u, -half)), add(add(oi.centre, mul(u, -half)), mul(n, 0.9)), add(add(oi.centre, mul(u, half)), mul(n, 0.9))], why: `landing of ${o.id}` });
+    if (o.type === 'door' && !o.glazed) {
+      const sw = doorSwingPolygon(f, o);
+      const c = sw.reduce<Vec2>((a, q) => add(a, mul(q, 1 / sw.length)), [0, 0]);
+      if (pointInPolygon(c, room.polygon, 0)) out.push({ poly: sw, why: `door swing of ${o.id}` });
+    }
+  }
+  for (const i of scene.items) {
+    if (!i.locked || !(i.roomId === room.id || (i.roomId === undefined && pointInPolygon(i.position, room.polygon, 0.3)))) continue;
+    const d = itemDims(i);
+    if ((i.elevation ?? 0) > 1.2 || d.h < 1.2 || d.d < 0.3) continue; // a cupboard with a front, not a radiator
+    const fr = frontOf(i.rotation);
+    const c = add([i.position[0], i.position[1]] as Vec2, mul(fr, d.d / 2 + 0.45));
+    out.push({ poly: footprintOf(c, i.rotation, { w: d.w + 0.1, d: 0.9 }), why: `front of ${i.id}` });
+  }
+  return out;
+}
+
+/** The distance from `from` along the unit vector `dir` to the room boundary or to the first blocked point (m, up to 3). */
+function openDepth(room: Room, from: Vec2, dir: Vec2, blocked: (p: Vec2) => boolean): number {
+  let d = 0;
+  for (; d < 3; d += 0.05) {
+    const p = add(from, mul(dir, d + 0.05));
+    if (!pointInPolygon(p, room.polygon, 0) || blocked(p)) break;
+  }
+  return d;
+}
+
+function hallwayIntent(scene: Scene, room: Room, zone: ZoneInfo): LayoutIntent {
+  const edges = roomEdges(scene, room);
+  const clear = keepClear(scene, room, edges);
+  const fixed = scene.items.filter((i) => i.locked && (i.roomId === room.id || (i.roomId === undefined && pointInPolygon(i.position, room.polygon, 0.3)))).map((i) => footprintOf(i.position, i.rotation, itemDims(i)));
+  const used: Vec2[][] = [];
+  const blockedAt = (p: Vec2) => clear.some((c) => inConvex(p, c.poly)) || fixed.some((f) => inConvex(p, f)) || used.some((u) => inConvex(p, u));
+  const place: LayoutIntent['place'] = [];
+  const notes: string[] = [];
+  const MIN_WALK = CIRC_W;
+  /** The first free stretch of the longest edges where a piece of w x d fits with a walkway of MIN_WALK left in front of it. */
+  const find = (w: number, d: number): { centre: Vec2; rotation: number; edge: Edge; walk: number } | undefined => {
+    for (const e of [...edges].sort((a, b) => b.length - a.length)) {
+      if (e.length < w + 0.1) continue;
+      const u = unit(sub(e.b, e.a));
+      for (let t = w / 2 + 0.05; t <= e.length - w / 2 - 0.05 + 1e-9; t += 0.1) {
+        const centre = add(add(e.a, mul(u, t)), mul(e.inward, d / 2 + 0.01));
+        const rotation = rotationFacing(e.inward);
+        const body = sampleRect(centre, rotation, w - 0.06, d - 0.04);
+        if (!body.every((p) => pointInPolygon(p, room.polygon, 0.03) && !blockedAt(p))) continue;
+        // the walkway ignores the landings (people walk through them) but not the furniture
+        const walk = openDepth(room, add(centre, mul(e.inward, d / 2)), e.inward, (q) => fixed.some((f) => inConvex(q, f)) || used.some((u) => inConvex(q, u)));
+        if (walk < MIN_WALK) continue;
+        return { centre, rotation, edge: e, walk };
+      }
+    }
+    return undefined;
+  };
+  const got: string[] = [];
+  const put = (role: string, category: string, w: number, d: number, note: string, quiet = false) => {
+    const f = find(w, d);
+    if (!f) {
+      if (!quiet) notes.push(`No free wall for the ${role} that keeps a ${MIN_WALK} m walkway: leave it out (a basket under the console does for shoes).`);
+      return undefined;
+    }
+    used.push(footprintOf(f.centre, f.rotation, { w, d: d + 0.05 }));
+    place.push({ role, category, relation: { kind: 'at', position: pt(f.centre), rotation: r1(f.rotation) }, note: `${note} (${f.edge.wallId ?? 'wall'}, ${r2(f.walk)} m walkway left in front)` });
+    got.push(role);
+    return f;
+  };
+  const consoleAt = put('console', 'drawers', 1.0, 0.3, 'slim console or bench for keys and post, 0.3 m deep', true) ?? put('console', 'drawers', 0.8, 0.25, 'slim console for keys and post, 0.25 m deep');
+  const shoeAt = put('shoe storage', 'drawers', 0.8, 0.25, 'slim shoe cabinet or bench with a flap, 0.25 m deep');
+  // the mirror and the coat hooks hang on the wall ABOVE a piece of furniture (a hall this tight has no bare wall to spare)
+  const base = consoleAt ?? shoeAt;
+  const hang = (role: string, category: string, at: { centre: Vec2; rotation: number }, elevation: number, note: string) => {
+    place.push({ role, category, relation: { kind: 'at', position: pt(at.centre), rotation: r1(at.rotation), elevation }, note });
+    got.push(role);
+  };
+  if (base) hang('mirror', 'mirror', base, 1.3, 'hung above the console or bench, 1.3-1.9 m up, 0.6-0.8 m wide');
+  const hooksAt = shoeAt ?? consoleAt;
+  if (hooksAt) hang('coat hooks', 'decor', hooksAt, 1.6, 'a rail of wall hooks at 1.6 m above the bench (or a slim coat rack), nothing standing on the floor');
+  else notes.push('No wall stretch for coat hooks: use a hook rail on the back of the front door.');
+  const fronts = clear.filter((c) => /^front of /.test(c.why)).map((c) => c.why.replace('front of ', ''));
+  notes.push(`Entrance hall (${r1(zone.areaM2)} m2): the walkway stays at least ${MIN_WALK} m wide (it is the way between the doors); pieces are slim (0.12-0.3 m deep) and sit on wall stretches without a door.`);
+  notes.push(`Keep clear: the swing and the 0.9 m landing of every door${fronts.length ? ` and the front of ${fronts.join(', ')} (open its doors fully)` : ''}.`);
+  if (got.length) notes.push(`Placed (${got.join(', ')}): positions come from the free wall stretches, never in a door landing.`);
+  const promptText = `Layout: a narrow entrance hall: ${got.includes('console') ? 'a slim console with a mirror above it, ' : ''}${got.includes('coat hooks') ? 'a rail of coat hooks, ' : ''}${got.includes('shoe storage') ? 'a slim shoe cabinet, ' : ''}the floor between the doors kept free as a walkway.`;
+  return { zone: zone.id, text: `Layout decided from the room, not from any image (zone ${zone.id}):\n- ${notes.join('\n- ')}\nCameras and prompts only show this layout; follow it for the pieces listed under "place", whatever an image shows.`, promptText, place, circulation: [], fixes: place.map((p) => p.category) };
+}
+
+function balconyIntent(scene: Scene, room: Room, zone: ZoneInfo): LayoutIntent {
+  const edges = roomEdges(scene, room);
+  const doors = edges.flatMap((e) => e.openings.filter((o) => o.light && o.type === 'door'));
+  const clear = keepClear(scene, room, edges).filter((c) => /^landing/.test(c.why));
+  // the rail is the edge farthest from the doors, along the long side
+  const doorDist = (e: Edge) => Math.min(...doors.map((d) => distanceToSegment(d.centre, e.a, e.b)), 99);
+  const longest = Math.max(...edges.map((e) => e.length));
+  const rail = [...edges].filter((e) => e.openings.length === 0 && e.length >= longest * 0.8).sort((a, b) => doorDist(b) - doorDist(a) || b.length - a.length)[0] ?? edges[0]!;
+  const into = rail.inward;
+  const along = unit(sub(rail.b, rail.a));
+  const place: LayoutIntent['place'] = [];
+  const notes: string[] = [];
+  // bistro set: round table 0.6 m + two chairs across it, along the rail, in front of the planters, as far from the landings as the balcony allows
+  const SET = { along: 1.9, across: 0.6 };
+  const planter = 0.25;
+  const rot = rotationFacing(into);
+  let best: { t: number; free: number } | undefined;
+  for (let t = SET.along / 2 + 0.1; t <= rail.length - SET.along / 2 - 0.1 + 1e-9; t += 0.1) {
+    const c = add(add(rail.a, mul(along, t)), mul(into, planter + SET.across / 2 + 0.05));
+    const ok = sampleRect(c, rot, SET.along, SET.across).every((p) => pointInPolygon(p, room.polygon, 0.02) && !clear.some((q) => inConvex(p, q.poly)));
+    if (!ok) continue;
+    const free = Math.min(...doors.map((d) => len(sub(d.centre, c))), 9);
+    if (!best || free > best.free + 1e-9) best = { t, free };
+  }
+  if (best) {
+    const c = add(add(rail.a, mul(along, best.t)), mul(into, planter + SET.across / 2 + 0.05));
+    const chairA = add(c, mul(along, 0.7));
+    const chairB = add(c, mul(along, -0.7));
+    place.push({ role: 'bistro table', category: 'table', relation: { kind: 'at', position: pt(c), rotation: r1(rot) }, note: 'round 0.6 m outdoor table in front of the rail planters' });
+    place.push({ role: 'bistro chair', category: 'chair', relation: { kind: 'at', position: pt(chairA), rotation: r1(rotationFacing(unit(sub(c, chairA)))) }, note: 'facing the table' });
+    place.push({ role: 'bistro chair', category: 'chair', relation: { kind: 'at', position: pt(chairB), rotation: r1(rotationFacing(unit(sub(c, chairB)))) }, note: 'facing the table' });
+  } else notes.push('No stretch of the balcony is free enough for a bistro set that leaves the door landings clear: use a folding chair against the rail.');
+  place.push({ role: 'planters', category: 'decor', relation: { kind: 'against_wall', ...(rail.wallId ? { wallId: rail.wallId } : {}), align: 'center' }, note: `a run of planters ${planter} m deep along the whole rail (${r1(rail.length)} m), except behind the chairs: herbs, grasses and a small tree in a pot` });
+  place.push({ role: 'outdoor light', category: 'lamp', relation: { kind: 'against_wall', ...(rail.wallId ? { wallId: rail.wallId } : {}), align: 'center' }, note: 'a string of warm festoon lights along the rail and one weatherproof lantern on the table (outdoor lighting only, 2700 K)' });
+  notes.push(`Balcony (${r1(zone.areaM2)} m2, outdoor, artificial grass floor): compact seating and planters along the rail; ${doors.length ? `the 0.9 m landing in front of ${doors.map((d) => d.id).join(' and ')} stays clear` : 'the doors stay clear'}.`);
+  const promptText = 'Layout: a small outdoor balcony: a bistro table with two chairs along the railing, planters with greenery along the rail, warm string lights, the floor in front of the french doors kept free.';
+  return { zone: zone.id, text: `Layout decided from the room, not from any image (zone ${zone.id}):\n- ${notes.join('\n- ')}\nCameras and prompts only show this layout; follow it for the pieces listed under "place", whatever an image shows.`, promptText, place, circulation: [], fixes: ['table', 'chair'] };
 }
 
 function genericIntent(scene: Scene, room: Room, zone: ZoneInfo): LayoutIntent {
@@ -978,11 +1135,21 @@ function genericIntent(scene: Scene, room: Room, zone: ZoneInfo): LayoutIntent {
   const circulation: LayoutIntent['circulation'] = [];
   const entry = edges.flatMap((e) => e.openings.filter((o) => o.entry)).sort((a, b) => Number(b.otherType === 'hallway') - Number(a.otherType === 'hallway'))[0];
   const light = edges.flatMap((e) => e.openings.filter((o) => o.light))[0];
+  let deskUnderWindow = false;
   if (entry && light) circulation.push({ from: entry.id, to: light.id, widthM: CIRC_W });
   if (room.type === 'bedroom' && blank?.wallId) {
     place.push({ role: 'bed', category: 'bed', relation: { kind: 'against_wall', wallId: blank.wallId, align: 'center' }, note: 'headboard on the longest plain wall, away from doors and windows' });
     place.push({ role: 'bedside table', category: 'bedside', relation: { kind: 'next_to', itemId: '<bed id>', side: 'left' } });
     notes.push(`Bed headboard against ${blank.wallId} (${r1(blank.length)} m, no openings); bedside tables on both sides.`);
+    // a bedroom under 12 m2 is a flexible room (guest, child, study): a desk under the window as well
+    const win = edges.flatMap((e) => e.openings.filter((o) => o.type === 'window'))[0];
+    const winO = win ? scene.openings.find((o) => o.id === win.id) : undefined;
+    if (win && winO && winO.sill <= 0.9 && polygonArea(room.polygon) < SMALL_BEDROOM_M2) {
+      place.push({ role: 'desk', category: 'desk', relation: { kind: 'under_window', openingId: win.id }, note: 'a 1.0-1.2 m desk under the window (daylight on the work, not on the screen), clear of the radiator and the door swing' });
+      place.push({ role: 'desk chair', category: 'chair', relation: { kind: 'facing', targetId: '<desk id>' }, note: 'pulled up to the desk' });
+      notes.push(`Small bedroom (${r1(polygonArea(room.polygon))} m2) kept flexible (guest, child, study): a desk under ${win.id}, the bed against ${blank.wallId}; keep 0.7 m beside the bed on the door side.`);
+      deskUnderWindow = true;
+    }
   } else if (zone.kind === 'main' && blank?.wallId && (room.type === 'living' || room.type === 'dining' || room.type === 'office')) {
     place.push({ role: 'main piece', category: 'sofa', relation: { kind: 'against_wall', wallId: blank.wallId } });
     notes.push(`Main piece against the longest plain wall ${blank.wallId}.`);
@@ -992,7 +1159,7 @@ function genericIntent(scene: Scene, room: Room, zone: ZoneInfo): LayoutIntent {
   if (circulation.length) notes.push(`Keep a ${CIRC_W} m path free from ${circulation[0]!.from} to ${circulation[0]!.to}.`);
   if (zone.kind === 'kitchen') notes.push('Do not move the fittings; add only finishes, a table or stools that leave 1 m in front of the worktop, and lighting.');
   if (!notes.length) notes.push('Keep doors, door swings and passages clear; use the solver relations (against_wall, next_to, facing) for every piece.');
-  const promptText = room.type === 'bedroom' ? 'Layout: the bed has its headboard on the wall without openings, bedside tables on both sides.' : zone.kind === 'kitchen' ? 'Layout: the fitted kitchen stays exactly as drawn.' : '';
+  const promptText = room.type === 'bedroom' ? `Layout: the bed has its headboard on the wall without openings, bedside tables on both sides${deskUnderWindow ? ', a small desk with a chair under the window' : ''}.` : zone.kind === 'kitchen' ? 'Layout: the fitted kitchen stays exactly as drawn.' : '';
   return { zone: zone.id, text: `Layout decided from the room, not from any image (zone ${zone.id}):\n- ${notes.join('\n- ')}\nCameras and prompts only show this layout; follow it for the pieces listed under "place".`, promptText, place, circulation, fixes: place.map((p) => p.category) };
 }
 
@@ -1006,6 +1173,8 @@ export function layoutIntent(scene: Scene, roomId: string, zoneId?: string): Lay
     const office = officeIntent(scene, room, zone);
     if (office) return office;
   }
+  if (zone.kind === 'main' && room.type === 'hallway') return hallwayIntent(scene, room, zone);
+  if (zone.kind === 'main' && room.type === 'balcony') return balconyIntent(scene, room, zone);
   return genericIntent(scene, room, zone);
 }
 
@@ -1015,11 +1184,18 @@ export function findView(views: ViewSpec[], id: string | undefined): ViewSpec | 
 }
 
 
+/** A room without any window or glazed door (sdb, WC, an entrance hall): its pictures need the lamps on, at any hour. */
+export function roomWindowless(scene: Scene, roomId: string): boolean {
+  const room = scene.rooms.find((r) => r.id === roomId);
+  return room ? room.type !== 'balcony' && !roomEdges(scene, room).some((e) => e.openings.some((o) => o.light)) : false;
+}
+
 /** What `describe_room` adds: the zones, the views (camera, weight, what they see) and the layout intent of each zone. */
 export function roomPlan(scene: Scene, roomId: string) {
   const zones = roomZones(scene, roomId);
   const views = roomViews(scene, roomId);
   return {
+    ...(roomWindowless(scene, roomId) ? { windowless: true, lighting: 'no window: render with the evening preset (lamps on), noon is black' } : {}),
     zones: zones.map((z) => ({ id: z.id, kind: z.kind, areaM2: z.areaM2, ...(z.fittings.length ? { fittings: z.fittings } : {}) })),
     views: views.map((v) => ({ ...(v.checks ? { checks: v.checks } : {}), id: v.id, zone: v.zone, label: v.label, faces: v.faces, weight: v.weight, hero: v.hero, eye: v.pose.position, headingDeg: v.pose.headingDeg, fovDeg: v.pose.fovDeg, sees: v.sees })),
     layout: zones.map((z) => {

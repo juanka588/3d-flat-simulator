@@ -6,7 +6,7 @@ import { loadStyles } from '../styles';
 import { GeminiImageProvider, OpenAIImageProvider } from './apiProviders';
 import { FakeImageProvider, TINY_PNG_B64 } from './fake';
 import { LocalSidecarProvider } from './localSidecar';
-import { ROOM_TEMPLATES, buildReferencePrompt, buildVisualisationPrompt } from './prompts';
+import { ROOM_TEMPLATES, buildReferencePrompt, buildVisualisationPrompt, plainName } from './prompts';
 import { ImageProviderError, type GenerateRequest, type ImageInput } from './types';
 import { providerFromEnv } from './wiring';
 
@@ -197,9 +197,9 @@ describe('room-type-aware prompts', () => {
     for (const type of Object.keys(ROOM_TEMPLATES) as (keyof typeof ROOM_TEMPLATES)[]) {
       for (const s of styles) {
         const p = buildReferencePrompt(s.meta, type);
-        expect(p.prompt).toContain(s.meta.name);
+        expect(p.prompt).toContain(plainName(s.meta));
         expect(p.prompt).toContain(ROOM_TEMPLATES[type].furnishings);
-        expect(p.prompt.length).toBeLessThan(1500);
+        expect(p.prompt.length).toBeLessThan(1800);
         expect(p.prompt).not.toMatch(/\[object|undefined/);
       }
       subjects.add(ROOM_TEMPLATES[type].subject);

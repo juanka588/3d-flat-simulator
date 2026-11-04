@@ -1,4 +1,4 @@
-import { pointInPolygon, type Scene } from '@flat/scene';
+import { openingFrame, pointInPolygon, type Scene } from '@flat/scene';
 import { describe, expect, it } from 'vitest';
 import { charmeScene } from '../testing/mockFlatApi';
 import { bathFittings, doorwayPose, itemVisibility, layoutIntent, roomPlan, roomViews, roomZones } from './views';
@@ -158,6 +158,30 @@ describe('views of small rooms are checked for what they see', () => {
     expect(doorwayPose(scene, 'wc', toilet)?.checks.ok).toBe(true);
   });
 
+  it('the WC view needs ALL locked fittings in the picture: the basin sits right of the toilet, in view, not behind the door jamb', () => {
+    const m = roomViews(scene, 'wc')[0]!;
+    expect(m.checks).toMatchObject({ ok: true, seen: ['wc-toilet', 'wc-handbasin'] });
+    expect(m.checks!.missing).toBeUndefined();
+    const toilet = scene.items.find((i) => i.id === 'wc-toilet')!;
+    const basin = scene.items.find((i) => i.id === 'wc-handbasin')!;
+    expect(itemVisibility(scene, m.pose, basin)).toBeGreaterThanOrEqual(0.75);
+    // bearing of each from the camera, clockwise from the heading: the basin is to the right of the toilet
+    const bearing = (p: [number, number]) => {
+      const a = (Math.atan2(p[0] - m.pose.position[0], -(p[1] - m.pose.position[1])) * 180) / Math.PI;
+      return ((a - m.pose.headingDeg + 540) % 360) - 180;
+    };
+    expect(bearing(basin.position as [number, number])).toBeGreaterThan(bearing(toilet.position as [number, number]) + 5);
+  });
+
+  it('a fitting no doorway camera can show makes the check fail and names it', () => {
+    // the bathtub of the sdb is never in a picture of the WC: the camera shows the WC fittings, the check names what it misses
+    const fittings = [...bathFittings(scene, room('wc')), scene.items.find((i) => i.id === 'sdb-bathtub')!];
+    const d = doorwayPose(scene, 'wc', fittings);
+    expect(d?.checks.ok).toBe(false);
+    expect(d?.checks.missing).toEqual(['sdb-bathtub']);
+    expect(d?.checks.seen).toEqual(['wc-toilet', 'wc-handbasin']);
+  });
+
   it('every sdb view sees the bath and says so; no duplicate ids', () => {
     const v = roomViews(scene, 'sdb');
     expect(v.length).toBeGreaterThanOrEqual(1);
@@ -218,5 +242,64 @@ describe('the alcove is an office: gaming desk and cat wall', () => {
     expect(byId['desk']!.checks).toMatchObject({ ok: true, seen: ['desk-x'] });
     expect(byId['cats']!.checks).toMatchObject({ ok: true, seen: ['cat-x'] });
     expect(byId['wide']!.checks).toBeUndefined();
+  });
+});
+
+describe('balcony, entrance hall and the small bedroom (run 3 targets)', () => {
+  const at = (p: { relation: Record<string, unknown> }) => p.relation['position'] as [number, number];
+
+  it('the alcove layout text has no empty number', () => {
+    expect(layoutIntent(scene, 'alcove').text).not.toMatch(/with {2}m/);
+    expect(layoutIntent(scene, 'alcove').place.map((p) => p.note ?? '').join(' ')).not.toMatch(/ {2}m of floor/);
+  });
+
+  it('the balcony gets a bistro set along the rail in a stretch clear of the door landings, planters and outdoor lights', () => {
+    const l = layoutIntent(scene, 'balcon');
+    const table = l.place.find((p) => p.role === 'bistro table')!;
+    const chairs = l.place.filter((p) => p.role === 'bistro chair');
+    expect(chairs).toHaveLength(2);
+    const [tx, ty] = at(table);
+    // along the rail (x -1.55), not in front of the french doors (y 2.85-4.25 and 6.27-7.17, landing 0.9 m deep from x -0.2)
+    expect(tx).toBeLessThan(-0.8);
+    for (const c of chairs) {
+      const [cx, cy] = at(c);
+      expect(Math.abs(cx - tx)).toBeLessThan(0.2);
+      for (const [a, b] of [[2.75, 4.35], [6.17, 7.27]] as [number, number][]) expect(cy > a && cy < b).toBe(false);
+    }
+    expect(ty).toBeGreaterThan(0.5);
+    expect(l.place.map((p) => p.role)).toEqual(expect.arrayContaining(['planters', 'outdoor light']));
+    expect(l.text).toMatch(/stays clear/);
+    expect(l.promptText).toMatch(/outdoor balcony/);
+    // no circulation from a door to itself
+    expect(l.circulation).toEqual([]);
+  });
+
+  it('the entrance hall looks at the front door and back, keeps a 0.9 m walkway and the front of the placard, and places slim pieces only on free wall', () => {
+    const v = roomViews(scene, 'entree');
+    expect(v.map((x) => x.id)).toEqual(['focus', 'reverse']);
+    expect(v[0]!.faces).toContain('door-entry');
+    const l = layoutIntent(scene, 'entree');
+    expect(l.text).toMatch(/placard-ch2/);
+    expect(l.text).toMatch(/at least 0\.9 m wide/);
+    const roles = l.place.map((p) => p.role);
+    expect(roles).toEqual(expect.arrayContaining(['console', 'mirror', 'coat hooks']));
+    // nothing stands in a door: the console is not within 0.6 m of any door centre
+    const console_ = l.place.find((p) => p.role === 'console')!;
+    const [cx, cy] = at(console_);
+    for (const o of scene.openings.filter((x) => x.type === 'door')) {
+      const f = openingFrame(scene, o)!;
+      expect(Math.hypot(f.centre[0] - cx, f.centre[1] - cy), o.id).toBeGreaterThan(0.6);
+    }
+    expect(l.promptText).toMatch(/entrance hall/);
+  });
+
+  it('chambre 2 stays flexible: a desk under the window besides the bed on the long plain wall', () => {
+    const l = layoutIntent(scene, 'ch2');
+    expect(l.place.find((p) => p.role === 'bed')!.relation).toMatchObject({ kind: 'against_wall', wallId: 'w-ch2-ch1' });
+    expect(l.place.find((p) => p.role === 'desk')!.relation).toEqual({ kind: 'under_window', openingId: 'win-ch2' });
+    expect(l.text).toMatch(/guest, child, study/);
+    expect(l.promptText).toMatch(/desk with a chair under the window/);
+    // a bigger bedroom keeps just the bed
+    expect(layoutIntent(scene, 'ch1').place.some((p) => p.role === 'desk')).toBe(false);
   });
 });

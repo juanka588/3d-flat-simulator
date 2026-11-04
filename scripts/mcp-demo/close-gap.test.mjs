@@ -4,7 +4,7 @@ import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { memoryPreflight, parseRoomSpec, parseViewsArg, pickBest, publishScene, referenceImagesByView, referenceTiming, renderWithRetry, selectViews } from './close-gap.mjs';
+import { briefBlock, briefFor, memoryPreflight, missingRequirements, parseBrief, parseRequire, parseRoomSpec, parseViewsArg, pickBest, publishScene, referenceImagesByView, referenceTiming, renderWithRetry, requirementsFor, selectViews } from './close-gap.mjs';
 
 describe('close-gap runner: memory, timing and render retries', () => {
   const mem = (over) => ({ memory: { availableGb: 50, swapUsedGb: 0, pressure: 'normal', ...over }, queue: { queued: 0, running: null } });
@@ -100,6 +100,52 @@ describe('close-gap runner helpers', () => {
     expect(pickBest([it('a', 0.5), it('b', 0.6)])).toMatchObject({ best: { name: 'b' }, regressed: false });
     expect(pickBest([it('a', 0.6), it('b', 0.6)]).best.name).toBe('a');
     expect(pickBest([it('a', null), it('b', 0.2)]).best.name).toBe('b');
+  });
+
+  it('--require: target=provider:sku, repeatable or comma separated; bad forms are refused', () => {
+    expect(parseRequire(['ch1=ikea-fr:89094948', 'sejour:kitchen=ikea-fr:97531943,sdb=mock:X1'])).toEqual([
+      { target: 'ch1', productId: 'ikea-fr:89094948', provider: 'ikea-fr', sku: '89094948' },
+      { target: 'sejour:kitchen', productId: 'ikea-fr:97531943', provider: 'ikea-fr', sku: '97531943' },
+      { target: 'sdb', productId: 'mock:X1', provider: 'mock', sku: 'X1' },
+    ]);
+    expect(parseRequire(undefined)).toEqual([]);
+    expect(() => parseRequire(['ch1'])).toThrow(/target=productId/);
+    expect(() => parseRequire(['ch1=89094948'])).toThrow(/provider:sku/);
+    expect(() => parseRequire(['a:b:c=ikea-fr:1'])).toThrow(/room or room:zone/);
+    const reqs = parseRequire(['sejour:kitchen=ikea-fr:97531943', 'ch1=ikea-fr:89094948', 'sejour=ikea-fr:5']);
+    expect(requirementsFor(reqs, { roomId: 'sejour', zone: 'kitchen' }).map((r) => r.sku)).toEqual(['97531943', '5']);
+    expect(requirementsFor(reqs, { roomId: 'sejour', zone: 'living' }).map((r) => r.sku)).toEqual(['5']);
+    expect(requirementsFor(reqs, { roomId: 'ch1' }).map((r) => r.sku)).toEqual(['89094948']);
+    expect(requirementsFor(reqs, { roomId: 'wc' })).toEqual([]);
+  });
+
+  it('a brief file: the text before the first heading is for everybody, a heading names the targets it is for', () => {
+    const brief = parseBrief('Warm Parisian palette.\n\n## sejour:living\nOak slat TV wall.\n\n## sdb, wc\nNo window: lamps on.\n\n## sejour\nKitchen grey fronts.\n\n## all rooms\nReal products only.');
+    expect(briefFor(brief, { roomId: 'sejour', zone: 'living' })).toBe('Warm Parisian palette.\n\nReal products only.\n\nOak slat TV wall.\n\nKitchen grey fronts.');
+    expect(briefFor(brief, { roomId: 'sejour', zone: 'kitchen' })).toBe('Warm Parisian palette.\n\nReal products only.\n\nKitchen grey fronts.');
+    expect(briefFor(brief, { roomId: 'wc' })).toBe('Warm Parisian palette.\n\nReal products only.\n\nNo window: lamps on.');
+    expect(briefFor(brief, { roomId: 'ch1' })).toBe('Warm Parisian palette.\n\nReal products only.');
+    expect(briefFor(undefined, { roomId: 'ch1' })).toBe('');
+    expect(parseBrief('').general).toBe('');
+  });
+
+  it('the prompt block says the required products are mandatory and how to get them; nothing when there is neither', () => {
+    expect(briefBlock({ brief: '', required: [] })).toBe('');
+    const b = briefBlock({ brief: 'Use oak.', required: parseRequire(['ch1=ikea-fr:89094948']) });
+    expect(b).toMatch(/BRIEF FROM THE LEAD/);
+    expect(b).toMatch(/Use oak\./);
+    expect(b).toMatch(/MANDATORY PRODUCTS/);
+    expect(b).toMatch(/ikea-fr:89094948/);
+    expect(b).toMatch(/get_product \{"productId":"ikea-fr:89094948"\}/);
+    expect(b).toMatch(/never swap it/);
+  });
+
+  it('the final scene is checked for the mandatory products (productRef or product snapshot)', () => {
+    const reqs = parseRequire(['ch1=ikea-fr:89094948', 'sejour:kitchen=ikea-fr:97531943']);
+    const scene = { items: [{ id: 'a', productRef: { provider: 'ikea-fr', sku: '89094948' } }, { id: 'b', product: { provider: 'ikea-fr', sku: '111' } }] };
+    expect(missingRequirements(scene, reqs).map((r) => r.productId)).toEqual(['ikea-fr:97531943']);
+    expect(missingRequirements(JSON.stringify({ items: [] }), reqs)).toHaveLength(2);
+    expect(missingRequirements({ items: [{ productRef: { provider: 'ikea-fr', sku: '97531943' } }] }, [])).toEqual([]);
   });
 
   it('publish: reads and saves the current scene of the server, then PUTs the new one', async () => {

@@ -121,18 +121,44 @@ export const handBasin: Generator<HandBasinParams> = {
   describeParams: ({ w, d, h }) => ({ dims: { w, d, h }, anchors: boxAnchors(w, d, h), clearance: { front: 0.5, back: 0 } }),
   generate({ w, d, h }) {
     const kit = new Kit();
-    // Wall-hung bowl (ellipse, back flat against the wall), a chrome trap below and a small mixer on the back rim.
-    const trapH = Math.min(0.06, h * 0.3);
-    const rim = h - 0.05;
+    // A rounded ceramic bowl (a D in plan: ellipse with the back cut flat against the wall, soft outer curve, rolled lip, shallow basin
+    // sloping to a drain), a slim chrome wall bracket under it, a chrome mixer on the back rim with a curved spout, and a chrome
+    // bottle trap that drops from the drain and turns into the wall. The item box is exact: y 0 is the bottom of the bottle, h the top of the tap.
     const rx = w / 2;
     const rz = d / 2;
-    const inner = Math.max(0.05, 1 - 0.018 / Math.min(rx, rz));
-    kit.lathe(W, 0, 0, rx, rz, [[0.8, trapH], [1, trapH + 0.05], [1, rim], [inner, rim], [inner, trapH + 0.03], [0, trapH + 0.03]], 24);
-    kit.box(W, -rx * 0.7, trapH + 0.03, -d / 2, rx * 0.7, rim, -d / 2 + 0.03); // flat back against the wall
-    kit.box(METAL, -0.015, 0, -d / 2 + 0.025, 0.015, trapH + 0.03, -d / 2 + 0.055); // trap
-    kit.box(METAL, -0.012, rim, -d / 2 + 0.01, 0.012, h - 0.012, -d / 2 + 0.034); // tap body
-    kit.box(METAL, -0.01, h - 0.025, -d / 2 + 0.01, 0.01, h, -d / 2 + 0.1); // spout
-    kit.box(METAL, 0.012, h - 0.022, -d / 2 + 0.014, 0.04, h - 0.01, -d / 2 + 0.03); // lever
+    const rim = h - 0.045; // the tap stands 4.5 cm above the rim
+    const y0 = Math.min(rim - 0.05, h * 0.43); // underside of the bowl
+    const bd = rim - y0; // depth of the bowl (at least 5 cm)
+    const lip = 0.006;
+    const inner = Math.max(0.05, 1 - 0.022 / Math.min(rx, rz));
+    kit.lathe(
+      W, 0, 0, rx, rz,
+      [
+        [0.3, y0], [0.62, y0 + bd * 0.08], [0.84, y0 + bd * 0.28], [0.96, y0 + bd * 0.62], [1, y0 + bd * 0.9], [1, rim - lip],
+        [0.99, rim - 0.002], [inner + 0.02, rim], [inner, rim - 0.004], [inner - 0.03, rim - 0.022], [0.62, y0 + 0.032], [0.3, y0 + 0.02], [0, y0 + 0.018],
+      ],
+      32,
+    );
+    kit.box(W, -rx * 0.78, y0 + 0.02, -d / 2, rx * 0.78, rim, -d / 2 + 0.018, 0.004); // flat back against the wall, soft edges
+    // slim chrome bracket: a wall plate and two thin arms under the bowl
+    kit.box(METAL, -rx * 0.62, y0 - 0.02, -d / 2, rx * 0.62, y0 - 0.004, -d / 2 + 0.004);
+    for (const s of [-1, 1]) kit.box(METAL, s * rx * 0.5 - 0.004, y0 - 0.008, -d / 2, s * rx * 0.5 + 0.004, y0 - 0.002, -d / 2 + Math.min(d * 0.6, 0.15));
+    // chrome mixer: round body on the back rim, curved spout, side lever
+    const tz = -d / 2 + 0.05;
+    const r = 0.011;
+    kit.prism(METAL, 0, rim, tz, 0.017, 0.017, rim + 0.008, 16);
+    kit.prism(METAL, 0, rim, tz, r, r, h - 0.03, 16);
+    const sr = r * 0.8;
+    kit.tube(METAL, [0, h - sr, tz], [0, h - sr, tz + 0.045], sr, 8); // its top is the top of the item
+    kit.tube(METAL, [0, h - sr, tz + 0.045], [0, h - 0.052, tz + 0.07], sr * 0.9, 8);
+    kit.tube(METAL, [0.012, h - 0.04, tz], [0.05, h - 0.032, tz], 0.007, 6); // lever
+    // drain flange and chrome bottle trap into the wall
+    const zd = -d * 0.1;
+    kit.prism(METAL, 0, y0 + 0.016, zd, 0.022, 0.022, y0 + 0.02, 16);
+    kit.tube(METAL, [0, y0 + 0.002, zd], [0, y0 - 0.026, zd], 0.0095, 8);
+    kit.prism(METAL, 0, 0, zd, 0.03, 0.03, y0 - 0.02, 16); // the bottle
+    kit.tube(METAL, [0, 0.0095, zd], [0, 0.0095, -d / 2], 0.0095, 8); // elbow towards the wall (a straight run to a rosette)
+    kit.prism(METAL, 0, 0, -d / 2 + 0.016, 0.016, 0.016, 0.019, 12); // wall rosette
     return kit.build();
   },
 };

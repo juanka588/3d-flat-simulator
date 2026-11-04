@@ -12,7 +12,7 @@ import { assertGeneratorsRegistered, registerGenerators } from '../register';
 
 const MAX_TRIANGLES = 3000;
 /** Carcass, fronts or ceramic, the dark reveal behind the fronts, metal fittings and one more (worktop, glass). */
-const MAX_MATERIALS = 5; // the sink unit with a black bowl, a concrete worktop and a mixer has five
+const MAX_MATERIALS = 6; // the sink unit with a black bowl, a concrete worktop and a mixer has five; an island with a wine rack, handles and an LED strip six
 const MM = 1e-3;
 
 function bbox(mesh: MeshData) {
@@ -77,17 +77,17 @@ function hash(mesh: MeshData): string {
 describe('generator registry', () => {
   it('registers the furniture generators, the TV, the fixed bathroom / kitchen ware and the CG4 curtains and pendant and the CG8 stand-ins in the process-wide registry', () => {
     expect(GENERATORS.list().map((g) => g.id)).toEqual(
-      ['basket', 'bathScreen', 'bathtub', 'bed', 'bookshelf', 'catTree', 'catWall', 'chair', 'cooktop', 'curtains', 'cushion', 'desk', 'frame', 'fridge', 'handBasin', 'island', 'kitchenBase', 'kitchenWall', 'lamp', 'mirror', 'nightstand', 'ovenColumn', 'pendant', 'plant', 'radiator', 'rug', 'sideboard', 'sofa', 'table', 'throwBlanket', 'toilet', 'tv', 'tvUnit', 'vase', 'wallFitting', 'wallTiles', 'wardrobe', 'washbasin', 'washingMachine'],
+      ['basket', 'bathScreen', 'bathtub', 'bed', 'bookshelf', 'catTree', 'catWall', 'chair', 'cooktop', 'curtains', 'cushion', 'desk', 'frame', 'fridge', 'handBasin', 'island', 'kitchenBase', 'kitchenWall', 'lamp', 'mirror', 'nightstand', 'ovenColumn', 'pendant', 'plant', 'radiator', 'rug', 'sideboard', 'slatPanel', 'sofa', 'table', 'throwBlanket', 'toilet', 'tv', 'tvUnit', 'vase', 'wallFitting', 'wallTiles', 'wardrobe', 'washbasin', 'washingMachine'],
     );
-    expect(ALL_GENERATORS).toHaveLength(39);
+    expect(ALL_GENERATORS).toHaveLength(40);
   });
   it('registerGenerators is idempotent and fills any registry', () => {
     const r = createGeneratorRegistry();
     registerGenerators(r);
     registerGenerators(r);
-    expect(r.list()).toHaveLength(39);
+    expect(r.list()).toHaveLength(40);
     registerGenerators();
-    expect(GENERATORS.list()).toHaveLength(39);
+    expect(GENERATORS.list()).toHaveLength(40);
   });
   it('assertGeneratorsRegistered passes on the process-wide registry and names what is missing otherwise', () => {
     expect(() => assertGeneratorsRegistered()).not.toThrow();
@@ -184,7 +184,7 @@ describe('generator geometry snapshot (determinism across versions)', () => {
         "desk": "33b3f0f692b5",
         "frame": "bca6caa7319d",
         "fridge": "4a989acb1d4d",
-        "handBasin": "74504603ac58",
+        "handBasin": "777ecb1ed703",
         "island": "55908420f6f3",
         "kitchenBase": "7595c22b3dc2",
         "kitchenWall": "0cfbd2b6c08b",
@@ -197,6 +197,7 @@ describe('generator geometry snapshot (determinism across versions)', () => {
         "radiator": "089f8ba653f6",
         "rug": "b42900d44133",
         "sideboard": "21e5c1283a52",
+        "slatPanel": "2f3a539dcfe8",
         "sofa": "b950d0047d92",
         "table": "39996e898674",
         "throwBlanket": "635f4fea2c4c",

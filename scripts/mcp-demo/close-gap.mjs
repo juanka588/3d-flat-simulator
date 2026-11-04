@@ -21,6 +21,10 @@
  * contact-sheet.png (target | before | each iteration | final), gap-report.{md,json}, bom.{json,md}, final.png (honest render),
  * visualisation.png (labelled), scores.md, summary.md, result.json, transcript.json, prompt.md.
  *
+ * Brief and mandatory products: `--brief "text"` / `--brief-file brief.md` give the lead's wishes to EVERY target's session (a `## target[, target]`
+ * heading in the file starts a part that only those targets get: `## sejour:living`, `## sdb`, `## sejour` for both zones); `--require target=productId`
+ * (repeatable, e.g. `--require ch1=ikea-fr:89094948`) makes a product MANDATORY for a target: the prompt says so, and the run checks the final scene.
+ *
  * `--dry` runs the same pipeline with a scripted fake model, the FakeImageProvider (IMAGE_PROVIDER=fake) and a FAKE image service
  * (colour-histogram "CLIP", made-up aesthetic scores) so the whole harness, the prerequisites check and the scoring path are
  * exercised without a model, a GPU or a cost. Dry output goes to `.tmp/design-closegap-dry/`.
@@ -185,6 +189,78 @@ export function parseRoomSpec(s) {
   const [roomId, zone, ...rest] = String(s).trim().split(':');
   if (!roomId || rest.length) throw new Error(`bad room spec "${s}": expected room or room:zone`);
   return { roomId, ...(zone ? { zone } : {}) };
+}
+
+/**
+ * `--require ch1=ikea-fr:89094948` (repeatable; `a=x,b=y` also works) -> [{ target: 'ch1', productId: 'ikea-fr:89094948', provider, sku }].
+ * The target is a room or room:zone (as in --rooms); the product id is provider:sku as search_products returns it.
+ */
+export function parseRequire(values) {
+  const out = [];
+  for (const v of [values ?? []].flat()) {
+    for (const part of String(v).split(',').map((x) => x.trim()).filter(Boolean)) {
+      const eq = part.indexOf('=');
+      if (eq <= 0) throw new Error(`bad --require "${part}": expected target=productId, e.g. ch1=ikea-fr:89094948`);
+      const target = part.slice(0, eq).trim();
+      const productId = part.slice(eq + 1).trim();
+      const m = /^([a-z0-9-]+):(.+)$/i.exec(productId);
+      if (!m) throw new Error(`bad --require "${part}": the product id must be provider:sku (as search_products returns it), e.g. ikea-fr:89094948`);
+      parseRoomSpec(target);
+      out.push({ target, productId, provider: m[1], sku: m[2] });
+    }
+  }
+  return out;
+}
+
+/** The mandatory products that apply to a target: its own (`sejour:kitchen`) and those named for its whole room (`sejour`). */
+export const requirementsFor = (reqs, spec) => (reqs ?? []).filter((r) => r.target === (spec.zone ? `${spec.roomId}:${spec.zone}` : spec.roomId) || r.target === spec.roomId);
+
+/**
+ * A brief file: text before the first `## ` heading goes to every target; `## sejour:living, sdb` starts a part for those targets
+ * (`## sejour` = both zones of the room; `## all` or `## all rooms` = every target).
+ */
+export function parseBrief(text) {
+  const general = [];
+  const parts = [];
+  let cur;
+  for (const line of String(text ?? '').split('\n')) {
+    const h = /^##\s+(.+?)\s*$/.exec(line);
+    if (h) {
+      const targets = h[1].split(',').map((x) => x.trim().toLowerCase()).filter(Boolean);
+      cur = /^all( rooms)?$/.test(h[1].trim().toLowerCase()) ? general : (parts.push({ targets, lines: [] }), parts.at(-1).lines);
+      continue;
+    }
+    (cur ?? general).push(line);
+  }
+  return { general: general.join('\n').trim(), parts: parts.map((p) => ({ targets: p.targets, text: p.lines.join('\n').trim() })) };
+}
+
+/** What the lead says to the session of one target: the general part plus the parts that name it or its room. */
+export function briefFor(brief, spec) {
+  if (!brief) return '';
+  const tag = (spec.zone ? `${spec.roomId}:${spec.zone}` : spec.roomId).toLowerCase();
+  const mine = brief.parts.filter((p) => p.targets.includes(tag) || p.targets.includes(spec.roomId.toLowerCase())).map((p) => p.text).filter(Boolean);
+  return [brief.general, ...mine].filter(Boolean).join('\n\n');
+}
+
+/** The prompt block for a target's briefing and mandatory products ('' when there is neither). */
+export function briefBlock({ brief, required }) {
+  const parts = [];
+  if (brief) parts.push(`BRIEF FROM THE LEAD for this target (follow it; where it conflicts with the style's defaults, the brief wins; real products only, anything else is a labelled concept):\n${brief}`);
+  if (required?.length) {
+    parts.push(
+      `MANDATORY PRODUCTS for this target (the lead requires them; the result is rejected without them):\n${required
+        .map((r) => `- ${r.productId}: place exactly this product. Call get_product {"productId":"${r.productId}"} first (it is in the local catalogue, no search needed), then place_item with that productId (pick its variant with variantSku if it has several). Place it BEFORE the other pieces of its kind and design the rest around it; never swap it for a look-alike, and do not remove it later. If the placement is refused, move other pieces or change the layout, not the product. The reference image may show something else in its place: keep the product anyway, it is the one the lead chose.`)
+        .join('\n')}`,
+    );
+  }
+  return parts.length ? `\n\n${parts.join('\n\n')}` : '';
+}
+
+/** Which mandatory products the final scene does not hold (an item whose productRef is that provider and sku). */
+export function missingRequirements(scene, required) {
+  const items = (typeof scene === 'string' ? JSON.parse(scene) : scene)?.items ?? [];
+  return (required ?? []).filter((r) => !items.some((i) => i.productRef?.provider === r.provider && String(i.productRef?.sku) === String(r.sku) || i.product?.provider === r.provider && String(i.product?.sku) === String(r.sku)));
 }
 
 /** `--views 2` -> 2 (most per zone); `--views media,wide` -> ['media','wide']; nothing -> undefined (the defaults). */
@@ -612,8 +688,11 @@ export async function runRoom(o) {
     writeFileSync(join(out, 'plan.json'), JSON.stringify({ zones: plan.zones, views, layout: (plan.layout ?? []).filter((l) => !o.zone || l.zone === o.zone) }, null, 2));
     log(`views: ${views.map((v) => `${v.id} (${v.weight})`).join(', ')}`);
 
+    // a room without any window (sdb, WC, entrance hall) is black at noon: its renders have the lamps on
+    const preset = plan.windowless ? 'evening' : 'day';
+    if (plan.windowless) log(`no window in this room: renders use the ${preset} preset (lamps on)`);
     const render = async (v, file) => {
-      const r = await renderWithRetry((a) => call('render_view', a), { view: 'walk', roomId: o.roomId, pose: walkPose(v), preset: 'day', size: SIZE, waitForModelsS: o.dry ? 5 : 120 }, { log });
+      const r = await renderWithRetry((a) => call('render_view', a), { view: 'walk', roomId: o.roomId, pose: walkPose(v), preset, size: SIZE, waitForModelsS: o.dry ? 5 : 120 }, { log });
       const img = (r.content ?? []).find((p) => p.type === 'image');
       if (!img) throw new Error(`render of view ${v.id} failed: ${textOf(r).slice(0, 300)}`);
       mkdirSync(join(file, '..'), { recursive: true });
@@ -633,7 +712,9 @@ export async function runRoom(o) {
     const prompt = await reader.client.getPrompt({ name: 'close_the_gap', arguments: { roomId: o.roomId, styleId: o.styleId, iterations: String(o.iterations), ...(o.zone ? { zone: o.zone } : {}), ...(o.budget ? { budgetEur: String(o.budget) } : {}) } });
     const restrict = o.viewsSpec ? `\n\nUse only these views of the zone: ${views.map((v) => v.id).join(', ')} (the first is the hero).` : '';
     const timeBox = o.dry ? '' : `\n\nTime box (the controller enforces it): this target has ${o.maxMinutes} minutes in total. The reference images must be finished within ${Math.round(refBudgetS / 60)} minutes: if an image takes much longer than 90 s the machine is struggling, so use n 1 for every view (also the hero), do not regenerate or wait for extra candidates, and go on. After that time generate_reference refuses new references. You MUST reach at least one scored iteration (score_against_reference) before the end: record the descriptors, place the essentials and score, then improve if time is left.`;
-    const request = `Use only the flat's MCP tools. The design output folder is already set: call gap_report without saveTo. Show nothing but the tools' pictures; you cannot open files.\n\n${prompt.messages.map((m) => (m.content.type === 'text' ? m.content.text : '')).join('\n\n')}${restrict}${timeBox}`;
+    const required = requirementsFor(o.require, o);
+    const brief = briefFor(o.briefParsed, o);
+    const request = `Use only the flat's MCP tools. The design output folder is already set: call gap_report without saveTo. Show nothing but the tools' pictures; you cannot open files.\n\n${prompt.messages.map((m) => (m.content.type === 'text' ? m.content.text : '')).join('\n\n')}${briefBlock({ brief, required })}${restrict}${timeBox}`;
     writeFileSync(join(out, 'prompt.md'), request);
 
     const calls = [];
@@ -671,6 +752,11 @@ export async function runRoom(o) {
         jobs.push({ view: v, jobId, descriptor });
       }
       const heroJob = jobs[0];
+      for (const r of required) {
+        const g = await run('get_product', { productId: r.productId });
+        if (g.isError) dryNotes.push(`mandatory product ${r.productId}: get_product failed in the dry run (mock catalogue: ${g.structuredContent?.code ?? 'error'}); a real session reads it from the local catalogue`);
+        else await run('place_item', { label: `Dry: mandatory ${r.productId}`, items: [{ productId: r.productId, roomId: o.roomId, relation: { kind: 'centered_in', roomId: o.roomId } }] });
+      }
       let paint = stylePalette[0] ?? '#f1ece3';
       const channel = (hex, c) => parseInt(hex.slice(1 + 2 * c, 3 + 2 * c), 16);
       const toHex = (vv) => `#${vv.map((x) => Math.max(0, Math.min(255, Math.round(x))).toString(16).padStart(2, '0')).join('')}`;
@@ -723,7 +809,7 @@ export async function runRoom(o) {
       }
       for (const j of jobs) await run('gap_report', { jobId: j.jobId, index: 0 });
       await run('get_bill_of_materials', { roomId: o.roomId });
-      await run('render_view', { view: 'walk', roomId: o.roomId, pose: walkPose(hero), preset: 'day' });
+      await run('render_view', { view: 'walk', roomId: o.roomId, pose: walkPose(hero), preset });
       if (!o.noVisualisation) await run('generate_reference', { roomId: o.roomId, styleId: o.styleId, mode: 'visualisation', view: hero.id, waitS: 5 });
       result = { total_cost_usd: 0, num_turns: turns, result: `(dry run: no model was called; ${calls.length} scripted tool calls)` };
       usage = { input: 1500 * turns, output: 200 * turns, cacheRead: 0, cacheCreate: 0 };
@@ -797,6 +883,13 @@ export async function runRoom(o) {
     }
     if (visFile) await labelVisualisation(visFile, join(out, 'visualisation.png'));
 
+    // mandatory products: the final scene must hold each of them
+    const missing = required.length && sceneFile ? missingRequirements(readFileSync(sceneFile, 'utf8'), required) : required.length ? required : [];
+    if (required.length) {
+      if (missing.length) log(`${o.dry ? 'dry run: ' : 'WARNING: '}mandatory product(s) NOT in the final scene: ${missing.map((r) => r.productId).join(', ')}`);
+      else log(`mandatory product(s) in the final scene: ${required.map((r) => r.productId).join(', ')}`);
+    }
+
     let bomJson = {};
     try {
       const bom = await call('get_bill_of_materials', { roomId: o.roomId });
@@ -853,6 +946,7 @@ export async function runRoom(o) {
       o.dry ? `DRY RUN: scripted fake model, FakeImageProvider and a FAKE image service. The numbers and pictures below only prove the harness; they say nothing about quality. ${calls.length} tool calls (${errors} errors), ${minutes} min.` : `cost $${costUsd.toFixed(2)} (cap $${o.maxUsd}), ${turns} turns, ${calls.length} tool calls (${errors} errors), ${minutes} min (cap ${o.maxMinutes})${timedOut ? ' - STOPPED BY THE TIME CAP' : ''}.`,
       '',
       `Views: ${views.map((v) => `${v.id} (${v.label}, weight ${v.weight})`).join('; ')}.`,
+      ...(required.length ? [`Mandatory products: ${required.map((r) => `${r.productId} ${missing.includes(r) ? 'MISSING from the final scene' : 'placed'}`).join('; ')}.`] : []),
       `Overall score: ${first ?? 'n/a'} -> ${lastOverall ?? 'n/a'} over ${iters.length} scored iteration(s); best ${best ? `${best.name} (${best.overall})` : 'n/a'}.${restored ? ` Restored the best: ${restored.why}.` : ''}`,
       '',
       scoresMd,
@@ -886,6 +980,7 @@ export async function runRoom(o) {
       last: lastOverall,
       best: best ? { iteration: best.name, overall: best.overall } : null,
       restored: restored ?? null,
+      ...(required.length ? { required: required.map((r) => r.productId), requiredMissing: missing.map((r) => r.productId) } : {}),
       totalEur: bomJson.totalEur ?? null,
       sceneFile: sceneFile ?? null,
       files: { contactSheet: join(out, 'contact-sheet.png'), viewsSheet: join(out, 'views-contact-sheet.png'), scoreCurve: join(out, 'score-curve.png'), final: existsSync(join(out, 'final.png')) ? join(out, 'final.png') : null, visualisation: visFile ? join(out, 'visualisation.png') : null, target: existsSync(join(out, 'target.png')) ? join(out, 'target.png') : null },
@@ -937,7 +1032,7 @@ async function expandTargets(specs, startScene, imagegenUrl) {
 
 /**
  * `o`: { styleId, rooms[] (strings room or room:zone), viewsSpec, iterations, budget, dry, dryRegress, maxUsd (per target), maxTotalUsd, maxMinutes (per target),
- * root, claude, skipPrereqs, noVisualisation, resume (scene file to start from), publish (url) }. Targets run in order, each starting from the
+ * root, claude, skipPrereqs, noVisualisation, resume (scene file to start from), publish (url), brief (text), briefFile (path), require (--require values) }. Targets run in order, each starting from the
  * previous one's final scene, so the last scene holds all of them. Returns the process exit code.
  */
 export async function closeGapMain(o) {
@@ -968,6 +1063,15 @@ export async function closeGapMain(o) {
     let scene = readFileSync(o.resume ? o.resume : FIXTURE, 'utf8');
     const targets = await expandTargets(o.rooms.map(parseRoomSpec), scene, imagegenUrl);
     const label = (t) => (t.zone ? `${t.roomId}:${t.zone}` : t.roomId);
+    // the lead's brief (text and/or file) and mandatory products; a requirement for a target that is not in this run is a typo, not a no-op
+    const briefText = [o.brief, o.briefFile ? readFileSync(o.briefFile, 'utf8') : ''].filter(Boolean).join('\n\n');
+    o = { ...o, briefParsed: briefText ? parseBrief(briefText) : undefined, require: parseRequire(o.require) };
+    const stray = o.require.filter((r) => !targets.some((t) => label(t) === r.target || t.roomId === r.target));
+    if (stray.length) {
+      console.error(`--require names a target that is not in --rooms: ${stray.map((r) => r.target).join(', ')} (targets: ${targets.map(label).join(', ')})`);
+      return 2;
+    }
+    if (briefText) console.log(`brief: ${briefText.length} characters${o.briefFile ? ` (from ${o.briefFile})` : ''}; mandatory products: ${o.require.map((r) => `${r.target}=${r.productId}`).join(', ') || 'none'}`);
     const totalCap = o.maxTotalUsd ?? o.maxUsd * targets.length;
     console.log(`close-gap: style ${o.styleId}, targets ${targets.map(label).join(', ')}, up to ${o.iterations} iteration(s) each, views ${o.viewsSpec === undefined ? 'auto' : Array.isArray(o.viewsSpec) ? o.viewsSpec.join(',') : `${o.viewsSpec} per zone`}; ${o.dry ? 'dry (no model, no cost)' : `caps: $${o.maxUsd} and ${o.maxMinutes} min per target, $${totalCap} in total`}; each target starts from the previous result; output ${styleDir}/<target>/`);
     const results = [];

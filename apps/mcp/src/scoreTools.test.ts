@@ -112,6 +112,22 @@ describe('score_against_reference', () => {
     expect(t.description!.length).toBeLessThan(330);
   });
 
+  it('renders a room without any window with the lamps on (evening preset), a room with windows as before', async () => {
+    const calls: { spec: { preset?: string; roomId?: string } }[] = [];
+    const { client } = await connect({}, undefined, { renderer: fakeRenderer(calls) as never });
+    setImageProvider(new FakeImageProvider({ path: targetFile }));
+    setControlImageSource({ async getControlImages() { return { canny: { provenance: 'pass', data: TINY_PNG_B64, mimeType: 'image/png' } }; } });
+    setImageScorer(new FakeImageScorer([[1, 0, 0], [1, 0, 0]], [5, 5]));
+    for (const roomId of ['wc', 'sdb', 'ch1']) {
+      const g = json(await client.callTool({ name: 'generate_reference', arguments: { roomId, styleId: 'japandi' } }));
+      calls.length = 0;
+      const r = await score(client, { jobId: g.jobId, roomId });
+      expect(r.isError, JSON.stringify(r.content[0])).toBeFalsy();
+      const render = calls.find((c) => c.spec.roomId === roomId)!;
+      expect(render.spec.preset, roomId).toBe(roomId === 'ch1' ? undefined : 'evening');
+    }
+  });
+
   it('record_reference accepts over-long free text (shortened, with a note) but still rejects structural errors', async () => {
     const { client } = await connect({}, undefined, { renderer: fakeRenderer([]) as never });
     const jobId = await reference(client);

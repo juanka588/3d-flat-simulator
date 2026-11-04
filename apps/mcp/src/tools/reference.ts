@@ -4,6 +4,7 @@ import type { CameraPose, RoomType } from '@flat/scene';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import { toolError, toolOk } from '../errors';
+import { viewFacts } from '../reference/facts';
 import { ControlsUnavailableError, ImageProviderError, buildReferencePrompt, fidelityRef, scoreFidelity, type Fidelity, type FidelityRef, buildVisualisationPrompt, getControlImageSource, getImageProvider, passControlSource, unavailableControls, type GeneratedImage, type JobStatus } from '../imagegen';
 import { RenderError, resolvePose, sharedMcpRenderer } from '../render';
 import { blockoutScene } from '../reference/blockout';
@@ -42,9 +43,10 @@ export const GenerateReferenceArgs = z.strictObject({
   mode: z.enum(['reference', 'visualisation']).default('reference'),
   facing: z.union([z.string().min(1).max(64), z.number().min(-360).max(360)]).optional().describe('As in render_view (walk camera).'),
   view: z.string().min(1).max(40).optional().describe('View id from describe_room.'),
-  layout: z.string().min(1).max(500).optional().describe('Layout in words; default: the room\'s intent.'),
-  blockout: z.boolean().default(true).describe('Draw the intended layout as placeholder volumes in the control image (scratch copy, scene untouched).'),
-  n: z.number().int().min(1).max(4).default(1),
+  layout: z.string().min(1).max(500).optional().describe('Layout in words; default: the room intent.'),
+  blockout: z.boolean().default(true).describe('Draw the layout as placeholders in the control image.'),
+  n: z.number().int().min(1).max(4).optional(),
+  show: z.enum(['best', 'all']).optional(),
   seed: z.number().int().min(0).max(4294967295).optional(),
   waitS: z.number().min(0).max(300).default(45),
   jobId: z.string().min(1).max(64).optional(),
@@ -78,6 +80,9 @@ export interface JobMeta {
   blockout?: string[];
   /** Why fewer candidates than asked were made (time budget, slow machine). */
   budgetNote?: string;
+  /** Windows and doors read from the scene for this camera, and whether the picture has no window (reference prompt v2). */
+  openings?: string[];
+  windowless?: boolean;
 }
 const jobs = new Map<string, JobMeta>();
 /** Per job: what the generated images are checked against (the ids and edge passes of the control camera). */
@@ -209,7 +214,7 @@ function filterCandidates(images: GeneratedImage[], ref: FidelityRef | undefined
   return { kept, rejected: rejected.map((i) => ({ seed: i.seed, path: i.path, fidelity: scores.get(i.path)!.score, reasons: scores.get(i.path)!.reasons })), scores, note };
 }
 
-function resultFor(status: JobStatus, meta: JobMeta | undefined, providerId: string): CallToolResult {
+function resultFor(status: JobStatus, meta: JobMeta | undefined, providerId: string, show: 'best' | 'all' = 'best'): CallToolResult {
   const label = meta?.mode === 'visualisation' ? VISUALISATION_LABEL : REFERENCE_LABEL;
   const { pose: _pose, ...shownMeta } = meta ?? ({} as Partial<JobMeta>);
   void _pose;
@@ -229,6 +234,11 @@ function resultFor(status: JobStatus, meta: JobMeta | undefined, providerId: str
   const all: GeneratedImage[] = status.images.slice(0, 4);
   const filtered = filterCandidates(all, checks.get(status.jobId));
   const images = filtered.kept;
+  // index = position in the job (what record_reference, match_reference and score_against_reference take); the best passing candidate by fidelity
+  const indexOf = (img: GeneratedImage) => all.indexOf(img);
+  const fid = (img: GeneratedImage) => filtered.scores.get(img.path)?.score ?? 0;
+  const best = images.length ? [...images].sort((a, b) => fid(b) - fid(a) || indexOf(a) - indexOf(b))[0]! : undefined;
+  const shown = show === 'all' || !best ? images : [best];
   saveForRunner(status, meta);
   // wall time per image, for the budget and for a loud warning when the machine is swapping
   const perImage = images.length ? images.reduce((a, i) => a + i.seconds, 0) / images.length : 0;
@@ -241,12 +251,13 @@ function resultFor(status: JobStatus, meta: JobMeta | undefined, providerId: str
   const report = { ...(status.timings ? { timings: status.timings } : {}), ...(slow ? { slow } : {}), ...(status.warnings?.length ? { sidecarWarnings: status.warnings } : {}) };
   const content: CallToolResult['content'] = [];
   const skipped: string[] = [];
-  for (const img of images) {
+  for (const img of shown) {
     if (img.preview && img.preview.data.length <= MAX_PREVIEW_B64) {
       content.push({ type: 'image', data: img.preview.data, mimeType: img.preview.mimeType });
-      content.push({ type: 'text', text: `${label} seed ${img.seed}` });
+      content.push({ type: 'text', text: `${label} seed ${img.seed}, index ${indexOf(img)}${images.length > 1 && img === best ? ' (best by the fidelity filter)' : ''}` });
     } else skipped.push(img.path);
   }
+  const hidden = images.filter((i) => !shown.includes(i));
   return toolOk(
     {
       ok: true,
@@ -254,9 +265,12 @@ function resultFor(status: JobStatus, meta: JobMeta | undefined, providerId: str
       label,
       kind: meta?.mode ?? 'reference',
       ...base,
-      images: images.map((i) => ({ path: i.path, seed: i.seed, seconds: i.seconds, ...(filtered.scores.has(i.path) ? { fidelity: filtered.scores.get(i.path)!.score } : {}), ...(i.peakGb != null ? { peakGb: i.peakGb } : {}), ...(i.loadS !== undefined ? { loadS: i.loadS } : {}), ...(i.stepsS !== undefined ? { stepsS: i.stepsS } : {}) })),
+      images: images.map((i) => ({ index: indexOf(i), path: i.path, seed: i.seed, seconds: i.seconds, ...(filtered.scores.has(i.path) ? { fidelity: filtered.scores.get(i.path)!.score } : {}), ...(i.peakGb != null ? { peakGb: i.peakGb } : {}), ...(i.loadS !== undefined ? { loadS: i.loadS } : {}), ...(i.stepsS !== undefined ? { stepsS: i.stepsS } : {}) })),
+      ...(best && images.length > 1 ? { best: { index: indexOf(best), seed: best.seed, fidelity: fid(best) } } : {}),
+      ...(hidden.length ? { alsoGenerated: hidden.map((i) => ({ index: indexOf(i), seed: i.seed, fidelity: fid(i) })), hint: `Showing the best candidate (index ${indexOf(best!)}). Use it as the target (jobId, index ${indexOf(best!)}); call generate_reference {"jobId":"${status.jobId}","show":"all"} to look at the others.` } : {}),
       ...report,
-      ...(filtered.rejected.length ? { rejected: filtered.rejected, note: filtered.note } : {}),
+      ...(filtered.rejected.length ? { rejected: filtered.rejected } : {}),
+      ...(filtered.note ? { note: filtered.note } : {}),
       ...(skipped.length ? { note: `no preview for ${skipped.length} image(s) (too large or unavailable); open the files at "path"` } : {}),
     },
     content,
@@ -277,7 +291,7 @@ async function generateReference(ctx: ToolContext, args: Record<string, unknown>
   const waitMs = a.waitS * 1000;
 
   try {
-    if (a.jobId) return resultFor(await provider.poll(a.jobId, { waitMs }), jobs.get(a.jobId), provider.id);
+    if (a.jobId) return resultFor(await provider.poll(a.jobId, { waitMs }), jobs.get(a.jobId), provider.id, a.show ?? 'best');
 
     if (!a.roomId || !a.styleId) return toolError('invalid_command', 'roomId and styleId are required (or jobId to collect a result)', undefined, { errors: [{ code: 'invalid_command', path: a.roomId ? 'styleId' : 'roomId', message: 'required' }] });
     let style;
@@ -310,7 +324,7 @@ async function generateReference(ctx: ToolContext, args: Record<string, unknown>
       const status = await provider.edit({ image: { provenance: 'render', ...image }, prompt: built.prompt, seed, strength: 0.5, model: 'klein-edit' }, { waitMs });
       const meta: JobMeta = { mode: 'visualisation', roomId: a.roomId, styleId: a.styleId, roomType: room.type, prompt: built.prompt, negativePrompt: built.negativePrompt, seed, ...viewMeta };
       remember(status.jobId, meta);
-      return resultFor(status, meta, provider.id);
+      return resultFor(status, meta, provider.id, a.show ?? 'best');
     }
 
     // The layout is decided from the room, before the image: the prompt states it, the camera only shows it. The intended
@@ -319,11 +333,16 @@ async function generateReference(ctx: ToolContext, args: Record<string, unknown>
     const block = a.blockout && intent && !a.layout ? blockoutScene(scene, a.roomId, intent) : undefined;
     const blockText = block ? ` Furniture as blocked out in the control drawing: ${block.placed.map((r) => BLOCK_WORDS[r] ?? `a ${r}`).join(', ')}.` : '';
     const layout = a.layout ?? (intent ? `${block ? '' : intent.promptText}${blockText}`.trim() || undefined : undefined);
-    const built = buildReferencePrompt(style.meta, room.type, { zone: spec?.zone === 'kitchen' ? 'kitchen' : undefined, kitchenVisible: spec ? spec.zone !== 'kitchen' && spec.sees.includes('kitchen') : false, viewHint: spec?.promptHint, layout });
+    // What the picture must contain, read from the scene (reference prompt v2): the openings in view and the fixed fittings.
+    const facts = viewFacts(scene, a.roomId, pose);
+    const indoor = room.type !== 'balcony';
+    const built = buildReferencePrompt(style.meta, room.type, { zone: spec?.zone === 'kitchen' ? 'kitchen' : undefined, kitchenVisible: spec ? spec.zone !== 'kitchen' && spec.sees.includes('kitchen') : false, viewHint: spec?.promptHint, layout, facts, fixedOnly: room.type === 'bathroom' && facts.fittings.length > 0 });
+    const windowless = indoor && facts.windowless;
     // A source installed with setControlImageSource wins (tests); otherwise the CG1 render passes of this server's renderer.
     const source = getControlImageSource();
-    const ctrl = await (source === unavailableControls ? passControlSource(ctx.renderer ?? sharedMcpRenderer(ctx.flat, { webUrl: ctx.config.webUrl, renderChannel: ctx.config.renderChannel, log: ctx.config.log })) : source).getControlImages({ scene, roomId: a.roomId, pose, size: { ...SIZE }, ...(block ? { blockout: block.scene } : {}) });
-    const budget = referenceBudget(a.n);
+    const ctrl = await (source === unavailableControls ? passControlSource(ctx.renderer ?? sharedMcpRenderer(ctx.flat, { webUrl: ctx.config.webUrl, renderChannel: ctx.config.renderChannel, log: ctx.config.log })) : source).getControlImages({ scene, roomId: a.roomId, pose, size: { ...SIZE }, ...(block ? { blockout: block.scene } : {}), ...(windowless ? { solidWalls: true } : {}) });
+    // two seeds for the hero view of a zone: the fidelity filter keeps the best (the spike: one seed in three drifts)
+    const budget = referenceBudget(a.n ?? (spec?.hero ? 2 : 1));
     if (budget.refuse) return toolError('rate_limited', budget.refuse, 'Call record_reference and score_against_reference with the references you already have.');
     // The blend (depth + edges) when the passes could draw the placeholders; otherwise the structural edges as before.
     const control = ctrl.blend ? { type: 'depth' as const, image: ctrl.blend, strength: BLEND_STRENGTH } : { type: 'canny' as const, image: ctrl.canny, strength: 1.0 };
@@ -333,14 +352,14 @@ async function generateReference(ctx: ToolContext, args: Record<string, unknown>
     );
     if (ctrl.check) {
       try {
-        checks.set(status.jobId, fidelityRef(ctrl.check.ids.data, ctrl.check.edges.data));
+        checks.set(status.jobId, fidelityRef(ctrl.check.ids.data, ctrl.check.edges.data, { windowless }));
       } catch {
         // no check data: the filter is off for this job
       }
     }
-    const meta: JobMeta = { mode: 'reference', roomId: a.roomId, styleId: a.styleId, roomType: room.type, prompt: built.prompt, negativePrompt: built.negativePrompt, seed, pose, ...viewMeta, ...(layout ? { layout } : {}), ...(block ? { blockout: block.placed } : {}), ...(budget.note ? { budgetNote: budget.note } : {}) };
+    const meta: JobMeta = { mode: 'reference', roomId: a.roomId, styleId: a.styleId, roomType: room.type, prompt: built.prompt, negativePrompt: built.negativePrompt, seed, pose, ...viewMeta, ...(layout ? { layout } : {}), ...(block ? { blockout: block.placed } : {}), ...(budget.note ? { budgetNote: budget.note } : {}), openings: facts.openings.map((o) => `${o.side}: ${o.text}`), ...(windowless ? { windowless: true } : {}) };
     remember(status.jobId, meta);
-    return resultFor(status, meta, provider.id);
+    return resultFor(status, meta, provider.id, a.show ?? 'best');
   } catch (e) {
     return providerFailure(e);
   }
@@ -351,7 +370,7 @@ export function referenceTools(): ToolDef[] {
     {
       name: 'generate_reference',
       description:
-        'AI image of a room in a style. reference: photoreal target that follows our walls, windows and doors. visualisation: photo-style edit of our render. Labelled, never an asset. ~90 s per image: if not done after waitS, call again with jobId.',
+        'AI image of a room in a style. reference: photoreal target that follows our walls, windows and doors (hero view: 2 seeds, best kept). visualisation: photo-style edit of our render. Labelled, never an asset. ~90 s/image: if not done after waitS, call again with jobId.',
       inputSchema: inputSchema(),
       annotations: { ...READ, idempotentHint: false},
       group: 'render',

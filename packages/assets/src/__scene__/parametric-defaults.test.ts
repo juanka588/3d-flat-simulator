@@ -64,6 +64,21 @@ describe('defaultParametricFor with the real generators', () => {
     const g = GENERATORS.get('island')!;
     const out = g.describeParams(g.params.parse(d.params)).dims;
     for (const k of ['w', 'd', 'h'] as const) expect(out[k]).toBeCloseTo(dims[k], 6);
+    // the LED bar table of the run (ikea-fr:97531943, 120-180 cm, black, rotating, with storage): black fronts, LED strip, 2 doors and 2 drawers, top closed
+    const led = defaultParametricFor('kitchen_island', { w: 1.2, d: 0.8, h: 0.758 }, 'Table de bar extensible LED 360° rotation, 120-180cm, îlot de cuisine multifonction avec rangement', 'Noir')!;
+    expect(led.generator).toBe('island');
+    expect(led.params).toMatchObject({ finish: 'anthracite', led: true, doors: 2, drawers: 2 });
+    expect(led.params['topAngle']).toBeUndefined(); // closed (angle 0)
+    expect(led.params['topLength']).toBeCloseTo(1.18, 3);
+    const gl = GENERATORS.get('island')!;
+    const ledDims = gl.describeParams(gl.params.parse(led.params)).dims;
+    expect(ledDims).toEqual({ w: 1.2, d: 0.8, h: 0.758 });
+    const withLed = gl.generate(gl.params.parse(led.params));
+    const without = gl.generate(gl.params.parse({ ...led.params, led: false }));
+    expect(withLed.indices.length).toBeGreaterThan(without.indices.length);
+    expect(new Set(withLed.groups.map((m) => m.materialId))).toContain('builtin:furniture-led-strip');
+    // a white island product is not touched
+    expect(defaultParametricFor('kitchen_island', dims, 'Îlot blanc', 'Blanc')!.params['finish']).toBeUndefined();
     // a plain island product keeps the plain island
     const plain = defaultParametricFor('kitchen_island', dims, 'TORNVIKEN Îlot pour cuisine - blanc cassé/chêne')!;
     expect(plain.params['topLength']).toBeUndefined();

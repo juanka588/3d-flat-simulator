@@ -34,7 +34,7 @@ describe('generate_reference (mode reference)', () => {
   it('asks the provider for canny-controlled images of the room camera, with a bathroom prompt for a bathroom', async () => {
     const { client } = await connect();
     const { fake, seen } = setup();
-    const r = await call(client, { roomId: 'sdb', styleId: 'japandi', n: 2, seed: 7 });
+    const r = await call(client, { roomId: 'sdb', styleId: 'japandi', n: 2, seed: 7, show: 'all' });
     expect(r.isError).toBeFalsy();
     const b = json(r);
     expect(b).toMatchObject({ ok: true, status: 'done', mode: 'reference', kind: 'reference', roomId: 'sdb', styleId: 'japandi', roomType: 'bathroom', seed: 7, provider: 'fake' });
@@ -60,6 +60,41 @@ describe('generate_reference (mode reference)', () => {
     await call(client, { roomId: 'sejour', styleId: 'scandinavian' });
     expect(fake.generated[0]!.prompt).toMatch(/double bed/);
     expect(fake.generated[1]!.prompt).toMatch(/sofa/);
+  });
+
+  it('the hero view of a zone makes 2 candidates with distinct seeds by default, the others 1; the best is shown, the index tells which', async () => {
+    const { client } = await connect();
+    const { fake } = setup();
+    const hero = await call(client, { roomId: 'sejour', styleId: 'french-parisian', view: 'media', seed: 40 });
+    const other = await call(client, { roomId: 'sejour', styleId: 'french-parisian', view: 'windows', seed: 40 });
+    expect(fake.generated[0]).toMatchObject({ seed: 40, n: 2 });
+    expect(fake.generated[1]).toMatchObject({ seed: 40, n: 1 });
+    const b = json(hero);
+    // both are listed with their job index (record_reference / score_against_reference take it); one picture is shown, the best
+    expect(b.images.map((i: { index: number; seed: number }) => [i.index, i.seed])).toEqual([[0, 40], [1, 41]]);
+    expect(types(hero)).toEqual(['text', 'image', 'text']);
+    expect(b.best).toMatchObject({ index: 0, seed: 40 });
+    expect(b.alsoGenerated).toHaveLength(1);
+    expect(b.hint).toMatch(/show/);
+    expect(types(other)).toEqual(['text', 'image', 'text']);
+    expect(json(other).best).toBeUndefined();
+    // show "all" gives both pictures; an explicit n wins over the default
+    const all = await call(client, { roomId: 'sejour', styleId: 'french-parisian', view: 'media', seed: 40, show: 'all' });
+    expect(types(all)).toEqual(['text', 'image', 'text', 'image', 'text']);
+    await call(client, { roomId: 'sejour', styleId: 'french-parisian', view: 'media', seed: 40, n: 1 });
+    expect(fake.generated[3]).toMatchObject({ n: 1 });
+  });
+
+  it('puts the openings and fixed fittings of the view in the prompt, and no Haussmann', async () => {
+    const { client } = await connect();
+    const { fake } = setup();
+    await call(client, { roomId: 'wc', styleId: 'french-parisian', view: 'main' });
+    const p = fake.generated[0]!;
+    expect(p.prompt).toMatch(/Openings \(keep exactly/);
+    expect(p.prompt).toMatch(/hand basin/);
+    expect(p.prompt).toMatch(/no window, no skylight and no extra door/);
+    expect(p.prompt).not.toMatch(/haussmann/i);
+    expect(p.negativePrompt).toMatch(/skylight/);
   });
 
   it('defaults the seed to 1 and n to 1, and returns at most 4 images', async () => {

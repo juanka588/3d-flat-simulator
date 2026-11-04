@@ -5354,13 +5354,13 @@ exports[`snapshots (the contract) > tools/list 1`] = `
       "openWorldHint": false,
       "readOnlyHint": true,
     },
-    "description": "AI image of a room in a style. reference: photoreal target that follows our walls, windows and doors. visualisation: photo-style edit of our render. Labelled, never an asset. ~90 s per image: if not done after waitS, call again with jobId.",
+    "description": "AI image of a room in a style. reference: photoreal target that follows our walls, windows and doors (hero view: 2 seeds, best kept). visualisation: photo-style edit of our render. Labelled, never an asset. ~90 s/image: if not done after waitS, call again with jobId.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
         "blockout": {
           "default": true,
-          "description": "Draw the intended layout as placeholder volumes in the control image (scratch copy, scene untouched).",
+          "description": "Draw the layout as placeholders in the control image.",
           "type": "boolean",
         },
         "facing": {
@@ -5384,7 +5384,7 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "type": "string",
         },
         "layout": {
-          "description": "Layout in words; default: the room's intent.",
+          "description": "Layout in words; default: the room intent.",
           "maxLength": 500,
           "minLength": 1,
           "type": "string",
@@ -5398,7 +5398,6 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "type": "string",
         },
         "n": {
-          "default": 1,
           "maximum": 4,
           "minimum": 1,
           "type": "integer",
@@ -5412,6 +5411,13 @@ exports[`snapshots (the contract) > tools/list 1`] = `
           "maximum": 4294967295,
           "minimum": 0,
           "type": "integer",
+        },
+        "show": {
+          "enum": [
+            "best",
+            "all",
+          ],
+          "type": "string",
         },
         "styleId": {
           "maxLength": 40,

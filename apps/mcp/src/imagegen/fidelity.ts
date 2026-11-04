@@ -15,13 +15,20 @@ export const GRID = { w: 256, h: 192 } as const;
 export const CEILING_RGB = [200, 200, 255] as const;
 
 /** Candidates below these are filtered out. Calibrated on the spike (30 images, 3 views): all wood-ceiling images fail the first. */
-export const FIDELITY_THRESHOLDS = { ceilingPale: 0.5, edgeRecall: 0.12 } as const;
+export const FIDELITY_THRESHOLDS = { ceilingPale: 0.5, edgeRecall: 0.12, windowPatch: 0.015 } as const;
+/** Colour of the `wall` class in the ids pass. */
+export const WALL_RGB = [128, 128, 128] as const;
 
 export interface FidelityRef {
   ceiling: Uint8Array;
   ceilingCells: number;
   edges: Uint8Array;
   edgeCells: number;
+  /** The picture has no window: its wall cells must not gain a bright window-like patch. */
+  windowless?: boolean;
+  /** Wall cells (class `wall` of the ids pass, eroded off the borders). */
+  walls?: Uint8Array;
+  wallCells?: number;
 }
 
 export interface Fidelity {
@@ -29,6 +36,8 @@ export interface Fidelity {
   score: number;
   ceilingPale: number | null;
   edgeRecall: number;
+  /** Windowless pictures only: the share of the wall cells covered by the largest bright, window-like patch (null when not checked). */
+  windowPatch?: number | null;
   ok: boolean;
   reasons: string[];
 }
@@ -58,7 +67,7 @@ const erode = (m: Uint8Array, r: number): Uint8Array => {
 };
 
 /** The reference side, from the ids pass and the structural edge pass of the control camera (base64 PNGs of the same size). */
-export function fidelityRef(idsPngB64: string, edgesPngB64: string): FidelityRef {
+export function fidelityRef(idsPngB64: string, edgesPngB64: string, opts: { windowless?: boolean } = {}): FidelityRef {
   const ids = png(idsPngB64);
   const e = png(edgesPngB64);
   const isCeiling = (i: number) => ids.data[i * 4] === CEILING_RGB[0] && ids.data[i * 4 + 1] === CEILING_RGB[1] && ids.data[i * 4 + 2] === CEILING_RGB[2];
@@ -67,7 +76,52 @@ export function fidelityRef(idsPngB64: string, edgesPngB64: string): FidelityRef
   const ceiling = erode(notCeiling.map((v) => (v ? 0 : 1)), 2);
   const edges = pool(e.width, e.height, (i) => e.data[i * 4]! > 0);
   const sum = (a: Uint8Array) => a.reduce((s, v) => s + v, 0);
-  return { ceiling, ceilingCells: sum(ceiling), edges, edgeCells: sum(edges) };
+  const base = { ceiling, ceilingCells: sum(ceiling), edges, edgeCells: sum(edges) };
+  if (!opts.windowless) return base;
+  const isWall = (i: number) => ids.data[i * 4] === WALL_RGB[0] && ids.data[i * 4 + 1] === WALL_RGB[1] && ids.data[i * 4 + 2] === WALL_RGB[2];
+  const notWall = pool(ids.width, ids.height, (i) => !isWall(i));
+  const walls = erode(notWall.map((v) => (v ? 0 : 1)), 2);
+  return { ...base, windowless: true, walls, wallCells: sum(walls) };
+}
+
+/**
+ * The largest bright, window-like patch on the wall cells, as a share of them: cells much brighter than the wall's median
+ * (daylight through a glass pane is the brightest thing in a closed room), grouped 4-connected; a patch counts when it is compact
+ * (fills at least 55 % of its bounding box, a rectangle-ish pane) and not a sliver (both sides at least 4 cells).
+ */
+export function windowPatchShare(lum: Float32Array, walls: Uint8Array, wallCells: number, opts: { offset?: number; floor?: number } = {}): number {
+  const vals: number[] = [];
+  for (let g = 0; g < walls.length; g++) if (walls[g]) vals.push(lum[g]!);
+  if (!vals.length) return 0;
+  vals.sort((a, b) => a - b);
+  const median = vals[Math.floor(vals.length / 2)]!;
+  const cut = Math.max(median + (opts.offset ?? 0.2), opts.floor ?? 0.75);
+  const hot = new Uint8Array(walls.length);
+  for (let g = 0; g < walls.length; g++) hot[g] = walls[g] && lum[g]! > cut ? 1 : 0;
+  const seen = new Uint8Array(walls.length);
+  let best = 0;
+  for (let start = 0; start < hot.length; start++) {
+    if (!hot[start] || seen[start]) continue;
+    const stack = [start];
+    seen[start] = 1;
+    let n = 0;
+    let x0: number = GRID.w, x1 = 0, y0: number = GRID.h, y1 = 0;
+    while (stack.length) {
+      const g = stack.pop()!;
+      n++;
+      const x = g % GRID.w, y = Math.floor(g / GRID.w);
+      x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y);
+      for (const nb of [g - 1, g + 1, g - GRID.w, g + GRID.w]) {
+        if (nb < 0 || nb >= hot.length || !hot[nb] || seen[nb]) continue;
+        if (Math.abs((nb % GRID.w) - x) > 1) continue;
+        seen[nb] = 1;
+        stack.push(nb);
+      }
+    }
+    const bw = x1 - x0 + 1, bh = y1 - y0 + 1;
+    if (bw >= 4 && bh >= 4 && n / (bw * bh) >= 0.55) best = Math.max(best, n);
+  }
+  return best / Math.max(1, wallCells);
 }
 
 /** Box-downsamples an RGBA image onto the grid: [r, g, b] means in 0..1. */
@@ -140,9 +194,17 @@ export function scoreFidelity(imagePng: Buffer, ref: FidelityRef): Fidelity {
   }
   const edgeRecall = ref.edgeCells ? hit / ref.edgeCells : 1;
 
+  let windowPatch: number | null = null;
+  if (ref.windowless && ref.walls && (ref.wallCells ?? 0) >= 600) {
+    const lum = new Float32Array(n);
+    for (let g = 0; g < n; g++) lum[g] = 0.299 * rgb[g * 3]! + 0.587 * rgb[g * 3 + 1]! + 0.114 * rgb[g * 3 + 2]!;
+    windowPatch = windowPatchShare(lum, ref.walls, ref.wallCells!);
+  }
+
   const reasons: string[] = [];
   if (ceilingPale !== null && ceilingPale < FIDELITY_THRESHOLDS.ceilingPale) reasons.push(`the ceiling is not pale (${Math.round(ceilingPale * 100)} % pale; wood, wallpaper or colour painted on it)`);
   if (edgeRecall < FIDELITY_THRESHOLDS.edgeRecall) reasons.push(`the room's walls, windows and doors are not where the drawing puts them (edge recall ${edgeRecall.toFixed(2)})`);
-  const parts = [edgeRecall, ...(ceilingPale === null ? [] : [ceilingPale >= FIDELITY_THRESHOLDS.ceilingPale ? 1 : 0])];
-  return { score: Math.round((parts.reduce((a, b) => a + b, 0) / parts.length) * 1000) / 1000, ceilingPale: ceilingPale === null ? null : Math.round(ceilingPale * 1000) / 1000, edgeRecall: Math.round(edgeRecall * 1000) / 1000, ok: reasons.length === 0, reasons };
+  if (windowPatch !== null && windowPatch >= FIDELITY_THRESHOLDS.windowPatch) reasons.push(`a window-like bright patch appeared on a wall (${(windowPatch * 100).toFixed(1)} % of the wall area) in a room that has no window`);
+  const parts = [edgeRecall, ...(ceilingPale === null ? [] : [ceilingPale >= FIDELITY_THRESHOLDS.ceilingPale ? 1 : 0]), ...(windowPatch === null ? [] : [windowPatch >= FIDELITY_THRESHOLDS.windowPatch ? 0 : 1])];
+  return { score: Math.round((parts.reduce((a, b) => a + b, 0) / parts.length) * 1000) / 1000, ceilingPale: ceilingPale === null ? null : Math.round(ceilingPale * 1000) / 1000, ...(windowPatch === null ? {} : { windowPatch: Math.round(windowPatch * 1000) / 1000 }), edgeRecall: Math.round(edgeRecall * 1000) / 1000, ok: reasons.length === 0, reasons };
 }

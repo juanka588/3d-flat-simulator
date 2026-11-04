@@ -20,6 +20,8 @@ export interface ControlImagesRequest {
   size: { width: number; height: number };
   /** Scratch copy of the scene with layout placeholders (never the real scene): draw the passes from it. */
   blockout?: Scene | undefined;
+  /** The picture has no window (bathroom, WC): draw the wall pixels flat with stronger outlines so no window is invented in them. */
+  solidWalls?: boolean | undefined;
 }
 
 /** What the render passes give the sidecar for one camera. Structural edges only: no texture edges (CG0). */

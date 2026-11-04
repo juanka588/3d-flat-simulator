@@ -39,6 +39,7 @@ const TITLES: Readonly<Record<string, string>> = {
   basket: 'Basket',
   radiator: 'Radiator',
   catWall: 'Cat climbing wall',
+  slatPanel: 'Slat wall panel',
   catTree: 'Cat tree',
   ovenColumn: 'Oven column',
   wallTiles: 'Wall tiles',

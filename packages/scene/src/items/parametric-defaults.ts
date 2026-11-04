@@ -27,10 +27,19 @@ const clampInt = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi
 const SWIVEL_NAME = /\b(rotati\w*|pivotan\w*|swivel\w*|extensible|extendable|table (a manger|de bar|bar)|dining)\b/;
 const WINE_NAME = /casiers? a vin|range[- ]bouteilles?|porte[- ]bouteilles?|wine/;
 const SHELVES_NAME = /etageres?|shelves|shelf|niches?/;
+const BLACK_WORDS = /\b(noir|noire|noirs|black|anthracite)\b/;
+const STORAGE_NAME = /\b(rangements?|storage)\b/;
 
 /** The island generator's params for an island product: base cabinets, plus a swivel top and open bays when the name says so. */
-function islandFor(name: string, w: number, d: number, h: number): Params {
+function islandFor(name: string, w: number, d: number, h: number, colour = ''): Params {
   const params: Params = { w, d, h, overhang: Math.min(0.3, Math.min(w, d) * 0.35), doors: clampInt(w / 0.5, 0, 6) };
+  // Black / anthracite products get the matt anthracite fronts; built-in LED lighting a strip under the top; "rangement" (storage) two doors and two drawers.
+  if (BLACK_WORDS.test(`${name} ${foldName(colour)}`)) params['finish'] = 'anthracite';
+  if (/\bled\b/.test(name)) params['led'] = true;
+  if (STORAGE_NAME.test(name) && w >= 1) {
+    params['doors'] = 2;
+    params['drawers'] = 2;
+  }
   if (w >= 1) {
     // Bays at the right end: a wine rack and/or open shelves; the doors keep the rest of the width.
     if (WINE_NAME.test(name)) params['wineBays'] = 1;
@@ -104,13 +113,13 @@ export function defaultParametricFor(category: ProductCategory, dims: Dims, name
     case 'kitchen':
       // A free-standing island (by its name): base cabinets, a full worktop and a stool overhang instead of a single run unit.
       if (name !== undefined && ISLAND_NAME.test(foldName(name)) && Math.min(w, d) >= 0.5) {
-        return { generator: 'island', params: islandFor(words, w, d, h) };
+        return { generator: 'island', params: islandFor(words, w, d, h, colour) };
       }
       return { generator: 'kitchenBase', params: { w, d, h, doors: clampInt(w / 0.45, 0, 4), drawers: 0, worktop: true } };
     case 'vanity':
       return { generator: 'sideboard', params: { w, d, h, doors: 0, drawers: clampInt(h / 0.25, 1, 4) } };
     case 'kitchen_island':
-      return { generator: 'island', params: islandFor(words, w, d, h) };
+      return { generator: 'island', params: islandFor(words, w, d, h, colour) };
     case 'tall_cabinet':
     case 'appliance_housing':
       return { generator: 'wardrobe', params: { w, d, h, doors: clampInt(w / 0.5, 1, 8), doorType: 'hinged' } };
