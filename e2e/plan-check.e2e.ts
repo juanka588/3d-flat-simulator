@@ -24,6 +24,8 @@ function brokenCharme(): unknown {
   const s = structuredClone(charmeFlat) as unknown as Raw;
   s.items = s.items.filter((i) => i.id !== 'placard-ch2');
   const wall = (id: string) => s.walls.find((w) => w.id === id)!;
+  wall('w-ch2-south-west').end = [4.355, 4.155]; // the 11.5 cm slot to w-sejour-entree
+  wall('w-sejour-entree').start = [4.505, 4.19];
   wall('w-te-west').start = [5.95, 6.1];
   wall('w-te-south').end = [6.39, 6.435];
   s.rooms.find((r) => r.id === 'entree')!.polygon = [[4.54, 4.19], [6.91, 4.19], [6.91, 4.49], [8.7, 4.49], [8.7, 6.03], [4.54, 6.03]];
@@ -89,15 +91,16 @@ test.describe('plan check (desktop)', () => {
     await expect(page.getByTestId('plan-advisories')).toHaveCount(0);
     await expect(all).toHaveCount(0);
     await expect(panel.locator('li[data-code="wall-gap"]')).toHaveCount(0);
-    await expect(panel.locator('li')).toHaveCount(2);
+    await expect(panel.locator('li')).toHaveCount(3);
     await expect(panel.locator('li[data-code="room-edge-unwalled"]')).toHaveCount(2);
+    await expect(panel.locator('li[data-code="opening-near-junction"]')).toHaveCount(1); // door-ch1 against the placard side wall (its jamb)
   });
 
-  test('the Charme fixture lists only its two documented warnings (badge 2) and the joint advisories apart', async ({ page }) => {
+  test('the Charme fixture lists only its three documented warnings (badge 3) and the joint advisories apart', async ({ page }) => {
     await openApp(page);
     expect(await loadScene(page, charmeFlat)).toBe(true);
-    await expect(page.getByTestId('warnings').locator(':scope > ul > li')).toHaveCount(2);
-    await expect(page.getByTestId('plan-badge')).toContainText('2');
+    await expect(page.getByTestId('warnings').locator(':scope > ul > li')).toHaveCount(3);
+    await expect(page.getByTestId('plan-badge')).toContainText('3');
     expect(await page.getByTestId('plan-advisories').locator('li').count()).toBeGreaterThan(0);
   });
 });
