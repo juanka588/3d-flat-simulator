@@ -174,3 +174,49 @@ describe('views of small rooms are checked for what they see', () => {
     expect(roomViews(scene, 'ch1').every((x) => x.checks === undefined)).toBe(true);
   });
 });
+
+describe('the alcove is an office: gaming desk and cat wall', () => {
+  const alcove = scene.rooms.find((r) => r.id === 'alcove')!;
+
+  it('the room is an office with one zone and three views: desk wall, cat wall, wide corner', () => {
+    expect(alcove.type).toBe('office');
+    expect(roomZones(scene, 'alcove').map((z) => z.id)).toEqual(['main']);
+    const v = roomViews(scene, 'alcove');
+    expect(v.map((x) => x.id)).toEqual(['desk', 'cats', 'wide']);
+    expect(v.reduce((a, x) => a + x.weight, 0)).toBeCloseTo(1, 1);
+    for (const x of v) expect(pointInPolygon(x.pose.position, alcove.polygon, 1e-6), x.id).toBe(true);
+    // the desk view looks at the north wall, the window is at its side
+    expect(v[0]!.pose.headingDeg).toBeCloseTo(0, 0);
+    expect(v[0]!.faces).toContain('win-alcove');
+  });
+
+  it('the layout puts the desk beside the window (screens not facing it), clear of the radiator and the door, with room behind the chair', () => {
+    const l = layoutIntent(scene, 'alcove');
+    const desk = l.place.find((p) => p.role === 'gaming desk')!;
+    const pos = desk.relation['position'] as [number, number];
+    // flat to the window wall, beside the window (x 1.14 - 2.14), not under it nor over the radiator (x 0.15 - 0.95)
+    expect(pos[1]).toBeCloseTo(0.4, 1);
+    expect(pos[0] - 0.8).toBeGreaterThan(2.14);
+    expect(desk.relation['rotation']).toBe(0);
+    const chair = l.place.find((p) => p.role === 'gaming chair')!;
+    expect((chair.relation['position'] as [number, number])[1]).toBeGreaterThan(0.8);
+    expect(chair.relation['rotation']).toBe(180);
+    // the cat wall is not on the window wall (rotation 0 would face the room from the north wall)
+    const cats = l.place.find((p) => p.role === 'cat climbing wall')!;
+    expect(cats.relation['rotation']).not.toBe(0);
+    expect(l.text).toMatch(/never turn the screens towards a window/);
+    expect(l.text).toMatch(/power strip/);
+  });
+
+  it('with a desk and a cat wall in place the views say whether they see them', () => {
+    const items = [
+      { id: 'desk-x', assetId: 'param:desk', position: [3.25, 0.4], rotation: 0, elevation: 0, mount: 'floor', roomId: 'alcove', dims: { w: 1.6, d: 0.8, h: 0.75 } },
+      { id: 'cat-x', assetId: 'param:catWall', position: [3.92, 1.5], rotation: 270, elevation: 0.2, mount: 'wall', roomId: 'alcove', dims: { w: 1.2, d: 0.3, h: 1.8 }, mesh: { kind: 'parametric', generator: 'catWall', params: { w: 1.2, d: 0.3, h: 1.8 } } },
+    ];
+    const furnished = { ...scene, items: [...scene.items, ...items] } as unknown as Scene;
+    const byId = Object.fromEntries(roomViews(furnished, 'alcove').map((x) => [x.id, x]));
+    expect(byId['desk']!.checks).toMatchObject({ ok: true, seen: ['desk-x'] });
+    expect(byId['cats']!.checks).toMatchObject({ ok: true, seen: ['cat-x'] });
+    expect(byId['wide']!.checks).toBeUndefined();
+  });
+});

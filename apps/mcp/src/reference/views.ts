@@ -489,6 +489,7 @@ export interface ViewOpts {
 export function defaultViewCount(zone: ZoneInfo, room: Room): number {
   if (zone.kind === 'kitchen') return 2;
   if (zone.areaM2 < 4) return 1;
+  if (room.type === 'office') return 3;
   return room.type === 'living' || room.type === 'dining' ? (zone.areaM2 >= 14 ? 3 : 2) : 2;
 }
 
@@ -660,6 +661,7 @@ export function roomViews(scene: Scene, roomId: string, opts: ViewOpts = {}): Vi
     const n = Math.max(1, opts.perZone ?? defaultViewCount(zone, room));
     let derived = zone.kind === 'kitchen' ? kitchenViews(scene, room, zones, zone, 9) : mainViews(scene, room, zones, zone, 9);
     if (zone.kind === 'main' && room.type === 'bathroom') derived = bathroomViews(scene, room, zones, zone, derived) ?? derived;
+    if (zone.kind === 'main' && room.type === 'office') derived = officeViews(scene, room, zones, zone) ?? derived;
     if (zone.kind === 'kitchen') {
       const fit = scene.items.filter((i) => zone.fittings.includes(i.id) && !/wall|hood/i.test(i.assetId));
       if (fit.length) derived = derived.map((v) => ({ ...v, checks: checkView(scene, v.pose, fit) }));
@@ -760,6 +762,214 @@ function livingIntent(scene: Scene, room: Room, zones: ZoneInfo[], zone: ZoneInf
   return { zone: zone.id, text, promptText, place, circulation, fixes: place.length ? ['sofa', 'rug', 'table'] : [] };
 }
 
+// -- the office / gaming room ---------------------------------------------------------------------------------------------
+
+/** A gaming desk (UTESPELARE 160 x 80) and what a seated player needs behind it. */
+const DESK = { w: 1.6, d: 0.8 };
+const CHAIR_BACK = 1.0;
+const CAT_DEPTH = 0.3;
+const TREE = { w: 0.6, d: 0.5 };
+const DESK_ITEM = /desk|bureau|gamer|gaming/i;
+
+const dot = (a: Vec2, b: Vec2) => a[0] * b[0] + a[1] * b[1];
+/** Inside the rectangle along the segment a-b, `half` either side (no round end cap). */
+function inStrip(p: Vec2, a: Vec2, b: Vec2, half: number): boolean {
+  const ab = sub(b, a);
+  const t = dot(sub(p, a), ab) / (dot(ab, ab) || 1);
+  return t >= 0 && t <= 1 && distanceToSegment(p, a, b) < half;
+}
+
+interface Rect {
+  centre: Vec2;
+  rotation: number;
+  w: number;
+  d: number;
+}
+
+export interface OfficeSetup {
+  edge: Edge;
+  desk: Rect & { glare: number };
+  chair: Rect;
+  /** The window the desk sits beside (the screens do not face it). */
+  light?: OpeningInfo;
+  cat?: { edge: Edge; centre: Vec2; rotation: number; length: number };
+  tree?: Rect;
+}
+
+const rectCorners = (r: Rect): Vec2[] => footprintOf(r.centre, r.rotation, { w: r.w, d: r.d });
+const rectOverlap = (a: Rect, b: Rect): boolean =>
+  sampleRect(a.centre, a.rotation, a.w, a.d).some((p) => inConvex(p, rectCorners(b))) || sampleRect(b.centre, b.rotation, b.w, b.d).some((p) => inConvex(p, rectCorners(a)));
+
+/** Where an office goes, decided from the room: the desk beside a window (never facing it), the chair, the cat wall and a cat tree. */
+export function officeSetup(scene: Scene, room: Room): OfficeSetup | undefined {
+  const edges = roomEdges(scene, room);
+  const lights = edges.flatMap((e) => e.openings.filter((o) => o.light));
+  const swings: Vec2[][] = [];
+  for (const o of scene.openings) {
+    if (o.type !== 'door') continue;
+    const f = openingFrame(scene, o);
+    if (!f || (f.leftRoom?.id !== room.id && f.rightRoom?.id !== room.id)) continue;
+    swings.push(doorSwingPolygon(f, o));
+  }
+  const entries = edges.flatMap((e) => e.openings.filter((o) => o.type === 'door'));
+  const landings = entries.map((o) => ({ a: o.centre, b: add(o.centre, mul(o.inward, 1.1)), half: o.width / 2 + 0.15 }));
+  const fixed = scene.items
+    .filter((i) => (i.roomId === undefined || i.roomId === room.id) && (i.locked || /builtin:/.test(i.assetId)) && (i.elevation ?? 0) < 1.2 && pointInPolygon(i.position, room.polygon, 0.3))
+    .map((i) => {
+      const d = itemDims(i);
+      return footprintOf(i.position, i.rotation, { w: d.w + 0.1, d: d.d + 0.3 });
+    });
+  const free = (r: Rect, others: Rect[] = []): boolean =>
+    sampleRect(r.centre, r.rotation, r.w, r.d).every(
+      (p) => pointInPolygon(p, room.polygon, 0.001) && !swings.some((s) => pointInPolygon(p, s, 0)) && !fixed.some((f) => inConvex(p, f)) && landings.every((l) => !inStrip(p, l.a, l.b, l.half)),
+    ) && !others.some((o) => rectOverlap(r, o));
+
+  // the desk: scored on screen glare (the window should be at the side of the screens, not behind or in front of them)
+  type Cand = { edge: Edge; desk: Rect & { glare: number }; chair: Rect; light?: OpeningInfo; cost: number };
+  let best: Cand | undefined;
+  for (const edge of edges) {
+    if (edge.length < 1.2) continue;
+    const u = unit(sub(edge.b, edge.a));
+    for (const w of [DESK.w, 1.4, 1.2]) {
+      for (let s = w / 2; s <= edge.length - w / 2 + 1e-9; s = s + 0.05 > edge.length - w / 2 + 1e-9 && s < edge.length - w / 2 - 1e-9 ? edge.length - w / 2 : s + 0.05) {
+        const wallPt = add(edge.a, mul(u, s));
+        // not across an opening of its own wall
+        if (edge.openings.some((o) => Math.abs(dot(sub(o.centre, wallPt), u)) < o.width / 2 + w / 2 + (o.light ? 0.08 : 0.1))) continue;
+        const rotation = rotationFacing(edge.inward);
+        const desk: Rect = { centre: add(wallPt, mul(edge.inward, DESK.d / 2)), rotation, w, d: DESK.d };
+        const chair: Rect = { centre: add(wallPt, mul(edge.inward, DESK.d + CHAIR_BACK / 2 + 0.05)), rotation: norm360(rotation + 180), w: 0.7, d: CHAIR_BACK };
+        if (!free(desk) || !free(chair, [desk])) continue;
+        const near = [...lights].sort((p, q) => len(sub(p.centre, desk.centre)) - len(sub(q.centre, desk.centre)))[0];
+        const glare = near ? Math.abs(dot(edge.inward, unit(sub(near.centre, desk.centre)))) : 0;
+        const toEnd = Math.min(s - w / 2, edge.length - s - w / 2);
+        const cost = glare * 2 - w * 0.6 + toEnd * 0.3;
+        if (!best || cost < best.cost - 1e-9) best = { edge, desk: { ...desk, glare }, chair, ...(near ? { light: near } : {}), cost };
+      }
+    }
+  }
+  if (!best) return undefined;
+  const setup: OfficeSetup = { edge: best.edge, desk: best.desk, chair: best.chair, ...(best.light ? { light: best.light } : {}) };
+  const deskZone: Rect = best.desk;
+  const chairZone = best.chair;
+
+  // the cat wall: the longest free stretch (0.9 to 1.4 m) of another wall without a window, away from the desk and the chair
+  let cat: { edge: Edge; centre: Vec2; rotation: number; length: number; score: number } | undefined;
+  for (const edge of edges) {
+    if (edge === best.edge || edge.openings.some((o) => o.light) || edge.length < 0.9) continue;
+    const u = unit(sub(edge.b, edge.a));
+    for (let s = 0.2; s <= edge.length - 0.9; s += 0.05) {
+      let reach = 0;
+      for (let l = 0.9; l <= 1.4 + 1e-9 && s + l <= edge.length - 0.05; l += 0.1) {
+        const c = add(add(edge.a, mul(u, s + l / 2)), mul(edge.inward, (CAT_DEPTH + 0.1) / 2));
+        const rect: Rect = { centre: c, rotation: rotationFacing(edge.inward), w: l, d: CAT_DEPTH + 0.1 };
+        if (edge.openings.some((o) => Math.abs(dot(sub(o.centre, c), u)) < o.width / 2 + l / 2)) break;
+        if (!free(rect, [deskZone, chairZone])) break;
+        reach = l;
+      }
+      if (reach >= 0.9) {
+        const centre = add(add(edge.a, mul(u, s + reach / 2)), mul(edge.inward, CAT_DEPTH / 2));
+        const doorFar = Math.min(...entries.map((o) => len(sub(o.centre, centre))), 9);
+        const score = reach * 2 + doorFar * 0.4;
+        if (!cat || score > cat.score + 1e-9) cat = { edge, centre, rotation: rotationFacing(edge.inward), length: r2(reach), score };
+      }
+    }
+  }
+  if (cat) setup.cat = { edge: cat.edge, centre: cat.centre, rotation: cat.rotation, length: cat.length };
+  const catZone: Rect | undefined = cat ? { centre: add(cat.centre, mul(cat.edge.inward, 0.2)), rotation: cat.rotation, w: cat.length, d: CAT_DEPTH + 0.4 } : undefined;
+
+  // the cat tree: against a wall, as near a window as possible (cats watch outside), off every window, the desk, the chair and the cat wall
+  let tree: (Rect & { score: number }) | undefined;
+  for (const edge of edges) {
+    if (edge.length < TREE.w) continue;
+    const u = unit(sub(edge.b, edge.a));
+    for (let s = TREE.w / 2; s <= edge.length - TREE.w / 2 + 1e-9; s += 0.05) {
+      const wallPt = add(edge.a, mul(u, s));
+      if (edge.openings.some((o) => Math.abs(dot(sub(o.centre, wallPt), u)) < o.width / 2 + TREE.w / 2 + 0.05)) continue;
+      const rect: Rect = { centre: add(wallPt, mul(edge.inward, TREE.d / 2)), rotation: rotationFacing(edge.inward), w: TREE.w, d: TREE.d };
+      if (!free({ ...rect, centre: add(rect.centre, mul(edge.inward, 0.02)), w: TREE.w + 0.04, d: TREE.d + 0.04 }, [deskZone, chairZone, ...(catZone ? [catZone] : [])])) continue;
+      const near = Math.min(...lights.map((l) => len(sub(l.centre, rect.centre))), 9);
+      if (!tree || -near > tree.score + 1e-9) tree = { ...rect, score: -near };
+    }
+  }
+  if (tree) setup.tree = { centre: tree.centre, rotation: tree.rotation, w: tree.w, d: tree.d };
+  return setup;
+}
+
+/** The gaming desk and the cat furniture already in the room (by product category, generator or name). */
+function officeItems(scene: Scene, room: Room): { desk?: Item; cats: Item[] } {
+  const mine = scene.items.filter((i) => (i.roomId === undefined || i.roomId === room.id) && !i.locked && pointInPolygon(i.position, room.polygon, 0.3));
+  const generator = (i: Item) => (i.mesh?.kind === 'parametric' ? i.mesh.generator : '');
+  const cats = mine.filter((i) => /^cat(Wall|Tree)$/.test(generator(i)));
+  const desk = mine.find((i) => !cats.includes(i) && (i.elevation ?? 0) < 0.3 && itemDims(i).w >= 1 && (i.product?.category === 'desk' || DESK_ITEM.test(`${i.id} ${i.assetId} ${generator(i)} ${i.product?.name ?? ''}`)));
+  return { ...(desk ? { desk } : {}), cats };
+}
+
+function officeViews(scene: Scene, room: Room, zones: ZoneInfo[], zone: ZoneInfo): ViewSpec[] | undefined {
+  const setup = officeSetup(scene, room);
+  if (!setup) return undefined;
+  const items = officeItems(scene, room);
+  const deskAim: Vec2 = items.desk ? [items.desk.position[0], items.desk.position[1]] : setup.desk.centre;
+  const deskEdge = [...roomEdges(scene, room)].sort((p, q) => distanceToSegment(deskAim, p.a, p.b) - distanceToSegment(deskAim, q.a, q.b))[0]!;
+  const ignoreDesk = items.desk ? [items.desk.id] : [];
+  const withChecks = (v: ViewSpec | undefined, targets: Item[]): ViewSpec | undefined => (v && targets.length ? { ...v, checks: checkView(scene, v.pose, targets) } : v);
+  const views: ViewSpec[] = [];
+  // 1. the desk wall: the camera stands across the room, the window at the side of the picture
+  // (a small room leaves 1.4 m between the eye and the desk: a wide lens and a lower eye keep the desk top and the screens in the picture)
+  const lowEye = (v: ViewSpec | undefined): ViewSpec | undefined => (v ? { ...v, pose: { ...v.pose, eyeHeight: 1.3 } } : v);
+  const desk = withChecks(
+    lowEye(viewFor(scene, room, zones, 'desk', zone.id, { aim: deskAim, from: deskEdge.inward, standoff: 2.4, spread: 55, fovDeg: 90, ignore: ignoreDesk }, { label: 'desk wall', faces: `${items.desk?.id ?? 'the gaming desk'}${deskEdge.wallId ? ` on ${deskEdge.wallId}` : ''}${setup.light ? `, ${setup.light.id} at its side` : ''}`, promptHint: 'The camera faces the gaming desk against the wall: two monitors, the gaming chair pulled in, shelves and a light strip above; the window is at the side of the picture.' })),
+    items.desk ? [items.desk] : [],
+  );
+  if (desk) views.push(desk);
+  // 2. the cat wall
+  if (setup.cat) {
+    const catAim: Vec2 = items.cats.length ? [items.cats.reduce((a, i) => a + i.position[0], 0) / items.cats.length, items.cats.reduce((a, i) => a + i.position[1], 0) / items.cats.length] : setup.cat.centre;
+    const cats = withChecks(
+      viewFor(scene, room, zones, 'cats', zone.id, { aim: catAim, from: setup.cat.edge.inward, standoff: 2.6, spread: 55, fovDeg: 78, ignore: items.cats.map((i) => i.id) }, { label: 'cat wall', faces: `${items.cats.map((i) => i.id).join(', ') || 'the cat climbing wall'}${setup.cat.edge.wallId ? ` on ${setup.cat.edge.wallId}` : ''}`, promptHint: 'The camera faces the wall where the cats climb: staggered wooden boards rising to a bridge, a cave and a scratching post, with the cat tree in the corner.' }),
+      items.cats,
+    );
+    if (cats) views.push(cats);
+  }
+  // 3. a wide corner view from the door side: the desk wall and the cat wall together
+  const other = setup.cat?.centre ?? zone.centre;
+  const mid = mul(add(deskAim, other), 0.5);
+  // the camera goes to the polygon corner farthest from the middle of the two walls, on the door side when two corners tie
+  const doors = roomEdges(scene, room).flatMap((e) => e.openings.filter((o) => o.type === 'door'));
+  const toDoor = (q: Vec2) => Math.min(...doors.map((d) => len(sub(q, d.centre))), 99);
+  const far = room.polygon.filter((q) => len(sub(q, mid)) >= 2);
+  const corner = [...(far.length ? far : room.polygon)].sort((p, q) => (far.length ? toDoor(p) - toDoor(q) : len(sub(q, mid)) - len(sub(p, mid))))[0]!;
+  const away = unit(sub(corner, mid));
+  const cornerEye = pt(add(corner, mul(unit(sub(zone.centre, corner)), 0.5)));
+  const blockedEye = bodies(scene, room, new Set()).some((b) => inConvex(cornerEye, b));
+  const fromCorner: ViewSpec | undefined = blockedEye ? undefined : { id: 'wide', zone: zone.id, label: 'wide corner', faces: 'the desk wall and the cat wall', weight: 0, hero: false, pose: { mode: 'walk', position: cornerEye, eyeHeight: EYE, headingDeg: r1(headingOf(sub(mid, cornerEye))), pitchDeg: 0, fovDeg: 95 }, sees: [], promptHint: 'A wide corner view of the whole alcove from the door side: the gaming desk on one side, the cat climbing wall on the other.' };
+  if (fromCorner) fromCorner.sees = seesZone(fromCorner.pose, zones);
+  const wide = fromCorner ?? viewFor(scene, room, zones, 'wide', zone.id, { aim: mid, from: len(away) < 0.3 ? deskEdge.inward : away, standoff: 4, spread: 50, fovDeg: 88, ignore: ignoreDesk }, { label: 'wide corner', faces: 'the desk wall and the cat wall', promptHint: 'A wide corner view of the whole alcove: the gaming desk on one side, the cat climbing wall on the other.' });
+  if (wide) views.push(wide);
+  return views.length ? views : undefined;
+}
+
+function officeIntent(scene: Scene, room: Room, zone: ZoneInfo): LayoutIntent | undefined {
+  const s = officeSetup(scene, room);
+  if (!s) return undefined;
+  const wall = s.edge.wallId;
+  const place: LayoutIntent['place'] = [];
+  const notes: string[] = [];
+  place.push({ role: 'gaming desk', category: 'desk', relation: { kind: 'at', position: pt(s.desk.centre), rotation: r1(s.desk.rotation) }, note: `${r2(s.desk.w)} m wide, back flat to ${wall ?? 'the wall'}${s.light ? `, beside ${s.light.id}` : ''}` });
+  place.push({ role: 'gaming chair', category: 'chair', relation: { kind: 'at', position: pt(add(s.desk.centre, mul(s.edge.inward, DESK.d / 2 + 0.36))), rotation: r1(s.chair.rotation) }, note: `facing the desk, its front edge against the desk edge (the solver does not allow tucking under);  m of floor behind the desk edge to roll back` });
+  place.push({ role: 'monitor stand', category: 'desk', relation: { kind: 'on', itemId: '<desk id>' }, note: 'one or two screens on a stand or arm, centred on the desk' });
+  place.push({ role: 'wall shelves', category: 'shelf', relation: { kind: 'against_wall', ...(wall ? { wallId: wall } : {}) }, note: 'above the desk, 1.3-1.6 m up: headset, controllers, a light strip underneath' });
+  if (s.cat) place.push({ role: 'cat climbing wall', category: 'decor', relation: { kind: 'at', position: pt(s.cat.centre), rotation: r1(s.cat.rotation), elevation: 0.2 }, note: `${r1(s.cat.length)} m of ${s.cat.edge.wallId ?? 'wall'}, steps rising to a bridge (generator catWall, a concept)` });
+  if (s.tree) place.push({ role: 'cat tree', category: 'decor', relation: { kind: 'at', position: pt(s.tree.centre), rotation: r1(s.tree.rotation) }, note: 'against a wall as near the window as the door and the radiator allow (generator catTree, a concept)' });
+  notes.push(`Gaming desk (${r2(s.desk.w)} x ${DESK.d} m) flat to ${wall ?? 'the wall'}${s.light ? `, with ${s.light.id} at the SIDE of the screens (glare factor ${r2(s.desk.glare)}; 0 = window exactly beside the screens, 1 = straight behind or in front of them)` : ''}: never turn the screens towards a window.`);
+  notes.push(`Gaming chair on the room side of the desk, with  m of free floor in front of the desk edge for the roll back; the door swing, the 1.1 m landing in front of the doors and the radiator (15 cm in front of it) stay clear.`);
+  if (s.cat) notes.push(`Cat climbing wall on ${s.cat.edge.wallId ?? 'a wall'} (${r1(s.cat.length)} m, boards ${CAT_DEPTH} m deep, at most 0.45 m between boards, a bridge on top, a cave and a sisal post), never on the window wall.`);
+  if (s.tree) notes.push(`Cat tree (${TREE.w} x ${TREE.d} m) at ${pt(s.tree.centre).join(', ')}, against the wall, as near the window as the door and the radiator allow, so the cats can watch outside.`);
+  notes.push('Cables: one power strip under the desk along the wall and a single cable run down the wall behind the desk (nothing loose in the walkway); lamps and LED strips plug into the same strip.');
+  const promptText = `Layout: a gaming desk with two screens flat to the wall beside the window (the window at the side of the screens), a gaming chair, ${s.cat ? 'a cat climbing wall of wooden boards on the opposite side, ' : ''}${s.tree ? 'a cat tree in the corner, ' : ''}a light strip under the shelves above the desk.`;
+  const text = `Layout decided from the room, not from any image (zone ${zone.id}):\n- ${notes.join('\n- ')}\nCameras and prompts only show this layout; follow it for the pieces listed under "place", whatever an image shows.`;
+  return { zone: zone.id, text, promptText, place, circulation: [], fixes: ['desk', 'chair'] };
+}
+
 function genericIntent(scene: Scene, room: Room, zone: ZoneInfo): LayoutIntent {
   const edges = roomEdges(scene, room);
   const blank = longestBlankEdge(edges);
@@ -792,6 +1002,10 @@ export function layoutIntent(scene: Scene, roomId: string, zoneId?: string): Lay
   const zones = roomZones(scene, roomId);
   const zone = findZone(zones, zoneId) ?? zones[0]!;
   if (zone.kind === 'main' && room.type === 'living') return livingIntent(scene, room, zones, zone);
+  if (zone.kind === 'main' && room.type === 'office') {
+    const office = officeIntent(scene, room, zone);
+    if (office) return office;
+  }
   return genericIntent(scene, room, zone);
 }
 

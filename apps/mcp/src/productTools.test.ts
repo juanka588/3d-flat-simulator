@@ -165,8 +165,8 @@ describe('search_assets', () => {
   it('lists the parametric generators with their parameter ranges and the CC0 library, filtered', async () => {
     const { call: c } = await setup();
     const { r, j } = await c('search_assets');
-    // 37 generators (CG8 stand-ins, hand basin, bath screen, washing machine): ~4k tokens
-    expect(tokens(r)).toBeLessThanOrEqual(4400);
+    // 39 generators (cat wall and cat tree) (CG8 stand-ins, hand basin, bath screen, washing machine): ~4k tokens
+    expect(tokens(r)).toBeLessThanOrEqual(4700);
     const bed = j.parametric.find((g: any) => g.id === 'bed');
     expect(bed).toMatchObject({ category: 'bed' });
     expect(bed.params.w).toMatch(/^number 0\.7\.\.2\.4 =1\.6$/);

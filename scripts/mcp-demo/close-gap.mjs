@@ -1,6 +1,6 @@
 /* global process, console, setTimeout, clearTimeout, Buffer, fetch, URL, AbortSignal */
 /**
- * CG7 runner: `design-flat.mjs --close-gap --style <id> --rooms sejour:living,sejour:kitchen,sdb --iterations N`.
+ * CG7 runner: `design-flat.mjs --close-gap --style <id> --rooms sejour:living,sejour:kitchen,sdb,alcove --iterations N`.
  *
  * A target is a room or a zone of a room (`sejour:kitchen`); a plain room with several zones is split per zone. Each target has
  * several VIEWS (named cameras derived from the geometry: describe_room plan), one reference image and one descriptor per view,
@@ -262,6 +262,12 @@ const DRY_ITEMS = {
     { id: 'tub', category: 'other', subtype: 'freestanding bathtub', box: [60, 420, 520, 640], importance: 5 },
     { id: 'vanity', category: 'drawers', subtype: 'wall-hung vanity', box: [600, 380, 900, 560], importance: 4 },
     { id: 'mirror', category: 'mirror', subtype: 'round mirror', box: [650, 160, 840, 340], importance: 3 },
+  ],
+  alcove: [
+    { id: 'desk', category: 'desk', subtype: 'black gaming desk', box: [380, 200, 900, 380], importance: 5 },
+    { id: 'chair', category: 'chair', subtype: 'gaming chair', box: [480, 400, 700, 700], importance: 4 },
+    { id: 'shelf', category: 'shelf', subtype: 'wall shelf', box: [420, 60, 800, 150], importance: 2 },
+    { id: 'lamp', category: 'lamp', subtype: 'LED light strip', box: [420, 150, 800, 180], importance: 2 },
   ],
   default: [
     { id: 'bed', category: 'bed', subtype: 'double bed', box: [220, 360, 700, 640], importance: 5 },

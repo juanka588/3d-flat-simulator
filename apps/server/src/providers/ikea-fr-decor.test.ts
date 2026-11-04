@@ -71,6 +71,11 @@ describe('IKEA FR pages without a width / depth / height triple', () => {
 describe('IKEA FR categories', () => {
   it('table lamps are lamps, not tables (AKTERSPRING), bedside lamps are not bedside tables', () => {
     expect(categoryOf('Lampe de table')).toBe('lamp');
+    // desk accessories stand on a desk: they are decor, not a desk nor a rug
+    expect(categoryOf('Support pour écran')).toBe('decor');
+    expect(categoryOf('Réhausseur écran ordinateur av tir')).toBe('decor');
+    expect(categoryOf('Tapis de souris gamer')).toBe('decor');
+    expect(categoryOf('Bureau gamer')).toBe('desk');
     expect(categoryOf('Lampe de chevet')).toBe('lamp');
     expect(categoryOf('Table de chevet')).toBe('bedside');
     expect(categoryOf('Table')).toBe('table');

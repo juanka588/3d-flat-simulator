@@ -70,7 +70,7 @@
     { "id": "door-entry", "wallId": "w-landing", "type": "door", "offset": 0.955, "width": 0.9, "height": 2.04, "hinge": "start", "swing": "left", "finish": "white" }
   ],
   "rooms": [
-    { "id": "alcove", "name": "Alcôve", "type": "bedroom", "polygon": [[0, 0], [4.07, 0], [4.07, 2.2], [0, 2.2]], "floorMaterial": "lib-parquet-light-oak", "ceilingHeight": 2.5 },
+    { "id": "alcove", "name": "Alcôve", "type": "office", "polygon": [[0, 0], [4.07, 0], [4.07, 2.2], [0, 2.2]], "floorMaterial": "lib-parquet-light-oak", "ceilingHeight": 2.5 },
     {
       "id": "sejour",
       "name": "Séjour / Cuisine",

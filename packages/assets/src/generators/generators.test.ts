@@ -77,17 +77,17 @@ function hash(mesh: MeshData): string {
 describe('generator registry', () => {
   it('registers the furniture generators, the TV, the fixed bathroom / kitchen ware and the CG4 curtains and pendant and the CG8 stand-ins in the process-wide registry', () => {
     expect(GENERATORS.list().map((g) => g.id)).toEqual(
-      ['basket', 'bathScreen', 'bathtub', 'bed', 'bookshelf', 'chair', 'cooktop', 'curtains', 'cushion', 'desk', 'frame', 'fridge', 'handBasin', 'island', 'kitchenBase', 'kitchenWall', 'lamp', 'mirror', 'nightstand', 'ovenColumn', 'pendant', 'plant', 'radiator', 'rug', 'sideboard', 'sofa', 'table', 'throwBlanket', 'toilet', 'tv', 'tvUnit', 'vase', 'wallFitting', 'wallTiles', 'wardrobe', 'washbasin', 'washingMachine'],
+      ['basket', 'bathScreen', 'bathtub', 'bed', 'bookshelf', 'catTree', 'catWall', 'chair', 'cooktop', 'curtains', 'cushion', 'desk', 'frame', 'fridge', 'handBasin', 'island', 'kitchenBase', 'kitchenWall', 'lamp', 'mirror', 'nightstand', 'ovenColumn', 'pendant', 'plant', 'radiator', 'rug', 'sideboard', 'sofa', 'table', 'throwBlanket', 'toilet', 'tv', 'tvUnit', 'vase', 'wallFitting', 'wallTiles', 'wardrobe', 'washbasin', 'washingMachine'],
     );
-    expect(ALL_GENERATORS).toHaveLength(37);
+    expect(ALL_GENERATORS).toHaveLength(39);
   });
   it('registerGenerators is idempotent and fills any registry', () => {
     const r = createGeneratorRegistry();
     registerGenerators(r);
     registerGenerators(r);
-    expect(r.list()).toHaveLength(37);
+    expect(r.list()).toHaveLength(39);
     registerGenerators();
-    expect(GENERATORS.list()).toHaveLength(37);
+    expect(GENERATORS.list()).toHaveLength(39);
   });
   it('assertGeneratorsRegistered passes on the process-wide registry and names what is missing otherwise', () => {
     expect(() => assertGeneratorsRegistered()).not.toThrow();
@@ -175,6 +175,8 @@ describe('generator geometry snapshot (determinism across versions)', () => {
         "bathtub": "53f86549a006",
         "bed": "dd1c8f81770e",
         "bookshelf": "0fc035283a17",
+        "catTree": "af0869767641",
+        "catWall": "9a2953e8566c",
         "chair": "5938bcd59be5",
         "cooktop": "25fad467c88c",
         "curtains": "687236717fb3",

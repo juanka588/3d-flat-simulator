@@ -25,7 +25,7 @@
  *   --dry     no model, no cost: a scripted fake session that calls a few tools (use it to test the harness; offline mock providers)
  *
  * Close the gap (CG7, scripts/mcp-demo/close-gap.mjs): per room, a generated reference image, then furnish, score, fix, repeat.
- *   pnpm mcp:demo:design -- --close-gap --style japandi --rooms sejour:living,sejour:kitchen,sdb --iterations 3 [--budget 2500]
+ *   pnpm mcp:demo:design -- --close-gap --style japandi --rooms sejour:living,sejour:kitchen,sdb,alcove --iterations 3 [--budget 2500]
  *   --rooms takes room or room:zone (sejour:living, sejour:kitchen); a plain room with several zones is split per zone. Each target has
  *   several views (cameras from the geometry: see describe_room {plan:true}); --views 2 (most per zone) or --views media,wide (ids).
  *   Targets run in order, each starting from the previous result; the chain is saved as <out>/<style>/final-scene.flat.json (and

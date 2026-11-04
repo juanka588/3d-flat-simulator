@@ -13,6 +13,8 @@ const CATEGORY_RULES: [RegExp, ProductCategory][] = [
   [/\b(vasques?|lavabos?|washbasins?|wash basins?|basin)\b/, 'washbasin'],
   [/\b(etageres?|tablettes?|paniers?|accessoires?) (de |pour )?(douche|bain|salle de bain)\b|\bpanier a ventouse\b|\bporte-savons?\b|\bshower (shelf|caddy|rack)\b/, 'bath_accessory'],
   [/\b(patere?s?|crochets?|hooks?|coat hooks?)\b/, 'hook'],
+  // Desk accessories stand ON a desk: a monitor / laptop stand or a mouse mat is not a desk nor a rug.
+  [/\b(supports?|rehausseurs?) (pour |d |de )?(ecrans?|moniteurs?|ordinateurs? portables?|portable)\b|\brehausseurs? (d )?ecrans?\b|\b(monitor|laptop|screen) (stand|riser)s?\b|\btapis de souris\b|\bmouse ?pads?\b/, 'decor'],
   // Kitchen islands and tall units before the generic shelf / drawers / kitchen words ("Colonne avec portes et tiroirs").
   [/\b(ilots?|islands?)\b/, 'kitchen_island'],
   [/\b(armoires?|caissons?|colonnes?|elements?|meubles?)( bas| haut)? (pour |de |a )?(four|micro-ondes|micro ondes|refrigerateur|frigo|congelateur|lave-vaisselle|lave-linge)\b|\b(oven|microwave|fridge) (housing|cabinet|unit)\b/, 'appliance_housing'],

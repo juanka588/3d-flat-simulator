@@ -48,8 +48,9 @@ You turn the alcôve (or the room you receive) into a comfortable desk, study or
 2. Ergonomics: desk about 70-75 cm high, 120-160 cm wide, 60-70 cm deep, the screen across from or at a right angle to the window to avoid glare, an office chair with 0.8 m of free space behind it, a monitor at arm's length.
 3. Furniture from the local catalogue: desk, chair, a shelf unit or wall shelves (heavy mounts only on structural walls), a drawer unit or a sideboard; for gaming, a second screen or a TV on a low unit and a pouf. Search one query at a time; batch `place_item`; no `ifRev`.
 4. Lighting: a downlight grid at neutral-warm 3000 K for task work, a desk lamp that emits, a warm accent lamp for the evening.
-5. Cable-free look: choose desks with a cable tray or a back panel, hide the power strip, and keep decor tidy: books and a plant on the desk and shelf with the `on` relation, a mat under the chair, a framed print above the desk.
-6. `validate_layout` and fix every violation, keeping the opening and walkways clear. `render_view` (day and evening) and fix what looks wrong.
+5. Cats: when the household has cats, give them their own route: a wall-mounted climbing set (`place_item` with `concept: true`, generator `catWall`: boards at most 0.45 m apart, a bridge, a cave, a sisal post) on a wall WITHOUT a window or the radiator, and a `catTree` against a wall as near the window as the door allows. Both are concepts, never priced; `describe_room {plan:true}` gives the wall and the spot (layout intent) and the cats view.
+6. Cable-free look: choose desks with a cable tray or a back panel, hide the power strip, and keep decor tidy: books and a plant on the desk and shelf with the `on` relation, a mat under the chair, a framed print above the desk.
+7. `validate_layout` and fix every violation, keeping the opening and walkways clear. `render_view` (day and evening) and fix what looks wrong.
 
 ## Report
 Reply in under 100 words: roomId, items with prices, total versus the budget, lights, validate result, open issues.
