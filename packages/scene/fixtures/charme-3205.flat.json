@@ -77,7 +77,7 @@
       "type": "living",
       "polygon": [[0, 2.27], [4.07, 2.27], [4.07, 4.19], [4.47, 4.19], [4.47, 6.58], [3.71, 6.58], [3.71, 8.28], [0, 8.28]],
       "floorZones": [
-        { "id": "cuisine", "name": "Cuisine", "polygon": [[1.04, 6.58], [3.71, 6.58], [3.71, 8.28], [1.04, 8.28]], "material": "floor-tile-grey" }
+        { "id": "cuisine", "name": "Cuisine", "polygon": [[0, 6.58], [3.71, 6.58], [3.71, 8.28], [0, 8.28]], "material": "floor-tile-grey" }
       ],
       "ceilingHeight": 2.5
     },
