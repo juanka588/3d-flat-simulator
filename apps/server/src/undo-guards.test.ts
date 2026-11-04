@@ -39,7 +39,7 @@ const env = (cmd: Command) => makeEnvelope(cmd, { id: `u-${++n}`, ts: 1000 + n, 
 const north = (deg: number): Command => ({ type: 'site.set', site: { northAngle: deg } });
 // A locked item of the Charme scene to move: the placard of Chambre 1 is boxed in between the door swing (west) and the 45 cm column w-ch1-column (east),
 // so it slides north off the wall (the placard of Chambre 2 fills its niche exactly).
-const moveLocked = (y: number): Command => ({ type: 'item.move', id: 'placard-ch1', position: [8.7, y] });
+const moveLocked = (y: number): Command => ({ type: 'item.move', id: 'placard-ch1', position: [8.71, y] });
 
 describe('undo-to is all-or-nothing', () => {
   it('an LLM undo-to that would pass a locked item changes nothing; the user can do it', async () => {

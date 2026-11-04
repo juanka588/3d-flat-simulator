@@ -13,10 +13,13 @@ const flat: Scene = parsed.scene;
 /**
  * The placard of Chambre 2 is a closet in the wall thickness: Chambre 2's polygon keeps it (the official 11.13 m2 includes
  * it) but its doors open onto the Entrée, so neither room has a wall along the closet front; same for the TE cupboard in the
- * hall. These two `room-edge-unwalled` warnings are expected and nothing else is. The TE cupboard in the SDB corner
+ * hall. These two `room-edge-unwalled` warnings are expected, plus one `opening-near-junction`: the side wall of the
+ * Chambre 1 placard (w-placard-ch1-west) is door-ch1's jamb on w-ch1-south, so the door sits at a junction by design.
+ * Nothing else is a warning. The TE cupboard in the SDB corner
  * belongs to the Entrée's polygon (it opens onto the hall), so it raises nothing.
  */
 const PLACARD_CH2_WARNINGS = [
+  { code: 'opening-near-junction', room: 'door-ch1' },
   { code: 'room-edge-unwalled', room: 'ch2' },
   { code: 'room-edge-unwalled', room: 'entree' },
 ];

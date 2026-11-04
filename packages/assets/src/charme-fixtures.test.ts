@@ -151,15 +151,18 @@ describe('placard of Chambre 2: a closet in the wall, doors onto the Entrée', (
     near(r.minX, sejour.start[0] + sejour.thickness / 2);
     near(r.maxX, east.start[0] - east.thickness / 2);
     near(r.maxY, stub.start[1] - stub.thickness / 2);
-    // the doors stand on the hall face of the south wall, spanning the opening from the stub's end to w-ch2-south
+    // the doors stand on the hall face of the south wall, spanning the hall-facing opening: from the séjour wall's east face
+    // (the stub now runs into w-sejour-entree) to w-ch2-south
     const hallFace = wall('w-ch2-south').start[1] + wall('w-ch2-south').thickness / 2;
-    near(wall('w-sejour-entree').start[1], hallFace); // the séjour wall starts at the closet front plane
-    const doorSpan = [stub.end[0], wall('w-ch2-south').start[0]] as const;
+    const sejourEntree = wall('w-sejour-entree');
+    near(sejourEntree.start[1], stub.start[1]); // the séjour wall starts on the south wall axis, where the stub ends
+    near(stub.end[0], sejourEntree.start[0]); // the stub meets the séjour wall: no slot between them
+    const doorSpan = [sejourEntree.start[0] + sejourEntree.thickness / 2, wall('w-ch2-south').start[0]] as const;
     const m = placardMesh();
     near(m.max[2]!, hallFace, 2e-3);
     near(m.doorMinX, doorSpan[0], 2e-3);
     near(m.doorMaxX, doorSpan[1], 2e-3);
-    expect(r.maxX - r.minX).toBeGreaterThan(1.6); // wider than the doors: the shelves reach the hidden part behind the stub
+    expect(r.maxX - r.minX).toBeGreaterThan(1.6); // wider than the doors: the shelves reach the hidden part behind the stub and the séjour wall
     // it is carved out of the kept polygon of Chambre 2 (official area 11.13 m2 includes the closet); only its front 3.5 cm
     // lie in the wall thickness, and none of it is in the Entrée
     const ch2 = scene.rooms.find((x) => x.id === 'ch2')!.polygon;
@@ -167,6 +170,32 @@ describe('placard of Chambre 2: a closet in the wall, doors onto the Entrée', (
     const entree = scene.rooms.find((x) => x.id === 'entree')!.polygon;
     for (const p of r.pts) expect(pointInPolygon(p, entree, 1e-9) && p[1] > 4.19 + 1e-9).toBe(false);
     expect(Math.max(...ch2.map((q) => q[1])) - r.maxY).toBeLessThan(0.04);
+  });
+
+  it('placard of Chambre 1: its west side is the wall w-placard-ch1-west, flush with the door jamb, and it touches it, the column and w-ch1-south without overlap', () => {
+    const side = wall('w-placard-ch1-west');
+    const south = wall('w-ch1-south');
+    const column = wall('w-ch1-column');
+    const door = scene.openings.find((o) => o.id === 'door-ch1')!;
+    const r = rect('placard-ch1');
+    // the side wall runs from the south wall's axis north to the closet back, and closes the cupboard from the door side
+    near(side.start[0], side.end[0]);
+    near(side.start[1], south.start[1]);
+    expect(side.end[1]).toBeLessThan(side.start[1]);
+    expect(side.thickness).toBeCloseTo(0.07, 9);
+    // flush with the door's jamb: the wall's east face is x 7.82, the door spans x 6.95-7.75 -> the wall's west face (7.75) is the jamb
+    const to = south.start[0] + door.offset + door.width / 2;
+    near(side.start[0] - side.thickness / 2, to);
+    near(side.start[0] + side.thickness / 2, r.minX); // and its east face is the cupboard's west side
+    // the cupboard fills the niche: west side wall, column to the east, the south wall behind, the room to the north
+    near(r.minX, side.start[0] + side.thickness / 2);
+    near(r.maxX, column.start[0] - column.thickness / 2);
+    near(r.maxY, south.start[1] - south.thickness / 2);
+    near(r.minY, side.end[1]); // the side wall is as deep as the closet: it ends at the closet back
+    expect(r.maxX).toBeGreaterThan(r.minX + 1.7);
+    for (const w of scene.walls) expect(penetration(r.pts, wallRect(w.id)), w.id).toBeLessThan(1e-3);
+    const mesh = item('placard-ch1').mesh;
+    expect(mesh?.kind === 'parametric' && mesh.params.w).toBeCloseTo(r.maxX - r.minX, 6); // dims and mesh params agree
   });
 
   it('touches its walls without overlapping them, in the built mesh too', () => {

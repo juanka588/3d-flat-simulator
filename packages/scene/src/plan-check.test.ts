@@ -23,15 +23,22 @@ const must = (scene: Scene, cmd: Command) => {
 };
 const finding = (scene: Scene, code: string) => planCheck(scene).filter((f) => f.code === code);
 
-/** The two documented exceptions of the Charme flat: the closet fronts of Chambre 2 and the Entrée. */
+/**
+ * The documented exceptions of the Charme flat: the closet fronts of Chambre 2 and the Entrée, and door-ch1, whose jamb is the
+ * side wall of the Chambre 1 placard (w-placard-ch1-west, flush with the jamb on purpose).
+ */
 const DOCUMENTED = [
+  ['opening-near-junction', 'door-ch1', 'w-ch1-south'],
   ['room-edge-unwalled', 'ch2'],
   ['room-edge-unwalled', 'entree'],
 ];
 
-/** The Charme fixture as it was before the lead's two fixes: slot beside the Chambre 2 placard, TE cupboard inside the SDB with butt joints. */
+/** The Charme fixture as it was before the lead's fixes: slot beside the Chambre 2 placard, TE cupboard inside the SDB with butt joints. */
 function charmeSlot(): Scene {
   const s = clone(charme) as any;
+  // re-open the slot: the stub stops 11.5 cm short of the séjour wall, which starts at the hall face of the closet front
+  s.walls.find((w: any) => w.id === 'w-ch2-south-west').end = [4.355, 4.155];
+  s.walls.find((w: any) => w.id === 'w-sejour-entree').start = [4.505, 4.19];
   s.items = s.items.filter((i: any) => i.id !== 'placard-ch2');
   return load(s);
 }
@@ -122,7 +129,7 @@ describe('wall-gap: the slot beside the Chambre 2 placard', () => {
     const gap = finding(broken, 'wall-gap')[0]!;
     const done = must(broken, gap.fix!.command);
     expect(finding(done.scene, 'wall-gap')).toEqual([]);
-    expect(planCheck(done.scene).filter((f) => f.severity === 'warning').map((f) => f.code)).toEqual(['room-edge-unwalled', 'room-edge-unwalled']);
+    expect(planCheck(done.scene).filter((f) => f.severity === 'warning').map((f) => f.code)).toEqual(['opening-near-junction', 'room-edge-unwalled', 'room-edge-unwalled']);
     expect(must(done.scene, done.inverse).scene).toEqual(broken);
   });
 

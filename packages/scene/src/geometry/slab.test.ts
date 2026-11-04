@@ -98,7 +98,8 @@ describe('the ceiling covers the whole flat (no hole at the top)', () => {
   });
 
   it('the strip in front of the Chambre 2 placard, between the polygons of Chambre 2 and of the hall, is under the ceiling and over a floor', () => {
-    const strip = [[4.5, 4.155], [5.0, 4.16], [5.5, 4.15], [5.7, 4.14]] as const;
+    // the stub now meets w-sejour-entree (east face x 4.54), so the strip runs from there to w-ch2-south (x 5.795)
+    const strip = [[4.6, 4.155], [5.0, 4.16], [5.5, 4.15], [5.7, 4.14]] as const;
     const floor = coverage(floors);
     for (const [x, z] of strip) {
       expect(habitable.some((r) => pointInPolygon([x, z], r.polygon)), `(${x}, ${z}) is in no room`).toBe(false);
