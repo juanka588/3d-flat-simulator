@@ -38,6 +38,7 @@
  *   --brief "text" / --brief-file brief.md   the lead's wishes for every target's session (close-gap too). In a file, a `## sejour:living, sdb` heading starts
  *   a part for those targets only (`## sejour` = both zones, `## all` = everybody); text before the first heading is for all.
  *   --require ch1=ikea-fr:89094948 (repeatable)   a MANDATORY product for a target: the prompt says so and the final scene is checked for it (result.json: requiredMissing).
+ *   --exclude curtain,... (repeatable)   categories place_item refuses in every target (default: curtain; `--exclude none` allows everything); a brief line `Exclude: a, b` adds more.
  *   --force-memory  go on although the image service reports too little free memory (the preflight refuses below ~23 GB available).
  *   --no-render   skip the final renders
  *   --list-styles
@@ -106,7 +107,7 @@ Do, room by room:
 - Furniture and decor: ONLY real products from search_products/get_product (search in French, e.g. "canapé 3 places",
   "îlot cuisine", "tabouret de bar", "lit 160x200", "table basse", "tapis", "lampadaire", "suspension", "miroir",
   "plante artificielle", "étagère murale"), placed with place_item. The séjour needs a sofa, coffee table, rug, TV unit
-  on the TV wall, dining or island seating, lamps and some decor; each bedroom a bed, nightstands, lamps, a rug;
+  on the media wall (the TV can be moved there), dining or island seating, lamps and some decor; each bedroom a bed, nightstands, lamps, a rug;
   the alcôve a home office or reading corner; the entrée a slim storage/console and a mirror; the balcony an outdoor set.
 - Keep everything locked (placards, kitchen, bathroom fittings, TE cupboard, columns) as it is; keep doors, windows and
   0.8 m walkways clear (validate_layout must be ok for every room).
@@ -130,8 +131,8 @@ Finish the flat, room by room:
 - Accent lamps: a floor lamp (lampadaire) and table lamps (lampe de table, bedside lamps) that emit light, 2700 K; place them with place_item
   (a lamp comes with its light).
 - Plants and decor: plants (real or artificial), vases, picture frames or wall art, cushions and throws.
-- Curtains or blinds at the windows and the balcony door, if the shop has them.
-- Replace every placeholder box (describe_room items with mesh "placeholder"; the TV unit's TV is existing and locked, leave it).
+- No curtains, no drapes, no blinds anywhere: leave the windows and the balcony door bare.
+- Replace every placeholder box (describe_room items with mesh "placeholder"; the TV is movable: keep it where the layout needs it).
 Keep doors, windows and 0.8 m walkways clear (validate_layout must be ok for every room), keep everything locked as it is, take a
 checkpoint first, render rooms as you go, and keep the added furniture budget reasonable (about 2500 EUR TTC more).
 Search the shop ONE query at a time (parallel searches queue behind each other), and place several products per place_item call.
@@ -575,6 +576,7 @@ if (CLOSE_GAP) {
     brief: BRIEF,
     briefFile: opt('--brief-file'),
     require: optAll('--require'),
+    exclude: optAll('--exclude'),
     dryRegress: args.has('--dry-regress'),
   });
   process.exit(code);

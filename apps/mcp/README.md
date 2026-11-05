@@ -207,6 +207,7 @@ If the scene server is down the tools answer `server_unreachable` (with a hint) 
 | `FLAT_MCP_READONLY` | `false` | only non-mutating tools are listed |
 | `FLAT_MCP_TOOLS` | all | comma-separated allow-list of tool names |
 | `FLAT_WEB_URL` | unset | web app to render against (else `apps/web/dist`) |
+| `FLAT_EXCLUDE_CATEGORIES` | unset | comma-separated product categories `place_item` refuses with a clear error (a brief's exclusions, e.g. `curtain`; a curtain concept shape counts as `curtain`); the close-gap runner sets `curtain` unless `--exclude` says otherwise |
 | `FLAT_RENDER_CHANNEL` | unset | `chrome` for GPU rendering (default: Chromium + SwiftShader) |
 | `FLAT_MCP_MAX_BATCH` / `_WRITES_PER_MIN` / `_RENDERS_PER_MIN` / `_MAX_ARG_BYTES` / `_SESSION_WRITES` | 50 / 30 / 10 / 262144 / 500 | limits |
 | `FLAT_MCP_HTTP_PORT` / `_HTTP_HOST` / `_ALLOWED_HOSTS` | 8788 / 127.0.0.1 / unset | HTTP transport |

@@ -30,7 +30,7 @@ lighting:
     - pairs of brass table lamps (symmetry)
     - uplighting from wall sconces if available
 textiles:
-  - velvet curtains and cushions in emerald, navy or mustard
+  - velvet cushions in emerald, navy or mustard
   - geometric rug in black and ivory
   - satin bedding in champagne
   - fringe-free, tailored upholstery
@@ -75,7 +75,7 @@ Glamorous, confident and theatrical, but tailored: an evening at a 1925 Paris ho
 Champagne walls and an emerald feature wall behind a velvet sofa. A sunburst mirror above it, a brass-and-glass coffee table, a pair of brass lamps, a geometric rug. Black table with velvet chairs under a globe pendant. Keep the kitchen tiles; add brass bar stools and a mirrored tray.
 
 ## Chambres
-Navy or emerald behind a velvet-headboard bed, symmetrical nightstands with brass lamps, satin bedding, velvet curtains. The second room: a black lacquer desk and a velvet chair, a gold-framed mirror.
+Navy or emerald behind a velvet-headboard bed, symmetrical nightstands with brass lamps, satin bedding. The second room: a black lacquer desk and a velvet chair, a gold-framed mirror.
 
 ## Entrée
 A black console with brass feet, a large arch or sunburst mirror, a pair of lamps.

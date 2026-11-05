@@ -33,7 +33,6 @@ textiles:
   - wool rug with geometric or solid colour
   - mustard or teal cushions
   - tweed or wool throw
-  - cotton curtains in cream or burnt orange
 decor:
   - geometric or abstract prints in wood frames
   - ceramic vases in teal and orange
@@ -74,7 +73,7 @@ Cheerful, sociable and well-made: a 1960s architect's home that still feels fres
 Cream walls, optionally the sofa wall in teal. A low sofa with tapered legs, an oval wood coffee table, an arc floor lamp, a leather or tweed lounge chair. A long sideboard as TV unit. Round wood dining table with four chairs under a globe pendant. Keep the kitchen tiles; add a wood tray and ceramics.
 
 ## Chambres
-Walnut bed on tapered legs, two matching nightstands with ceramic lamps, mustard or burnt orange cushions, cream curtains. Second room: a teak desk and chair, a shelf with objects.
+Walnut bed on tapered legs, two matching nightstands with ceramic lamps, mustard or burnt orange cushions. Second room: a teak desk and chair, a shelf with objects.
 
 ## Entrée
 A small sideboard or wall shelf with a round mirror and a ceramic dish; wooden hooks.

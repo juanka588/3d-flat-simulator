@@ -1,10 +1,10 @@
 /* global process */
-import { mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, readdirSync, utimesSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { briefBlock, briefFor, memoryPreflight, missingRequirements, parseBrief, parseRequire, parseRoomSpec, parseViewsArg, pickBest, publishScene, referenceImagesByView, referenceTiming, renderWithRetry, requirementsFor, selectViews } from './close-gap.mjs';
+import { DEFAULT_EXCLUDE, briefBlock, briefFor, excludeFor, memoryPreflight, missingRequirements, parseBrief, parseExclude, parseRequire, parseRoomSpec, parseViewsArg, pickBest, publishScene, referenceImagesByView, referenceTiming, renderWithRetry, requirementsFor, selectViews, viewsMoved, visualisationState } from './close-gap.mjs';
 
 describe('close-gap runner: memory, timing and render retries', () => {
   const mem = (over) => ({ memory: { availableGb: 50, swapUsedGb: 0, pressure: 'normal', ...over }, queue: { queued: 0, running: null } });
@@ -188,5 +188,58 @@ describe('close-gap runner helpers', () => {
     } finally {
       await new Promise((ok) => srv.close(ok));
     }
+  });
+});
+
+describe('close-gap runner: no curtains, views that follow the TV, the checked visualisation', () => {
+  it('--exclude: curtains are excluded by default; a list replaces it; none allows everything; the brief can add more', () => {
+    expect(DEFAULT_EXCLUDE).toEqual(['curtain']);
+    expect(parseExclude(undefined)).toEqual(['curtain']);
+    expect(parseExclude([])).toEqual(['curtain']);
+    expect(parseExclude(['Curtain, shower-curtain', 'rug'])).toEqual(['curtain', 'shower_curtain', 'rug']);
+    expect(parseExclude(['none'])).toEqual([]);
+    const brief = parseBrief('Warm palette.\nExclude: pendant\n\n## ch1\nexcluded categories: rug, Wall Mirror');
+    expect(excludeFor(['curtain'], brief, { roomId: 'sejour', zone: 'living' })).toEqual(['curtain', 'pendant']);
+    expect(excludeFor(['curtain'], brief, { roomId: 'ch1' })).toEqual(['curtain', 'pendant', 'rug', 'wall_mirror']);
+    expect(excludeFor(undefined, undefined, { roomId: 'ch1' })).toEqual(['curtain']);
+  });
+
+  it('the prompt block tells the session which categories place_item refuses, and says no curtains plainly', () => {
+    const b = briefBlock({ brief: '', required: [], exclude: ['curtain', 'rug'] });
+    expect(b).toMatch(/EXCLUDED CATEGORIES .*place_item refuses them with an error\): curtain, rug\./);
+    expect(b).toMatch(/No curtains, no drapes, no net curtains anywhere/);
+    expect(briefBlock({ brief: '', required: [], exclude: ['rug'] })).not.toMatch(/No curtains/);
+    expect(briefBlock({ brief: '', required: [], exclude: [] })).toBe('');
+  });
+
+  it('viewsMoved: the media view that followed the TV is reported with its new camera; unchanged and missing views are not', () => {
+    const planned = [
+      { id: 'media', zone: 'living', eye: [2, 6], headingDeg: 0, fovDeg: 70, faces: 'tv-sejour on w-alcove' },
+      { id: 'windows', zone: 'living', eye: [3, 5], headingDeg: 270, fovDeg: 70 },
+      { id: 'wide', zone: 'living', eye: [3, 7], headingDeg: 315, fovDeg: 85 },
+    ];
+    const after = [
+      { id: 'media', zone: 'living', eye: [1.5, 2.5], headingDeg: 180, fovDeg: 70, faces: 'tv-sejour on w-south' },
+      { id: 'windows', zone: 'living', eye: [3.02, 5], headingDeg: 270.5, fovDeg: 70 },
+    ];
+    expect(viewsMoved(planned, after)).toEqual([{ id: 'media', to: { eye: [1.5, 2.5], headingDeg: 180, fovDeg: 70, faces: 'tv-sejour on w-south' } }]);
+    expect(viewsMoved(planned, planned)).toEqual([]);
+    // 359.5 against 0.2 degrees is no turn
+    expect(viewsMoved([{ id: 'a', zone: 'z', eye: [0, 0], headingDeg: 359.5 }], [{ id: 'a', zone: 'z', eye: [0, 0], headingDeg: 0.2 }])).toEqual([]);
+  });
+
+  it('visualisationState: the newest visualisation by time and what its fidelity check said', () => {
+    const dir = mkdtempSync(join(process.env.TMPDIR || tmpdir(), 'vis-state-'));
+    expect(visualisationState(dir)).toBeUndefined();
+    const put = (job, ok, seed, time) => {
+      writeFileSync(join(dir, `visualisation-${job}-0.png`), 'x');
+      utimesSync(join(dir, `visualisation-${job}-0.png`), time, time);
+      writeFileSync(join(dir, `visualisation-${job}.json`), JSON.stringify({ seed, attempts: [{}, {}], images: [{ file: join(dir, `visualisation-${job}-0.png`), fidelity: 0.4, fidelityOk: ok }] }));
+    };
+    put('ffff', false, 1, 1000);
+    put('0000', true, 2, 2000);
+    expect(visualisationState(dir)).toMatchObject({ file: join(dir, 'visualisation-0000-0.png'), ok: true, seed: 2, attempts: 2 });
+    put('aaaa', false, 3, 3000);
+    expect(visualisationState(dir)).toMatchObject({ ok: false, fidelity: 0.4, seed: 3 });
   });
 });

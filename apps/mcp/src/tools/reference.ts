@@ -5,7 +5,7 @@ import type { CallToolResult } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import { toolError, toolOk } from '../errors';
 import { viewFacts } from '../reference/facts';
-import { ControlsUnavailableError, ImageProviderError, buildReferencePrompt, fidelityRef, scoreFidelity, type Fidelity, type FidelityRef, buildVisualisationPrompt, getControlImageSource, getImageProvider, passControlSource, unavailableControls, type GeneratedImage, type JobStatus } from '../imagegen';
+import { ControlsUnavailableError, ImageProviderError, buildReferencePrompt, fidelityRef, scoreFidelity, type Fidelity, type FidelityRef, type ScoreOptions, buildVisualisationPrompt, getControlImageSource, getImageProvider, passControlSource, unavailableControls, type GeneratedImage, type JobStatus } from '../imagegen';
 import { RenderError, resolvePose, sharedMcpRenderer } from '../render';
 import { blockoutScene } from '../reference/blockout';
 import { findView, layoutIntent, roomViews, type ViewSpec } from '../reference/views';
@@ -83,6 +83,8 @@ export interface JobMeta {
   /** Windows and doors read from the scene for this camera, and whether the picture has no window (reference prompt v2). */
   openings?: string[];
   windowless?: boolean;
+  /** Visualisations: each attempt (at most 2) with its fidelity, so the caller sees why a second edit was made. */
+  attempts?: { seed: number; jobId: string; fidelity: number | null; ok: boolean | null; reasons: string[] }[];
 }
 const jobs = new Map<string, JobMeta>();
 /** Per job: what the generated images are checked against (the ids and edge passes of the control camera). */
@@ -157,7 +159,7 @@ function rateLimited(ctx: ToolContext): CallToolResult | undefined {
  * The design runner sets FLAT_DESIGN_OUT (a trusted operator setting): every finished image is copied to `references/` with its
  * prompt, so the run folder holds the candidates, the chosen target and the labelled visualisation. Never fails the call.
  */
-function saveForRunner(status: JobStatus, meta: JobMeta | undefined): void {
+function saveForRunner(status: JobStatus, meta: JobMeta | undefined, scores?: Map<string, Fidelity>): void {
   const out = process.env['FLAT_DESIGN_OUT'];
   if (!out || status.status !== 'done') return;
   try {
@@ -167,7 +169,8 @@ function saveForRunner(status: JobStatus, meta: JobMeta | undefined): void {
     const files = status.images.map((img, i) => {
       const file = join(dir, `${mode}-${status.jobId}-${i}.png`);
       if (existsSync(img.path)) copyFileSync(img.path, file);
-      return { file, seed: img.seed, seconds: img.seconds };
+      const fid = scores?.get(img.path);
+      return { file, seed: img.seed, seconds: img.seconds, ...(fid ? { fidelity: fid.score, fidelityOk: fid.ok, ...(fid.reasons.length ? { fidelityReasons: fid.reasons } : {}) } : {}) };
     });
     const { pose: _pose, ...shown } = meta ?? ({} as Partial<JobMeta>);
     void _pose;
@@ -189,13 +192,13 @@ interface Filtered {
  * never sees them). When every candidate fails the best one is kept with a warning, so a call never returns nothing.
  * Images that cannot be read (not a PNG, file gone) pass unchecked.
  */
-function filterCandidates(images: GeneratedImage[], ref: FidelityRef | undefined): Filtered {
+function filterCandidates(images: GeneratedImage[], ref: FidelityRef | undefined, opts: ScoreOptions = {}): Filtered {
   const scores = new Map<string, Fidelity>();
   if (!ref) return { kept: images, rejected: [], scores };
   for (const img of images) {
     try {
       const bytes = existsSync(img.path) ? readFileSync(img.path) : img.preview?.mimeType === 'image/png' ? Buffer.from(img.preview.data, 'base64') : undefined;
-      if (bytes) scores.set(img.path, scoreFidelity(bytes, ref));
+      if (bytes) scores.set(img.path, scoreFidelity(bytes, ref, opts));
     } catch {
       // unreadable image: not judged
     }
@@ -232,14 +235,14 @@ function resultFor(status: JobStatus, meta: JobMeta | undefined, providerId: str
     });
   }
   const all: GeneratedImage[] = status.images.slice(0, 4);
-  const filtered = filterCandidates(all, checks.get(status.jobId));
+  const filtered = filterCandidates(all, checks.get(status.jobId), { visualisation: meta?.mode === 'visualisation' });
   const images = filtered.kept;
   // index = position in the job (what record_reference, match_reference and score_against_reference take); the best passing candidate by fidelity
   const indexOf = (img: GeneratedImage) => all.indexOf(img);
   const fid = (img: GeneratedImage) => filtered.scores.get(img.path)?.score ?? 0;
   const best = images.length ? [...images].sort((a, b) => fid(b) - fid(a) || indexOf(a) - indexOf(b))[0]! : undefined;
   const shown = show === 'all' || !best ? images : [best];
-  saveForRunner(status, meta);
+  saveForRunner(status, meta, filtered.scores);
   // wall time per image, for the budget and for a loud warning when the machine is swapping
   const perImage = images.length ? images.reduce((a, i) => a + i.seconds, 0) / images.length : 0;
   if (!countedJobs.has(status.jobId) && images.length) {
@@ -277,11 +280,27 @@ function resultFor(status: JobStatus, meta: JobMeta | undefined, providerId: str
   );
 }
 
-async function colourRender(ctx: ToolContext, a: GenerateReferenceArgs, pose?: CameraPose): Promise<{ data: string; mimeType: 'image/png' | 'image/jpeg' }> {
-  const r: Renderer = ctx.renderer ?? sharedMcpRenderer(ctx.flat, { webUrl: ctx.config.webUrl, renderChannel: ctx.config.renderChannel, log: ctx.config.log });
-  const out = await r.render({ view: 'walk', roomId: a.roomId!, ...(pose ? { pose } : a.facing !== undefined ? { facing: a.facing as never } : {}), size: { ...SIZE } }, { format: 'png', session: ctx.session });
-  return { data: out.image, mimeType: out.mimeType };
+interface ColourRender {
+  data: string;
+  mimeType: 'image/png' | 'image/jpeg';
+  /** The ids and structural edge passes of the same frame, when asked for (base64 PNG). */
+  passes?: { ids: string; edges: string };
 }
+
+async function colourRender(ctx: ToolContext, a: GenerateReferenceArgs, pose?: CameraPose, o: { preset?: 'day' | 'evening'; passes?: boolean } = {}): Promise<ColourRender> {
+  const r: Renderer = ctx.renderer ?? sharedMcpRenderer(ctx.flat, { webUrl: ctx.config.webUrl, renderChannel: ctx.config.renderChannel, log: ctx.config.log });
+  const out = await r.render(
+    { view: 'walk', roomId: a.roomId!, ...(pose ? { pose } : a.facing !== undefined ? { facing: a.facing as never } : {}), ...(o.preset ? { preset: o.preset } : {}), size: { ...SIZE } },
+    { format: 'png', session: ctx.session, ...(o.passes ? { passes: { kinds: ['edgesItems', 'ids'] } } : {}) },
+  );
+  const strip = (u: string | undefined) => (u ? u.slice(u.indexOf(',') + 1) : undefined);
+  const ids = strip(out.passes?.images['ids']);
+  const edges = strip(out.passes?.images['edgesItems']);
+  return { data: out.image, mimeType: out.mimeType, ...(ids && edges ? { passes: { ids, edges } } : {}) };
+}
+
+/** At most this many edits of a visualisation: the first that passes the fidelity rules wins, else the better one is returned with a warning. */
+export const VISUALISATION_TRIES = 2;
 
 async function generateReference(ctx: ToolContext, args: Record<string, unknown>): Promise<CallToolResult> {
   const p = parseArgs(GenerateReferenceArgs, args);
@@ -319,12 +338,50 @@ async function generateReference(ctx: ToolContext, args: Record<string, unknown>
     const seed = a.seed ?? 1;
 
     if (a.mode === 'visualisation') {
-      const built = buildVisualisationPrompt(style.meta, room.type);
-      const image = await colourRender(ctx, a, spec?.pose);
-      const status = await provider.edit({ image: { provenance: 'render', ...image }, prompt: built.prompt, seed, strength: 0.5, model: 'klein-edit' }, { waitMs });
-      const meta: JobMeta = { mode: 'visualisation', roomId: a.roomId, styleId: a.styleId, roomType: room.type, prompt: built.prompt, negativePrompt: built.negativePrompt, seed, ...viewMeta };
-      remember(status.jobId, meta);
-      return resultFor(status, meta, provider.id, a.show ?? 'best');
+      // Prompt v2 rules (modern 2.5 m building, no cornice or rose, exact openings, outdoors stays outdoors), a render lit as the runner's
+      // honest render is (lamps on in a room without a window), and a fidelity check of every edit against that render's passes.
+      const outdoor = room.type === 'balcony';
+      const facts = viewFacts(scene, a.roomId, pose);
+      const windowless = !outdoor && facts.windowless;
+      const built = buildVisualisationPrompt(style.meta, room.type, { windowless, roomWindowless: facts.roomWindowless, openingsText: facts.openingsText });
+      const image = await colourRender(ctx, a, spec?.pose ?? pose, { preset: facts.roomWindowless ? 'evening' : 'day', passes: true });
+      let ref: FidelityRef | undefined;
+      if (image.passes) {
+        try {
+          ref = fidelityRef(image.passes.ids, image.passes.edges, { windowless, outdoor });
+        } catch {
+          // no check data: the filter is off for this job
+        }
+      }
+      const attempts: NonNullable<JobMeta['attempts']> = [];
+      let best: { status: JobStatus; meta: JobMeta; score: number; ok: boolean } | undefined;
+      for (let k = 0; k < VISUALISATION_TRIES; k++) {
+        const trySeed = seed + k;
+        const status = await provider.edit({ image: { provenance: 'render', data: image.data, mimeType: image.mimeType }, prompt: built.prompt, seed: trySeed, strength: 0.5, model: 'klein-edit' }, { waitMs });
+        if (ref) checks.set(status.jobId, ref);
+        const meta: JobMeta = { mode: 'visualisation', roomId: a.roomId, styleId: a.styleId, roomType: room.type, prompt: built.prompt, negativePrompt: built.negativePrompt, seed: trySeed, ...viewMeta, ...(windowless ? { windowless: true } : {}) };
+        remember(status.jobId, meta);
+        if (status.status !== 'done') {
+          // not finished within waitS: the caller collects it with the jobId (the fidelity filter applies then; no second try is started here)
+          return resultFor(status, { ...meta, ...(attempts.length ? { attempts } : {}) }, provider.id, a.show ?? 'best');
+        }
+        const img = status.images[0];
+        let fid: Fidelity | undefined;
+        if (img && ref) {
+          try {
+            const bytes = existsSync(img.path) ? readFileSync(img.path) : img.preview?.mimeType === 'image/png' ? Buffer.from(img.preview.data, 'base64') : undefined;
+            if (bytes) fid = scoreFidelity(bytes, ref, { visualisation: true });
+          } catch {
+            // unreadable image: not judged
+          }
+        }
+        attempts.push({ seed: trySeed, jobId: status.jobId, fidelity: fid?.score ?? null, ok: fid ? fid.ok : null, reasons: fid?.reasons ?? [] });
+        const entry = { status, meta, score: fid?.score ?? 0, ok: fid ? fid.ok : true };
+        if (!best || (entry.ok && !best.ok) || (entry.ok === best.ok && entry.score > best.score)) best = entry;
+        if (entry.ok) break;
+      }
+      const chosen = best!;
+      return resultFor(chosen.status, { ...chosen.meta, attempts }, provider.id, a.show ?? 'best');
     }
 
     // The layout is decided from the room, before the image: the prompt states it, the camera only shows it. The intended

@@ -559,7 +559,7 @@ function mainViews(scene: Scene, room: Room, zones: ZoneInfo[], zone: ZoneInfo, 
   const light = targets.find((t) => t.kind === 'light');
   const media = room.type === 'living';
   if (focus) {
-    const v = viewFor(scene, room, zones, media ? 'media' : 'focus', zone.id, { aim: focus.aim, from: focus.from, standoff: standoff(focus), ignore: focus.ignore }, { label: focus.label, faces: focus.faces, promptHint: media ? 'The camera faces the TV wall; the sofa stands in the foreground seen from behind, facing the TV, with the coffee table and rug between them.' : `The camera faces ${focus.faces}.` });
+    const v = viewFor(scene, room, zones, media ? 'media' : 'focus', zone.id, { aim: focus.aim, from: focus.from, standoff: standoff(focus), ignore: focus.ignore }, { label: focus.label, faces: focus.faces, promptHint: media ? 'The camera faces the media wall with the TV; the sofa stands in the foreground seen from behind, facing the TV, with the coffee table and rug between them.' : `The camera faces ${focus.faces}.` });
     if (v) views.push(v);
   }
   if (light) {
@@ -571,7 +571,7 @@ function mainViews(scene: Scene, room: Room, zones: ZoneInfo[], zone: ZoneInfo, 
     const mid = mul(add(focus.aim, light.aim), 0.5);
     const away = unit(add(focus.from, light.from));
     const from = len(away) < 0.35 ? rot(focus.from, 40) : away;
-    const v = viewFor(scene, room, zones, 'wide', zone.id, { aim: mid, from, standoff: 6, spread: 45, fovDeg: 85 }, { label: 'wide diagonal', faces: `${focus.faces} and ${light.faces}`, promptHint: media ? 'A wide corner view: the TV wall and the balcony doors both in the picture, the sofa facing the TV.' : 'A wide corner view of the room.' });
+    const v = viewFor(scene, room, zones, 'wide', zone.id, { aim: mid, from, standoff: 6, spread: 45, fovDeg: 85 }, { label: 'wide diagonal', faces: `${focus.faces} and ${light.faces}`, promptHint: media ? 'A wide corner view: the media wall (TV) and the balcony doors both in the picture, the sofa facing the TV.' : 'A wide corner view of the room.' });
     if (v) views.push(v);
   } else if (!views.length || views.length === 1) {
     // no second target: the reverse view, from the focus side back across the room
@@ -718,11 +718,95 @@ function sampleRect(centre: Vec2, rotationDeg: number, w: number, d: number): Ve
   return out;
 }
 
+// -- media wall candidates -------------------------------------------------------------------------------------------------
+
+/** A stretch of wall is a media-wall candidate from this length (m) when it has no opening: the TV and a slat panel need a plain stretch. */
+export const MIN_MEDIA_WALL_M = 2.0;
+/** Sofa, table and a free eye line: the room needs this much floor in front of the wall (m). */
+const MIN_MEDIA_DEPTH_M = 2.8;
+/** Clear wall kept beside a door or window (jamb, trim, swing) before a plain stretch starts (m). */
+const OPENING_MARGIN_M = 0.15;
+
+export interface MediaWall {
+  wallId?: string;
+  /** Index of the edge of the room polygon. */
+  edge: number;
+  length: number;
+  /** Where the TV hangs: its own spot when it is on this wall, else the middle of the wall. */
+  aim: Vec2;
+  /** Unit vector into the room. */
+  from: Vec2;
+  /** Free floor in front of the wall (m). */
+  depth: number;
+  /** The TV is on this wall now. */
+  hasTv: boolean;
+  score: number;
+}
+
+/**
+ * Candidate media walls of a living room, best first: any stretch of wall between its openings, at least 2 m long, with 2.8 m of floor in front,
+ * outside the kitchen zone and without a locked tall fitting along it. The balcony glazing and the entrance never qualify (they are
+ * openings). Score: longer and deeper is better, the wall the TV is on keeps a small lead (do not move it for nothing), a wall facing
+ * the windows is penalised (glare). The TV is NOT a fixed fitting: the designer may move it (and a slat panel) to the best wall.
+ */
+export function mediaWalls(scene: Scene, room: Room, edges: Edge[], zones: ZoneInfo[]): MediaWall[] {
+  const tv = focalItem(scene, room);
+  const tvEdge = tv ? [...edges].sort((p, q) => distanceToSegment(tv.position, p.a, p.b) - distanceToSegment(tv.position, q.a, q.b))[0] : undefined;
+  const kitchen = zones.find((z) => z.kind === 'kitchen');
+  const tall = scene.items.filter((i) => (i.roomId === undefined || i.roomId === room.id) && i.id !== tv?.id && Boolean(i.locked) && (i.elevation ?? 0) < 0.6 && itemDims(i).h > 0.9);
+  const lightEdges = edges.filter((e) => e.openings.some((o) => o.light));
+  const out: MediaWall[] = [];
+  for (const e of edges) {
+    if (e.length < MIN_MEDIA_WALL_M) continue;
+    const along = unit(sub(e.b, e.a));
+    // the stretches of the wall between its openings (a jamb margin either side): a wall with a door still has a plain part
+    const cuts = e.openings
+      .map((o) => {
+        const t = (o.centre[0] - e.a[0]) * along[0] + (o.centre[1] - e.a[1]) * along[1];
+        return [t - o.width / 2 - OPENING_MARGIN_M, t + o.width / 2 + OPENING_MARGIN_M] as [number, number];
+      })
+      .sort((p, q) => p[0] - q[0]);
+    const stretches: [number, number][] = [];
+    let from = 0;
+    for (const [c0, c1] of cuts) {
+      if (c0 > from) stretches.push([from, Math.min(c0, e.length)]);
+      from = Math.max(from, c1);
+    }
+    if (from < e.length) stretches.push([from, e.length]);
+    for (const [t0, t1] of stretches) {
+      if (t1 - t0 < MIN_MEDIA_WALL_M) continue;
+      const mid = add(e.a, mul(along, (t0 + t1) / 2));
+      if (kitchen && pointInPolygon(mid, kitchen.polygon, 0.3)) continue;
+      const a0 = add(e.a, mul(along, t0));
+      const a1 = add(e.a, mul(along, t1));
+      if (tall.some((i) => distanceToSegment(i.position, a0, a1) < 0.5)) continue;
+      let depth = 0;
+      for (let d = 0.1; d <= 8; d += 0.1) {
+        if (!pointInPolygon(add(mid, mul(e.inward, d)), room.polygon, 0)) break;
+        depth = d;
+      }
+      if (depth < MIN_MEDIA_DEPTH_M) continue;
+      const hasTv = tv !== undefined && tvEdge === e && distanceToSegment(tv.position, a0, a1) < 0.6;
+      const facesLight = lightEdges.some((l) => l !== e && l.inward[0] * e.inward[0] + l.inward[1] * e.inward[1] < -0.8 && l.openings.some((o) => o.light && o.width >= 0.8));
+      const score = Math.min(t1 - t0, 4.5) + Math.min(depth, 5) * 0.5 + (hasTv ? 1 : 0) - (facesLight ? 0.7 : 0);
+      out.push({ ...(e.wallId ? { wallId: e.wallId } : {}), edge: e.index, length: r2(t1 - t0), aim: hasTv ? [tv!.position[0], tv!.position[1]] : pt(mid), from: e.inward, depth: r1(depth), hasTv, score: r2(score) });
+    }
+  }
+  return out.sort((a, b) => b.score - a.score);
+}
+
 function livingIntent(scene: Scene, room: Room, zones: ZoneInfo[], zone: ZoneInfo): LayoutIntent {
   const edges = roomEdges(scene, room);
   const targets = mainTargets(scene, room, edges);
-  const focus = targets.find((t) => t.kind === 'focus');
   const kitchen = zones.find((z) => z.kind === 'kitchen');
+  // The TV is not a fixed fitting: the best candidate media wall wins; when the TV is not on it, the intent says to move the TV there.
+  const tvFocus = targets.find((t) => t.kind === 'focus');
+  const tvItem = focalItem(scene, room);
+  const media = mediaWalls(scene, room, edges, zones);
+  const bestWall = media[0];
+  const moveTv = Boolean(bestWall && !bestWall.hasTv);
+  const wallName = (w: MediaWall) => `${w.wallId ?? `the wall ${w.edge}`} (${w.length} m, ${w.depth} m of floor in front)`;
+  const focus: Target | undefined = moveTv && bestWall ? { kind: 'focus', aim: bestWall.aim, from: bestWall.from, label: 'towards the media wall', faces: wallName(bestWall), ignore: tvFocus?.ignore ?? [] } : tvFocus;
   const lights = edges.flatMap((e) => e.openings.filter((o) => o.light));
   const entries = edges.flatMap((e) => e.openings.filter((o) => o.entry)).sort((a, b) => Number(b.otherType === 'hallway') - Number(a.otherType === 'hallway'));
   const circulation: LayoutIntent['circulation'] = [];
@@ -736,7 +820,7 @@ function livingIntent(scene: Scene, room: Room, zones: ZoneInfo[], zone: ZoneInf
   const place: LayoutIntent['place'] = [];
   const notes: string[] = [];
   let sofaAt: { c: Vec2; rot: number } | undefined;
-  const focusId = focus?.ignore[0];
+  const focusId = moveTv && bestWall ? `the media wall ${wallName(bestWall)}` : (tvItem?.id ?? focus?.ignore[0] ?? 'the media wall');
   if (focus) {
     const n = focus.from;
     const t: Vec2 = [-n[1], n[0]];
@@ -766,11 +850,17 @@ function livingIntent(scene: Scene, room: Room, zones: ZoneInfo[], zone: ZoneInf
   } else {
     notes.push('No TV or fireplace: make the longest plain wall the focus and put the sofa facing it, or against the wall opposite the windows.');
   }
+  if (focus && moveTv && bestWall) {
+    const tvRot = rotationFacing(bestWall.from);
+    place.push({ role: 'tv', category: 'tv', relation: { kind: 'at', position: pt(add(bestWall.aim, mul(bestWall.from, 0.04))), rotation: r1(tvRot), elevation: tvItem?.elevation ?? 0.9 }, note: `${tvItem ? `move ${tvItem.id} here (item_move, item_rotate ${r1(tvRot)}), with any slat panel behind it, then call describe_room plan again so the views follow` : 'a TV (or a framed panel) on this wall'}` });
+    notes.push(`Media wall: ${wallName(bestWall)} is the best of ${media.length} candidate wall${media.length > 1 ? 's' : ''}${tvItem ? `; ${tvItem.id} is not on it and is NOT a fixed fitting: move it there (and any slat panel with it)` : ''}.`);
+  } else if (media.length) notes.push(`Media wall: ${wallName(media[0]!)}${tvItem ? `, where ${tvItem.id} already is` : ''}.`);
+  if (media.length > 1) notes.push(`Other candidate media walls: ${media.slice(1).map(wallName).join('; ')} (a wall without openings, at least ${MIN_MEDIA_WALL_M} m long; never the balcony glazing).`);
   if (circulation.length) notes.push(`Keep the walk ${circulation.map((c) => `from ${c.from} to ${c.to}`).join(' and ')} at least ${CIRC_W} m wide (walk around the seating, never through it) and nothing in the 1.1 m in front of the doors to the balcony or the entrance.`);
   if (kitchen) notes.push(`The kitchen zone (${kitchen.id}) keeps its locked fittings; the living zone ends where its floor changes. A sofa back may mark the boundary.`);
   void zone;
   const promptText = focus
-    ? `Layout: the sofa faces the TV wall and stands in the middle of the room with its back to ${kitchen ? 'the kitchen' : 'the room'}; a coffee table and a rug between the sofa and the TV; a clear passage to the balcony doors.`
+    ? `Layout: the sofa faces the media wall (the TV) and stands in the middle of the room with its back to ${kitchen ? 'the kitchen' : 'the room'}; a coffee table and a rug between the sofa and the TV; a clear passage to the balcony doors.`
     : 'Layout: the sofa faces the plain wall, a clear passage to the doors.';
   const text = `Layout decided from the room, not from any image (zone ${zone.id}):\n- ${notes.join('\n- ')}${sofaAt ? '' : ''}\nCameras and prompts only show this layout; follow it for the pieces listed under "place", whatever an image shows.`;
   return { zone: zone.id, text, promptText, place, circulation, fixes: place.length ? ['sofa', 'rug', 'table'] : [] };

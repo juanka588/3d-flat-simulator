@@ -32,7 +32,6 @@ lighting:
 textiles:
   - worn kilim or grey wool rug
   - leather and canvas cushions
-  - heavy linen curtains in charcoal
   - plaid wool throw
 decor:
   - black-framed city or architectural prints

@@ -30,7 +30,7 @@
  * exercised without a model, a GPU or a cost. Dry output goes to `.tmp/design-closegap-dry/`.
  */
 import { spawn, spawnSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
@@ -215,6 +215,31 @@ export function parseRequire(values) {
 /** The mandatory products that apply to a target: its own (`sejour:kitchen`) and those named for its whole room (`sejour`). */
 export const requirementsFor = (reqs, spec) => (reqs ?? []).filter((r) => r.target === (spec.zone ? `${spec.roomId}:${spec.zone}` : spec.roomId) || r.target === spec.roomId);
 
+/** Categories no designer may place unless the lead says otherwise: no curtains, no drapes (place_item refuses them). */
+export const DEFAULT_EXCLUDE = ['curtain'];
+
+/**
+ * `--exclude curtain,shower_curtain` (repeatable) -> the categories `place_item` refuses (FLAT_EXCLUDE_CATEGORIES of the MCP server).
+ * Nothing given: DEFAULT_EXCLUDE; `none` (alone): no exclusion. A brief line `Exclude: curtain` is added by `excludeFor`.
+ */
+export function parseExclude(values) {
+  const parts = [values ?? []].flat().flatMap((v) => String(v).split(',')).map((x) => x.trim().toLowerCase().replace(/[ -]+/g, '_')).filter(Boolean);
+  if (!parts.length) return [...DEFAULT_EXCLUDE];
+  if (parts.every((x) => x === 'none')) return [];
+  return [...new Set(parts.filter((x) => x !== 'none'))];
+}
+
+/** The excluded categories of one run: the option plus the `Exclude: a, b` lines of the brief (general part and the parts naming the target). */
+export function excludeFor(exclude, brief, spec) {
+  const extra = briefFor(brief, spec)
+    .split('\n')
+    .map((l) => /^\s*exclude(?:d categories)?\s*:\s*(.+)$/i.exec(l)?.[1])
+    .filter(Boolean)
+    .flatMap((x) => x.split(',').map((y) => y.trim().toLowerCase().replace(/[ -]+/g, '_')))
+    .filter(Boolean);
+  return [...new Set([...(exclude ?? DEFAULT_EXCLUDE), ...extra])];
+}
+
 /**
  * A brief file: text before the first `## ` heading goes to every target; `## sejour:living, sdb` starts a part for those targets
  * (`## sejour` = both zones of the room; `## all` or `## all rooms` = every target).
@@ -244,8 +269,9 @@ export function briefFor(brief, spec) {
 }
 
 /** The prompt block for a target's briefing and mandatory products ('' when there is neither). */
-export function briefBlock({ brief, required }) {
+export function briefBlock({ brief, required, exclude }) {
   const parts = [];
+  if (exclude?.length) parts.push(`EXCLUDED CATEGORIES (the lead forbids them; place_item refuses them with an error): ${exclude.join(', ')}.${exclude.includes('curtain') ? ' No curtains, no drapes, no net curtains anywhere, at no window and no balcony door: leave the windows bare. Do not add them as concept shapes either, and ignore any style text that mentions curtains.' : ''}`);
   if (brief) parts.push(`BRIEF FROM THE LEAD for this target (follow it; where it conflicts with the style's defaults, the brief wins; real products only, anything else is a labelled concept):\n${brief}`);
   if (required?.length) {
     parts.push(
@@ -466,7 +492,7 @@ export async function contactSheetRows({ rows, file }) {
 }
 
 /** The visualisation with its label burned in: it must never be mistaken for the honest render. */
-async function labelVisualisation(src, file) {
+export async function labelVisualisation(src, file) {
   const { default: sharp } = await import('sharp');
   const meta = await sharp(src).metadata();
   const w = meta.width ?? 1024;
@@ -494,10 +520,38 @@ export function referenceImagesByView(refDir) {
   return found;
 }
 
+/**
+ * The views of the final scene whose camera differs from the one planned at the start (the media view follows the TV): for each, the
+ * new eye / heading / fov / faces to apply. Same ids only; a view that vanished or appeared is left alone.
+ */
+export function viewsMoved(planned, after) {
+  const out = [];
+  for (const v of planned) {
+    const n = (after ?? []).find((x) => x.id === v.id && x.zone === v.zone);
+    if (!n?.eye || !v.eye) continue;
+    const dh = Math.abs(((n.headingDeg - v.headingDeg + 540) % 360) - 180);
+    if (Math.hypot(n.eye[0] - v.eye[0], n.eye[1] - v.eye[1]) > 0.05 || dh > 1) out.push({ id: v.id, to: { eye: n.eye, headingDeg: n.headingDeg, fovDeg: n.fovDeg, faces: n.faces } });
+  }
+  return out;
+}
+
 function findLatest(dir, re) {
   if (!existsSync(dir)) return undefined;
-  const hits = readdirSync(dir).filter((f) => re.test(f)).sort();
-  return hits.length ? join(dir, hits[hits.length - 1]) : undefined;
+  // the newest file (job ids are random, so their names do not sort by time)
+  const hits = readdirSync(dir).filter((f) => re.test(f)).map((f) => ({ f, t: statSync(join(dir, f)).mtimeMs })).sort((a, b) => a.t - b.t || a.f.localeCompare(b.f));
+  return hits.length ? join(dir, hits.at(-1).f) : undefined;
+}
+
+/**
+ * The newest visualisation in `refDir` and what the fidelity check said about it (the MCP saves `fidelityOk` and the attempts next to
+ * the image): `{ file, ok }`, where ok is true / false / undefined (not judged). A visualisation that failed its check is asked again.
+ */
+export function visualisationState(refDir) {
+  const png = findLatest(refDir, /^visualisation-.*-\d+\.png$/);
+  if (!png) return undefined;
+  const j = jsonIn(png.replace(/-\d+\.png$/, '.json'));
+  const img = j?.images?.find((i) => i.file === png) ?? j?.images?.[0];
+  return { file: png, ok: img?.fidelityOk, fidelity: img?.fidelity, attempts: j?.attempts?.length ?? 1, seed: j?.seed };
 }
 
 /**
@@ -665,7 +719,8 @@ export async function runRoom(o) {
   log(`scene server ${server.url} (data ${dataDir}), providers ${providers}; caps $${o.maxUsd}, ${o.maxMinutes} min; out ${out}`);
   // The reference phase may use 40% of the target's time: past that the MCP cuts candidates to one, past all of it no new image starts.
   const refBudgetS = Math.round(o.maxMinutes * 60 * 0.4);
-  const mcpEnv = { FLAT_DESIGN_OUT: out, IMAGEGEN_URL: o.imagegenUrl, ...(o.dry ? {} : { FLAT_REFERENCE_BUDGET_S: String(refBudgetS) }), ...(process.env.IMAGEGEN_TOKEN ? { IMAGEGEN_TOKEN: process.env.IMAGEGEN_TOKEN } : {}), ...(process.env.FLAT_SCORE_WEIGHTS ? { FLAT_SCORE_WEIGHTS: process.env.FLAT_SCORE_WEIGHTS } : {}) };
+  const exclude = excludeFor(o.exclude, o.briefParsed, o);
+  const mcpEnv = { FLAT_DESIGN_OUT: out, IMAGEGEN_URL: o.imagegenUrl, ...(exclude.length ? { FLAT_EXCLUDE_CATEGORIES: exclude.join(',') } : {}), ...(o.dry ? {} : { FLAT_REFERENCE_BUDGET_S: String(refBudgetS) }), ...(process.env.IMAGEGEN_TOKEN ? { IMAGEGEN_TOKEN: process.env.IMAGEGEN_TOKEN } : {}), ...(process.env.FLAT_SCORE_WEIGHTS ? { FLAT_SCORE_WEIGHTS: process.env.FLAT_SCORE_WEIGHTS } : {}) };
   let reader;
   const started = Date.now();
   const putScene = async (text) => {
@@ -714,7 +769,7 @@ export async function runRoom(o) {
     const timeBox = o.dry ? '' : `\n\nTime box (the controller enforces it): this target has ${o.maxMinutes} minutes in total. The reference images must be finished within ${Math.round(refBudgetS / 60)} minutes: if an image takes much longer than 90 s the machine is struggling, so use n 1 for every view (also the hero), do not regenerate or wait for extra candidates, and go on. After that time generate_reference refuses new references. You MUST reach at least one scored iteration (score_against_reference) before the end: record the descriptors, place the essentials and score, then improve if time is left.`;
     const required = requirementsFor(o.require, o);
     const brief = briefFor(o.briefParsed, o);
-    const request = `Use only the flat's MCP tools. The design output folder is already set: call gap_report without saveTo. Show nothing but the tools' pictures; you cannot open files.\n\n${prompt.messages.map((m) => (m.content.type === 'text' ? m.content.text : '')).join('\n\n')}${briefBlock({ brief, required })}${restrict}${timeBox}`;
+    const request = `Use only the flat's MCP tools. The design output folder is already set: call gap_report without saveTo. Show nothing but the tools' pictures; you cannot open files.\n\n${prompt.messages.map((m) => (m.content.type === 'text' ? m.content.text : '')).join('\n\n')}${briefBlock({ brief, required, exclude })}${restrict}${timeBox}`;
     writeFileSync(join(out, 'prompt.md'), request);
 
     const calls = [];
@@ -860,6 +915,25 @@ export async function runRoom(o) {
     }
     if (existsSync(join(out, 'views', hero.id, 'target.png'))) copyFileSync(join(out, 'views', hero.id, 'target.png'), join(out, 'target.png'));
 
+    // The TV (or a slat panel) may have been moved: the views follow it, so the final renders use the cameras of the FINAL scene, and the
+    // "before" pictures are drawn again from the start scene with the same cameras (before and final then show the same view).
+    try {
+      const after = (await call('describe_room', { roomId: o.roomId, plan: true })).structuredContent ?? {};
+      const moved = viewsMoved(views, after.views ?? []);
+      if (moved.length) {
+        log(`views that followed the moved furniture: ${moved.map((m) => m.id).join(', ')}`);
+        for (const m of moved) Object.assign(views.find((v) => v.id === m.id), m.to);
+        writeFileSync(join(out, 'plan.json'), JSON.stringify({ zones: plan.zones, views, layout: (plan.layout ?? []).filter((l) => !o.zone || l.zone === o.zone), viewsMovedAfterLayout: moved.map((m) => m.id) }, null, 2));
+        const finalText = sceneFile ? readFileSync(sceneFile, 'utf8') : undefined;
+        await putScene(o.startScene);
+        for (const m of moved) await render(views.find((v) => v.id === m.id), join(out, 'views', m.id, 'before.png'));
+        copyFileSync(join(out, 'views', hero.id, 'before.png'), join(out, 'before.png'));
+        if (finalText) await putScene(finalText);
+      }
+    } catch (e) {
+      log(`could not re-derive the views after the layout: ${e.message}`);
+    }
+
     // honest final renders from each view's camera
     const finals = {};
     for (const v of views) {
@@ -871,16 +945,19 @@ export async function runRoom(o) {
     }
     if (finals[hero.id]) copyFileSync(finals[hero.id], join(out, 'final.png'));
 
-    let visFile = findLatest(refDir, /^visualisation-.*\.png$/);
-    if (!visFile && !o.noVisualisation && !timedOut) {
+    let vis = visualisationState(refDir);
+    // none, or one that failed its fidelity check (a cornice, a rose, a lost sky): ask again (the tool makes up to 2 edits and keeps the better)
+    if ((!vis || (vis.ok === false && vis.attempts < 2)) && !o.noVisualisation && !timedOut) {
       try {
-        log('the model did not make the visualisation: asking for it');
-        await call('generate_reference', { roomId: o.roomId, styleId: o.styleId, mode: 'visualisation', view: hero.id, waitS: o.dry ? 5 : 240 });
-        visFile = findLatest(refDir, /^visualisation-.*\.png$/);
+        log(vis ? `the visualisation failed its fidelity check (${vis.fidelity}): asking again with the next seed` : 'the model did not make the visualisation: asking for it');
+        await call('generate_reference', { roomId: o.roomId, styleId: o.styleId, mode: 'visualisation', view: hero.id, waitS: o.dry ? 5 : 240, ...(vis?.seed !== undefined ? { seed: vis.seed + 1 } : {}) });
+        const again = visualisationState(refDir);
+        if (again && !(vis && again.ok === false && vis.ok === false && (again.fidelity ?? 0) < (vis.fidelity ?? 0))) vis = again;
       } catch (e) {
         log(`visualisation failed: ${e.message}`);
       }
     }
+    const visFile = vis?.file;
     if (visFile) await labelVisualisation(visFile, join(out, 'visualisation.png'));
 
     // mandatory products: the final scene must hold each of them
@@ -1065,7 +1142,7 @@ export async function closeGapMain(o) {
     const label = (t) => (t.zone ? `${t.roomId}:${t.zone}` : t.roomId);
     // the lead's brief (text and/or file) and mandatory products; a requirement for a target that is not in this run is a typo, not a no-op
     const briefText = [o.brief, o.briefFile ? readFileSync(o.briefFile, 'utf8') : ''].filter(Boolean).join('\n\n');
-    o = { ...o, briefParsed: briefText ? parseBrief(briefText) : undefined, require: parseRequire(o.require) };
+    o = { ...o, briefParsed: briefText ? parseBrief(briefText) : undefined, require: parseRequire(o.require), exclude: parseExclude(o.exclude) };
     const stray = o.require.filter((r) => !targets.some((t) => label(t) === r.target || t.roomId === r.target));
     if (stray.length) {
       console.error(`--require names a target that is not in --rooms: ${stray.map((r) => r.target).join(', ')} (targets: ${targets.map(label).join(', ')})`);

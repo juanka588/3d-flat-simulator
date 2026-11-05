@@ -31,7 +31,6 @@ lighting:
     - 2700 K everywhere in living spaces and bedrooms
 textiles:
   - large wool or jute rug in a neutral
-  - linen curtains in ivory or sand
   - bouclé or linen cushions in clay and sage
   - plain linen bedding with one throw
 decor:
@@ -74,7 +73,7 @@ Calm, modern and welcoming. A flat that looks good in photographs and feels good
 Warm white walls, the TV or sofa wall in sage or greige. Sofa, round oak coffee table, wool rug, TV unit on the TV wall, floor lamp, plants. Island or dining table with stools or chairs and a pendant. Keep the kitchen tiles; add a tray, a bowl and plants.
 
 ## Chambres
-Oak bed, linen bedding, two nightstands with lamps, a rug, linen curtains. One accent wall behind the bed (clay or sage). The second room can be a guest room or study with a desk and chair.
+Oak bed, linen bedding, two nightstands with lamps, a rug. One accent wall behind the bed (clay or sage). The second room can be a guest room or study with a desk and chair.
 
 ## Entrée
 A slim shoe cabinet or console (25-35 cm deep), a wall mirror and hooks. Keep 0.9 m clear.

@@ -148,6 +148,14 @@ export function viewFacts(scene: Scene, roomId: string, camera: CameraPose): Vie
   const openingsText = openings.length
     ? `Openings (keep exactly, same count, place and size): ${openings.length} in total (${parts.join(', ')})${windowless ? '' : `, no other ${light ? 'window' : 'opening'}`}. ${openings.map(place).join('; ')}.`
     : 'Openings: none in the picture, only plain closed walls.';
-  const fittingsText = fittings.length ? `Fixed fittings (keep, same place and size): ${fittings.map((f) => `${f.text} (${(f.sides ?? [f.side]).map((x) => x.toLowerCase()).join(' and ')})`).join('; ')}.` : '';
+  const sidesOf = (f: FactFitting) => (f.sides ?? [f.side]).map((x) => x.toLowerCase()).join(' and ');
+  // The TV is not a fixed fitting (the designer may move it): the picture shows it where the scene has it now, as a plain object.
+  const isTv = (f: FactFitting) => /\bTV\b/.test(f.text);
+  const fixedList = fittings.filter((f) => !isTv(f));
+  const tvList = fittings.filter(isTv);
+  const fittingsText = [
+    fixedList.length ? `Fixed fittings (keep, same place and size): ${fixedList.map((f) => `${f.text} (${sidesOf(f)})`).join('; ')}.` : '',
+    tvList.length ? `${tvList.map((f) => `${f.text} (${sidesOf(f)})`).join('; ')}, drawn as in the line drawing.` : '',
+  ].filter(Boolean).join(' ');
   return { openings, fittings, windowless, roomWindowless: roomIsWindowless, openingsText, fittingsText };
 }

@@ -1,7 +1,7 @@
 import { openingFrame, pointInPolygon, type Scene } from '@flat/scene';
 import { describe, expect, it } from 'vitest';
 import { charmeScene } from '../testing/mockFlatApi';
-import { bathFittings, doorwayPose, itemVisibility, layoutIntent, roomPlan, roomViews, roomZones } from './views';
+import { bathFittings, doorwayPose, itemVisibility, layoutIntent, mediaWalls, roomEdges, roomPlan, roomViews, roomZones } from './views';
 
 /** Views, zones and layout intent derived from the geometry of the Charme fixture (séjour / cuisine, sdb, chambres). */
 
@@ -95,6 +95,57 @@ describe('views', () => {
   });
 });
 
+describe('media wall (the TV is not a fixed fitting)', () => {
+  const withTv = (position: [number, number], rotation = 0): Scene => ({ ...scene, items: scene.items.map((i) => (i.id === 'tv-sejour' ? { ...i, position, rotation } : i)) });
+  const room = scene.rooms.find((r) => r.id === 'sejour')!;
+
+  it('candidates are plain stretches of at least 2 m with floor in front, never the kitchen or the balcony glazing', () => {
+    const c = mediaWalls(scene, room, roomEdges(scene, room), roomZones(scene, 'sejour'));
+    // the alcove wall has a door at its west end: its plain stretch east of the door qualifies; the west wall (balcony doors) and the kitchen wall do not
+    expect(c.map((w) => w.wallId)).toEqual(['w-alcove']);
+    expect(c[0]).toMatchObject({ hasTv: true });
+    expect(c[0]!.from[1]).toBe(1);
+    expect(c[0]!.length).toBeGreaterThanOrEqual(2);
+    expect(c[0]!.depth).toBeGreaterThan(2.8);
+  });
+
+  it('the TV where it is keeps the media wall; the intent says nothing about moving it', () => {
+    const l = layoutIntent(scene, 'sejour', 'living');
+    expect(l.text).not.toMatch(/NOT a fixed fitting/);
+    expect(l.place.map((p) => p.role)).not.toContain('tv');
+  });
+
+  it('a TV moved onto a wall that is no candidate: the intent proposes the best wall and how to move the TV there, the sofa faces that wall', () => {
+    const moved = withTv([1.5, 8.2], 0); // on the kitchen side wall
+    const l = layoutIntent(moved, 'sejour', 'living');
+    const tv = l.place.find((p) => p.role === 'tv')!;
+    expect(tv.relation).toMatchObject({ kind: 'at', rotation: 0 });
+    expect((tv.relation['position'] as [number, number])[1]).toBeCloseTo(2.275, 1);
+    expect(tv.note).toMatch(/move tv-sejour here \(item_move, item_rotate 0\)/);
+    expect(l.text).toMatch(/Media wall: w-alcove .* tv-sejour is not on it and is NOT a fixed fitting: move it there/);
+    const sofa = l.place.find((p) => p.role === 'sofa')!;
+    expect(sofa.relation['rotation']).toBe(180);
+    expect(l.promptText).not.toMatch(/TV wall/);
+  });
+
+  it('the views follow the TV wherever it is now', () => {
+    const before = roomViews(scene, 'sejour').find((v) => v.id === 'media')!;
+    expect(before.faces).toContain('tv-sejour on w-alcove');
+    const moved = roomViews(withTv([1.5, 8.2], 0), 'sejour').find((v) => v.id === 'media')!;
+    expect(moved.faces).toContain('tv-sejour on w-south');
+    expect(moved.pose.headingDeg).not.toBeCloseTo(before.pose.headingDeg, 0);
+    expect(moved.promptHint).not.toMatch(/TV wall/);
+  });
+
+  it('without a TV the best candidate wall is the focus, and the intent names it', () => {
+    const none: Scene = { ...scene, items: scene.items.filter((i) => i.id !== 'tv-sejour') };
+    const l = layoutIntent(none, 'sejour', 'living');
+    expect(l.place.find((p) => p.role === 'sofa')).toBeDefined();
+    expect(l.text).toMatch(/Media wall: w-alcove/);
+    expect(l.place.find((p) => p.role === 'tv')!.note).toMatch(/a TV \(or a framed panel\)/);
+  });
+});
+
 describe('layout intent', () => {
   it('the living zone puts the sofa facing the TV, off the circulation path, away from the kitchen', () => {
     const l = layoutIntent(scene, 'sejour', 'living');
@@ -111,7 +162,9 @@ describe('layout intent', () => {
     expect(l.text).toMatch(/faces tv-sejour|facing it/);
     expect(l.text).toMatch(/at least 0\.9 m wide/);
     expect(l.circulation.length).toBeGreaterThan(0);
-    expect(l.promptText).toMatch(/sofa faces the TV wall/);
+    expect(l.promptText).toMatch(/sofa faces the media wall/);
+    expect(l.text).toMatch(/Media wall: w-alcove .*where tv-sejour already is/);
+    expect(l.place.some((p) => p.role === 'tv')).toBe(false);
     expect(l.fixes).toEqual(expect.arrayContaining(['sofa', 'rug']));
   });
 

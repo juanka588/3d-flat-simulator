@@ -16,6 +16,18 @@ export const CEILING_RGB = [200, 200, 255] as const;
 
 /** Candidates below these are filtered out. Calibrated on the spike (30 images, 3 views): all wood-ceiling images fail the first. */
 export const FIDELITY_THRESHOLDS = { ceilingPale: 0.5, edgeRecall: 0.12, windowPatch: 0.015 } as const;
+/**
+ * Extra rules of a VISUALISATION (a klein edit of our own render, so the structure is expected to stay): its ceiling must be as
+ * plain as the render's (no rose, no cornice lines inside the ceiling area) and an outdoor picture keeps its open sky.
+ * `ceilingClutter`: the most strong-edge cells allowed in the ceiling area, as a share of it; `skyOpen`: the least share of the
+ * sky cells of the ids pass that still look like sky (bright, not dark indoor shade); `edgeRecall` is stricter than for references.
+ */
+export const VISUALISATION_THRESHOLDS = { ceilingClutter: 0.08, skyOpen: 0.5, edgeRecall: 0.3 } as const;
+/** Options of `scoreFidelity`. */
+export interface ScoreOptions {
+  /** Apply the visualisation rules too. */
+  visualisation?: boolean;
+}
 /** Colour of the `wall` class in the ids pass. */
 export const WALL_RGB = [128, 128, 128] as const;
 
@@ -29,6 +41,9 @@ export interface FidelityRef {
   /** Wall cells (class `wall` of the ids pass, eroded off the borders). */
   walls?: Uint8Array;
   wallCells?: number;
+  /** An outdoor picture (balcony): the background cells of the ids pass (sky), eroded off the borders. */
+  sky?: Uint8Array;
+  skyCells?: number;
 }
 
 export interface Fidelity {
@@ -38,6 +53,10 @@ export interface Fidelity {
   edgeRecall: number;
   /** Windowless pictures only: the share of the wall cells covered by the largest bright, window-like patch (null when not checked). */
   windowPatch?: number | null;
+  /** Visualisations only: the share of ceiling cells on strong edges (a rose or a cornice raises it); null when the ceiling is not in view. */
+  ceilingClutter?: number | null;
+  /** Outdoor visualisations only: the share of the sky cells that still look like open sky (null when not checked). */
+  skyOpen?: number | null;
   ok: boolean;
   reasons: string[];
 }
@@ -67,7 +86,7 @@ const erode = (m: Uint8Array, r: number): Uint8Array => {
 };
 
 /** The reference side, from the ids pass and the structural edge pass of the control camera (base64 PNGs of the same size). */
-export function fidelityRef(idsPngB64: string, edgesPngB64: string, opts: { windowless?: boolean } = {}): FidelityRef {
+export function fidelityRef(idsPngB64: string, edgesPngB64: string, opts: { windowless?: boolean; outdoor?: boolean } = {}): FidelityRef {
   const ids = png(idsPngB64);
   const e = png(edgesPngB64);
   const isCeiling = (i: number) => ids.data[i * 4] === CEILING_RGB[0] && ids.data[i * 4 + 1] === CEILING_RGB[1] && ids.data[i * 4 + 2] === CEILING_RGB[2];
@@ -76,7 +95,12 @@ export function fidelityRef(idsPngB64: string, edgesPngB64: string, opts: { wind
   const ceiling = erode(notCeiling.map((v) => (v ? 0 : 1)), 2);
   const edges = pool(e.width, e.height, (i) => e.data[i * 4]! > 0);
   const sum = (a: Uint8Array) => a.reduce((s, v) => s + v, 0);
-  const base = { ceiling, ceilingCells: sum(ceiling), edges, edgeCells: sum(edges) };
+  let base: FidelityRef = { ceiling, ceilingCells: sum(ceiling), edges, edgeCells: sum(edges) };
+  if (opts.outdoor) {
+    const isBackground = (i: number) => ids.data[i * 4] === 0 && ids.data[i * 4 + 1] === 0 && ids.data[i * 4 + 2] === 0;
+    const sky = erode(pool(ids.width, ids.height, (i) => !isBackground(i)).map((v) => (v ? 0 : 1)), 2);
+    base = { ...base, sky, skyCells: sum(sky) };
+  }
   if (!opts.windowless) return base;
   const isWall = (i: number) => ids.data[i * 4] === WALL_RGB[0] && ids.data[i * 4 + 1] === WALL_RGB[1] && ids.data[i * 4 + 2] === WALL_RGB[2];
   const notWall = pool(ids.width, ids.height, (i) => !isWall(i));
@@ -144,7 +168,7 @@ function toGrid(p: PNG): Float32Array {
 }
 
 /** Scores a generated PNG (bytes) against the reference side. Throws when the bytes are not a PNG. */
-export function scoreFidelity(imagePng: Buffer, ref: FidelityRef): Fidelity {
+export function scoreFidelity(imagePng: Buffer, ref: FidelityRef, opts: ScoreOptions = {}): Fidelity {
   const rgb = toGrid(PNG.sync.read(imagePng));
   const n = GRID.w * GRID.h;
   const gray = new Float32Array(n);
@@ -201,10 +225,40 @@ export function scoreFidelity(imagePng: Buffer, ref: FidelityRef): Fidelity {
     windowPatch = windowPatchShare(lum, ref.walls, ref.wallCells!);
   }
 
+  // visualisation rules: a plain ceiling and an open sky
+  let ceilingClutter: number | null = null;
+  let skyOpen: number | null = null;
+  if (opts.visualisation) {
+    if (ref.ceilingCells >= 400) {
+      let busy = 0;
+      for (let g = 0; g < n; g++) if (ref.ceiling[g] && strong[g]) busy++;
+      ceilingClutter = busy / ref.ceilingCells;
+    }
+    if (ref.sky && (ref.skyCells ?? 0) >= 400) {
+      let sky = 0;
+      for (let g = 0; g < n; g++) {
+        if (!ref.sky[g]) continue;
+        const r = rgb[g * 3]!, gg = rgb[g * 3 + 1]!, b = rgb[g * 3 + 2]!;
+        // open sky: bright and not warm-dark; a ceiling or an indoor wall in its place is darker or warm
+        if (Math.max(r, gg, b) > 0.6 && b >= r - 0.03) sky++;
+      }
+      skyOpen = sky / ref.skyCells!;
+    }
+  }
+
   const reasons: string[] = [];
+  if (opts.visualisation && edgeRecall < VISUALISATION_THRESHOLDS.edgeRecall) reasons.push(`the visualisation moved the room's structure (edge recall ${edgeRecall.toFixed(2)} against the render)`);
+  if (ceilingClutter !== null && ceilingClutter > VISUALISATION_THRESHOLDS.ceilingClutter) reasons.push(`the ceiling is not plain (${Math.round(ceilingClutter * 100)} % of it is on strong edges: a rose, a cornice or mouldings were added)`);
+  if (skyOpen !== null && skyOpen < VISUALISATION_THRESHOLDS.skyOpen) reasons.push(`the open sky is gone (${Math.round(skyOpen * 100)} % of the sky area still looks like sky): the outdoor space became indoors`);
   if (ceilingPale !== null && ceilingPale < FIDELITY_THRESHOLDS.ceilingPale) reasons.push(`the ceiling is not pale (${Math.round(ceilingPale * 100)} % pale; wood, wallpaper or colour painted on it)`);
   if (edgeRecall < FIDELITY_THRESHOLDS.edgeRecall) reasons.push(`the room's walls, windows and doors are not where the drawing puts them (edge recall ${edgeRecall.toFixed(2)})`);
   if (windowPatch !== null && windowPatch >= FIDELITY_THRESHOLDS.windowPatch) reasons.push(`a window-like bright patch appeared on a wall (${(windowPatch * 100).toFixed(1)} % of the wall area) in a room that has no window`);
-  const parts = [edgeRecall, ...(ceilingPale === null ? [] : [ceilingPale >= FIDELITY_THRESHOLDS.ceilingPale ? 1 : 0]), ...(windowPatch === null ? [] : [windowPatch >= FIDELITY_THRESHOLDS.windowPatch ? 0 : 1])];
-  return { score: Math.round((parts.reduce((a, b) => a + b, 0) / parts.length) * 1000) / 1000, ceilingPale: ceilingPale === null ? null : Math.round(ceilingPale * 1000) / 1000, ...(windowPatch === null ? {} : { windowPatch: Math.round(windowPatch * 1000) / 1000 }), edgeRecall: Math.round(edgeRecall * 1000) / 1000, ok: reasons.length === 0, reasons };
+  const parts = [
+    edgeRecall,
+    ...(ceilingPale === null ? [] : [ceilingPale >= FIDELITY_THRESHOLDS.ceilingPale ? 1 : 0]),
+    ...(windowPatch === null ? [] : [windowPatch >= FIDELITY_THRESHOLDS.windowPatch ? 0 : 1]),
+    ...(ceilingClutter === null ? [] : [ceilingClutter > VISUALISATION_THRESHOLDS.ceilingClutter ? 0 : 1]),
+    ...(skyOpen === null ? [] : [skyOpen < VISUALISATION_THRESHOLDS.skyOpen ? 0 : 1]),
+  ];
+  return { score: Math.round((parts.reduce((a, b) => a + b, 0) / parts.length) * 1000) / 1000, ceilingPale: ceilingPale === null ? null : Math.round(ceilingPale * 1000) / 1000, ...(windowPatch === null ? {} : { windowPatch: Math.round(windowPatch * 1000) / 1000 }), ...(ceilingClutter === null ? {} : { ceilingClutter: Math.round(ceilingClutter * 1000) / 1000 }), ...(skyOpen === null ? {} : { skyOpen: Math.round(skyOpen * 1000) / 1000 }), edgeRecall: Math.round(edgeRecall * 1000) / 1000, ok: reasons.length === 0, reasons };
 }

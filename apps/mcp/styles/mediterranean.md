@@ -30,7 +30,6 @@ lighting:
     - ceramic table lamps
     - lanterns on the balcony
 textiles:
-  - linen curtains in white or sand
   - flat-weave cotton or jute rug
   - striped or blue-and-white cushions
   - blue-white cotton bedding
@@ -74,7 +73,7 @@ Relaxed, sunny and hospitable: lunch on a terrace that never ends.
 White walls, an arched-look shelf or niche if the catalogue allows; a linen sofa, a rattan armchair, a rustic wood coffee table, a jute rug, a big terracotta pot. A rustic dining table with wicker chairs and a rattan pendant. Keep the kitchen tiles; add blue-and-white ceramics.
 
 ## Chambres
-Wood or rattan bed, white and blue linen bedding, a woven pendant or lamp, linen curtains. One wall in soft terracotta or sea blue behind the bed. The second room: a daybed or desk with a wicker chair.
+Wood or rattan bed, white and blue linen bedding, a woven pendant or lamp. One wall in soft terracotta or sea blue behind the bed. The second room: a daybed or desk with a wicker chair.
 
 ## Entrée
 A wooden bench, a woven basket, a round rattan or wood-framed mirror, hooks.
@@ -96,4 +95,4 @@ A bistro table and two wicker or wood chairs, lanterns, terracotta pots with her
 ## Don't
 - No chrome, glass-and-steel or dark grey.
 - No seashell or anchor kitsch.
-- Don't hide the light with heavy curtains.
+- Keep the windows bare: no curtains, no drapes.

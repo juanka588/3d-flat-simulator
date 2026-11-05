@@ -19,6 +19,7 @@ import { parseScoreWeights, type ScoreWeights } from './score/metrics';
  * | `FLAT_MCP_SEARCHES_PER_MIN` | `20` | `search_products` calls per minute (they may reach a retailer) |
  * | `FLAT_MCP_PRODUCT_GETS_PER_MIN` | `60` | `get_product` calls per minute |
  * | `FLAT_MCP_TIMEOUT_MS` | `10000` | per request to the scene server |
+ * | `FLAT_EXCLUDE_CATEGORIES` | unset | comma-separated product categories `place_item` refuses (e.g. `curtain,shower_curtain`); the brief's "no curtains" rule |
  * | `FLAT_SCORE_WEIGHTS` | `palette=0.3,layout=0.3,clip=0.3,aesthetic=0.1` | weights of `score_against_reference` (renormalised over the metrics available) |
  */
 
@@ -48,6 +49,8 @@ export interface McpConfig {
   limits: McpLimits;
   /** Per-request timeout to the scene server, ms. */
   requestTimeoutMs: number;
+  /** Product categories `place_item` refuses (a brief's exclusions, e.g. `curtain`); concept shapes of that category too. */
+  excludeCategories?: string[];
   /** Weights of the overall score of `score_against_reference` (CG5). */
   scoreWeights?: ScoreWeights;
   /** Diagnostics; writes to stderr only (stdout is the JSON-RPC channel on stdio). */
@@ -73,6 +76,10 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     .map((s) => s.trim())
     .filter(Boolean);
   const channel = env.FLAT_RENDER_CHANNEL?.trim();
+  const excluded = (env.FLAT_EXCLUDE_CATEGORIES ?? '')
+    .split(',')
+    .map((x) => x.trim().toLowerCase())
+    .filter(Boolean);
   return {
     serverUrl: (env.FLAT_SERVER_URL?.trim() || 'http://127.0.0.1:8787').replace(/\/+$/, ''),
     token: env.FLAT_TOKEN || undefined,
@@ -90,6 +97,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
       productGetsPerMinute: num(env.FLAT_MCP_PRODUCT_GETS_PER_MIN, DEFAULT_LIMITS.productGetsPerMinute),
     },
     requestTimeoutMs: num(env.FLAT_MCP_TIMEOUT_MS, 10_000),
+    ...(excluded.length ? { excludeCategories: excluded } : {}),
     scoreWeights: parseScoreWeights(env.FLAT_SCORE_WEIGHTS).weights,
     log: stderrLog,
     ...overrides,

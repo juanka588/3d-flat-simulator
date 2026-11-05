@@ -225,7 +225,43 @@ describe('room-type-aware prompts', () => {
     expect(buildReferencePrompt(japandi, 'living').negativePrompt).toMatch(/kitchen counter/);
   });
 
-  it('the visualisation prompt keeps the layout', () => {
-    expect(buildVisualisationPrompt(japandi, 'living').prompt).toMatch(/Keep the room layout/);
+  it('the visualisation prompt (v2) keeps the room exactly and is a modern building with a plain 2.5 m ceiling', () => {
+    const p = buildVisualisationPrompt(japandi, 'living', { openingsText: 'Openings (keep exactly): 2 in total.' });
+    expect(p.prompt).toMatch(/Keep the image exactly as it is/);
+    expect(p.prompt).toMatch(/Openings \(keep exactly\): 2 in total\./);
+    expect(p.prompt).toMatch(/modern 2010s French residential block/);
+    expect(p.prompt).toMatch(/flat white ceiling exactly 2\.5 m high with no cornice, no moulding, no ceiling rose/);
+    expect(p.prompt).toMatch(/nothing Haussmannian/);
+    expect(p.prompt).toMatch(/no wall panelling, no boiserie, no gilding/);
+    expect(p.prompt).not.toMatch(/Japandi|oak and ash|rice paper/); // the style's own words are not repeated: they re-introduce what the render does not show
+    expect(p.prompt).toMatch(/No curtains, no drapes/);
+    expect(p.prompt).not.toMatch(/Haussmann style|gilded mouldings/i);
+    expect(p.prompt.length).toBeLessThan(1900);
+    expect(p.negativePrompt).toMatch(/cornice, ceiling rose/);
+    expect(p.negativePrompt).toMatch(/curtains, drapes/);
+  });
+
+  it('an outdoor visualisation stays outdoors; a windowless one gets no window', () => {
+    const b = buildVisualisationPrompt(japandi, 'balcony');
+    expect(b.prompt).toMatch(/OUTDOOR balcony in daylight and it stays outdoors: open sky above, the railing, the facade/);
+    expect(b.prompt).toMatch(/No ceiling, no roof, no indoor corridor/);
+    expect(b.prompt).not.toMatch(/ceiling exactly 2\.5 m/);
+    const w = buildVisualisationPrompt(japandi, 'bathroom', { windowless: true, roomWindowless: true });
+    expect(w.prompt).toMatch(/There is no window, no skylight and no extra door in this picture/);
+    expect(w.prompt).toMatch(/artificial light/);
+    expect(buildVisualisationPrompt(japandi, 'living').prompt).not.toMatch(/There is no window/);
+    // a camera that only looks away from the windows of a room that has some: no closed-room text, daylight stays
+    const away = buildVisualisationPrompt(japandi, 'living', { windowless: true, roomWindowless: false });
+    expect(away.prompt).not.toMatch(/There is no window|artificial light/);
+  });
+
+  it('no reference prompt mentions curtains except to forbid them', () => {
+    for (const s of loadStyles()) {
+      for (const type of ['living', 'bedroom', 'dining', 'office'] as const) {
+        const r = buildReferencePrompt(s.meta, type);
+        expect(r.prompt.replace(/No curtains, no drapes\./g, '')).not.toMatch(/curtain|drape/i);
+        expect(r.negativePrompt).toMatch(/curtains, drapes/);
+      }
+    }
   });
 });

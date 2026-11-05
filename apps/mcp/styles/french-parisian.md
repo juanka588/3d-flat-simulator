@@ -31,7 +31,6 @@ lighting:
     - brass floor and table lamps with fabric shades
     - wall sconces beside the bed or mirror when the catalogue has them
 textiles:
-  - linen curtains floor to ceiling, ivory or sage
   - wool rug in ivory with a fine border
   - velvet cushions in bottle green and mustard
   - white cotton and linen bedding with one throw
@@ -77,7 +76,7 @@ A Parisian pied-à-terre: refined, a little worn-in, never showy. Think Haussman
 Ivory walls, the sofa wall in warm greige or bottle green. Velvet or boucle sofa on a pale rug, marble-look round coffee table, caned armchair, floor lamp in brass. A tall mirror on the wall facing the window. Bistro table with caned chairs in the dining zone, a brass suspension above. Keep the kitchen zone tiles; add a tray, carafe and plants.
 
 ## Chambres
-Cosy and symmetrical: upholstered or wooden bed, two nightstands with matching lamps, linen curtains. Main bedroom wall in sage or greige; second bedroom as a study with a desk and a mirror. Wool rug, one framed print above the bed.
+Cosy and symmetrical: upholstered or wooden bed, two nightstands with matching lamps. Main bedroom wall in sage or greige; second bedroom as a study with a desk and a mirror. Wool rug, one framed print above the bed.
 
 ## Entrée
 A slim console with a round mirror above and a small tray for keys; brass hooks. Keep the 0.9 m walkway.

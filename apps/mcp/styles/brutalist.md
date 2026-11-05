@@ -31,7 +31,6 @@ lighting:
     - keep it warm to soften the concrete
 textiles:
   - heavy grey wool rug, large
-  - thick linen curtains in charcoal
   - one leather or sheepskin throw
   - plain bedding in grey and bone
 decor:
@@ -73,7 +72,7 @@ Austere but warm: a calm, heavy, monastic space. Mass, shadow and texture instea
 Concrete grey walls with one darker wall behind the sofa. Floor: keep the parquet but cover a large part with a heavy grey rug, or use a micro-cement floor zone. Block sofa in anthracite, slab coffee table, one cognac leather chair, steel shelving. Dining: heavy wood table with black chairs under a single dark pendant. Keep the kitchen tiles.
 
 ## Chambres
-Low wide bed in dark wood or grey, grey and bone bedding, charcoal curtains, a slab nightstand. One concrete wall behind the bed. Second room as a work room: steel shelving, a plain desk.
+Low wide bed in dark wood or grey, grey and bone bedding, a slab nightstand. One concrete wall behind the bed. Second room as a work room: steel shelving, a plain desk.
 
 ## Entrée
 A steel or black console, no mirror ornament - a plain rectangular mirror; keep the 0.9 m walkway.

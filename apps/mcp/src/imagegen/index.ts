@@ -5,7 +5,7 @@ export { FakeImageProvider, TINY_PNG_B64 } from './fake';
 export { buildReferencePrompt, buildVisualisationPrompt, plain, plainName, ROOM_TEMPLATES, type BuiltPrompt } from './prompts';
 export { passControlSource } from './passControls';
 export { blendControl, inverseDepthGray } from './controlBlend';
-export { FIDELITY_THRESHOLDS, fidelityRef, scoreFidelity, type Fidelity, type FidelityRef } from './fidelity';
+export { FIDELITY_THRESHOLDS, VISUALISATION_THRESHOLDS, fidelityRef, scoreFidelity, type Fidelity, type FidelityRef, type ScoreOptions } from './fidelity';
 export {
   ControlsUnavailableError,
   getControlImageSource,

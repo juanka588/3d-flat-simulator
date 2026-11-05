@@ -26,7 +26,7 @@ const SEATING = /sofa|couch|armchair|settee|loveseat/i;
 export const ROOM_TEMPLATES: Record<RoomType, RoomTemplate> = {
   living: {
     subject: 'a living room',
-    furnishings: 'a sofa, a coffee table, a rug, a sideboard or media unit, a floor lamp, curtains at the windows, a few plants and books',
+    furnishings: 'a sofa, a coffee table, a rug, a sideboard or media unit, a floor lamp, a few plants and books',
     useForms: true,
     textiles: /curtain|rug|cushion|throw|linen|wool|velvet/i,
     avoid: 'bed, bathtub, toilet, kitchen counter',
@@ -47,7 +47,7 @@ export const ROOM_TEMPLATES: Record<RoomType, RoomTemplate> = {
   },
   bedroom: {
     subject: 'a bedroom',
-    furnishings: 'a double bed with a headboard, bedding, two bedside tables with lamps, a wardrobe, a rug beside the bed, curtains',
+    furnishings: 'a double bed with a headboard, bedding, two bedside tables with lamps, a wardrobe, a rug beside the bed',
     useForms: true,
     textiles: /bed|linen|curtain|rug|throw|cushion|duvet|blanket/i,
     avoid: 'sofa, couch, living room, bathtub, kitchen counter, toilet',
@@ -96,7 +96,9 @@ export const ROOM_TEMPLATES: Record<RoomType, RoomTemplate> = {
   },
 };
 
-const BASE_NEGATIVE = 'text, watermark, logo, people, distorted perspective, blurry, low quality, cartoon, 3d render, sketch, painting';
+const BASE_NEGATIVE = 'text, watermark, logo, people, distorted perspective, blurry, low quality, cartoon, 3d render, sketch, painting, curtains, drapes';
+/** Said in every positive prompt as well: the brief forbids curtains. */
+const NO_CURTAINS = 'No curtains, no drapes.';
 
 const lc = (s: string) => s.replace(/^[A-Z](?![A-Z])/, (c) => c.toLowerCase());
 const clip = (xs: readonly string[], n: number) => xs.slice(0, n).map(lc).join(', ');
@@ -168,8 +170,8 @@ export function buildReferencePrompt(meta: StyleMeta, roomType: RoomType, extra:
   const outdoor = roomType === 'balcony';
   const windowless = Boolean(extra.facts?.windowless) && !outdoor;
   const artificial = windowless && Boolean(extra.facts?.roomWindowless);
-  const textiles = t.textiles ? meta.textiles.filter((x) => t.textiles!.test(x) && !(windowless && /curtain/i.test(x))).map(plain) : [];
-  const furnishings = windowless ? t.furnishings.replace(/,?\s*(and )?curtains at the windows/, '') : t.furnishings;
+  const textiles = t.textiles ? meta.textiles.filter((x) => t.textiles!.test(x) && !/curtain|drape/i.test(x)).map(plain) : [];
+  const furnishings = t.furnishings;
   const fixedOnly = extra.fixedOnly && roomType === 'bathroom' && !kitchenZone;
   const parts: [string, string][] = [
     ['subject', `Professional interior design photograph of ${kitchenZone ? 'the open kitchen of a flat' : t.subject}${extra.kitchenVisible && !kitchenZone ? ' with an open kitchen in the background' : ''}, ${plainName(meta)} style: ${plain(lc(meta.summary)).replace(/\.$/, '')}.`],
@@ -186,6 +188,7 @@ export function buildReferencePrompt(meta: StyleMeta, roomType: RoomType, extra:
     ['textiles', textiles.length ? `Textiles: ${clip(textiles, 3)}.` : ''],
     ['decor', meta.decor.length ? `Decor: ${clip(meta.decor.map(plain), 2)}.` : ''],
     ['lighting', `Lighting: ${artificial ? 'warm artificial light, no daylight' : tone(meta.lighting.kelvin)}, ${clip(meta.lighting.layers.map(plain), 2)}.`],
+    ['nocurtains', NO_CURTAINS],
     ['closing', windowless ? 'Photorealistic, natural materials, sharp focus, shot on a 24 mm lens, architectural magazine quality. The room keeps exactly the layout, walls and doors of the line drawing; do not add, remove or move any door or opening.' : 'Photorealistic, natural materials, sharp focus, shot on a 24 mm lens, architectural magazine quality. The room keeps exactly the layout, walls, windows and doors of the line drawing; do not add, remove, move, widen or heighten any window or door.'],
   ];
   // The image service takes at most 2000 characters: drop the least useful style detail first, never the geometry (openings, fittings, layout).
@@ -200,12 +203,39 @@ export function buildReferencePrompt(meta: StyleMeta, roomType: RoomType, extra:
   return { prompt: [...keep.values()].join(' '), negativePrompt: `${BASE_NEGATIVE}, ${avoid}`.slice(0, MAX_CHARS), roomType };
 }
 
-/** Prompt of the klein edit that turns our clean render into a photograph ("visualisation"). */
-export function buildVisualisationPrompt(meta: StyleMeta, roomType: RoomType): BuiltPrompt {
+/** What the visualisation edit is told about the picture: the openings in view, windowless rooms. */
+export interface VisualisationExtras {
+  /** The camera sees no window: none may appear. */
+  windowless?: boolean | undefined;
+  /** The room itself has no window (lamps only). */
+  roomWindowless?: boolean | undefined;
+  /** Openings of the picture in words (reference/facts.ts `openingsText`). */
+  openingsText?: string | undefined;
+}
+
+const VIS_INDOOR_BUILDING =
+  'The building is a modern 2010s French residential block: a flat white ceiling exactly 2.5 m high with no cornice, no moulding, no ceiling rose, no medallion, no gilded or ornate trim anywhere, smooth plain walls, plain white skirting, standard-height white double-glazed windows and doors. Do not make the room taller, grander or more ornate; nothing Haussmannian or classical.';
+const VIS_OUTDOOR_BUILDING =
+  'This is an OUTDOOR balcony in daylight and it stays outdoors: open sky above, the railing, the facade of the building with its glazed french doors, turf or decking on the floor. No ceiling, no roof, no indoor corridor, no interior walls, no indoor lighting.';
+const VIS_NEGATIVE = 'Haussmann, cornice, ceiling rose, medallion, ceiling moulding, wall panelling, boiserie, gilded trim, gold ornament, ornate, high ceiling, tall windows, extra windows, extra doors, curtains, drapes, new furniture, indoor corridor, changed room proportions';
+
+/**
+ * Prompt of the klein edit that turns our clean render into a photograph ("visualisation"). The edit has no strength knob (the mflux
+ * CLI takes the image and the prompt only; `negativePrompt` is not sent to it), so everything it must keep is said in words and
+ * the result is checked against the render's passes afterwards (`scoreFidelity` with the visualisation rules).
+ */
+export function buildVisualisationPrompt(meta: Pick<StyleMeta, 'lighting'>, roomType: RoomType, extra: VisualisationExtras = {}): BuiltPrompt {
   const t = ROOM_TEMPLATES[roomType] ?? ROOM_TEMPLATES.other;
+  const outdoor = roomType === 'balcony';
+  // only a room that has no window at all is closed and lamp-lit; a camera that merely looks away from the windows keeps the daylight
+  const windowless = Boolean(extra.windowless) && Boolean(extra.roomWindowless) && !outdoor;
+  const light = outdoor ? 'bright natural daylight' : windowless ? 'warm artificial light from lamps and ceiling spots, no daylight' : tone(meta.lighting.kelvin);
+  const keep = `Keep the image exactly as it is: the same camera, the same walls, the same openings (every door, window and passage stays where it is, with the same count, size and shape) and every piece of furniture and every fitting in the same place, shape, size and colour. ${extra.openingsText ?? ''}`.trim();
+  const closed = windowless ? ' There is no window, no skylight and no extra door in this picture: the walls are solid and plain, lit by artificial light only; do not add a window or a door.' : '';
   const prompt =
-    `Turn this 3D render of ${t.subject} into a realistic interior photograph, ${plainName(meta)} style, ${tone(meta.lighting.kelvin)}. ` +
-    `Keep the room layout, camera, walls, windows, doors and every piece of furniture where they are; ${clip(meta.materials, 3)}; palette: ${paletteWords(meta).slice(0, 3).join(', ')}. ` +
-    'Realistic materials, soft shadows, no new objects.';
-  return { prompt, negativePrompt: BASE_NEGATIVE, roomType };
+    `Turn this 3D render of ${outdoor ? 'a small balcony' : t.subject} into a realistic photograph, ${light}. ` +
+    `${keep} Keep every colour, material and finish of the render exactly as drawn (smooth plain walls stay plain: no wall panelling, no boiserie, no gilding, no gold, no brass trim that the render does not show). ` +
+    `${outdoor ? VIS_OUTDOOR_BUILDING : VIS_INDOOR_BUILDING}${closed} ` +
+    `${NO_CURTAINS} Only photographic realism: real materials, soft natural shadows, sharp focus, 24 mm lens. Add no object, no decoration and no new opening.`;
+  return { prompt: prompt.replace(/\s{2,}/g, ' ').trim(), negativePrompt: `${BASE_NEGATIVE}, ${VIS_NEGATIVE}`, roomType };
 }

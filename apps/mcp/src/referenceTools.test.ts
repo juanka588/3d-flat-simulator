@@ -180,7 +180,8 @@ describe('generate_reference (mode visualisation)', () => {
     expect(b.images).toHaveLength(1); // one edit per call, whatever n says
     expect(fake.generated).toHaveLength(0);
     expect(fake.edited[0]).toMatchObject({ seed: 5, model: 'klein-edit', image: { provenance: 'render', data: TINY_PNG_B64 } });
-    expect(fake.edited[0]!.prompt).toMatch(/Keep the room layout/);
+    expect(fake.edited[0]!.prompt).toMatch(/Keep the image exactly as it is/);
+    expect(fake.edited[0]!.prompt).toMatch(/modern 2010s French residential block/);
     expect(calls).toHaveLength(1);
     expect(calls[0]).toMatchObject({ spec: { view: 'walk', roomId: 'sejour', size: { width: 1024, height: 768 } } });
     const texts = (r.content as { type: string; text?: string }[]).filter((c) => c.type === 'text').map((c) => c.text);

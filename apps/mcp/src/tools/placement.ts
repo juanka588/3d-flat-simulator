@@ -666,6 +666,13 @@ async function setItemVariant(ctx: ToolContext, rest: Json, extras: { ifRev: num
   return { ...result, content: result.content.map((c, i) => (i === 0 && c.type === 'text' ? { type: 'text' as const, text: JSON.stringify(next) } : c)), structuredContent: next };
 }
 
+/** The brief excludes this category (FLAT_EXCLUDE_CATEGORIES): a clear refusal, or undefined. A curtain concept counts as category `curtain`. */
+function excludedCategory(ctx: ToolContext, category: string, what: string, at: string): CallToolResult | undefined {
+  const list = ctx.config.excludeCategories;
+  if (!list?.includes(category.toLowerCase())) return undefined;
+  return toolError('invalid_command', `${what}${at} is in the category "${category}", which this brief excludes (${list.join(', ')}): it is not allowed anywhere in this design`, `Leave it out: do not place ${category} items, products or concept shapes (curtains and drapes are never part of this design). Search for something else.`, { errors: [{ code: 'invalid_command', path: 'category', message: `category "${category}" is excluded by the brief` }] });
+}
+
 async function placeItem(ctx: ToolContext, args: Json): Promise<CallToolResult> {
   if (Buffer.byteLength(JSON.stringify(args)) > ctx.limits.maxArgBytes) return toolError('invalid_command', `arguments exceed ${ctx.limits.maxArgBytes} bytes`);
   const split = splitExtras(args, { labelIsExtra: true });
@@ -697,6 +704,10 @@ async function placeItem(ctx: ToolContext, args: Json): Promise<CallToolResult> 
     if (!backref.ok) return backref.result;
     const entry = backref.entry;
     if (entry.concept) {
+      const gen = GENERATORS.get(entry.generator ?? '');
+      const cat = gen ? (gen.id === 'curtains' ? 'curtain' : gen.category) : undefined;
+      const refused = cat ? excludedCategory(ctx, cat, `concept "${gen!.id}"`, at) : undefined;
+      if (refused) return refused;
       const made = conceptItem(working, entry, at, entries.length > 1 ? index : undefined);
       if (!made.ok) return made.result;
       const cmd = { type: 'item.place', item: made.item } as unknown as Command;
@@ -716,6 +727,8 @@ async function placeItem(ctx: ToolContext, args: Json): Promise<CallToolResult> 
     const room = unknownRoom(working, entry.roomId);
     if (room) return room;
     const { record, variant, dims } = prep.data;
+    const refusedCategory = excludedCategory(ctx, record.category, `"${record.name}"`, at);
+    if (refusedCategory) return refusedCategory;
     if (!record.priceTtc) return toolError('invalid_command', `product ${productId} has a non-TTC price and cannot be placed${at}`, 'Budgets count TTC prices only; pick another product.');
     const mounted = effectiveMount(record, entry);
     if (!mounted.ok) return toolError('invalid_command', `${mounted.message}${at}`, 'Remove mount (and elevation), or pick a product that hangs (shelf, mirror, lamp, wall cabinet).', { errors: [{ code: 'invalid_command', path: 'mount', message: 'cannot be hung' }] });

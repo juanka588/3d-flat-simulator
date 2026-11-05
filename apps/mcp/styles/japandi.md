@@ -30,7 +30,7 @@ lighting:
     - one low table lamp per seating area
     - nothing bright or white
 textiles:
-  - washed linen curtains and bedding in oatmeal
+  - washed linen bedding in oatmeal
   - natural jute or wool rug
   - one chunky knit throw
   - undyed cotton cushions
@@ -73,7 +73,7 @@ Quiet, grounded, deliberate. Every object earns its place.
 Sand and rice-white walls. A low linen sofa, a round or rectangular low wood coffee table, a jute rug, a paper floor lantern. A wooden dining table with a bench and two chairs under a paper pendant. Keep the kitchen tiles; a single branch in a ceramic vase.
 
 ## Chambres
-Low platform bed in oak, oatmeal linen bedding, a bench at the foot, one low nightstand each side, linen curtains. Keep walls bare except for one print. The second room: a small low desk and a cushion or stool.
+Low platform bed in oak, oatmeal linen bedding, a bench at the foot, one low nightstand each side. Keep walls bare except for one print. The second room: a small low desk and a cushion or stool.
 
 ## Entrée
 A narrow wooden bench with baskets under it, hooks, a simple mirror; a single stem in a vase.

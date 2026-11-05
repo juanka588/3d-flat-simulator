@@ -32,7 +32,6 @@ lighting:
 textiles:
   - chunky wool throw and knit cushions
   - large flat-weave rug in off-white or grey
-  - linen curtains, sheer white
   - sheepskin on a chair
 decor:
   - botanical or graphic posters in thin oak frames
@@ -64,7 +63,7 @@ searchTerms:
 Light, practical, kind. A flat that feels bigger and calmer in a grey winter.
 
 ## Principles
-- Maximise daylight: pale walls, sheer curtains, mirrors opposite windows.
+- Maximise daylight: pale walls, bare windows, mirrors opposite windows.
 - A restrained palette of white, wood and one muted accent (sage or dusty blue).
 - Natural materials and tactile textiles carry the warmth.
 - Furniture is simple, light on its legs and multi-purpose.
